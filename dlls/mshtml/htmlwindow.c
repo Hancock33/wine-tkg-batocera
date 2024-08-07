@@ -1921,17 +1921,16 @@ static HRESULT WINAPI HTMLWindow5_get_XMLHttpRequest(IHTMLWindow5 *iface, VARIAN
         return S_OK;
     }
 
-    if(!window->xhr_factory) {
+    if(!window->constructors[PROT_XMLHttpRequest]) {
         HRESULT hres;
 
-        hres = HTMLXMLHttpRequestFactory_Create(window, &window->xhr_factory);
-        if(FAILED(hres)) {
+        hres = HTMLXMLHttpRequestFactory_Create(window, &window->constructors[PROT_XMLHttpRequest]);
+        if(FAILED(hres))
             return hres;
-        }
     }
 
     V_VT(p) = VT_DISPATCH;
-    V_DISPATCH(p) = (IDispatch*)&window->xhr_factory->IHTMLXMLHttpRequestFactory_iface;
+    V_DISPATCH(p) = (IDispatch*)&window->constructors[PROT_XMLHttpRequest]->IWineJSDispatchHost_iface;
     IDispatch_AddRef(V_DISPATCH(p));
 
     return S_OK;
@@ -2429,7 +2428,7 @@ static HRESULT WINAPI HTMLWindow7_getComputedStyle(IHTMLWindow7 *iface, IHTMLDOM
         return S_OK;
     }
 
-    hres = create_computed_style(nsstyle, dispex_compat_mode(&This->inner_window->event_target.dispex), p);
+    hres = create_computed_style(nsstyle, &This->inner_window->event_target.dispex, p);
     nsIDOMCSSStyleDeclaration_Release(nsstyle);
     return hres;
 }
@@ -3186,26 +3185,6 @@ static HRESULT WINAPI window_private_get_console(IWineHTMLWindowPrivate *iface, 
     return S_OK;
 }
 
-static HRESULT WINAPI window_private_get_MutationObserver(IWineHTMLWindowPrivate *iface,
-                                                          IDispatch **mutation_observer)
-{
-    HTMLWindow *This = impl_from_IWineHTMLWindowPrivateVtbl(iface);
-    HRESULT hres;
-
-    TRACE("iface %p, mutation_observer %p.\n", iface, mutation_observer);
-
-    if (!This->inner_window->mutation_observer_ctor) {
-        hres = create_mutation_observer_ctor(dispex_compat_mode(&This->inner_window->event_target.dispex),
-                                             &This->inner_window->mutation_observer_ctor);
-        if (FAILED(hres))
-            return hres;
-    }
-
-    IDispatch_AddRef(This->inner_window->mutation_observer_ctor);
-    *mutation_observer = This->inner_window->mutation_observer_ctor;
-    return S_OK;
-}
-
 static const IWineHTMLWindowPrivateVtbl WineHTMLWindowPrivateVtbl = {
     window_private_QueryInterface,
     window_private_AddRef,
@@ -3218,7 +3197,6 @@ static const IWineHTMLWindowPrivateVtbl WineHTMLWindowPrivateVtbl = {
     window_private_cancelAnimationFrame,
     window_private_get_console,
     window_private_matchMedia,
-    window_private_get_MutationObserver
 };
 
 static inline HTMLWindow *impl_from_IWineHTMLWindowCompatPrivateVtbl(IWineHTMLWindowCompatPrivate *iface)
@@ -3505,6 +3483,15 @@ static HRESULT WINAPI WindowDispEx_CallFunction(IWineJSDispatchHost *iface, DISP
                                         id, iid, dp, ret, ei, caller);
 }
 
+static HRESULT WINAPI WindowDispEx_Construct(IWineJSDispatchHost *iface, LCID lcid, DWORD flags, DISPPARAMS *dp, VARIANT *ret,
+                                             EXCEPINFO *ei, IServiceProvider *caller)
+{
+    HTMLOuterWindow *This = impl_from_IWineJSDispatchHost(iface);
+
+    return IWineJSDispatchHost_Construct(&This->base.inner_window->event_target.dispex.IWineJSDispatchHost_iface,
+                                         lcid, flags, dp, ret, ei, caller);
+}
+
 static HRESULT WINAPI WindowDispEx_GetOuterDispatch(IWineJSDispatchHost *iface, IWineJSDispatchHost **ret)
 {
     HTMLOuterWindow *This = impl_from_IWineJSDispatchHost(iface);
@@ -3545,6 +3532,7 @@ static const IWineJSDispatchHostVtbl WindowDispExVtbl = {
     WindowDispEx_DeleteProperty,
     WindowDispEx_ConfigureProperty,
     WindowDispEx_CallFunction,
+    WindowDispEx_Construct,
     WindowDispEx_GetOuterDispatch,
     WindowDispEx_ToString,
 };
@@ -3678,10 +3666,19 @@ static void HTMLWindow_traverse(DispatchEx *dispex, nsCycleCollectionTraversalCa
 {
     HTMLInnerWindow *This = impl_from_DispatchEx(dispex);
     HTMLOuterWindow *child;
+    unsigned int i;
 
     traverse_event_target(&This->event_target, cb);
     LIST_FOR_EACH_ENTRY(child, &This->children, HTMLOuterWindow, sibling_entry)
         note_cc_edge((nsISupports*)&child->base.IHTMLWindow2_iface, "child", cb);
+    for(i = 0; i < ARRAYSIZE(This->prototypes); i++) {
+        if(This->prototypes[i])
+            note_cc_edge((nsISupports*)&This->prototypes[i]->IWineJSDispatchHost_iface, "prototypes", cb);
+    }
+    for(i = 0; i < ARRAYSIZE(This->constructors); i++) {
+        if(This->constructors[i])
+            note_cc_edge((nsISupports*)&This->constructors[i]->IWineJSDispatchHost_iface, "constructors", cb);
+    }
     if(This->doc)
         note_cc_edge((nsISupports*)&This->doc->node.IHTMLDOMNode_iface, "doc", cb);
     if(This->console)
@@ -3690,10 +3687,6 @@ static void HTMLWindow_traverse(DispatchEx *dispex, nsCycleCollectionTraversalCa
         note_cc_edge((nsISupports*)&This->image_factory->IHTMLImageElementFactory_iface, "image_factory", cb);
     if(This->option_factory)
         note_cc_edge((nsISupports*)&This->option_factory->IHTMLOptionElementFactory_iface, "option_factory", cb);
-    if(This->xhr_factory)
-        note_cc_edge((nsISupports*)&This->xhr_factory->IHTMLXMLHttpRequestFactory_iface, "xhr_factory", cb);
-    if(This->mutation_observer_ctor)
-        note_cc_edge((nsISupports*)This->mutation_observer_ctor, "mutation_observer_ctor", cb);
     if(This->screen)
         note_cc_edge((nsISupports*)This->screen, "screen", cb);
     if(This->history)
@@ -3712,11 +3705,17 @@ static void HTMLWindow_traverse(DispatchEx *dispex, nsCycleCollectionTraversalCa
 static void HTMLWindow_unlink(DispatchEx *dispex)
 {
     HTMLInnerWindow *This = impl_from_DispatchEx(dispex);
+    unsigned int i;
 
     TRACE("%p\n", This);
 
     unlink_ref(&This->console);
     detach_inner_window(This);
+
+    for(i = 0; i < ARRAYSIZE(This->prototypes); i++)
+        unlink_ref(&This->prototypes[i]);
+    for(i = 0; i < ARRAYSIZE(This->constructors); i++)
+        unlink_ref(&This->constructors[i]);
 
     if(This->doc) {
         HTMLDocumentNode *doc = This->doc;
@@ -3736,12 +3735,6 @@ static void HTMLWindow_unlink(DispatchEx *dispex)
         This->option_factory = NULL;
         IHTMLOptionElementFactory_Release(&option_factory->IHTMLOptionElementFactory_iface);
     }
-    if(This->xhr_factory) {
-        HTMLXMLHttpRequestFactory *xhr_factory = This->xhr_factory;
-        This->xhr_factory = NULL;
-        IHTMLXMLHttpRequestFactory_Release(&xhr_factory->IHTMLXMLHttpRequestFactory_iface);
-    }
-    unlink_ref(&This->mutation_observer_ctor);
     unlink_ref(&This->screen);
     if(This->history) {
         OmHistory *history = This->history;
@@ -3793,6 +3786,17 @@ static HRESULT HTMLWindow_lookup_dispid(DispatchEx *dispex, const WCHAR *name, D
     return search_window_props(This, name, grfdex, dispid);
 }
 
+static const WCHAR *constructor_names[] = {
+#define X(name) L ## #name,
+    ALL_PROTOTYPES
+#undef X
+};
+
+static int CDECL cmp_name(const void *x, const void *y)
+{
+    return wcscmp(*(const WCHAR **)x, *(const WCHAR **)y);
+}
+
 static HRESULT HTMLWindow_find_dispid(DispatchEx *dispex, const WCHAR *name, DWORD grfdex, DISPID *dispid)
 {
     HTMLInnerWindow *This = impl_from_DispatchEx(dispex);
@@ -3800,6 +3804,26 @@ static HRESULT HTMLWindow_find_dispid(DispatchEx *dispex, const WCHAR *name, DWO
     global_prop_t *prop;
     HTMLElement *elem;
     HRESULT hres;
+
+    if(dispex_compat_mode(dispex) >= COMPAT_MODE_IE9) {
+        const WCHAR **constr_name = bsearch(&name, constructor_names, ARRAYSIZE(constructor_names) ,
+                                            sizeof(constructor_names[0]), cmp_name);
+        if(constr_name) {
+            prototype_id_t id = constr_name - constructor_names + 1;
+            DispatchEx *constr;
+            VARIANT v;
+
+            if(dispex_compat_mode(dispex) >= object_descriptors[id]->min_compat_mode) {
+                hres = get_constructor(This, id, &constr);
+                if(FAILED(hres))
+                    return hres;
+
+                V_VT(&v) = VT_DISPATCH;
+                V_DISPATCH(&v) = (IDispatch *)&constr->IWineJSDispatchHost_iface;
+                return dispex_define_property(&This->event_target.dispex, name, PROPF_WRITABLE | PROPF_CONFIGURABLE, &v, dispid);
+            }
+        }
+    }
 
     hres = get_frame_by_name(This->base.outer_window, name, FALSE, &frame);
     if(SUCCEEDED(hres) && frame) {
@@ -4130,7 +4154,8 @@ static void HTMLWindow_init_dispex_info(dispex_data_t *info, compat_mode_t compa
                                   compat_mode >= COMPAT_MODE_IE11 ? NULL : private_ie10_hooks);
 
     dispex_info_add_interface(info, IHTMLWindow6_tid, window6_hooks);
-    dispex_info_add_interface(info, IHTMLWindow5_tid, NULL);
+    if(compat_mode < COMPAT_MODE_IE9)
+        dispex_info_add_interface(info, IHTMLWindow5_tid, NULL);
     dispex_info_add_interface(info, IHTMLWindow4_tid, compat_mode >= COMPAT_MODE_IE11 ? window4_ie11_hooks : NULL);
     dispex_info_add_interface(info, IHTMLWindow3_tid, compat_mode >= COMPAT_MODE_IE11 ? window3_ie11_hooks : window3_hooks);
     dispex_info_add_interface(info, IHTMLWindow2_tid, compat_mode >= COMPAT_MODE_IE11 ? window2_ie11_hooks : window2_hooks);
@@ -4163,14 +4188,12 @@ static const event_target_vtbl_t HTMLWindow_event_target_vtbl = {
     .set_current_event       = HTMLWindow_set_current_event
 };
 
-static const tid_t HTMLWindow_iface_tids[] = { 0 };
-
-static dispex_static_data_t HTMLWindow_dispex = {
-    "Window",
-    &HTMLWindow_event_target_vtbl.dispex_vtbl,
-    DispHTMLWindow2_tid,
-    HTMLWindow_iface_tids,
-    HTMLWindow_init_dispex_info
+dispex_static_data_t Window_dispex = {
+    .name       = "Window",
+    .id         = PROT_Window,
+    .vtbl       = &HTMLWindow_event_target_vtbl.dispex_vtbl,
+    .disp_tid   = DispHTMLWindow2_tid,
+    .init_info  = HTMLWindow_init_dispex_info,
 };
 
 static nsresult NSAPI outer_window_traverse(void *ccp, void *p, nsCycleCollectionTraversalCallback *cb)
@@ -4308,7 +4331,7 @@ static HRESULT create_inner_window(HTMLOuterWindow *outer_window, IMoniker *mon,
     window->base.outer_window = outer_window;
     window->base.inner_window = window;
 
-    init_event_target(&window->event_target, &HTMLWindow_dispex, NULL);
+    init_event_target(&window->event_target, &Window_dispex, NULL);
 
     window->task_magic = get_task_target_magic();
 

@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at 06d80381 Rebase against 1dfac2a252d0036c3bae08bf47f00582343a80fb.
-HEAD is now at eb7bbf9858b mmdevapi: Remove unused critical section from MMDevice.
+HEAD is now at d2636c43 Rebase against a891fcf66751921cf81db294b09a696c6b6999b8.
+HEAD is now at a891fcf6675 mshtml: Add support for MutationObserver consturctor and prototype objects.
 
 240556e2b8cb94fc9cc85949b7e043f392b1802a reverted 
 Auto-merging dlls/kernel32/kernel32.spec
@@ -412,8 +412,8 @@ Hunk #4 succeeded at 891 (offset -6 lines).
 patching file dlls/ntdll/unix/fsync.c
 patching file dlls/ntdll/unix/fsync.h
 patching file dlls/ntdll/unix/loader.c
-Hunk #1 succeeded at 89 with fuzz 2 (offset 2 lines).
-Hunk #2 succeeded at 1858 with fuzz 1 (offset 292 lines).
+Hunk #1 succeeded at 91 with fuzz 2 (offset 4 lines).
+Hunk #2 succeeded at 1860 with fuzz 1 (offset 294 lines).
 patching file dlls/ntdll/unix/server.c
 Hunk #1 succeeded at 84 (offset -11 lines).
 Hunk #2 succeeded at 1883 with fuzz 2 (offset 184 lines).
@@ -552,7 +552,7 @@ Hunk #8 succeeded at 826 (offset 132 lines).
 patching file server/process.h
 Hunk #1 succeeded at 87 with fuzz 2 (offset -12 lines).
 patching file server/protocol.def
-Hunk #1 succeeded at 4022 (offset 256 lines).
+Hunk #1 succeeded at 4023 (offset 257 lines).
 patching file server/queue.c
 Hunk #1 succeeded at 45 (offset 1 line).
 Hunk #2 succeeded at 138 (offset -10 lines).
@@ -657,10 +657,10 @@ Hunk #14 succeeded at 1072 (offset -1 lines).
 Hunk #15 succeeded at 1092 (offset -1 lines).
 Hunk #16 succeeded at 1137 (offset -1 lines).
 patching file dlls/ntdll/unix/loader.c
-Hunk #1 succeeded at 1037 with fuzz 2 (offset -991 lines).
-Hunk #2 succeeded at 1886 (offset -183 lines).
+Hunk #1 succeeded at 1039 with fuzz 2 (offset -989 lines).
+Hunk #2 succeeded at 1888 (offset -181 lines).
 patching file dlls/ntdll/unix/unix_private.h
-Hunk #1 succeeded at 190 with fuzz 1 (offset 44 lines).
+Hunk #1 succeeded at 189 with fuzz 1 (offset 43 lines).
 patching file include/config.h.in
 Hunk #1 succeeded at 156 (offset -32 lines).
 patching file server/fsync.c
@@ -695,9 +695,10 @@ Hunk #4 succeeded at 1860 (offset 35 lines).
 Hunk #5 succeeded at 1879 (offset 35 lines).
 Hunk #6 succeeded at 1887 (offset 35 lines).
 patching file dlls/winex11.drv/bitblt.c
-Hunk #1 succeeded at 2000 with fuzz 1 (offset -263 lines).
+Hunk #1 FAILED at 2263.
+1 out of 1 hunk FAILED -- saving rejects to file dlls/winex11.drv/bitblt.c.rej
 patching file dlls/winex11.drv/x11drv.h
-Hunk #1 succeeded at 653 (offset 4 lines).
+Hunk #1 succeeded at 651 (offset 2 lines).
 patching file include/wine/vulkan_driver.h
 
 LAA-unix-staging.patch -- ( Applied large address aware override support (legacy) )
@@ -710,7 +711,7 @@ Hunk #1 succeeded at 1734 (offset 109 lines).
 patching file dlls/ntdll/unix/server.c
 Hunk #1 succeeded at 1718 (offset 247 lines).
 patching file dlls/ntdll/unix/unix_private.h
-Hunk #1 succeeded at 578 with fuzz 2 (offset 108 lines).
+Hunk #1 succeeded at 577 with fuzz 2 (offset 107 lines).
 patching file dlls/ntdll/unix/virtual.c
 Hunk #1 succeeded at 3447 with fuzz 1 (offset 27 lines).
 patching file dlls/ntdll/loader.c
@@ -718,9 +719,9 @@ Hunk #1 succeeded at 3457 (offset -18 lines).
 patching file dlls/ntdll/ntdll.spec
 Hunk #1 succeeded at 1735 (offset 21 lines).
 patching file dlls/ntdll/unix/loader.c
-Hunk #1 succeeded at 1011 (offset -1093 lines).
+Hunk #1 succeeded at 1013 (offset -1091 lines).
 patching file dlls/ntdll/unix/unix_private.h
-Hunk #1 succeeded at 368 with fuzz 1 (offset 46 lines).
+Hunk #1 succeeded at 367 with fuzz 1 (offset 45 lines).
 patching file dlls/ntdll/unix/virtual.c
 Hunk #1 succeeded at 3507 with fuzz 1 (offset -1 lines).
 patching file dlls/ntdll/unixlib.h
@@ -753,7 +754,7 @@ patching file programs/dxdiag/output.c
 Hunk #1 succeeded at 149 with fuzz 1 (offset -20 lines).
 Hunk #2 succeeded at 211 (offset -20 lines).
 patching file tools/makedep.c
-Hunk #1 succeeded at 3496 with fuzz 1 (offset 251 lines).
+Hunk #1 succeeded at 3498 with fuzz 1 (offset 253 lines).
 patching file dlls/dxgi/adapter.c
 Hunk #1 succeeded at 171 with fuzz 1 (offset 10 lines).
 patching file dlls/dsound/dsound.c
@@ -768,8 +769,8 @@ Hunk #3 succeeded at 194 (offset -3 lines).
 patching file dlls/dxgi/adapter.c
 Hunk #1 succeeded at 210 (offset 10 lines).
 patching file dlls/kernelbase/sync.c
-Hunk #1 succeeded at 1172 (offset 212 lines).
-Hunk #2 succeeded at 1194 (offset 212 lines).
+Hunk #1 succeeded at 1198 (offset 238 lines).
+Hunk #2 succeeded at 1220 (offset 238 lines).
 patching file dlls/ntdll/unix/file.c
 Hunk #1 succeeded at 4598 (offset 1005 lines).
 patching file dlls/ntdll/unix/virtual.c
@@ -803,7 +804,7 @@ patching file server/queue.c
 Hunk #1 succeeded at 2020 with fuzz 2 (offset 379 lines).
 patching file configure
 Hunk #1 succeeded at 1660 (offset -106 lines).
-Hunk #2 succeeded at 23097 (offset 1517 lines).
+Hunk #2 succeeded at 23095 (offset 1515 lines).
 patching file configure.ac
 Hunk #1 succeeded at 3476 (offset -521 lines).
 patching file programs/dotnetfx35/Makefile.in
@@ -832,9 +833,9 @@ Hunk #3 succeeded at 1720 (offset 35 lines).
 patching file include/appmodel.h
 Hunk #1 succeeded at 89 (offset 7 lines).
 patching file dlls/kernel32/kernel32.spec
-Hunk #1 succeeded at 1164 (offset 12 lines).
+Hunk #1 succeeded at 1166 (offset 14 lines).
 patching file dlls/kernelbase/kernelbase.spec
-Hunk #1 succeeded at 1043 (offset 31 lines).
+Hunk #1 succeeded at 1045 (offset 33 lines).
 patching file dlls/kernelbase/version.c
 Hunk #1 succeeded at 1632 (offset 35 lines).
 Hunk #2 succeeded at 1732 (offset 35 lines).
@@ -903,10 +904,10 @@ Hunk #1 succeeded at 36 (offset 8 lines).
 Hunk #2 succeeded at 456 (offset 81 lines).
 Hunk #3 succeeded at 506 (offset 81 lines).
 patching file dlls/ntdll/unix/loader.c
-Hunk #1 succeeded at 1041 (offset -305 lines).
-Hunk #2 succeeded at 1063 (offset -305 lines).
+Hunk #1 succeeded at 1043 (offset -303 lines).
+Hunk #2 succeeded at 1065 (offset -303 lines).
 patching file dlls/ntdll/unix/unix_private.h
-Hunk #1 succeeded at 192 with fuzz 2 (offset 17 lines).
+Hunk #1 succeeded at 191 with fuzz 2 (offset 16 lines).
 patching file dlls/ntdll/unix/virtual.c
 Hunk #1 succeeded at 1110 (offset 3 lines).
 Hunk #2 succeeded at 5042 (offset 311 lines).
@@ -918,7 +919,7 @@ patching file dlls/winex11.drv/window.c
 Hunk #1 succeeded at 2830 (offset 215 lines).
 Hunk #2 succeeded at 2864 (offset 215 lines).
 patching file dlls/win32u/input.c
-Hunk #1 succeeded at 2538 with fuzz 2 (offset 53 lines).
+Hunk #1 succeeded at 2544 with fuzz 2 (offset 59 lines).
 patching file dlls/winex11.drv/event.c
 Hunk #1 succeeded at 1087 (offset -42 lines).
 Hunk #2 succeeded at 1328 (offset -40 lines).
@@ -927,7 +928,7 @@ Hunk #1 succeeded at 1302 (offset 42 lines).
 Hunk #2 succeeded at 1319 (offset 42 lines).
 Hunk #3 succeeded at 1893 (offset 132 lines).
 patching file dlls/winex11.drv/x11drv.h
-Hunk #1 succeeded at 625 (offset 4 lines).
+Hunk #1 succeeded at 623 (offset 2 lines).
 patching file dlls/winex11.drv/window.c
 Hunk #1 succeeded at 1405 (offset -76 lines).
 Hunk #2 succeeded at 1442 (offset -88 lines).
@@ -945,28 +946,29 @@ Hunk #1 succeeded at 1304 (offset -107 lines).
 
 proton-cpu-topology-overrides.patch -- ( Enable Proton's CPU topology override support )
 patching file dlls/ntdll/unix/system.c
-Hunk #1 succeeded at 943 with fuzz 2 (offset 113 lines).
-Hunk #2 succeeded at 1009 with fuzz 1 (offset 106 lines).
-Hunk #3 succeeded at 1015 with fuzz 1 (offset 104 lines).
+Hunk #1 succeeded at 945 with fuzz 2 (offset 115 lines).
+Hunk #2 succeeded at 1011 with fuzz 1 (offset 108 lines).
+Hunk #3 succeeded at 1017 with fuzz 1 (offset 106 lines).
 patching file dlls/ntdll/unix/server.c
 Hunk #1 succeeded at 1707 with fuzz 1 (offset 240 lines).
 Hunk #2 succeeded at 1732 (offset 243 lines).
 patching file dlls/ntdll/unix/system.c
 Hunk #1 succeeded at 33 with fuzz 2 (offset 4 lines).
-Hunk #2 succeeded at 229 with fuzz 2 (offset 63 lines).
-Hunk #3 succeeded at 621 (offset 139 lines).
-Hunk #4 succeeded at 1064 with fuzz 1 (offset 33 lines).
-Hunk #5 succeeded at 1077 with fuzz 2 (offset 26 lines).
-Hunk #6 succeeded at 1106 (offset 28 lines).
-Hunk #7 succeeded at 1141 (offset -17 lines).
-Hunk #8 succeeded at 1186 (offset -18 lines).
-Hunk #9 succeeded at 1199 with fuzz 2 (offset -17 lines).
-Hunk #10 succeeded at 1219 (offset -31 lines).
-Hunk #11 succeeded at 1445 with fuzz 1 (offset 41 lines).
+Hunk #2 FAILED at 166.
+Hunk #3 succeeded at 616 (offset 140 lines).
+Hunk #4 succeeded at 1060 with fuzz 1 (offset 35 lines).
+Hunk #5 succeeded at 1073 with fuzz 2 (offset 28 lines).
+Hunk #6 succeeded at 1102 (offset 30 lines).
+Hunk #7 succeeded at 1137 (offset -15 lines).
+Hunk #8 succeeded at 1182 (offset -16 lines).
+Hunk #9 succeeded at 1195 with fuzz 2 (offset -15 lines).
+Hunk #10 succeeded at 1215 (offset -29 lines).
+Hunk #11 succeeded at 1470 with fuzz 1 (offset 72 lines).
+1 out of 11 hunks FAILED -- saving rejects to file dlls/ntdll/unix/system.c.rej
 patching file dlls/ntdll/unix/thread.c
 Hunk #1 succeeded at 2563 (offset 1240 lines).
 patching file dlls/ntdll/unix/unix_private.h
-Hunk #1 succeeded at 363 (offset 84 lines).
+Hunk #1 succeeded at 362 (offset 83 lines).
 patching file include/wine/server_protocol.h
 Hunk #1 succeeded at 818 with fuzz 2 (offset 24 lines).
 Hunk #2 succeeded at 1082 with fuzz 2 (offset 181 lines).
@@ -1041,8 +1043,8 @@ Hunk #3 succeeded at 571 (offset -2 lines).
 patching file programs/belauncher/Makefile.in
 patching file programs/belauncher/main.c
 patching file dlls/ntdll/unix/loader.c
-Hunk #1 succeeded at 371 (offset 31 lines).
-Hunk #2 succeeded at 391 (offset 31 lines).
+Hunk #1 succeeded at 373 (offset 33 lines).
+Hunk #2 succeeded at 393 (offset 33 lines).
 patching file programs/belauncher/Makefile.in
 patching file programs/belauncher/main.c
 patching file programs/belauncher/main.c
@@ -1056,9 +1058,9 @@ Hunk #4 succeeded at 1126 (offset -1 lines).
 
 proton-eac_bridge.patch -- ( Add support for Proton's EAC bridge )
 patching file dlls/ntdll/unix/loader.c
-Hunk #1 succeeded at 371 (offset 31 lines).
-Hunk #2 succeeded at 379 (offset 31 lines).
-Hunk #3 succeeded at 412 (offset 31 lines).
+Hunk #1 succeeded at 373 (offset 33 lines).
+Hunk #2 succeeded at 381 (offset 33 lines).
+Hunk #3 succeeded at 414 (offset 33 lines).
 patching file dlls/ntdll/unix/loadorder.c
 patching file dlls/kernelbase/process.c
 Hunk #1 succeeded at 504 (offset -2 lines).

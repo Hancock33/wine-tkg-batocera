@@ -2413,6 +2413,7 @@ HRESULT init_dispex(jsdisp_t *dispex, script_ctx_t *ctx, const builtin_info_t *b
     dispex->ref = 1;
     dispex->builtin_info = builtin_info;
     dispex->extensible = TRUE;
+    dispex->is_constructor = builtin_info->class == JSCLASS_FUNCTION;
     dispex->prop_cnt = 0;
 
     dispex->props = calloc(1, sizeof(dispex_prop_t)*(dispex->buf_size=4));
@@ -3495,21 +3496,29 @@ static const builtin_info_t HostObject_info = {
     .to_string   = HostObject_to_string,
 };
 
-HRESULT init_host_object(script_ctx_t *ctx, IWineJSDispatchHost *host_iface, IWineJSDispatch **ret)
+HRESULT init_host_object(script_ctx_t *ctx, IWineJSDispatchHost *host_iface, IWineJSDispatch *prototype_iface,
+                         UINT32 flags, IWineJSDispatch **ret)
 {
     HostObject *host_obj;
+    jsdisp_t *prototype;
     HRESULT hres;
 
     if(!(host_obj = calloc(1, sizeof(*host_obj))))
         return E_OUTOFMEMORY;
 
-    hres = init_dispex(&host_obj->jsdisp, ctx, &HostObject_info, ctx->object_prototype);
+    if(prototype_iface)
+        prototype = impl_from_IWineJSDispatch(prototype_iface);
+    else
+        prototype = ctx->object_prototype;
+    hres = init_dispex(&host_obj->jsdisp, ctx, &HostObject_info, prototype);
     if(FAILED(hres)) {
         free(host_obj);
         return hres;
     }
 
     host_obj->host_iface = host_iface;
+    if(flags & HOSTOBJ_CONSTRUCTOR)
+        host_obj->jsdisp.is_constructor = TRUE;
     *ret = &host_obj->jsdisp.IWineJSDispatch_iface;
     return S_OK;
 }

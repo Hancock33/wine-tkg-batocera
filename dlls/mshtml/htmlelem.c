@@ -2611,7 +2611,7 @@ static HRESULT WINAPI HTMLElement_get_children(IHTMLElement *iface, IDispatch **
         return E_FAIL;
     }
 
-    *p = (IDispatch*)create_collection_from_nodelist(nsnode_list, This->node.doc->document_mode);
+    *p = (IDispatch*)create_collection_from_nodelist(nsnode_list, &This->node.event_target.dispex);
 
     nsIDOMNodeList_Release(nsnode_list);
     return S_OK;
@@ -3792,7 +3792,7 @@ static HRESULT WINAPI HTMLElement2_getElementsByTagName(IHTMLElement2 *iface, BS
     TRACE("(%p)->(%s %p)\n", This, debugstr_w(v), pelColl);
 
     if(!This->dom_element) {
-        *pelColl = create_collection_from_htmlcol(NULL, This->node.doc->document_mode);
+        *pelColl = create_collection_from_htmlcol(NULL, &This->node.event_target.dispex);
         return S_OK;
     }
 
@@ -3804,7 +3804,7 @@ static HRESULT WINAPI HTMLElement2_getElementsByTagName(IHTMLElement2 *iface, BS
         return E_FAIL;
     }
 
-    *pelColl = create_collection_from_htmlcol(nscol, dispex_compat_mode(&This->node.event_target.dispex));
+    *pelColl = create_collection_from_htmlcol(nscol, &This->node.event_target.dispex);
     nsIDOMHTMLCollection_Release(nscol);
     return S_OK;
 }
@@ -4820,7 +4820,7 @@ static HRESULT WINAPI HTMLElement6_getElementsByClassName(IHTMLElement6 *iface, 
         }
     }
 
-    *pel = create_collection_from_htmlcol(nscol, dispex_compat_mode(&This->node.event_target.dispex));
+    *pel = create_collection_from_htmlcol(nscol, &This->node.event_target.dispex);
     nsIDOMHTMLCollection_Release(nscol);
     return S_OK;
 }
@@ -5964,7 +5964,7 @@ static HRESULT WINAPI ElementSelector_querySelectorAll(IElementSelector *iface, 
         return map_nsresult(nsres);
     }
 
-    hres = create_child_collection(node_list, dispex_compat_mode(&This->node.event_target.dispex), pel);
+    hres = create_child_collection(node_list, &This->node.event_target.dispex, pel);
     nsIDOMNodeList_Release(node_list);
     return hres;
 }
@@ -7235,12 +7235,20 @@ static const IWineHTMLElementPrivateVtbl WineHTMLElementPrivateVtbl = {
     htmlelement_private_get_classList,
 };
 
-static dispex_static_data_t HTMLElement_dispex = {
-    "HTMLElement",
-    &HTMLElement_event_target_vtbl.dispex_vtbl,
-    DispHTMLUnknownElement_tid,
-    HTMLElement_iface_tids,
-    HTMLElement_init_dispex_info
+dispex_static_data_t Element_dispex = {
+    .name         = "Element",
+    .id           = PROT_Element,
+    .prototype_id = PROT_Node,
+};
+
+dispex_static_data_t HTMLElement_dispex = {
+    .name         = "HTMLElement",
+    .id           = PROT_HTMLElement,
+    .prototype_id = PROT_Element,
+    .vtbl         = &HTMLElement_event_target_vtbl.dispex_vtbl,
+    .disp_tid     = DispHTMLUnknownElement_tid,
+    .iface_tids   = HTMLElement_iface_tids,
+    .init_info    = HTMLElement_init_dispex_info,
 };
 
 static dispex_static_data_t HTMLUnknownElement_dispex = {
