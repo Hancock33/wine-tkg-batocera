@@ -462,7 +462,6 @@ HWND WINAPI NtUserSetParent( HWND hwnd, HWND parent )
     context = set_thread_dpi_awareness_context( get_window_dpi_awareness_context( hwnd ));
 
     user_driver->pSetParent( full_handle, parent, old_parent );
-    vulkan_set_parent( full_handle, parent, old_parent );
 
     winpos.hwnd = hwnd;
     winpos.hwndInsertAfter = HWND_TOP;
@@ -1770,6 +1769,7 @@ static void update_surface_region( HWND hwnd )
         region = NtGdiCreateRectRgn( 0, 0, visible.right - visible.left, visible.bottom - visible.top );
         NtGdiCombineRgn( shape, shape, region, RGN_AND );
         if (win->dwExStyle & WS_EX_LAYOUTRTL) NtUserMirrorRgn( hwnd, shape );
+        NtGdiDeleteObjectApp( region );
     }
     window_surface_set_shape( win->surface, shape );
 
@@ -1780,14 +1780,12 @@ static void update_surface_region( HWND hwnd )
         NtGdiOffsetRgn( region, -visible.left, -visible.top );
         if (shape) NtGdiCombineRgn( region, region, shape, RGN_AND );
         window_surface_set_clip( win->surface, region );
+        NtGdiDeleteObjectApp( region );
     }
 
 done:
     if (shape) NtGdiDeleteObjectApp( shape );
     release_win_ptr( win );
-
-    vulkan_set_region( hwnd, region );
-    if (region) NtGdiDeleteObjectApp( region );
 }
 
 

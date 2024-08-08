@@ -896,12 +896,6 @@ struct directory_entry
     /* VARARG(type,unicode_str,type_len); */
 };
 
-struct cpu_topology_override
-{
-    unsigned int cpu_count;
-    unsigned char host_cpu_id[64];
-};
-
 /****************************************************************/
 /* shared session mapping structures */
 
@@ -1026,7 +1020,6 @@ typedef struct
 
 /* Signal the end of the process initialization */
 @REQ(init_process_done)
-    VARARG(cpu_override,cpu_topology_override); /* Overridden CPUs to host CPUs mapping. */
     client_ptr_t teb;          /* TEB of new thread (in process address space) */
     client_ptr_t peb;          /* PEB of new process (in process address space) */
     client_ptr_t ldt_copy;     /* address of LDT copy (in process address space) */

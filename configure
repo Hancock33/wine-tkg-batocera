@@ -998,7 +998,6 @@ enable_atl80
 enable_atl90
 enable_atlthunk
 enable_atmlib
-enable_audioses
 enable_authz
 enable_avicap32
 enable_avifil32
@@ -1662,7 +1661,6 @@ enable_control
 enable_cscript
 enable_dism
 enable_dllhost
-enable_dotnetfx35
 enable_dplaysvr
 enable_dpnsvr
 enable_dpvsetup
@@ -22090,7 +22088,6 @@ wine_fn_config_makefile dlls/atl90 enable_atl90
 wine_fn_config_makefile dlls/atlthunk enable_atlthunk
 wine_fn_config_makefile dlls/atlthunk/tests enable_tests
 wine_fn_config_makefile dlls/atmlib enable_atmlib
-wine_fn_config_makefile dlls/audioses enable_audioses
 wine_fn_config_makefile dlls/authz enable_authz
 wine_fn_config_makefile dlls/avicap32 enable_avicap32
 wine_fn_config_makefile dlls/avifil32 enable_avifil32
@@ -23101,7 +23098,6 @@ wine_fn_config_makefile programs/control enable_control
 wine_fn_config_makefile programs/cscript enable_cscript
 wine_fn_config_makefile programs/dism enable_dism
 wine_fn_config_makefile programs/dllhost enable_dllhost
-wine_fn_config_makefile programs/dotnetfx35 enable_dotnetfx35
 wine_fn_config_makefile programs/dplaysvr enable_dplaysvr
 wine_fn_config_makefile programs/dpnsvr enable_dpnsvr
 wine_fn_config_makefile programs/dpvsetup enable_dpvsetup
@@ -23322,7 +23318,7 @@ maintainer-clean::
 
 as_fn_append wine_rules "
 dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-9.14.r3.gd2636c43\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging Esync Fsync )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
+	@version=\`(echo \"wine-9.14.r4.gc23ee1bf\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging Esync Fsync )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$@) || echo \$\$build >\$@ || (rm -f \$@ && exit 1)
 programs/winetest/build.nfo:

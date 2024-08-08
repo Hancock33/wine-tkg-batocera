@@ -40842,7 +40842,7 @@ static NTSTATUS thunk64_vkGetCalibratedTimestampsEXT(void *args)
 
     TRACE("%p, %u, %p, %p, %p\n", params->device, params->timestampCount, params->pTimestampInfos, params->pTimestamps, params->pMaxDeviation);
 
-    params->result = wine_device_from_handle(params->device)->funcs.p_vkGetCalibratedTimestampsEXT(wine_device_from_handle(params->device)->host_device, params->timestampCount, params->pTimestampInfos, params->pTimestamps, params->pMaxDeviation);
+    params->result = wine_vkGetCalibratedTimestampsEXT(params->device, params->timestampCount, params->pTimestampInfos, params->pTimestamps, params->pMaxDeviation);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -40866,7 +40866,7 @@ static NTSTATUS thunk32_vkGetCalibratedTimestampsEXT(void *args)
 
     init_conversion_context(ctx);
     pTimestampInfos_host = convert_VkCalibratedTimestampInfoKHR_array_win32_to_host(ctx, (const VkCalibratedTimestampInfoKHR32 *)UlongToPtr(params->pTimestampInfos), params->timestampCount);
-    params->result = wine_device_from_handle((VkDevice)UlongToPtr(params->device))->funcs.p_vkGetCalibratedTimestampsEXT(wine_device_from_handle((VkDevice)UlongToPtr(params->device))->host_device, params->timestampCount, pTimestampInfos_host, (uint64_t *)UlongToPtr(params->pTimestamps), (uint64_t *)UlongToPtr(params->pMaxDeviation));
+    params->result = wine_vkGetCalibratedTimestampsEXT((VkDevice)UlongToPtr(params->device), params->timestampCount, pTimestampInfos_host, (uint64_t *)UlongToPtr(params->pTimestamps), (uint64_t *)UlongToPtr(params->pMaxDeviation));
     free_conversion_context(ctx);
     return STATUS_SUCCESS;
 }

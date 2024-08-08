@@ -4022,6 +4022,20 @@ VkResult WINAPI vkGetBufferOpaqueCaptureDescriptorDataEXT(VkDevice device, const
     return params.result;
 }
 
+VkResult WINAPI vkGetCalibratedTimestampsEXT(VkDevice device, uint32_t timestampCount, const VkCalibratedTimestampInfoKHR *pTimestampInfos, uint64_t *pTimestamps, uint64_t *pMaxDeviation)
+{
+    struct vkGetCalibratedTimestampsEXT_params params;
+    NTSTATUS status;
+    params.device = device;
+    params.timestampCount = timestampCount;
+    params.pTimestampInfos = pTimestampInfos;
+    params.pTimestamps = pTimestamps;
+    params.pMaxDeviation = pMaxDeviation;
+    status = UNIX_CALL(vkGetCalibratedTimestampsEXT, &params);
+    assert(!status && "vkGetCalibratedTimestampsEXT");
+    return params.result;
+}
+
 VkResult WINAPI vkGetCalibratedTimestampsKHR(VkDevice device, uint32_t timestampCount, const VkCalibratedTimestampInfoKHR *pTimestampInfos, uint64_t *pTimestamps, uint64_t *pMaxDeviation)
 {
     struct vkGetCalibratedTimestampsKHR_params params;

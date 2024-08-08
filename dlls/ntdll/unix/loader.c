@@ -1085,7 +1085,6 @@ const unixlib_entry_t unix_call_wow64_funcs[] =
 
 BOOL ac_odyssey;
 BOOL fsync_simulate_sched_quantum;
-BOOL simulate_writecopy;
 
 static void hacks_init(void)
 {
@@ -1106,10 +1105,6 @@ static void hacks_init(void)
         fsync_simulate_sched_quantum = !!strstr(main_argv[1], upc_exe);
     if (fsync_simulate_sched_quantum)
         ERR("HACK: Simulating sched quantum in fsync.\n");
-
-    env_str = getenv("WINE_SIMULATE_WRITECOPY");
-    if (env_str) simulate_writecopy = atoi(env_str);
-    else if (main_argc > 1 && strstr(main_argv[1], "UplayWebCore.exe")) simulate_writecopy = TRUE;
 
     env_str = getenv("SteamGameId");
     if (env_str && !strcmp(env_str, "50130"))

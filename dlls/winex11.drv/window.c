@@ -1267,9 +1267,6 @@ static void map_window( HWND hwnd, DWORD new_style )
             update_net_wm_states( data );
             sync_window_style( data );
             XMapWindow( data->display, data->whole_window );
-            /* Mutter always unminimizes windows when handling map requests. Restore iconic state */
-            if (new_style & WS_MINIMIZE)
-                XIconifyWindow( data->display, data->whole_window, data->vis.screen );
             XFlush( data->display );
             if (data->surface && data->vis.visualid != default_visual.visualid)
                 window_surface_flush( data->surface );
@@ -1305,7 +1302,6 @@ static void unmap_window( HWND hwnd )
 
         data->mapped = FALSE;
         data->net_wm_state = 0;
-        data->pending_fullscreen = FALSE;
     }
     release_win_data( data );
 }
@@ -1322,7 +1318,6 @@ void make_window_embedded( struct x11drv_win_data *data )
         if (!data->managed) XUnmapWindow( data->display, data->whole_window );
         else XWithdrawWindow( data->display, data->whole_window, data->vis.screen );
         data->net_wm_state = 0;
-        data->pending_fullscreen = FALSE;
     }
     data->embedded = TRUE;
     data->managed = TRUE;
@@ -1408,17 +1403,16 @@ void X11DRV_X_to_window_rect( struct x11drv_win_data *data, RECT *rect, int x, i
  *
  * Synchronize the X window position with the Windows one
  */
-static HWND sync_window_position( struct x11drv_win_data *data,
+static void sync_window_position( struct x11drv_win_data *data,
                                   UINT swp_flags, const RECT *old_window_rect,
                                   const RECT *old_whole_rect, const RECT *old_client_rect )
 {
     DWORD style = NtUserGetWindowLongW( data->hwnd, GWL_STYLE );
     DWORD ex_style = NtUserGetWindowLongW( data->hwnd, GWL_EXSTYLE );
-    HWND prev_window = NULL;
     XWindowChanges changes;
     unsigned int mask = 0;
 
-    if (data->managed && data->iconic) return NULL;
+    if (data->managed && data->iconic) return;
 
     /* resizing a managed maximized window is not allowed */
     if (!(style & WS_MAXIMIZE) || !data->managed)
@@ -1445,10 +1439,9 @@ static HWND sync_window_position( struct x11drv_win_data *data,
     {
         /* find window that this one must be after */
         HWND prev = NtUserGetWindowRelative( data->hwnd, GW_HWNDPREV );
-
         while (prev && !(NtUserGetWindowLongW( prev, GWL_STYLE ) & WS_VISIBLE))
             prev = NtUserGetWindowRelative( prev, GW_HWNDPREV );
-        if (!(prev_window = prev))  /* top child */
+        if (!prev)  /* top child */
         {
             changes.stack_mode = Above;
             mask |= CWStackMode;
@@ -1482,8 +1475,6 @@ static HWND sync_window_position( struct x11drv_win_data *data,
            (int)(data->whole_rect.right - data->whole_rect.left),
            (int)(data->whole_rect.bottom - data->whole_rect.top),
            changes.sibling, mask, data->configure_serial );
-
-    return prev_window;
 }
 
 
@@ -1500,21 +1491,8 @@ static void sync_client_position( struct x11drv_win_data *data,
 
     if (!data->client_window) return;
 
-    if (data->whole_window)
-    {
-        changes.x = data->client_rect.left - data->whole_rect.left;
-        changes.y = data->client_rect.top - data->whole_rect.top;
-    }
-    else
-    {
-        HWND toplevel = NtUserGetAncestor( data->hwnd, GA_ROOT );
-        POINT pos = {data->client_rect.left, data->client_rect.top};
-
-        NtUserMapWindowPoints( toplevel, toplevel, &pos, 1, 0 /* per-monitor DPI */ );
-        changes.x = pos.x;
-        changes.y = pos.y;
-    }
-
+    changes.x      = data->client_rect.left - data->whole_rect.left;
+    changes.y      = data->client_rect.top - data->whole_rect.top;
     changes.width  = min( max( 1, data->client_rect.right - data->client_rect.left ), 65535 );
     changes.height = min( max( 1, data->client_rect.bottom - data->client_rect.top ), 65535 );
 
@@ -1666,8 +1644,11 @@ void detach_client_window( struct x11drv_win_data *data, Window client_window )
 
     TRACE( "%p/%lx detaching client window %lx\n", data->hwnd, data->whole_window, client_window );
 
-    client_window_events_disable( data, client_window );
-    XReparentWindow( gdi_display, client_window, get_dummy_parent(), 0, 0 );
+    if (data->whole_window)
+    {
+        client_window_events_disable( data, client_window );
+        XReparentWindow( gdi_display, client_window, get_dummy_parent(), 0, 0 );
+    }
 
     data->client_window = 0;
 }
@@ -1676,35 +1657,20 @@ void detach_client_window( struct x11drv_win_data *data, Window client_window )
 /**********************************************************************
  *             attach_client_window
  */
-void attach_client_window( struct x11drv_win_data *data, Window client_window )
+static void attach_client_window( struct x11drv_win_data *data, Window client_window )
 {
-    Window whole_window;
-    POINT pos = {0};
-
     if (data->client_window == client_window || !client_window) return;
 
     TRACE( "%p/%lx attaching client window %lx\n", data->hwnd, data->whole_window, client_window );
 
     detach_client_window( data, data->client_window );
 
-    if ((whole_window = data->whole_window))
+    if (data->whole_window)
     {
-        pos.x = data->client_rect.left - data->whole_rect.left;
-        pos.y = data->client_rect.top - data->whole_rect.top;
+        client_window_events_enable( data, client_window );
+        XReparentWindow( gdi_display, client_window, data->whole_window, data->client_rect.left - data->whole_rect.left,
+                         data->client_rect.top - data->whole_rect.top );
     }
-    else
-    {
-        HWND toplevel = NtUserGetAncestor( data->hwnd, GA_ROOT );
-        whole_window = X11DRV_get_whole_window( toplevel );
-
-        pos.x = data->client_rect.left;
-        pos.y = data->client_rect.top;
-        NtUserMapWindowPoints( toplevel, toplevel, &pos, 1, 0 /* per-monitor DPI */ );
-    }
-    if (!whole_window) whole_window = get_dummy_parent();
-
-    client_window_events_enable( data, client_window );
-    XReparentWindow( gdi_display, client_window, whole_window, pos.x, pos.y );
 
     data->client_window = client_window;
 }
@@ -1869,9 +1835,6 @@ static void destroy_whole_window( struct x11drv_win_data *data, BOOL already_des
 {
     TRACE( "win %p xwin %lx/%lx\n", data->hwnd, data->whole_window, data->client_window );
 
-    if (!already_destroyed) detach_client_window( data, data->client_window );
-    else if (data->client_window) client_window_events_disable( data, data->client_window );
-
     if (!data->whole_window)
     {
         if (data->embedded)
@@ -1888,6 +1851,8 @@ static void destroy_whole_window( struct x11drv_win_data *data, BOOL already_des
     }
     else
     {
+        if (!already_destroyed) detach_client_window( data, data->client_window );
+        else if (data->client_window) client_window_events_disable( data, data->client_window );
         XDeleteContext( data->display, data->whole_window, winContext );
         if (!already_destroyed)
         {
@@ -1896,11 +1861,10 @@ static void destroy_whole_window( struct x11drv_win_data *data, BOOL already_des
         }
     }
     if (data->whole_colormap) XFreeColormap( data->display, data->whole_colormap );
-    data->whole_window = 0;
+    data->whole_window = data->client_window = 0;
     data->whole_colormap = 0;
     data->wm_state = WithdrawnState;
     data->net_wm_state = 0;
-    data->pending_fullscreen = FALSE;
     data->mapped = FALSE;
     if (data->xic)
     {
@@ -2617,25 +2581,6 @@ void X11DRV_SetActiveWindow( HWND hwnd )
     release_win_data( data );
 }
 
-static void restack_windows( struct x11drv_win_data *data, HWND prev )
-{
-    struct x11drv_win_data *prev_data;
-
-    TRACE("data->hwnd %p, prev %p.\n", data->hwnd, prev);
-
-    while (prev)
-    {
-        if (!(prev_data = get_win_data( prev ))) break;
-
-        TRACE( "Raising window %p.\n", prev );
-
-        if (prev_data->whole_window && data->display == prev_data->display)
-            XRaiseWindow( prev_data->display, prev_data->whole_window );
-        release_win_data( prev_data );
-        prev = NtUserGetWindowRelative( prev, GW_HWNDPREV );
-    }
-}
-
 /***********************************************************************
  *		SetCapture  (X11DRV.@)
  */
@@ -2759,7 +2704,6 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
     struct x11drv_win_data *data;
     UINT new_style = NtUserGetWindowLongW( hwnd, GWL_STYLE );
     RECT old_window_rect, old_whole_rect, old_client_rect;
-    HWND prev_window = NULL;
     int event_type;
 
     if (!(data = get_win_data( hwnd ))) return;
@@ -2860,9 +2804,9 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
     }
 
     /* don't change position if we are about to minimize or maximize a managed window */
-    if ((!event_type || event_type == PropertyNotify) &&
-            !(data->managed && (swp_flags & SWP_STATECHANGED) && (new_style & (WS_MINIMIZE|WS_MAXIMIZE))))
-        prev_window = sync_window_position( data, swp_flags, &old_window_rect, &old_whole_rect, &old_client_rect );
+    if (!event_type &&
+        !(data->managed && (swp_flags & SWP_STATECHANGED) && (new_style & (WS_MINIMIZE|WS_MAXIMIZE))))
+        sync_window_position( data, swp_flags, &old_window_rect, &old_whole_rect, &old_client_rect );
 
     if ((new_style & WS_VISIBLE) &&
         ((new_style & WS_MINIMIZE) || is_window_rect_mapped( rectWindow )))
@@ -2878,10 +2822,6 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
             release_win_data( data );
             if (needs_icon) fetch_icon_data( hwnd, 0, 0 );
             if (needs_map) map_window( hwnd, new_style );
-
-            if (!(data = get_win_data( hwnd ))) return;
-            restack_windows( data, prev_window );
-            release_win_data( data );
             return;
         }
         else if ((swp_flags & SWP_STATECHANGED) && (!data->iconic != !(new_style & WS_MINIMIZE)))
@@ -2890,35 +2830,17 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags,
             data->iconic = (new_style & WS_MINIMIZE) != 0;
             TRACE( "changing win %p iconic state to %u\n", data->hwnd, data->iconic );
             if (data->iconic)
-            {
                 XIconifyWindow( data->display, data->whole_window, data->vis.screen );
-            }
             else if (is_window_rect_mapped( rectWindow ))
-            {
-                /* whole_window could be both iconic and mapped. Since XMapWindow() doesn't do
-                 * anything if the window is already mapped, we need to unmap it first */
-                if (data->mapped)
-                    XUnmapWindow( data->display, data->whole_window );
                 XMapWindow( data->display, data->whole_window );
-            }
             update_net_wm_states( data );
         }
         else
         {
             if (swp_flags & (SWP_FRAMECHANGED|SWP_STATECHANGED)) set_wm_hints( data );
-            if (!event_type || event_type == PropertyNotify)
-            {
-                update_net_wm_states( data );
-                if (!prev_window && insert_after && data->net_wm_state & (1 << NET_WM_STATE_FULLSCREEN))
-                {
-                    prev_window = NtUserGetWindowRelative( hwnd, GW_HWNDPREV );
-                    if (prev_window != insert_after) prev_window = NULL;
-                }
-            }
+            if (!event_type) update_net_wm_states( data );
         }
     }
-
-    restack_windows( data, prev_window );
 
     XFlush( data->display );  /* make sure changes are done before we start painting again */
     if (data->surface && data->vis.visualid != default_visual.visualid)

@@ -237,6 +237,7 @@ MANUAL_UNIX_THUNKS = {
     "vkEnumeratePhysicalDevices",
     "vkFreeCommandBuffers",
     "vkFreeMemory",
+    "vkGetCalibratedTimestampsEXT",
     "vkGetCalibratedTimestampsKHR",
     "vkGetDeviceProcAddr",
     "vkGetDeviceQueue",
@@ -282,7 +283,6 @@ MANUAL_LOADER_THUNKS = {
     "vkEnumerateInstanceExtensionProperties",
     "vkEnumerateInstanceVersion",
     "vkFreeCommandBuffers",
-    "vkGetCalibratedTimestampsEXT",
     "vkGetPhysicalDeviceProperties2",
     "vkGetPhysicalDeviceProperties2KHR",
 }

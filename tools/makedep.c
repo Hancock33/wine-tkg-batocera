@@ -3498,7 +3498,6 @@ static void output_module( struct makefile *make, unsigned int arch )
     if (debug_file) output_filename( strmake( "-Wl,--debug-file,%s", obj_dir_path( make, debug_file )));
     output_filenames( all_libs );
     output_filename( arch_make_variable( "LDFLAGS", link_arch ));
-    output_filename( "-Wl,--file-alignment,4096" );
     output( "\n" );
 
     if (!make->data_only && !arch && unix_lib_supported) output_fake_module( make, spec_file );
