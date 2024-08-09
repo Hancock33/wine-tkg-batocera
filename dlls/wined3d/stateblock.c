@@ -63,6 +63,7 @@ struct wined3d_saved_states
     uint32_t ffp_ps_constants : 1;
     uint32_t texture_matrices : 1;
     uint32_t modelview_matrices : 1;
+    uint32_t point_scale : 1;
 };
 
 struct stage_state
@@ -1585,6 +1586,13 @@ void CDECL wined3d_stateblock_set_render_state(struct wined3d_stateblock *stateb
             stateblock->changed.modelview_matrices = 1;
             break;
 
+        case WINED3D_RS_POINTSCALEENABLE:
+        case WINED3D_RS_POINTSCALE_A:
+        case WINED3D_RS_POINTSCALE_B:
+        case WINED3D_RS_POINTSCALE_C:
+            stateblock->changed.point_scale = 1;
+            break;
+
         default:
             break;
     }
@@ -1730,6 +1738,7 @@ void CDECL wined3d_stateblock_set_viewport(struct wined3d_stateblock *stateblock
 
     stateblock->stateblock_state.viewport = *viewport;
     stateblock->changed.viewport = TRUE;
+    stateblock->changed.point_scale = TRUE;
 }
 
 void CDECL wined3d_stateblock_set_scissor_rect(struct wined3d_stateblock *stateblock, const RECT *rect)
@@ -2261,6 +2270,7 @@ static void wined3d_stateblock_invalidate_push_constants(struct wined3d_stateblo
     stateblock->changed.transforms = 1;
     memset(stateblock->changed.transform, 0xff, sizeof(stateblock->changed.transform));
     stateblock->changed.modelview_matrices = 1;
+    stateblock->changed.point_scale = 1;
 }
 
 static HRESULT stateblock_init(struct wined3d_stateblock *stateblock, const struct wined3d_stateblock *device_state,
@@ -2874,6 +2884,10 @@ void CDECL wined3d_device_apply_stateblock(struct wined3d_device *device,
                     break;
 
                 case WINED3D_RS_ADAPTIVETESS_Y:
+                case WINED3D_RS_POINTSCALEENABLE:
+                case WINED3D_RS_POINTSCALE_A:
+                case WINED3D_RS_POINTSCALE_B:
+                case WINED3D_RS_POINTSCALE_C:
                 case WINED3D_RS_TEXTUREFACTOR:
                     break;
 
@@ -3530,21 +3544,28 @@ void CDECL wined3d_device_apply_stateblock(struct wined3d_device *device,
 
     if (changed->modelview_matrices)
     {
-        struct wined3d_matrix matrices[MAX_VERTEX_BLENDS];
+        union wined3d_ffp_vs_modelview_matrices matrices;
 
-        get_modelview_matrix(state, 0, &matrices[0]);
-        wined3d_device_context_push_constants(context,
-                WINED3D_PUSH_CONSTANTS_VS_FFP, WINED3D_SHADER_CONST_FFP_MODELVIEW,
-                offsetof(struct wined3d_ffp_vs_constants, modelview_matrices[0]), sizeof(matrices[0]), &matrices[0]);
+        get_modelview_matrix(state, 0, &matrices.modelview_matrices[0]);
 
         if (state->rs[WINED3D_RS_VERTEXBLEND])
         {
             for (i = 1; i < MAX_VERTEX_BLENDS; ++i)
-                get_modelview_matrix(state, i, &matrices[i]);
-            wined3d_device_context_push_constants(context,
-                    WINED3D_PUSH_CONSTANTS_VS_FFP, WINED3D_SHADER_CONST_FFP_VERTEXBLEND,
-                    offsetof(struct wined3d_ffp_vs_constants, modelview_matrices[1]),
-                    sizeof(matrices) - sizeof(matrices[0]), &matrices[1]);
+                get_modelview_matrix(state, i, &matrices.modelview_matrices[i]);
+
+            wined3d_device_context_push_constants(context, WINED3D_PUSH_CONSTANTS_VS_FFP,
+                    WINED3D_SHADER_CONST_FFP_MODELVIEW | WINED3D_SHADER_CONST_FFP_VERTEXBLEND,
+                    offsetof(struct wined3d_ffp_vs_constants, modelview), sizeof(matrices), &matrices);
+        }
+        else
+        {
+            compute_normal_matrix(&matrices.not_blended.normal_matrix,
+                    device->adapter->d3d_info.wined3d_creation_flags & WINED3D_LEGACY_FFP_LIGHTING,
+                    &matrices.not_blended.modelview_matrix);
+
+            wined3d_device_context_push_constants(context, WINED3D_PUSH_CONSTANTS_VS_FFP,
+                    WINED3D_SHADER_CONST_FFP_MODELVIEW,
+                    offsetof(struct wined3d_ffp_vs_constants, modelview), sizeof(matrices.not_blended), &matrices);
         }
     }
 
@@ -3563,6 +3584,29 @@ void CDECL wined3d_device_apply_stateblock(struct wined3d_device *device,
                 WINED3D_PUSH_CONSTANTS_VS_FFP, WINED3D_SHADER_CONST_FFP_TEXMATRIX,
                 offsetof(struct wined3d_ffp_vs_constants, texture_matrices),
                 sizeof(constants.texture_matrices), constants.texture_matrices);
+    }
+
+    if (changed->point_scale)
+    {
+        struct wined3d_ffp_point_constants constants;
+
+        if (state->rs[WINED3D_RS_POINTSCALEENABLE])
+        {
+            float scale_factor = state->viewport.height * state->viewport.height;
+
+            constants.scale_const  = int_to_float(state->rs[WINED3D_RS_POINTSCALE_A]) / scale_factor;
+            constants.scale_linear = int_to_float(state->rs[WINED3D_RS_POINTSCALE_B]) / scale_factor;
+            constants.scale_quad   = int_to_float(state->rs[WINED3D_RS_POINTSCALE_C]) / scale_factor;
+        }
+        else
+        {
+            constants.scale_const = 1.0f;
+            constants.scale_linear = 0.0f;
+            constants.scale_quad = 0.0f;
+        }
+
+        wined3d_device_context_push_constants(context, WINED3D_PUSH_CONSTANTS_VS_FFP, WINED3D_SHADER_CONST_VS_POINTSIZE,
+                offsetof(struct wined3d_ffp_vs_constants, point), sizeof(constants), &constants);
     }
 
     if (changed->ffp_ps_constants)

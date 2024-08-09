@@ -5693,39 +5693,6 @@ void get_pointsize_minmax(const struct wined3d_context *context, const struct wi
     *out_max = max.f;
 }
 
-void get_pointsize(const struct wined3d_context *context, const struct wined3d_state *state,
-        float *out_pointsize, float *out_att)
-{
-    /* POINTSCALEENABLE controls how point size value is treated. If set to
-     * true, the point size is scaled with respect to height of viewport.
-     * When set to false point size is in pixels. */
-    union
-    {
-        DWORD d;
-        float f;
-    } pointsize, a, b, c;
-
-    out_att[0] = 1.0f;
-    out_att[1] = 0.0f;
-    out_att[2] = 0.0f;
-
-    pointsize.d = state->render_states[WINED3D_RS_POINTSIZE];
-    a.d = state->render_states[WINED3D_RS_POINTSCALE_A];
-    b.d = state->render_states[WINED3D_RS_POINTSCALE_B];
-    c.d = state->render_states[WINED3D_RS_POINTSCALE_C];
-
-    /* Always use first viewport, this path does not apply to d3d10/11 multiple viewports case. */
-    if (state->render_states[WINED3D_RS_POINTSCALEENABLE])
-    {
-        float scale_factor = state->viewports[0].height * state->viewports[0].height;
-
-        out_att[0] = a.f / scale_factor;
-        out_att[1] = b.f / scale_factor;
-        out_att[2] = c.f / scale_factor;
-    }
-    *out_pointsize = pointsize.f;
-}
-
 void get_fog_start_end(const struct wined3d_context *context, const struct wined3d_state *state,
         float *start, float *end)
 {
@@ -6164,8 +6131,8 @@ void multiply_matrix(struct wined3d_matrix *dst, const struct wined3d_matrix *sr
     *dst = tmp;
 }
 
-void wined3d_ffp_get_fs_settings(const struct wined3d_context *context,
-        const struct wined3d_state *state, struct ffp_frag_settings *settings)
+void wined3d_ffp_get_fs_settings(const struct wined3d_state *state,
+        const struct wined3d_d3d_info *d3d_info, struct ffp_frag_settings *settings)
 {
 #define ARG1 0x01
 #define ARG2 0x02
@@ -6203,7 +6170,6 @@ void wined3d_ffp_get_fs_settings(const struct wined3d_context *context,
     unsigned int i;
     DWORD ttff;
     DWORD cop, aop, carg0, carg1, carg2, aarg0, aarg1, aarg2;
-    const struct wined3d_d3d_info *d3d_info = context->d3d_info;
     struct wined3d_texture *texture;
 
     settings->padding = 0;
@@ -6468,13 +6434,11 @@ int wined3d_ffp_frag_program_key_compare(const void *key, const struct wine_rb_e
     return memcmp(ka, kb, sizeof(*ka));
 }
 
-void wined3d_ffp_get_vs_settings(const struct wined3d_context *context,
-        const struct wined3d_state *state, struct wined3d_ffp_vs_settings *settings)
+void wined3d_ffp_get_vs_settings(const struct wined3d_state *state, const struct wined3d_stream_info *si,
+        const struct wined3d_d3d_info *d3d_info, struct wined3d_ffp_vs_settings *settings)
 {
     enum wined3d_material_color_source diffuse_source, emissive_source, ambient_source, specular_source;
     const struct wined3d_vertex_declaration *vdecl = state->vertex_declaration;
-    const struct wined3d_stream_info *si = &context->stream_info;
-    const struct wined3d_d3d_info *d3d_info = context->d3d_info;
     unsigned int coord_idx, i;
 
     memset(settings, 0, sizeof(*settings));
@@ -7068,11 +7032,10 @@ static BOOL invert_matrix_3d(struct wined3d_matrix *out, const struct wined3d_ma
     return TRUE;
 }
 
-void compute_normal_matrix(float *normal_matrix, BOOL legacy_lighting,
+void compute_normal_matrix(struct wined3d_matrix *normal_matrix, BOOL legacy_lighting,
         const struct wined3d_matrix *modelview)
 {
     struct wined3d_matrix mv;
-    unsigned int i, j;
 
     mv = *modelview;
     if (legacy_lighting)
@@ -7082,9 +7045,16 @@ void compute_normal_matrix(float *normal_matrix, BOOL legacy_lighting,
     /* Tests show that singular modelview matrices are used unchanged as normal
      * matrices on D3D3 and older. There seems to be no clearly consistent
      * behavior on newer D3D versions so always follow older ddraw behavior. */
-    for (i = 0; i < 3; ++i)
-        for (j = 0; j < 3; ++j)
-            normal_matrix[i * 3 + j] = (&mv._11)[j * 4 + i];
+
+    normal_matrix->_11 = mv._11;
+    normal_matrix->_12 = mv._21;
+    normal_matrix->_13 = mv._31;
+    normal_matrix->_21 = mv._12;
+    normal_matrix->_22 = mv._22;
+    normal_matrix->_23 = mv._32;
+    normal_matrix->_31 = mv._13;
+    normal_matrix->_32 = mv._23;
+    normal_matrix->_33 = mv._33;
 }
 
 static void wined3d_allocator_release_block(struct wined3d_allocator *allocator,

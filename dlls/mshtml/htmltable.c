@@ -430,7 +430,13 @@ static const NodeImplVtbl HTMLTableCellImplVtbl = {
     .get_attr_col          = HTMLElement_get_attr_col,
 };
 
-static const event_target_vtbl_t HTMLTableCell_event_target_vtbl = {
+dispex_static_data_t HTMLTableCellElement_dispex = {
+    .name         = "HTMLTableCellElement",
+    .id           = PROT_HTMLTableCellElement,
+    .prototype_id = PROT_HTMLElement,
+};
+
+static const event_target_vtbl_t HTMLTableDataCellElement_event_target_vtbl = {
     {
         HTMLELEMENT_DISPEX_VTBL_ENTRIES,
         .query_interface= HTMLTableCell_query_interface,
@@ -442,18 +448,20 @@ static const event_target_vtbl_t HTMLTableCell_event_target_vtbl = {
     .handle_event       = HTMLElement_handle_event
 };
 
-static const tid_t HTMLTableCell_iface_tids[] = {
+static const tid_t HTMLTableDataCellElement_iface_tids[] = {
     HTMLELEMENT_TIDS,
     IHTMLTableCell_tid,
     0
 };
 
-static dispex_static_data_t HTMLTableCell_dispex = {
-    "HTMLTableDataCellElement",
-    &HTMLTableCell_event_target_vtbl.dispex_vtbl,
-    DispHTMLTableCell_tid,
-    HTMLTableCell_iface_tids,
-    HTMLElement_init_dispex_info
+dispex_static_data_t HTMLTableDataCellElement_dispex = {
+    .name         = "HTMLTableDataCellElement",
+    .id           = PROT_HTMLTableDataCellElement,
+    .prototype_id = PROT_HTMLTableCellElement,
+    .vtbl         = &HTMLTableDataCellElement_event_target_vtbl.dispex_vtbl,
+    .disp_tid     = DispHTMLTableCell_tid,
+    .iface_tids   = HTMLTableDataCellElement_iface_tids,
+    .init_info    = HTMLElement_init_dispex_info,
 };
 
 HRESULT HTMLTableCell_Create(HTMLDocumentNode *doc, nsIDOMElement *nselem, HTMLElement **elem)
@@ -468,7 +476,7 @@ HRESULT HTMLTableCell_Create(HTMLDocumentNode *doc, nsIDOMElement *nselem, HTMLE
     ret->IHTMLTableCell_iface.lpVtbl = &HTMLTableCellVtbl;
     ret->element.node.vtbl = &HTMLTableCellImplVtbl;
 
-    HTMLElement_Init(&ret->element, doc, nselem, &HTMLTableCell_dispex);
+    HTMLElement_Init(&ret->element, doc, nselem, &HTMLTableDataCellElement_dispex);
 
     nsres = nsIDOMElement_QueryInterface(nselem, &IID_nsIDOMHTMLTableCellElement, (void**)&ret->nscell);
     assert(nsres == NS_OK);
@@ -804,7 +812,7 @@ static const NodeImplVtbl HTMLTableRowImplVtbl = {
     .get_attr_col          = HTMLElement_get_attr_col,
 };
 
-static const event_target_vtbl_t HTMLTableRow_event_target_vtbl = {
+static const event_target_vtbl_t HTMLTableRowElement_event_target_vtbl = {
     {
         HTMLELEMENT_DISPEX_VTBL_ENTRIES,
         .query_interface= HTMLTableRow_query_interface,
@@ -816,18 +824,20 @@ static const event_target_vtbl_t HTMLTableRow_event_target_vtbl = {
     .handle_event       = HTMLElement_handle_event
 };
 
-static const tid_t HTMLTableRow_iface_tids[] = {
+static const tid_t HTMLTableRowElement_iface_tids[] = {
     HTMLELEMENT_TIDS,
     IHTMLTableRow_tid,
     0
 };
 
-static dispex_static_data_t HTMLTableRow_dispex = {
-    "HTMLTableRowElement",
-    &HTMLTableRow_event_target_vtbl.dispex_vtbl,
-    DispHTMLTableRow_tid,
-    HTMLTableRow_iface_tids,
-    HTMLElement_init_dispex_info
+dispex_static_data_t HTMLTableRowElement_dispex = {
+    .name         = "HTMLTableRowElement",
+    .id           = PROT_HTMLTableRowElement,
+    .prototype_id = PROT_HTMLElement,
+    .vtbl         = &HTMLTableRowElement_event_target_vtbl.dispex_vtbl,
+    .disp_tid     =  DispHTMLTableRow_tid,
+    .iface_tids   = HTMLTableRowElement_iface_tids,
+    .init_info    = HTMLElement_init_dispex_info,
 };
 
 HRESULT HTMLTableRow_Create(HTMLDocumentNode *doc, nsIDOMElement *nselem, HTMLElement **elem)
@@ -842,7 +852,7 @@ HRESULT HTMLTableRow_Create(HTMLDocumentNode *doc, nsIDOMElement *nselem, HTMLEl
     ret->IHTMLTableRow_iface.lpVtbl = &HTMLTableRowVtbl;
     ret->element.node.vtbl = &HTMLTableRowImplVtbl;
 
-    HTMLElement_Init(&ret->element, doc, nselem, &HTMLTableRow_dispex);
+    HTMLElement_Init(&ret->element, doc, nselem, &HTMLTableRowElement_dispex);
 
     nsres = nsIDOMElement_QueryInterface(nselem, &IID_nsIDOMHTMLTableRowElement, (void**)&ret->nsrow);
     assert(nsres == NS_OK);
@@ -1655,7 +1665,7 @@ static const NodeImplVtbl HTMLTableImplVtbl = {
     .get_attr_col          = HTMLElement_get_attr_col,
 };
 
-static const event_target_vtbl_t HTMLTable_event_target_vtbl = {
+static const event_target_vtbl_t HTMLTableElement_event_target_vtbl = {
     {
         HTMLELEMENT_DISPEX_VTBL_ENTRIES,
         .query_interface= HTMLTable_query_interface,
@@ -1667,7 +1677,7 @@ static const event_target_vtbl_t HTMLTable_event_target_vtbl = {
     .handle_event       = HTMLElement_handle_event
 };
 
-static const tid_t HTMLTable_iface_tids[] = {
+static const tid_t HTMLTableElement_iface_tids[] = {
     HTMLELEMENT_TIDS,
     IHTMLTable_tid,
     IHTMLTable2_tid,
@@ -1675,12 +1685,14 @@ static const tid_t HTMLTable_iface_tids[] = {
     0
 };
 
-static dispex_static_data_t HTMLTable_dispex = {
-    "HTMLTableElement",
-    &HTMLTable_event_target_vtbl.dispex_vtbl,
-    DispHTMLTable_tid,
-    HTMLTable_iface_tids,
-    HTMLElement_init_dispex_info
+dispex_static_data_t HTMLTableElement_dispex = {
+    .name         = "HTMLTableElement",
+    .id           = PROT_HTMLTableElement,
+    .prototype_id = PROT_HTMLElement,
+    .vtbl         = &HTMLTableElement_event_target_vtbl.dispex_vtbl,
+    .disp_tid     = DispHTMLTable_tid,
+    .iface_tids   = HTMLTableElement_iface_tids,
+    .init_info    = HTMLElement_init_dispex_info,
 };
 
 HRESULT HTMLTable_Create(HTMLDocumentNode *doc, nsIDOMElement *nselem, HTMLElement **elem)
@@ -1697,7 +1709,7 @@ HRESULT HTMLTable_Create(HTMLDocumentNode *doc, nsIDOMElement *nselem, HTMLEleme
     ret->IHTMLTable2_iface.lpVtbl = &HTMLTable2Vtbl;
     ret->IHTMLTable3_iface.lpVtbl = &HTMLTable3Vtbl;
 
-    HTMLElement_Init(&ret->element, doc, nselem, &HTMLTable_dispex);
+    HTMLElement_Init(&ret->element, doc, nselem, &HTMLTableElement_dispex);
 
     nsres = nsIDOMElement_QueryInterface(nselem, &IID_nsIDOMHTMLTableElement, (void**)&ret->nstable);
     assert(nsres == NS_OK);

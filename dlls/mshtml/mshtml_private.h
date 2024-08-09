@@ -407,18 +407,50 @@ typedef struct {
 } dispex_static_data_vtbl_t;
 
 #define ALL_PROTOTYPES                     \
+    X(CharacterData)                       \
     X(DOMImplementation)                   \
     X(Document)                            \
+    X(DocumentType)                        \
     X(Element)                             \
+    X(HTMLAnchorElement)                   \
+    X(HTMLAreaElement)                     \
     X(HTMLBodyElement)                     \
+    X(HTMLButtonElement)                   \
     X(HTMLDocument)                        \
     X(HTMLElement)                         \
+    X(HTMLEmbedElement)                    \
+    X(HTMLFormElement)                     \
+    X(HTMLFrameElement)                    \
+    X(HTMLHeadElement)                     \
+    X(HTMLHtmlElement)                     \
+    X(HTMLIFrameElement)                   \
     X(HTMLImageElement)                    \
+    X(HTMLInputElement)                    \
+    X(HTMLLabelElement)                    \
+    X(HTMLLinkElement)                     \
+    X(HTMLMetaElement)                     \
+    X(HTMLObjectElement)                   \
     X(HTMLOptionElement)                   \
+    X(HTMLScriptElement)                   \
+    X(HTMLSelectElement)                   \
+    X(HTMLStyleElement)                    \
+    X(HTMLTableCellElement)                \
+    X(HTMLTableDataCellElement)            \
+    X(HTMLTableElement)                    \
+    X(HTMLTableRowElement)                 \
+    X(HTMLTextAreaElement)                 \
+    X(HTMLTitleElement)                    \
     X(MutationObserver)                    \
     X(Navigator)                           \
     X(Node)                                \
+    X(SVGCircleElement)                    \
+    X(SVGElement)                          \
+    X(SVGSVGElement)                       \
+    X(SVGTSpanElement)                     \
+    X(SVGTextContentElement)               \
+    X(SVGTextPositioningElement)           \
     X(Storage)                             \
+    X(Text)                                \
     X(Window)                              \
     X(XMLHttpRequest)
 
