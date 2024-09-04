@@ -228,7 +228,7 @@ enum vkd3d_shader_input_sysval_semantic vkd3d_siv_from_sysval_indexed(enum vkd3d
 #define VKD3D_SPIRV_VERSION_1_0 0x00010000
 #define VKD3D_SPIRV_VERSION_1_3 0x00010300
 #define VKD3D_SPIRV_GENERATOR_ID 18
-#define VKD3D_SPIRV_GENERATOR_VERSION 12
+#define VKD3D_SPIRV_GENERATOR_VERSION 13
 #define VKD3D_SPIRV_GENERATOR_MAGIC vkd3d_make_u32(VKD3D_SPIRV_GENERATOR_VERSION, VKD3D_SPIRV_GENERATOR_ID)
 
 struct vkd3d_spirv_stream
@@ -6120,12 +6120,12 @@ static void spirv_compiler_decorate_descriptor(struct spirv_compiler *compiler,
 static uint32_t spirv_compiler_build_descriptor_variable(struct spirv_compiler *compiler,
         SpvStorageClass storage_class, uint32_t type_id, const struct vkd3d_shader_register *reg,
         const struct vkd3d_shader_register_range *range, enum vkd3d_shader_resource_type resource_type,
-        bool is_uav, bool is_uav_counter, struct vkd3d_descriptor_variable_info *var_info)
+        const struct vkd3d_shader_descriptor_info1 *descriptor, bool is_uav_counter,
+        struct vkd3d_descriptor_variable_info *var_info)
 {
     struct vkd3d_spirv_builder *builder = &compiler->spirv_builder;
     struct vkd3d_descriptor_binding_address binding_address;
     struct vkd3d_shader_descriptor_binding binding;
-    const struct vkd3d_shader_descriptor_info1 *d;
     uint32_t array_type_id, ptr_type_id, var_id;
     bool write_only = false, coherent = false;
     struct vkd3d_symbol symbol;
@@ -6135,12 +6135,11 @@ static uint32_t spirv_compiler_build_descriptor_variable(struct spirv_compiler *
             resource_type, is_uav_counter, &binding_address);
     var_info->binding_base_idx = binding_address.binding_base_idx;
 
-    if (is_uav)
+    if (descriptor->type == VKD3D_SHADER_DESCRIPTOR_TYPE_UAV && !is_uav_counter)
     {
-        d = spirv_compiler_get_descriptor_info(compiler, VKD3D_SHADER_DESCRIPTOR_TYPE_UAV, range);
-        write_only = !(d->flags & VKD3D_SHADER_DESCRIPTOR_INFO_FLAG_UAV_READ);
+        write_only = !(descriptor->flags & VKD3D_SHADER_DESCRIPTOR_INFO_FLAG_UAV_READ);
         /* ROVs are implicitly globally coherent. */
-        coherent = d->uav_flags & (VKD3DSUF_GLOBALLY_COHERENT | VKD3DSUF_RASTERISER_ORDERED_VIEW);
+        coherent = descriptor->uav_flags & (VKD3DSUF_GLOBALLY_COHERENT | VKD3DSUF_RASTERISER_ORDERED_VIEW);
     }
 
     if (binding.count == 1 && range->first == binding_address.binding_base_idx && range->last != ~0u
@@ -6194,11 +6193,12 @@ static uint32_t spirv_compiler_build_descriptor_variable(struct spirv_compiler *
 }
 
 static void spirv_compiler_emit_cbv_declaration(struct spirv_compiler *compiler,
-        const struct vkd3d_shader_register_range *range, unsigned int register_id, unsigned int size_in_bytes)
+        const struct vkd3d_shader_register_range *range, const struct vkd3d_shader_descriptor_info1 *descriptor)
 {
     struct vkd3d_spirv_builder *builder = &compiler->spirv_builder;
     uint32_t vec4_id, array_type_id, length_id, struct_id, var_id;
     const SpvStorageClass storage_class = SpvStorageClassUniform;
+    unsigned int size_in_bytes = descriptor->buffer_size;
     struct vkd3d_push_constant_buffer_binding *push_cb;
     struct vkd3d_descriptor_variable_info var_info;
     struct vkd3d_shader_register reg;
@@ -6206,7 +6206,7 @@ static void spirv_compiler_emit_cbv_declaration(struct spirv_compiler *compiler,
     unsigned int size;
 
     vsir_register_init(&reg, VKD3DSPR_CONSTBUFFER, VKD3D_DATA_FLOAT, 3);
-    reg.idx[0].offset = register_id;
+    reg.idx[0].offset = descriptor->register_id;
     reg.idx[1].offset = range->first;
     reg.idx[2].offset = range->last;
 
@@ -6239,7 +6239,7 @@ static void spirv_compiler_emit_cbv_declaration(struct spirv_compiler *compiler,
     vkd3d_spirv_build_op_name(builder, struct_id, "cb%u_struct", size);
 
     var_id = spirv_compiler_build_descriptor_variable(compiler, storage_class, struct_id,
-            &reg, range, VKD3D_SHADER_RESOURCE_BUFFER, false, false, &var_info);
+            &reg, range, VKD3D_SHADER_RESOURCE_BUFFER, descriptor, false, &var_info);
 
     vkd3d_symbol_make_register(&reg_symbol, &reg);
     vkd3d_symbol_set_register_info(&reg_symbol, var_id, storage_class,
@@ -6275,7 +6275,7 @@ static void spirv_compiler_emit_dcl_immediate_constant_buffer(struct spirv_compi
 }
 
 static void spirv_compiler_emit_sampler_declaration(struct spirv_compiler *compiler,
-        const struct vkd3d_shader_register_range *range, unsigned int register_id)
+        const struct vkd3d_shader_register_range *range, const struct vkd3d_shader_descriptor_info1 *descriptor)
 {
     const SpvStorageClass storage_class = SpvStorageClassUniformConstant;
     struct vkd3d_spirv_builder *builder = &compiler->spirv_builder;
@@ -6285,7 +6285,7 @@ static void spirv_compiler_emit_sampler_declaration(struct spirv_compiler *compi
     uint32_t type_id, var_id;
 
     vsir_register_init(&reg, VKD3DSPR_SAMPLER, VKD3D_DATA_FLOAT, 1);
-    reg.idx[0].offset = register_id;
+    reg.idx[0].offset = descriptor->register_id;
 
     vkd3d_symbol_make_sampler(&reg_symbol, &reg);
     reg_symbol.info.sampler.range = *range;
@@ -6295,8 +6295,8 @@ static void spirv_compiler_emit_sampler_declaration(struct spirv_compiler *compi
         return;
 
     type_id = vkd3d_spirv_get_op_type_sampler(builder);
-    var_id = spirv_compiler_build_descriptor_variable(compiler, storage_class, type_id, &reg,
-            range, VKD3D_SHADER_RESOURCE_NONE, false, false, &var_info);
+    var_id = spirv_compiler_build_descriptor_variable(compiler, storage_class, type_id,
+            &reg, range, VKD3D_SHADER_RESOURCE_NONE, descriptor, false, &var_info);
 
     vkd3d_symbol_make_register(&reg_symbol, &reg);
     vkd3d_symbol_set_register_info(&reg_symbol, var_id, storage_class,
@@ -6461,21 +6461,24 @@ static void spirv_compiler_emit_combined_sampler_declarations(struct spirv_compi
 }
 
 static void spirv_compiler_emit_resource_declaration(struct spirv_compiler *compiler,
-        const struct vkd3d_shader_register_range *range, unsigned int register_id,
-        unsigned int sample_count, bool is_uav, enum vkd3d_shader_resource_type resource_type,
-        enum vkd3d_shader_resource_data_type resource_data_type, unsigned int structure_stride, bool raw)
+        const struct vkd3d_shader_register_range *range, const struct vkd3d_shader_descriptor_info1 *descriptor)
 {
+    bool raw = descriptor->flags & VKD3D_SHADER_DESCRIPTOR_INFO_FLAG_RAW_BUFFER;
+    enum vkd3d_shader_resource_type resource_type = descriptor->resource_type;
     struct vkd3d_descriptor_variable_info var_info, counter_var_info = {0};
+    bool is_uav = descriptor->type == VKD3D_SHADER_DESCRIPTOR_TYPE_UAV;
+    unsigned int structure_stride = descriptor->structure_stride / 4;
     struct vkd3d_spirv_builder *builder = &compiler->spirv_builder;
     SpvStorageClass storage_class = SpvStorageClassUniformConstant;
     uint32_t counter_type_id, type_id, var_id, counter_var_id = 0;
     const struct vkd3d_spirv_resource_type *resource_type_info;
+    unsigned int sample_count = descriptor->sample_count;
     enum vkd3d_shader_component_type sampled_type;
     struct vkd3d_symbol resource_symbol;
     struct vkd3d_shader_register reg;
 
     vsir_register_init(&reg, is_uav ? VKD3DSPR_UAV : VKD3DSPR_RESOURCE, VKD3D_DATA_FLOAT, 1);
-    reg.idx[0].offset = register_id;
+    reg.idx[0].offset = descriptor->register_id;
 
     if (resource_type == VKD3D_SHADER_RESOURCE_TEXTURE_2DMS && sample_count == 1)
         resource_type = VKD3D_SHADER_RESOURCE_TEXTURE_2D;
@@ -6489,7 +6492,7 @@ static void spirv_compiler_emit_resource_declaration(struct spirv_compiler *comp
         return;
     }
 
-    sampled_type = vkd3d_component_type_from_resource_data_type(resource_data_type);
+    sampled_type = vkd3d_component_type_from_resource_data_type(descriptor->resource_data_type);
 
     if (!is_uav && spirv_compiler_has_combined_sampler_for_resource(compiler, range))
     {
@@ -6520,16 +6523,12 @@ static void spirv_compiler_emit_resource_declaration(struct spirv_compiler *comp
                 resource_type_info, sampled_type, structure_stride || raw, 0);
     }
 
-    var_id = spirv_compiler_build_descriptor_variable(compiler, storage_class, type_id, &reg,
-            range, resource_type, is_uav, false, &var_info);
+    var_id = spirv_compiler_build_descriptor_variable(compiler, storage_class,
+            type_id, &reg, range, resource_type, descriptor, false, &var_info);
 
     if (is_uav)
     {
-        const struct vkd3d_shader_descriptor_info1 *d;
-
-        d = spirv_compiler_get_descriptor_info(compiler, VKD3D_SHADER_DESCRIPTOR_TYPE_UAV, range);
-
-        if (d->uav_flags & VKD3DSUF_RASTERISER_ORDERED_VIEW)
+        if (descriptor->uav_flags & VKD3DSUF_RASTERISER_ORDERED_VIEW)
         {
             if (compiler->shader_type != VKD3D_SHADER_TYPE_PIXEL)
                 spirv_compiler_error(compiler, VKD3D_SHADER_ERROR_SPV_UNSUPPORTED_FEATURE,
@@ -6543,7 +6542,7 @@ static void spirv_compiler_emit_resource_declaration(struct spirv_compiler *comp
                 compiler->use_invocation_interlock = true;
         }
 
-        if (d->flags & VKD3D_SHADER_DESCRIPTOR_INFO_FLAG_UAV_COUNTER)
+        if (descriptor->flags & VKD3D_SHADER_DESCRIPTOR_INFO_FLAG_UAV_COUNTER)
         {
             VKD3D_ASSERT(structure_stride); /* counters are valid only for structured buffers */
 
@@ -6571,7 +6570,7 @@ static void spirv_compiler_emit_resource_declaration(struct spirv_compiler *comp
             }
 
             counter_var_id = spirv_compiler_build_descriptor_variable(compiler, storage_class,
-                    type_id, &reg, range, resource_type, false, true, &counter_var_info);
+                    type_id, &reg, range, resource_type, descriptor, true, &counter_var_info);
         }
     }
 
@@ -10564,23 +10563,16 @@ static void spirv_compiler_emit_descriptor_declarations(struct spirv_compiler *c
         switch (descriptor->type)
         {
             case VKD3D_SHADER_DESCRIPTOR_TYPE_SAMPLER:
-                spirv_compiler_emit_sampler_declaration(compiler, &range, descriptor->register_id);
+                spirv_compiler_emit_sampler_declaration(compiler, &range, descriptor);
                 break;
 
             case VKD3D_SHADER_DESCRIPTOR_TYPE_CBV:
-                spirv_compiler_emit_cbv_declaration(compiler, &range, descriptor->register_id, descriptor->buffer_size);
+                spirv_compiler_emit_cbv_declaration(compiler, &range, descriptor);
                 break;
 
             case VKD3D_SHADER_DESCRIPTOR_TYPE_SRV:
-                spirv_compiler_emit_resource_declaration(compiler, &range, descriptor->register_id,
-                        descriptor->sample_count, false, descriptor->resource_type, descriptor->resource_data_type,
-                        descriptor->structure_stride / 4, descriptor->flags & VKD3D_SHADER_DESCRIPTOR_INFO_FLAG_RAW_BUFFER);
-                break;
-
             case VKD3D_SHADER_DESCRIPTOR_TYPE_UAV:
-                spirv_compiler_emit_resource_declaration(compiler, &range, descriptor->register_id,
-                        descriptor->sample_count, true, descriptor->resource_type, descriptor->resource_data_type,
-                        descriptor->structure_stride / 4, descriptor->flags & VKD3D_SHADER_DESCRIPTOR_INFO_FLAG_RAW_BUFFER);
+                spirv_compiler_emit_resource_declaration(compiler, &range, descriptor);
                 break;
 
             default:

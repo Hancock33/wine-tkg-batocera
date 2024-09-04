@@ -2822,9 +2822,11 @@ WINE_CONFIG_MAKEFILE(dlls/mciwave)
 WINE_CONFIG_MAKEFILE(dlls/mf)
 WINE_CONFIG_MAKEFILE(dlls/mf/tests)
 WINE_CONFIG_MAKEFILE(dlls/mf3216)
+WINE_CONFIG_MAKEFILE(dlls/mfasfsrcsnk)
 WINE_CONFIG_MAKEFILE(dlls/mferror)
 WINE_CONFIG_MAKEFILE(dlls/mfmediaengine)
 WINE_CONFIG_MAKEFILE(dlls/mfmediaengine/tests)
+WINE_CONFIG_MAKEFILE(dlls/mfmp4srcsnk)
 WINE_CONFIG_MAKEFILE(dlls/mfplat)
 WINE_CONFIG_MAKEFILE(dlls/mfplat/tests)
 WINE_CONFIG_MAKEFILE(dlls/mfplay)
@@ -3735,7 +3737,7 @@ dnl Rules for generated source files
 
 WINE_APPEND_RULE(
 [dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-9.16.r8.gfdd50791\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging Esync Fsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
+	@version=\`(echo \"wine-9.16.r10.gdeb70423\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging Esync Fsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$[@]) || echo \$\$build >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.nfo:

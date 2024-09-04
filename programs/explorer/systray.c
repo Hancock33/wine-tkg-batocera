@@ -105,6 +105,7 @@ static unsigned int nb_displayed;
 static BOOL enable_taskbar; /* show full taskbar, with dedicated systray area */
 static BOOL show_systray; /* show a standalone systray window */
 static BOOL enable_dock; /* allow systray icons to be docked in the host systray */
+static BOOL no_tray_items; /* hide the systray and all systray icons */
 
 static int icon_cx, icon_cy, tray_width, tray_height;
 static int start_button_width, taskbar_button_width;
@@ -129,8 +130,8 @@ static POINT balloon_pos;
 static LRESULT WINAPI shell_traywnd_proc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam );
 static LRESULT WINAPI tray_icon_wndproc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam );
 
-static BOOL show_icon( struct icon *icon );
-static BOOL hide_icon( struct icon *icon );
+static void show_icon( struct icon *icon );
+static void hide_icon( struct icon *icon );
 static BOOL delete_icon( struct icon *icon );
 
 static WNDCLASSEXW shell_traywnd_class =
@@ -624,11 +625,13 @@ static void systray_remove_icon( struct icon *icon )
 }
 
 /* make an icon visible */
-static BOOL show_icon(struct icon *icon)
+static void show_icon(struct icon *icon)
 {
     TRACE( "id=0x%x, hwnd=%p\n", icon->id, icon->owner );
 
-    if (icon->display != ICON_DISPLAY_HIDDEN) return TRUE;  /* already displayed */
+    if (no_tray_items) return;
+
+    if (icon->display != ICON_DISPLAY_HIDDEN) return;  /* already displayed */
 
     if (enable_dock)
     {
@@ -652,15 +655,14 @@ static BOOL show_icon(struct icon *icon)
 
     update_tooltip_position( icon );
     update_balloon( icon );
-    return TRUE;
 }
 
 /* make an icon invisible */
-static BOOL hide_icon(struct icon *icon)
+static void hide_icon(struct icon *icon)
 {
     TRACE( "id=0x%x, hwnd=%p\n", icon->id, icon->owner );
 
-    if (icon->display == ICON_DISPLAY_HIDDEN) return TRUE;  /* already hidden */
+    if (icon->display == ICON_DISPLAY_HIDDEN) return;  /* already hidden */
 
     if (enable_dock && NtUserMessageCall( icon->window, WINE_SYSTRAY_DOCK_REMOVE, 0, 0,
                                           NULL, NtUserSystemTrayCall, FALSE ))
@@ -674,7 +676,6 @@ static BOOL hide_icon(struct icon *icon)
 
     update_balloon( icon );
     update_tooltip_position( icon );
-    return TRUE;
 }
 
 /* Modifies an existing icon record */
@@ -1158,7 +1159,7 @@ void handle_parent_notify( HWND hwnd, WPARAM wp )
 }
 
 /* this function creates the listener window */
-void initialize_systray( BOOL arg_using_root, BOOL arg_enable_shell, BOOL arg_show_systray )
+void initialize_systray( BOOL arg_using_root, BOOL arg_enable_shell, BOOL arg_show_systray, BOOL arg_no_tray_items )
 {
     RECT work_rect, primary_rect, taskbar_rect;
 
@@ -1182,6 +1183,8 @@ void initialize_systray( BOOL arg_using_root, BOOL arg_enable_shell, BOOL arg_sh
         enable_taskbar = arg_enable_shell;
         enable_dock = FALSE;
     }
+
+    no_tray_items = arg_no_tray_items;
 
     /* register the systray listener window class */
     if (!RegisterClassExW( &shell_traywnd_class ))

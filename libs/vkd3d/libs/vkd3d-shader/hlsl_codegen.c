@@ -5128,7 +5128,7 @@ static void allocate_semantic_register(struct hlsl_ctx *ctx, struct hlsl_ir_var 
     if (ctx->profile->major_version < 4)
     {
         struct vkd3d_shader_version version;
-        D3DDECLUSAGE usage;
+        enum vkd3d_decl_usage usage;
         uint32_t usage_idx;
 
         /* ps_1_* outputs are special and go in temp register 0. */
@@ -5152,10 +5152,10 @@ static void allocate_semantic_register(struct hlsl_ctx *ctx, struct hlsl_ir_var 
     }
     else
     {
-        D3D_NAME usage;
+        enum vkd3d_shader_sysval_semantic semantic;
         bool has_idx;
 
-        if (!hlsl_sm4_usage_from_semantic(ctx, &var->semantic, output, &usage))
+        if (!sysval_semantic_from_hlsl(&semantic, ctx, &var->semantic, output))
         {
             hlsl_error(ctx, &var->loc, VKD3D_SHADER_ERROR_HLSL_INVALID_SEMANTIC,
                     "Invalid semantic '%s'.", var->semantic.name);
@@ -5956,7 +5956,8 @@ static void sm1_generate_vsir_signature_entry(struct hlsl_ctx *ctx,
     if (!hlsl_sm1_register_from_semantic(&program->shader_version,
             var->semantic.name, var->semantic.index, output, &type, &register_index))
     {
-        unsigned int usage, usage_idx;
+        enum vkd3d_decl_usage usage;
+        unsigned int usage_idx;
         bool ret;
 
         register_index = var->regs[HLSL_REGSET_NUMERIC].id;

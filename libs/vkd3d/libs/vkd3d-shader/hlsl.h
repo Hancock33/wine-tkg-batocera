@@ -1528,7 +1528,7 @@ D3DXPARAMETER_TYPE hlsl_sm1_base_type(const struct hlsl_type *type);
 bool hlsl_sm1_register_from_semantic(const struct vkd3d_shader_version *version, const char *semantic_name,
         unsigned int semantic_index, bool output, enum vkd3d_shader_register_type *type, unsigned int *reg);
 bool hlsl_sm1_usage_from_semantic(const char *semantic_name,
-        uint32_t semantic_index, D3DDECLUSAGE *usage, uint32_t *usage_idx);
+        uint32_t semantic_index, enum vkd3d_decl_usage *usage, uint32_t *usage_idx);
 
 void write_sm1_uniforms(struct hlsl_ctx *ctx, struct vkd3d_bytecode_buffer *buffer);
 int d3dbc_compile(struct vsir_program *program, uint64_t config_flags,
@@ -1536,8 +1536,8 @@ int d3dbc_compile(struct vsir_program *program, uint64_t config_flags,
         struct vkd3d_shader_code *out, struct vkd3d_shader_message_context *message_context,
         struct hlsl_ctx *ctx, struct hlsl_ir_function_decl *entry_func);
 
-bool hlsl_sm4_usage_from_semantic(struct hlsl_ctx *ctx,
-        const struct hlsl_semantic *semantic, bool output, D3D_NAME *usage);
+bool sysval_semantic_from_hlsl(enum vkd3d_shader_sysval_semantic *semantic,
+        struct hlsl_ctx *ctx, const struct hlsl_semantic *hlsl_semantic, bool output);
 bool hlsl_sm4_register_from_semantic(struct hlsl_ctx *ctx, const struct hlsl_semantic *semantic,
         bool output, enum vkd3d_shader_register_type *type, bool *has_idx);
 int hlsl_sm4_write(struct hlsl_ctx *ctx, struct hlsl_ir_function_decl *entry_func, struct vkd3d_shader_code *out);

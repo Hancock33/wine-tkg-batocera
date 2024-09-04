@@ -2008,6 +2008,7 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
         req->handle        = wine_server_user_handle( hwnd );
         req->previous      = wine_server_user_handle( insert_after );
         req->swp_flags     = swp_flags;
+        req->monitor_dpi   = monitor_dpi;
         req->window        = wine_server_rectangle( new_rects->window );
         req->client        = wine_server_rectangle( new_rects->client );
         if (!EqualRect( &new_rects->window, &new_rects->visible ) || new_surface || valid_rects)
@@ -2141,6 +2142,7 @@ static BOOL expose_window_surface( HWND hwnd, UINT flags, const RECT *rect, UINT
 {
     struct window_surface *surface;
     struct window_rects rects;
+    RECT window_rect;
     HRGN region = 0;
     WND *win;
 
@@ -2149,14 +2151,20 @@ static BOOL expose_window_surface( HWND hwnd, UINT flags, const RECT *rect, UINT
     rects = win->rects;
     release_win_ptr( win );
 
+    if (rect)
+    {
+        window_rect = map_dpi_rect( *rect, dpi, get_dpi_for_window( hwnd ) );
+        InflateRect( &window_rect, 1, 1 ); /* compensate rounding errors */
+    }
+
     if (surface)
     {
         window_surface_lock( surface );
 
-        if (!rect) add_bounds_rect( &surface->bounds, rect );
+        if (!rect) add_bounds_rect( &surface->bounds, &surface->rect );
         else
         {
-            RECT dirty = *rect;
+            RECT dirty = window_rect;
             OffsetRect( &dirty, rects.client.left - rects.visible.left, rects.client.top - rects.visible.top );
             if (!(region = expose_window_surface_rect( surface, flags, dirty ))) flags = 0;
             else NtGdiOffsetRgn( region, rects.client.left - rects.visible.left, rects.client.top - rects.visible.top );
@@ -2168,7 +2176,7 @@ static BOOL expose_window_surface( HWND hwnd, UINT flags, const RECT *rect, UINT
         window_surface_release( surface );
     }
 
-    if (flags) NtUserRedrawWindow( hwnd, rect, region, flags );
+    if (flags) NtUserRedrawWindow( hwnd, rect ? &window_rect : NULL, region, flags );
     if (region) NtGdiDeleteObjectApp( region );
     return TRUE;
 }
@@ -2432,7 +2440,7 @@ done:
  * Point is in screen coordinates.
  * Returned list must be freed by caller.
  */
-static HWND *list_children_from_point( HWND hwnd, POINT pt )
+static HWND *list_children_from_point( HWND hwnd, POINT pt, UINT dpi )
 {
     int i, size = 128;
     HWND *list;
@@ -2448,7 +2456,7 @@ static HWND *list_children_from_point( HWND hwnd, POINT pt )
             req->parent = wine_server_user_handle( hwnd );
             req->x = pt.x;
             req->y = pt.y;
-            req->dpi = get_thread_dpi();
+            req->dpi = dpi;
             wine_server_set_reply( req, list, (size-1) * sizeof(user_handle_t) );
             if (!wine_server_call( req )) count = reply->count;
         }
@@ -2485,7 +2493,7 @@ HWND window_from_point( HWND hwnd, POINT pt, INT *hittest )
 
     *hittest = HTNOWHERE;
 
-    if (!(list = list_children_from_point( hwnd, pt ))) return 0;
+    if (!(list = list_children_from_point( hwnd, pt, dpi ))) return 0;
 
     /* now determine the hittest */
 

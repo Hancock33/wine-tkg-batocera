@@ -1549,7 +1549,6 @@ void vkd3d_shader_warning(struct vkd3d_shader_message_context *context, const st
 void vkd3d_shader_vwarning(struct vkd3d_shader_message_context *context, const struct vkd3d_shader_location *location,
         enum vkd3d_shader_error error, const char *format, va_list args);
 
-void vkd3d_shader_dump_shader(const struct vkd3d_shader_compile_info *compile_info);
 uint64_t vkd3d_shader_init_config_flags(void);
 void vkd3d_shader_trace_text_(const char *text, size_t size, const char *function);
 #define vkd3d_shader_trace_text(text, size) \
@@ -1580,7 +1579,13 @@ int spirv_compile(struct vsir_program *program, uint64_t config_flags,
         const struct vkd3d_shader_compile_info *compile_info,
         struct vkd3d_shader_code *out, struct vkd3d_shader_message_context *message_context);
 
-void vkd3d_compute_dxbc_checksum(const void *dxbc, size_t size, uint32_t checksum[4]);
+enum vkd3d_md5_variant
+{
+    VKD3D_MD5_STANDARD,
+    VKD3D_MD5_DXBC,
+};
+
+void vkd3d_compute_md5(const void *dxbc, size_t size, uint32_t checksum[4], enum vkd3d_md5_variant variant);
 
 int preproc_lexer_parse(const struct vkd3d_shader_compile_info *compile_info,
         struct vkd3d_shader_code *out, struct vkd3d_shader_message_context *message_context);
