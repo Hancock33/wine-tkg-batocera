@@ -4319,6 +4319,9 @@ static void free_attribute_list( struct attribute_list *list )
 {
     UINT32 i;
     for (i = 0; i < list->count; i++) free_attribute( list->attrs[i] );
+    free( list->attrs );
+    list->count = 0;
+    list->attrs = NULL;
 }
 
 static BOOL append_attribute( struct attribute_list *list, struct attribute *attr )
@@ -7984,6 +7987,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD reason, LPVOID reserved)
         break;
 
     case DLL_PROCESS_DETACH:
+        WINE_UNIX_CALL( process_detach, NULL );
         if (reserved) break;
     }
 
