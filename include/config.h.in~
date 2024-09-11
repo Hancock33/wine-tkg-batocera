@@ -24,7 +24,7 @@
 /* Define to 1 if you have the <capi20.h> header file. */
 #undef HAVE_CAPI20_H
 
-/* Define to 1 if you have the `clock_gettime' function. */
+/* Define to 1 if you have the 'clock_gettime' function. */
 #undef HAVE_CLOCK_GETTIME
 
 /* Define to 1 if you have the <CL/cl.h> header file. */
@@ -50,6 +50,9 @@
 
 /* Define to 1 if you have the `epoll_create' function. */
 #undef HAVE_EPOLL_CREATE
+
+/* Define to 1 if you have the FFmpeg libraries. */
+#undef HAVE_FFMPEG
 
 /* Define to 1 if you have the <float.h> header file. */
 #undef HAVE_FLOAT_H
@@ -117,10 +120,16 @@
 /* Define to 1 if you have the <krb5/krb5.h> header file. */
 #undef HAVE_KRB5_KRB5_H
 
-/* Define to 1 if you have the `gettextpo' library (-lgettextpo). */
+/* Define to 1 if you have the <libavformat/avformat.h> header file. */
+#undef HAVE_LIBAVFORMAT_AVFORMAT_H
+
+/* Define to 1 if you have the <libavutil/avutil.h> header file. */
+#undef HAVE_LIBAVUTIL_AVUTIL_H
+
+/* Define to 1 if you have the 'gettextpo' library (-lgettextpo). */
 #undef HAVE_LIBGETTEXTPO
 
-/* Define to 1 if you have the `procstat' library (-lprocstat). */
+/* Define to 1 if you have the 'procstat' library (-lprocstat). */
 #undef HAVE_LIBPROCSTAT
 
 /* Define to 1 if you have the <libprocstat.h> header file. */
@@ -129,7 +138,7 @@
 /* Define to 1 if you have the <libudev.h> header file. */
 #undef HAVE_LIBUDEV_H
 
-/* Define to 1 if you have the `unwind' library (-lunwind). */
+/* Define to 1 if you have the 'unwind' library (-lunwind). */
 #undef HAVE_LIBUNWIND
 
 /* Define if we have the wayland-egl development environment */
@@ -348,13 +357,13 @@
 /* Define to 1 if you have the <resolv.h> header file. */
 #undef HAVE_RESOLV_H
 
-/* Define to 1 if you have the `res_getservers' function. */
+/* Define to 1 if you have the 'res_getservers' function. */
 #undef HAVE_RES_GETSERVERS
 
 /* Define to 1 if you have the <sched.h> header file. */
 #undef HAVE_SCHED_H
 
-/* Define to 1 if you have the `sched_setaffinity' function. */
+/* Define to 1 if you have the 'sched_setaffinity' function. */
 #undef HAVE_SCHED_SETAFFINITY
 
 /* Define to 1 if you have the `sched_yield' function. */
@@ -639,7 +648,7 @@
 /* Define to 1 if you have the `thr_kill2' function. */
 #undef HAVE_THR_KILL2
 
-/* Define to 1 if you have the `udev' library (-ludev). */
+/* Define to 1 if you have the 'udev' library (-ludev). */
 #undef HAVE_UDEV
 
 /* Define to 1 if you have the <unistd.h> header file. */
@@ -708,18 +717,18 @@
 /* Define if Xrandr has the XRRGetProviderResources function */
 #undef HAVE_XRRGETPROVIDERRESOURCES
 
-/* Define to 1 if you have the `__builtin_popcount' built-in function. */
+/* Define to 1 if you have the '__builtin_popcount' built-in function. */
 #undef HAVE___BUILTIN_POPCOUNT
 
-/* Define to 1 if you have the `__clear_cache' (potentially built-in)
+/* Define to 1 if you have the '__clear_cache' (potentially built-in)
    function. */
 #undef HAVE___CLEAR_CACHE
 
-/* Define to 1 if `major', `minor', and `makedev' are declared in <mkdev.h>.
+/* Define to 1 if 'major', 'minor', and 'makedev' are declared in <mkdev.h>.
    */
 #undef MAJOR_IN_MKDEV
 
-/* Define to 1 if `major', `minor', and `makedev' are declared in
+/* Define to 1 if 'major', 'minor', and 'makedev' are declared in
    <sysmacros.h>. */
 #undef MAJOR_IN_SYSMACROS
 

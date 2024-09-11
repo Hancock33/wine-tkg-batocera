@@ -551,9 +551,11 @@ static const struct vkd3d_shader_varying_map *find_varying_map(
 }
 
 static enum vkd3d_result vsir_program_remap_output_signature(struct vsir_program *program,
-        const struct vkd3d_shader_compile_info *compile_info, struct vkd3d_shader_message_context *message_context)
+        struct vsir_normalisation_context *ctx)
 {
-    const struct vkd3d_shader_location location = {.source_name = compile_info->source_name};
+    const struct vkd3d_shader_location location = {.source_name = ctx->compile_info->source_name};
+    struct vkd3d_shader_message_context *message_context = ctx->message_context;
+    const struct vkd3d_shader_compile_info *compile_info = ctx->compile_info;
     struct shader_signature *signature = &program->output_signature;
     const struct vkd3d_shader_varying_map_info *varying_map;
     unsigned int i;
@@ -862,9 +864,10 @@ static bool vsir_instruction_init_label(struct vkd3d_shader_instruction *ins,
     return true;
 }
 
-static enum vkd3d_result instruction_array_flatten_hull_shader_phases(struct vkd3d_shader_instruction_array *src_instructions)
+static enum vkd3d_result vsir_program_flatten_hull_shader_phases(struct vsir_program *program,
+        struct vsir_normalisation_context *ctx)
 {
-    struct hull_flattener flattener = {*src_instructions};
+    struct hull_flattener flattener = {program->instructions};
     struct vkd3d_shader_instruction_array *instructions;
     struct shader_phase_location_array locations;
     enum vkd3d_result result = VKD3D_OK;
@@ -886,7 +889,7 @@ static enum vkd3d_result instruction_array_flatten_hull_shader_phases(struct vkd
         vsir_instruction_init(&instructions->elements[instructions->count++], &flattener.last_ret_location, VKD3DSIH_RET);
     }
 
-    *src_instructions = flattener.instructions;
+    program->instructions = flattener.instructions;
     return result;
 }
 
@@ -902,9 +905,9 @@ static bool control_point_normaliser_is_in_control_point_phase(const struct cont
     return normaliser->phase == VKD3DSIH_HS_CONTROL_POINT_PHASE;
 }
 
-struct vkd3d_shader_src_param *instruction_array_create_outpointid_param(
-        struct vkd3d_shader_instruction_array *instructions)
+struct vkd3d_shader_src_param *vsir_program_create_outpointid_param(struct vsir_program *program)
 {
+    struct vkd3d_shader_instruction_array *instructions = &program->instructions;
     struct vkd3d_shader_src_param *rel_addr;
 
     if (instructions->outpointid_param)
@@ -1001,7 +1004,7 @@ static enum vkd3d_result control_point_normaliser_emit_hs_input(struct control_p
 }
 
 static enum vkd3d_result instruction_array_normalise_hull_shader_control_point_io(
-        struct vkd3d_shader_instruction_array *src_instructions, const struct shader_signature *input_signature)
+        struct vsir_program *program, struct vsir_normalisation_context *ctx)
 {
     struct vkd3d_shader_instruction_array *instructions;
     struct control_point_normaliser normaliser;
@@ -1011,12 +1014,12 @@ static enum vkd3d_result instruction_array_normalise_hull_shader_control_point_i
     enum vkd3d_result ret;
     unsigned int i, j;
 
-    if (!(normaliser.outpointid_param = instruction_array_create_outpointid_param(src_instructions)))
+    if (!(normaliser.outpointid_param = vsir_program_create_outpointid_param(program)))
     {
         ERR("Failed to allocate src param.\n");
         return VKD3D_ERROR_OUT_OF_MEMORY;
     }
-    normaliser.instructions = *src_instructions;
+    normaliser.instructions = program->instructions;
     instructions = &normaliser.instructions;
     normaliser.phase = VKD3DSIH_INVALID;
 
@@ -1053,22 +1056,22 @@ static enum vkd3d_result instruction_array_normalise_hull_shader_control_point_i
                 input_control_point_count = ins->declaration.count;
                 break;
             case VKD3DSIH_HS_CONTROL_POINT_PHASE:
-                *src_instructions = normaliser.instructions;
+                program->instructions = normaliser.instructions;
                 return VKD3D_OK;
             case VKD3DSIH_HS_FORK_PHASE:
             case VKD3DSIH_HS_JOIN_PHASE:
                 /* ins may be relocated if the instruction array expands. */
                 location = ins->location;
-                ret = control_point_normaliser_emit_hs_input(&normaliser, input_signature,
+                ret = control_point_normaliser_emit_hs_input(&normaliser, &program->input_signature,
                         input_control_point_count, i, &location);
-                *src_instructions = normaliser.instructions;
+                program->instructions = normaliser.instructions;
                 return ret;
             default:
                 break;
         }
     }
 
-    *src_instructions = normaliser.instructions;
+    program->instructions = normaliser.instructions;
     return VKD3D_OK;
 }
 
@@ -1398,6 +1401,8 @@ static bool shader_signature_merge(struct shader_signature *s, uint8_t range_map
                 else
                     e->interpolation_mode = f->interpolation_mode;
             }
+
+            vkd3d_free((void *)f->semantic_name);
         }
     }
     element_count = new_count;
@@ -1425,6 +1430,12 @@ static bool shader_signature_merge(struct shader_signature *s, uint8_t range_map
             TRACE("Merging %s, base reg %u, count %u.\n", e->semantic_name, e->register_index, register_count);
             e->register_count = register_count;
             e->mask = signature_element_range_expand_mask(e, register_count, range_map);
+
+            for (j = 1; j < register_count; ++j)
+            {
+                f = &elements[i + j];
+                vkd3d_free((void *)f->semantic_name);
+            }
         }
     }
     element_count = new_count;
@@ -1761,8 +1772,9 @@ static bool use_flat_interpolation(const struct vsir_program *program,
 }
 
 static enum vkd3d_result vsir_program_normalise_io_registers(struct vsir_program *program,
-        struct vkd3d_shader_message_context *message_context)
+        struct vsir_normalisation_context *ctx)
 {
+    struct vkd3d_shader_message_context *message_context = ctx->message_context;
     struct io_normaliser normaliser = {program->instructions};
     struct vkd3d_shader_instruction *ins;
     unsigned int i;
@@ -1909,7 +1921,8 @@ static void shader_register_normalise_flat_constants(struct vkd3d_shader_src_par
     param->reg.idx_count = 3;
 }
 
-static enum vkd3d_result instruction_array_normalise_flat_constants(struct vsir_program *program)
+static enum vkd3d_result vsir_program_normalise_flat_constants(struct vsir_program *program,
+        struct vsir_normalisation_context *ctx)
 {
     struct flat_constants_normaliser normaliser = {0};
     unsigned int i, j;
@@ -6657,30 +6670,20 @@ enum vkd3d_result vsir_program_normalise(struct vsir_program *program, uint64_t 
     }
     else
     {
-        if (ctx.result < 0)
-            return ctx.result;
-
         if (program->shader_version.type != VKD3D_SHADER_TYPE_PIXEL)
-        {
-            if ((result = vsir_program_remap_output_signature(program, compile_info, message_context)) < 0)
-                return result;
-        }
+            vsir_transform(&ctx, vsir_program_remap_output_signature);
 
         if (program->shader_version.type == VKD3D_SHADER_TYPE_HULL)
         {
-            if ((result = instruction_array_flatten_hull_shader_phases(&program->instructions)) < 0)
-                return result;
-
-            if ((result = instruction_array_normalise_hull_shader_control_point_io(&program->instructions,
-                    &program->input_signature)) < 0)
-                return result;
+            vsir_transform(&ctx, vsir_program_flatten_hull_shader_phases);
+            vsir_transform(&ctx, instruction_array_normalise_hull_shader_control_point_io);
         }
 
-        if ((result = vsir_program_normalise_io_registers(program, message_context)) < 0)
-            return result;
+        vsir_transform(&ctx, vsir_program_normalise_io_registers);
+        vsir_transform(&ctx, vsir_program_normalise_flat_constants);
 
-        if ((result = instruction_array_normalise_flat_constants(program)) < 0)
-            return result;
+        if (ctx.result < 0)
+            return ctx.result;
 
         remove_dead_code(program);
 

@@ -1481,10 +1481,8 @@ struct d3dbc_compiler
 
 static uint32_t sm1_version(enum vkd3d_shader_type type, unsigned int major, unsigned int minor)
 {
-    if (type == VKD3D_SHADER_TYPE_VERTEX)
-        return D3DVS_VERSION(major, minor);
-    else
-        return D3DPS_VERSION(major, minor);
+    return vkd3d_make_u32(vkd3d_make_u16(minor, major),
+            type == VKD3D_SHADER_TYPE_VERTEX ? VKD3D_SM1_VS : VKD3D_SM1_PS);
 }
 
 D3DXPARAMETER_CLASS hlsl_sm1_class(const struct hlsl_type *type)
@@ -1867,8 +1865,8 @@ void write_sm1_uniforms(struct hlsl_ctx *ctx, struct vkd3d_bytecode_buffer *buff
 
 static uint32_t sm1_encode_register_type(enum vkd3d_shader_register_type type)
 {
-    return ((type << D3DSP_REGTYPE_SHIFT) & D3DSP_REGTYPE_MASK)
-            | ((type << D3DSP_REGTYPE_SHIFT2) & D3DSP_REGTYPE_MASK2);
+    return ((type << VKD3D_SM1_REGISTER_TYPE_SHIFT) & VKD3D_SM1_REGISTER_TYPE_MASK)
+            | ((type << VKD3D_SM1_REGISTER_TYPE_SHIFT2) & VKD3D_SM1_REGISTER_TYPE_MASK2);
 }
 
 struct sm1_instruction
