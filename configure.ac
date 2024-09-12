@@ -95,7 +95,6 @@ AC_SUBST(srcdir)
 
 dnl **** Check for some programs ****
 
-AC_PROG_MAKE_SET
 AC_PROG_CC
 AC_PROG_CXX
 dnl We can't use AC_PROG_CPP for winegcc, it uses by default $(CC) -E
@@ -246,7 +245,6 @@ AC_CHECK_TOOLS(AR,[ar gar],ar)
 AC_CHECK_TOOL(STRIP,strip,strip)
 AC_PROG_RANLIB
 AC_PROG_LN_S
-AC_PROG_EGREP
 AC_PATH_PROG(LDCONFIG, ldconfig, true, [/sbin /usr/sbin $PATH])
 AC_CHECK_PROGS(MSGFMT, msgfmt, false)
 WINE_PATH_PKG_CONFIG
@@ -357,7 +355,9 @@ AC_SUBST(OPENGL_LIBS,"")
 dnl **** Check for header files ****
 
 AC_SYS_LARGEFILE()
-m4_ifdef([AC_SYS_YEAR2038],[AC_SYS_YEAR2038()],[test "$ac_cv_sys_file_offset_bits" = 64 && AC_DEFINE(_TIME_BITS,64,[Define to 64 to enable 64-bit time_t])])
+m4_ifdef([AC_SYS_YEAR2038],
+         [AS_IF(false,[AC_SYS_YEAR2038()])], dnl bypass misguided autoconf error on wow64 builds
+         [test "$ac_cv_sys_file_offset_bits" = 64 && AC_DEFINE(_TIME_BITS,64,[Define to 64 to enable 64-bit time_t])])
 
 AC_CHECK_HEADERS(\
 	CL/cl.h \
@@ -2365,16 +2365,9 @@ dnl *** check for the need to define platform-specific symbols
 case $host_cpu in
   *i[[3456789]]86*) WINE_CHECK_DEFINE([__i386__]) ;;
   *x86_64*)         WINE_CHECK_DEFINE([__x86_64__]) ;;
-  *sparc64*)        WINE_CHECK_DEFINE([__sparc64__]) ;;
-  *sparc*)          WINE_CHECK_DEFINE([__sparc__]) ;;
   *powerpc64*)      WINE_CHECK_DEFINE([__powerpc64__]) ;;
-  *powerpc*)        WINE_CHECK_DEFINE([__powerpc__]) ;;
   *aarch64*)        WINE_CHECK_DEFINE([__aarch64__]) ;;
   *arm*)            WINE_CHECK_DEFINE([__arm__]) ;;
-esac
-
-case $host_vendor in
-  *sun*) WINE_CHECK_DEFINE([__sun__]) ;;
 esac
 
 dnl *** Check for modules to disable by default
@@ -3733,7 +3726,7 @@ dnl Rules for generated source files
 
 WINE_APPEND_RULE(
 [dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-9.17.r2.g52f5128a\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging Esync Fsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
+	@version=\`(echo \"wine-9.17.r4.gb6944be8\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging Esync Fsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$[@]) || echo \$\$build >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.nfo:

@@ -6506,6 +6506,303 @@ static void sm1_generate_vsir_instr_constant(struct hlsl_ctx *ctx,
     hlsl_replace_node(instr, vsir_instr);
 }
 
+/* Translate ops that can be mapped to a single vsir instruction with only one dst register. */
+static void sm1_generate_vsir_instr_expr_single_instr_op(struct hlsl_ctx *ctx, struct vsir_program *program,
+        struct hlsl_ir_expr *expr, enum vkd3d_shader_opcode opcode, uint32_t src_mod, uint32_t dst_mod,
+        bool map_src_swizzles)
+{
+    struct vkd3d_shader_instruction_array *instructions = &program->instructions;
+    struct hlsl_ir_node *instr = &expr->node;
+    struct vkd3d_shader_dst_param *dst_param;
+    struct vkd3d_shader_src_param *src_param;
+    struct vkd3d_shader_instruction *ins;
+    struct hlsl_ir_node *vsir_instr;
+    unsigned int i, src_count = 0;
+
+    VKD3D_ASSERT(instr->reg.allocated);
+
+    for (i = 0; i < HLSL_MAX_OPERANDS; ++i)
+    {
+        if (expr->operands[i].node)
+            src_count = i + 1;
+    }
+    VKD3D_ASSERT(!src_mod || src_count == 1);
+
+    if (!(ins = generate_vsir_add_program_instruction(ctx, program, &instr->loc, opcode, 1, src_count)))
+        return;
+
+    dst_param = &ins->dst[0];
+    vsir_register_init(&dst_param->reg, VKD3DSPR_TEMP, VKD3D_DATA_FLOAT, 1);
+    dst_param->reg.idx[0].offset = instr->reg.id;
+    dst_param->write_mask = instr->reg.writemask;
+    dst_param->modifiers = dst_mod;
+
+    for (i = 0; i < src_count; ++i)
+    {
+        struct hlsl_ir_node *operand = expr->operands[i].node;
+
+        src_param = &ins->src[i];
+        vsir_register_init(&src_param->reg, VKD3DSPR_TEMP, VKD3D_DATA_FLOAT, 1);
+        src_param->reg.idx[0].offset = operand->reg.id;
+        src_param->swizzle = sm1_generate_vsir_get_src_swizzle(operand->reg.writemask,
+                map_src_swizzles ? dst_param->write_mask : VKD3DSP_WRITEMASK_ALL);
+        src_param->modifiers = src_mod;
+    }
+
+    if (!(vsir_instr = hlsl_new_vsir_instruction_ref(ctx, instructions->count - 1, instr->data_type,
+            &instr->reg, &instr->loc)))
+    {
+        ctx->result = VKD3D_ERROR_OUT_OF_MEMORY;
+        return;
+    }
+
+    list_add_before(&instr->entry, &vsir_instr->entry);
+    hlsl_replace_node(instr, vsir_instr);
+}
+
+/* Translate ops that have 1 src and need one instruction for each component in
+ * the d3dbc backend. */
+static void sm1_generate_vsir_instr_expr_per_component_instr_op(struct hlsl_ctx *ctx,
+        struct vsir_program *program, struct hlsl_ir_expr *expr, enum vkd3d_shader_opcode opcode)
+{
+    struct vkd3d_shader_instruction_array *instructions = &program->instructions;
+    struct hlsl_ir_node *operand = expr->operands[0].node;
+    struct hlsl_ir_node *instr = &expr->node;
+    struct vkd3d_shader_dst_param *dst_param;
+    struct vkd3d_shader_src_param *src_param;
+    struct hlsl_ir_node *vsir_instr = NULL;
+    struct vkd3d_shader_instruction *ins;
+    uint32_t src_swizzle;
+    unsigned int i, c;
+
+    VKD3D_ASSERT(instr->reg.allocated);
+    VKD3D_ASSERT(operand);
+
+    src_swizzle = sm1_generate_vsir_get_src_swizzle(operand->reg.writemask, instr->reg.writemask);
+    for (i = 0; i < 4; ++i)
+    {
+        if (instr->reg.writemask & (1u << i))
+        {
+            if (!(ins = generate_vsir_add_program_instruction(ctx, program, &instr->loc, opcode, 1, 1)))
+                return;
+
+            dst_param = &ins->dst[0];
+            vsir_register_init(&dst_param->reg, VKD3DSPR_TEMP, VKD3D_DATA_FLOAT, 1);
+            dst_param->reg.idx[0].offset = instr->reg.id;
+            dst_param->write_mask = 1u << i;
+
+            src_param = &ins->src[0];
+            vsir_register_init(&src_param->reg, VKD3DSPR_TEMP, VKD3D_DATA_FLOAT, 1);
+            src_param->reg.idx[0].offset = operand->reg.id;
+            c = vsir_swizzle_get_component(src_swizzle, i);
+            src_param->swizzle = vsir_swizzle_from_writemask(1u << c);
+
+            if (!(vsir_instr = hlsl_new_vsir_instruction_ref(ctx, instructions->count - 1,
+                    hlsl_get_scalar_type(ctx, instr->data_type->e.numeric.type),
+                    &instr->reg, &instr->loc)))
+            {
+                ctx->result = VKD3D_ERROR_OUT_OF_MEMORY;
+                return;
+            }
+            list_add_before(&instr->entry, &vsir_instr->entry);
+        }
+    }
+
+    /* Replace expr with a no-op move. For the other instructions that reference it. */
+    if (!(ins = generate_vsir_add_program_instruction(ctx, program, &instr->loc, VKD3DSIH_MOV, 1, 1)))
+        return;
+
+    dst_param = &ins->dst[0];
+    vsir_register_init(&dst_param->reg, VKD3DSPR_TEMP, VKD3D_DATA_FLOAT, 1);
+    dst_param->reg.idx[0].offset = instr->reg.id;
+    dst_param->write_mask = instr->reg.writemask;
+
+    src_param = &ins->src[0];
+    vsir_register_init(&src_param->reg, VKD3DSPR_TEMP, VKD3D_DATA_FLOAT, 1);
+    src_param->reg.idx[0].offset = instr->reg.id;
+    src_param->swizzle = sm1_generate_vsir_get_src_swizzle(instr->reg.writemask, dst_param->write_mask);
+
+    if (!(vsir_instr = hlsl_new_vsir_instruction_ref(ctx, instructions->count - 1, instr->data_type,
+            &instr->reg, &instr->loc)))
+    {
+        ctx->result = VKD3D_ERROR_OUT_OF_MEMORY;
+        return;
+    }
+    list_add_before(&instr->entry, &vsir_instr->entry);
+    hlsl_replace_node(instr, vsir_instr);
+}
+
+static void sm1_generate_vsir_instr_expr_sincos(struct hlsl_ctx *ctx, struct vsir_program *program,
+        struct hlsl_ir_expr *expr)
+{
+    struct vkd3d_shader_instruction_array *instructions = &program->instructions;
+    struct hlsl_ir_node *operand = expr->operands[0].node;
+    struct hlsl_ir_node *instr = &expr->node;
+    struct vkd3d_shader_dst_param *dst_param;
+    struct vkd3d_shader_src_param *src_param;
+    struct vkd3d_shader_instruction *ins;
+    struct hlsl_ir_node *vsir_instr;
+    unsigned int src_count = 0;
+
+    VKD3D_ASSERT(instr->reg.allocated);
+    src_count = (ctx->profile->major_version < 3) ? 3 : 1;
+
+    if (!(ins = generate_vsir_add_program_instruction(ctx, program, &instr->loc, VKD3DSIH_SINCOS, 1, src_count)))
+        return;
+
+    dst_param = &ins->dst[0];
+    vsir_register_init(&dst_param->reg, VKD3DSPR_TEMP, VKD3D_DATA_FLOAT, 1);
+    dst_param->reg.idx[0].offset = instr->reg.id;
+    dst_param->write_mask = instr->reg.writemask;
+
+    src_param = &ins->src[0];
+    vsir_register_init(&src_param->reg, VKD3DSPR_TEMP, VKD3D_DATA_FLOAT, 1);
+    src_param->reg.idx[0].offset = operand->reg.id;
+    src_param->swizzle = sm1_generate_vsir_get_src_swizzle(operand->reg.writemask, VKD3DSP_WRITEMASK_ALL);
+
+    if (ctx->profile->major_version < 3)
+    {
+        src_param = &ins->src[1];
+        vsir_register_init(&src_param->reg, VKD3DSPR_CONST, VKD3D_DATA_FLOAT, 1);
+        src_param->reg.idx[0].offset = ctx->d3dsincosconst1.id;
+        src_param->swizzle = VKD3D_SHADER_NO_SWIZZLE;
+
+        src_param = &ins->src[1];
+        vsir_register_init(&src_param->reg, VKD3DSPR_CONST, VKD3D_DATA_FLOAT, 1);
+        src_param->reg.idx[0].offset = ctx->d3dsincosconst2.id;
+        src_param->swizzle = VKD3D_SHADER_NO_SWIZZLE;
+    }
+
+    if (!(vsir_instr = hlsl_new_vsir_instruction_ref(ctx, instructions->count - 1, instr->data_type,
+            &instr->reg, &instr->loc)))
+    {
+        ctx->result = VKD3D_ERROR_OUT_OF_MEMORY;
+        return;
+    }
+
+    list_add_before(&instr->entry, &vsir_instr->entry);
+    hlsl_replace_node(instr, vsir_instr);
+}
+
+static bool sm1_generate_vsir_instr_expr(struct hlsl_ctx *ctx, struct vsir_program *program,
+        struct hlsl_ir_expr *expr)
+{
+    switch (expr->op)
+    {
+        case HLSL_OP1_ABS:
+            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_ABS, 0, 0, true);
+            break;
+
+        case HLSL_OP1_COS_REDUCED:
+            VKD3D_ASSERT(expr->node.reg.writemask == VKD3DSP_WRITEMASK_0);
+            sm1_generate_vsir_instr_expr_sincos(ctx, program, expr);
+            break;
+
+        case HLSL_OP1_DSX:
+            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_DSX, 0, 0, true);
+            break;
+
+        case HLSL_OP1_DSY:
+            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_DSY, 0, 0, true);
+            break;
+
+        case HLSL_OP1_EXP2:
+            sm1_generate_vsir_instr_expr_per_component_instr_op(ctx, program, expr, VKD3DSIH_EXP);
+            break;
+
+        case HLSL_OP1_LOG2:
+            sm1_generate_vsir_instr_expr_per_component_instr_op(ctx, program, expr, VKD3DSIH_LOG);
+            break;
+
+        case HLSL_OP1_NEG:
+            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MOV, VKD3DSPSM_NEG, 0, true);
+            break;
+
+        case HLSL_OP1_RCP:
+            sm1_generate_vsir_instr_expr_per_component_instr_op(ctx, program, expr, VKD3DSIH_RCP);
+            break;
+
+        case HLSL_OP1_RSQ:
+            sm1_generate_vsir_instr_expr_per_component_instr_op(ctx, program, expr, VKD3DSIH_RSQ);
+            break;
+
+        case HLSL_OP1_SAT:
+            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MOV, 0, VKD3DSPDM_SATURATE, true);
+            break;
+
+        case HLSL_OP1_SIN_REDUCED:
+            VKD3D_ASSERT(expr->node.reg.writemask == VKD3DSP_WRITEMASK_1);
+            sm1_generate_vsir_instr_expr_sincos(ctx, program, expr);
+            break;
+
+        case HLSL_OP2_ADD:
+            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_ADD, 0, 0, true);
+            break;
+
+        case HLSL_OP2_DOT:
+            switch (expr->operands[0].node->data_type->dimx)
+            {
+                case 3:
+                    sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_DP3, 0, 0, false);
+                    break;
+
+                case 4:
+                    sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_DP4, 0, 0, false);
+                    break;
+
+                default:
+                    vkd3d_unreachable();
+                    return false;
+            }
+            break;
+
+        case HLSL_OP2_MAX:
+            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MAX, 0, 0, true);
+            break;
+
+        case HLSL_OP2_MIN:
+            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MIN, 0, 0, true);
+            break;
+
+        case HLSL_OP2_MUL:
+            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MUL, 0, 0, true);
+            break;
+
+        case HLSL_OP1_FRACT:
+            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_FRC, 0, 0, true);
+            break;
+
+        case HLSL_OP2_LOGIC_AND:
+            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MIN, 0, 0, true);
+            break;
+
+        case HLSL_OP2_LOGIC_OR:
+            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MAX, 0, 0, true);
+            break;
+
+        case HLSL_OP2_SLT:
+            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_SLT, 0, 0, true);
+            break;
+
+        case HLSL_OP3_CMP:
+            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_CMP, 0, 0, true);
+            break;
+
+        case HLSL_OP3_DP2ADD:
+            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_DP2ADD, 0, 0, false);
+            break;
+
+        case HLSL_OP3_MAD:
+            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MAD, 0, 0, true);
+            break;
+
+        default:
+            return false;
+    }
+
+    return true;
+}
+
 static void sm1_generate_vsir_init_dst_param_from_deref(struct hlsl_ctx *ctx,
         struct vkd3d_shader_dst_param *dst_param, struct hlsl_deref *deref,
         const struct vkd3d_shader_location *loc, unsigned int writemask)
@@ -6708,6 +7005,9 @@ static bool sm1_generate_vsir_instr(struct hlsl_ctx *ctx, struct hlsl_ir_node *i
         case HLSL_IR_CONSTANT:
             sm1_generate_vsir_instr_constant(ctx, program, hlsl_ir_constant(instr));
             return true;
+
+        case HLSL_IR_EXPR:
+            return sm1_generate_vsir_instr_expr(ctx, program, hlsl_ir_expr(instr));
 
         case HLSL_IR_LOAD:
             sm1_generate_vsir_instr_load(ctx, program, hlsl_ir_load(instr));
