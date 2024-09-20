@@ -1610,6 +1610,7 @@ void CDECL wined3d_stateblock_set_render_state(struct wined3d_stateblock *stateb
 
         case WINED3D_RS_VERTEXBLEND:
             stateblock->changed.modelview_matrices = 1;
+            stateblock->changed.ffp_vs_settings = 1;
             break;
 
         case WINED3D_RS_POINTSCALEENABLE:
@@ -1623,9 +1624,13 @@ void CDECL wined3d_stateblock_set_render_state(struct wined3d_stateblock *stateb
         case WINED3D_RS_COLORVERTEX:
         case WINED3D_RS_DIFFUSEMATERIALSOURCE:
         case WINED3D_RS_EMISSIVEMATERIALSOURCE:
+        case WINED3D_RS_FOGENABLE:
+        case WINED3D_RS_FOGTABLEMODE:
+        case WINED3D_RS_FOGVERTEXMODE:
         case WINED3D_RS_LIGHTING:
         case WINED3D_RS_LOCALVIEWER:
         case WINED3D_RS_NORMALIZENORMALS:
+        case WINED3D_RS_RANGEFOGENABLE:
         case WINED3D_RS_SPECULARMATERIALSOURCE:
             stateblock->changed.ffp_vs_settings = 1;
             break;
@@ -3471,8 +3476,8 @@ void CDECL wined3d_device_apply_stateblock(struct wined3d_device *device,
                             WINED3D_PUSH_CONSTANTS_VS_FFP, WINED3D_SHADER_CONST_FFP_PROJ,
                             offsetof(struct wined3d_ffp_vs_constants, projection_matrix),
                             sizeof(state->transforms[idx]), &state->transforms[idx]);
-                    /* wined3d_ffp_vs_settings.ortho_fog still needs the
-                     * device state to be set. */
+                    /* wined3d_ffp_vs_settings.ortho_fog and vs_compile_args.ortho_fog
+                     * still need the device state to be set. */
                     wined3d_device_set_transform(device, idx, &state->transforms[idx]);
                 }
             }

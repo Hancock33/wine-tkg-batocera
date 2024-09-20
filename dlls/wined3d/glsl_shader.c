@@ -8180,9 +8180,18 @@ static void shader_glsl_generate_vs_epilogue(const struct wined3d_gl_info *gl_in
         if (args->fog_src == VS_FOG_Z)
             shader_addline(buffer, "%s = gl_Position.z;\n",
                     legacy_syntax ? "gl_FogFragCoord" : "ffp_varying_fogcoord");
-        else if (!reg_maps->fog)
-            shader_addline(buffer, "%s = 0.0;\n",
+        else if (args->fog_src == VS_FOG_W)
+            shader_addline(buffer, "%s = gl_Position.w;\n",
                     legacy_syntax ? "gl_FogFragCoord" : "ffp_varying_fogcoord");
+        else if (!reg_maps->fog)
+        {
+            if (reg_maps->output_registers & (1u << (8 + 1)))
+                shader_addline(buffer, "%s = ffp_varying_specular.w;\n",
+                        legacy_syntax ? "gl_FogFragCoord" : "ffp_varying_fogcoord");
+            else
+                shader_addline(buffer, "%s = 0.0;\n",
+                        legacy_syntax ? "gl_FogFragCoord" : "ffp_varying_fogcoord");
+        }
     }
 
     /* We always store the clipplanes without y inversion. */
@@ -11978,15 +11987,6 @@ static void glsl_vertex_pipe_pixel_shader(struct wined3d_context *context,
         context->shader_update_mask |= 1u << WINED3D_SHADER_TYPE_VERTEX;
 }
 
-static void glsl_vertex_pipe_projection(struct wined3d_context *context,
-        const struct wined3d_state *state, DWORD state_id)
-{
-    /* Table fog behavior depends on the projection matrix. */
-    if (state->render_states[WINED3D_RS_FOGENABLE]
-            && state->render_states[WINED3D_RS_FOGTABLEMODE] != WINED3D_FOG_NONE)
-        context->shader_update_mask |= 1u << WINED3D_SHADER_TYPE_VERTEX;
-}
-
 static void glsl_vertex_pipe_viewport(struct wined3d_context *context,
         const struct wined3d_state *state, DWORD state_id)
 {
@@ -12054,16 +12054,12 @@ static const struct wined3d_state_entry_template glsl_vertex_pipe_vp_states[] =
     {STATE_CLIPPLANE(7),                                         {STATE_CLIPPLANE(7),                                         clipplane              }, WINED3D_GL_EXT_NONE          },
     /* Viewport */
     {STATE_VIEWPORT,                                             {STATE_VIEWPORT,                                             glsl_vertex_pipe_viewport}, WINED3D_GL_EXT_NONE        },
-    /* Transform states */
-    {STATE_TRANSFORM(WINED3D_TS_PROJECTION),                     {STATE_TRANSFORM(WINED3D_TS_PROJECTION),                     glsl_vertex_pipe_projection}, WINED3D_GL_EXT_NONE      },
     /* Fog */
-    {STATE_RENDER(WINED3D_RS_FOGENABLE),                         {STATE_RENDER(WINED3D_RS_FOGENABLE),                         glsl_vertex_pipe_shader}, WINED3D_GL_EXT_NONE          },
-    {STATE_RENDER(WINED3D_RS_FOGTABLEMODE),                      {STATE_RENDER(WINED3D_RS_FOGENABLE),                         NULL                   }, WINED3D_GL_EXT_NONE          },
+    {STATE_RENDER(WINED3D_RS_FOGENABLE),                         {STATE_RENDER(WINED3D_RS_FOGENABLE),                         state_nop              }, WINED3D_GL_EXT_NONE          },
+    {STATE_RENDER(WINED3D_RS_FOGTABLEMODE),                      {STATE_RENDER(WINED3D_RS_FOGTABLEMODE),                      glsl_vertex_pipe_shader}, WINED3D_GL_EXT_NONE          },
     {STATE_RENDER(WINED3D_RS_FOGVERTEXMODE),                     {STATE_RENDER(WINED3D_RS_FOGENABLE),                         NULL                   }, WINED3D_GL_EXT_NONE          },
-    {STATE_RENDER(WINED3D_RS_RANGEFOGENABLE),                    {STATE_RENDER(WINED3D_RS_FOGENABLE),                         NULL                   }, WINED3D_GL_EXT_NONE          },
     {STATE_RENDER(WINED3D_RS_CLIPPING),                          {STATE_RENDER(WINED3D_RS_CLIPPING),                          state_clipping         }, WINED3D_GL_EXT_NONE          },
     {STATE_RENDER(WINED3D_RS_CLIPPLANEENABLE),                   {STATE_RENDER(WINED3D_RS_CLIPPING),                          NULL                   }, WINED3D_GL_EXT_NONE          },
-    {STATE_RENDER(WINED3D_RS_VERTEXBLEND),                       {STATE_SHADER(WINED3D_SHADER_TYPE_VERTEX),                   NULL                   }, WINED3D_GL_EXT_NONE          },
     {STATE_RENDER(WINED3D_RS_POINTSIZE),                         {STATE_RENDER(WINED3D_RS_POINTSIZE_MIN),                     NULL                   }, WINED3D_GL_EXT_NONE          },
     {STATE_RENDER(WINED3D_RS_POINTSIZE_MIN),                     {STATE_RENDER(WINED3D_RS_POINTSIZE_MIN),                     glsl_vertex_pipe_pointsize}, WINED3D_GL_EXT_NONE       },
     {STATE_RENDER(WINED3D_RS_POINTSPRITEENABLE),                 {STATE_RENDER(WINED3D_RS_POINTSPRITEENABLE),                 state_pointsprite      }, ARB_POINT_SPRITE             },
@@ -12322,7 +12318,7 @@ static const struct wined3d_state_entry_template glsl_fragment_pipe_state_templa
     {STATE_RENDER(WINED3D_RS_ALPHATESTENABLE),                  {STATE_RENDER(WINED3D_RS_ALPHATESTENABLE),                   glsl_fragment_pipe_alpha_test          }, WINED3D_GL_LEGACY_CONTEXT},
     {STATE_RENDER(WINED3D_RS_ALPHATESTENABLE),                  {STATE_RENDER(WINED3D_RS_ALPHATESTENABLE),                   glsl_fragment_pipe_core_alpha_test     }, WINED3D_GL_EXT_NONE },
     {STATE_RENDER(WINED3D_RS_FOGENABLE),                        {STATE_RENDER(WINED3D_RS_FOGENABLE),                         glsl_fragment_pipe_fog                 }, WINED3D_GL_EXT_NONE },
-    {STATE_RENDER(WINED3D_RS_FOGTABLEMODE),                     {STATE_RENDER(WINED3D_RS_FOGENABLE),                         NULL                                   }, WINED3D_GL_EXT_NONE },
+    {STATE_RENDER(WINED3D_RS_FOGTABLEMODE),                     {STATE_RENDER(WINED3D_RS_FOGTABLEMODE),                      glsl_fragment_pipe_fog                 }, WINED3D_GL_EXT_NONE },
     {STATE_RENDER(WINED3D_RS_FOGVERTEXMODE),                    {STATE_RENDER(WINED3D_RS_FOGENABLE),                         NULL                                   }, WINED3D_GL_EXT_NONE },
     {STATE_RENDER(WINED3D_RS_FOGSTART),                         {STATE_RENDER(WINED3D_RS_FOGSTART),                          glsl_fragment_pipe_fogparams           }, WINED3D_GL_EXT_NONE },
     {STATE_RENDER(WINED3D_RS_FOGEND),                           {STATE_RENDER(WINED3D_RS_FOGSTART),                          NULL                                   }, WINED3D_GL_EXT_NONE },

@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <libgen.h>
 #include <poll.h>
 #ifdef HAVE_LINUX_MAJOR_H
@@ -73,9 +74,6 @@
 #include <sys/event.h>
 #undef LIST_INIT
 #undef LIST_ENTRY
-#endif
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
 #endif
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -2910,7 +2908,7 @@ DECL_HANDLER(flush)
 
     if (!fd) return;
 
-    if ((async = create_request_async( fd, fd->comp_flags, &req->async )))
+    if ((async = create_request_async( fd, fd->comp_flags, &req->async, 0 )))
     {
         fd->fd_ops->flush( fd, async );
         reply->event = async_handoff( async, NULL, 1 );
@@ -2939,7 +2937,7 @@ DECL_HANDLER(get_volume_info)
 
     if (!fd) return;
 
-    if ((async = create_request_async( fd, fd->comp_flags, &req->async )))
+    if ((async = create_request_async( fd, fd->comp_flags, &req->async, 0 )))
     {
         fd->fd_ops->get_volume_info( fd, async, req->info_class );
         reply->wait = async_handoff( async, NULL, 1 );
@@ -3015,7 +3013,7 @@ DECL_HANDLER(read)
 
     if (!fd) return;
 
-    if ((async = create_request_async( fd, fd->comp_flags, &req->async )))
+    if ((async = create_request_async( fd, fd->comp_flags, &req->async, 0 )))
     {
         fd->fd_ops->read( fd, async, req->pos );
         reply->wait = async_handoff( async, NULL, 0 );
@@ -3033,7 +3031,7 @@ DECL_HANDLER(write)
 
     if (!fd) return;
 
-    if ((async = create_request_async( fd, fd->comp_flags, &req->async )))
+    if ((async = create_request_async( fd, fd->comp_flags, &req->async, 0 )))
     {
         fd->fd_ops->write( fd, async, req->pos );
         reply->wait = async_handoff( async, &reply->size, 0 );
@@ -3052,7 +3050,7 @@ DECL_HANDLER(ioctl)
 
     if (!fd) return;
 
-    if ((async = create_request_async( fd, fd->comp_flags, &req->async )))
+    if ((async = create_request_async( fd, fd->comp_flags, &req->async, 0 )))
     {
         fd->fd_ops->ioctl( fd, req->code, async );
         reply->wait = async_handoff( async, NULL, 0 );

@@ -54,9 +54,6 @@
 /* Define to 1 if you have the FFmpeg libraries. */
 #undef HAVE_FFMPEG
 
-/* Define to 1 if you have the <float.h> header file. */
-#undef HAVE_FLOAT_H
-
 /* Define if FreeType 2 is installed */
 #undef HAVE_FREETYPE
 
@@ -119,6 +116,9 @@
 
 /* Define to 1 if you have the <krb5/krb5.h> header file. */
 #undef HAVE_KRB5_KRB5_H
+
+/* Define to 1 if you have the <libavcodec/avcodec.h> header file. */
+#undef HAVE_LIBAVCODEC_AVCODEC_H
 
 /* Define to 1 if you have the <libavformat/avformat.h> header file. */
 #undef HAVE_LIBAVFORMAT_AVFORMAT_H
@@ -222,9 +222,6 @@
 /* Define to 1 if you have the <machine/sysarch.h> header file. */
 #undef HAVE_MACHINE_SYSARCH_H
 
-/* Define to 1 if you have the `mach_continuous_time' function. */
-#undef HAVE_MACH_CONTINUOUS_TIME
-
 /* Define to 1 if you have the <mach/mach.h> header file. */
 #undef HAVE_MACH_MACH_H
 
@@ -303,7 +300,7 @@
 /* Define to 1 if you have the <net/route.h> header file. */
 #undef HAVE_NET_ROUTE_H
 
-/* Define to 1 if you have the <CL/opencl.h> header file. */
+/* Define to 1 if you have the <OpenCL/opencl.h> header file. */
 #undef HAVE_OPENCL_OPENCL_H
 
 /* Define to 1 if `numaudioengines' is a member of `oss_sysinfo'. */
@@ -724,11 +721,11 @@
    function. */
 #undef HAVE___CLEAR_CACHE
 
-/* Define to 1 if 'major', 'minor', and 'makedev' are declared in <mkdev.h>.
+/* Define to 1 if `major', `minor', and `makedev' are declared in <mkdev.h>.
    */
 #undef MAJOR_IN_MKDEV
 
-/* Define to 1 if 'major', 'minor', and 'makedev' are declared in
+/* Define to 1 if `major', `minor', and `makedev' are declared in
    <sysmacros.h>. */
 #undef MAJOR_IN_SYSMACROS
 
@@ -831,9 +828,6 @@
 /* Define to the soname of the libXxf86vm library. */
 #undef SONAME_LIBXXF86VM
 
-/* Define to 1 if the `S_IS*' macros in <sys/stat.h> do not work properly. */
-#undef STAT_MACROS_BROKEN
-
 /* Define to 1 if all of the C90 standard headers exist (not just the ones
    required in a freestanding environment). This macro is provided for
    backward compatibility; new code need not use it. */
@@ -841,9 +835,6 @@
 
 /* Define if xattr functions take additional arguments (macOS) */
 #undef XATTR_ADDITIONAL_OPTIONS
-
-/* Define to 1 if the X Window System is missing or not being used. */
-#undef X_DISPLAY_MISSING
 
 /* Number of bits in a file offset, on hosts where this is settable. */
 #undef _FILE_OFFSET_BITS
@@ -856,11 +847,5 @@
 
 /* Define to 64 to enable 64-bit time_t */
 #undef _TIME_BITS
-
-/* Define to `__inline__' or `__inline' if that's what the C compiler
-   calls it, or to nothing if 'inline' is not supported under any name.  */
-#ifndef __cplusplus
-#undef inline
-#endif
 
 #endif /* __WINE_CONFIG_H */

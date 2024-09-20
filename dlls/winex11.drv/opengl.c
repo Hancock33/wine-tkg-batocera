@@ -1090,29 +1090,6 @@ static GLXContext create_glxcontext(Display *display, struct wgl_context *contex
     return ctx;
 }
 
-static void set_dc_drawable( HDC hdc, Drawable drawable, const RECT *rect, int mode )
-{
-    struct x11drv_escape_set_drawable escape =
-    {
-        .code = X11DRV_SET_DRAWABLE,
-        .drawable = drawable,
-        .dc_rect = *rect,
-        .mode = mode,
-    };
-    NtGdiExtEscape( hdc, NULL, 0, X11DRV_ESCAPE, sizeof(escape), (LPSTR)&escape, 0, NULL );
-}
-
-static BOOL needs_offscreen_rendering( HWND hwnd, BOOL known_child )
-{
-    if (NtUserGetDpiForWindow( hwnd ) != get_win_monitor_dpi( hwnd )) return TRUE;
-
-    if (!known_child && !NtUserGetWindowRelative( hwnd, GW_CHILD ) &&
-        NtUserGetAncestor( hwnd, GA_PARENT ) == NtUserGetDesktopWindow())
-        return FALSE;  /* childless top-level window */
-
-    return TRUE;
-}
-
 /***********************************************************************
  *              create_gl_drawable
  */
@@ -1293,6 +1270,34 @@ static BOOL set_pixel_format( HDC hdc, int format, BOOL internal )
     return set_win_format( hwnd, fmt, internal );
 }
 
+static void update_gl_drawable_size( struct gl_drawable *gl )
+{
+    struct gl_drawable *new_gl;
+    XWindowChanges changes;
+    RECT rect;
+
+    NtUserGetClientRect( gl->hwnd, &rect, NtUserGetDpiForWindow( gl->hwnd ) );
+    if (EqualRect( &rect, &gl->rect )) return;
+
+    changes.width  = min( max( 1, rect.right ), 65535 );
+    changes.height = min( max( 1, rect.bottom ), 65535 );
+
+    switch (gl->type)
+    {
+    case DC_GL_WINDOW:
+    case DC_GL_CHILD_WIN:
+        gl->rect = rect;
+        XConfigureWindow( gdi_display, gl->window, CWWidth | CWHeight, &changes );
+        set_dc_drawable( gl->hdc_src, gl->window, &gl->rect, IncludeInferiors );
+        break;
+    case DC_GL_PIXMAP_WIN:
+        new_gl = create_gl_drawable( gl->hwnd, gl->format, TRUE, gl->mutable_pf );
+        mark_drawable_dirty( gl, new_gl );
+        release_gl_drawable( new_gl );
+    default:
+        break;
+    }
+}
 
 /***********************************************************************
  *              sync_gl_drawable
@@ -1306,7 +1311,13 @@ void sync_gl_drawable( HWND hwnd, BOOL known_child )
     switch (old->type)
     {
     case DC_GL_WINDOW:
-        if (!known_child) break; /* Still a childless top-level window */
+    case DC_GL_CHILD_WIN:
+        if (!known_child)
+        {
+            /* Still a childless top-level window */
+            update_gl_drawable_size( old );
+            break;
+        }
         /* fall through */
     case DC_GL_PIXMAP_WIN:
         if (!(new = create_gl_drawable( hwnd, old->format, known_child, old->mutable_pf ))) break;
@@ -1863,47 +1874,6 @@ static BOOL glxdrv_wglShareLists(struct wgl_context *org, struct wgl_context *de
     org->sharing = TRUE;
     dest->sharing = TRUE;
     return TRUE;
-}
-
-static Drawable get_dc_drawable( HDC hdc, RECT *rect )
-{
-    struct x11drv_escape_get_drawable escape = {.code = X11DRV_GET_DRAWABLE};
-    NtGdiExtEscape( hdc, NULL, 0, X11DRV_ESCAPE, sizeof(escape), (LPSTR)&escape, sizeof(escape), (LPSTR)&escape );
-    *rect = escape.dc_rect;
-    return escape.drawable;
-}
-
-static HRGN get_dc_monitor_region( HWND hwnd, HDC hdc )
-{
-    RGNDATA *data;
-    UINT i, size;
-    HRGN region;
-    POINT pt;
-
-    if (!(region = NtGdiCreateRectRgn( 0, 0, 0, 0 ))) return 0;
-    if (NtGdiGetRandomRgn( hdc, region, SYSRGN ) <= 0) goto failed;
-    if (!(size = NtGdiGetRegionData( region, 0, NULL ))) goto failed;
-    if (!(data = malloc( size ))) goto failed;
-    NtGdiGetRegionData( region, size, data );
-    NtGdiDeleteObjectApp( region );
-
-    NtGdiGetDCPoint( hdc, NtGdiGetDCOrg, &pt );
-    NtUserLogicalToPerMonitorDPIPhysicalPoint( hwnd, &pt );
-    for (i = 0; i < data->rdh.nCount; i++)
-    {
-        RECT *rect = (RECT *)data->Buffer + i;
-        NtUserLogicalToPerMonitorDPIPhysicalPoint( hwnd, (POINT *)&rect->left );
-        NtUserLogicalToPerMonitorDPIPhysicalPoint( hwnd, (POINT *)&rect->right );
-        OffsetRect( rect, -pt.x, -pt.y );
-    }
-
-    region = NtGdiExtCreateRegion( NULL, size, data );
-    free( data );
-    return region;
-
-failed:
-    NtGdiDeleteObjectApp( region );
-    return 0;
 }
 
 static void present_gl_drawable( HWND hwnd, HDC hdc, struct gl_drawable *gl, BOOL flush )
@@ -2823,34 +2793,6 @@ static void X11DRV_WineGL_LoadExtensions(void)
         opengl_funcs.ext.p_wglQueryCurrentRendererStringWINE = X11DRV_wglQueryCurrentRendererStringWINE;
         opengl_funcs.ext.p_wglQueryRendererIntegerWINE = X11DRV_wglQueryRendererIntegerWINE;
         opengl_funcs.ext.p_wglQueryRendererStringWINE = X11DRV_wglQueryRendererStringWINE;
-    }
-}
-
-static void update_gl_drawable_size( struct gl_drawable *gl )
-{
-    struct gl_drawable *new_gl;
-    XWindowChanges changes;
-    RECT rect;
-
-    NtUserGetClientRect( gl->hwnd, &rect, NtUserGetDpiForWindow( gl->hwnd ) );
-    if (EqualRect( &rect, &gl->rect )) return;
-
-    changes.width  = min( max( 1, rect.right ), 65535 );
-    changes.height = min( max( 1, rect.bottom ), 65535 );
-
-    switch (gl->type)
-    {
-    case DC_GL_CHILD_WIN:
-        gl->rect = rect;
-        XConfigureWindow( gdi_display, gl->window, CWWidth | CWHeight, &changes );
-        set_dc_drawable( gl->hdc_src, gl->window, &gl->rect, IncludeInferiors );
-        break;
-    case DC_GL_PIXMAP_WIN:
-        new_gl = create_gl_drawable( gl->hwnd, gl->format, TRUE, gl->mutable_pf );
-        mark_drawable_dirty( gl, new_gl );
-        release_gl_drawable( new_gl );
-    default:
-        break;
     }
 }
 

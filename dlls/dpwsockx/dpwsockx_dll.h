@@ -24,6 +24,7 @@
 #include "winsock2.h"
 #include "winnt.h"
 #include "wine/dplaysp.h"
+#include "wine/list.h"
 
 #define DPWS_MAXQUEUESIZE             0
 #define DPWS_HUNDREDBAUD              0
@@ -34,16 +35,6 @@
 #define DPWS_MAXPLAYERS               65536
 #define DPWS_GUARANTEED_MAXBUFFERSIZE 1048547
 #define DPWS_GUARANTEED_MAXPLAYERS    64
-
-typedef struct tagDPWS_DATA
-{
-    LPDIRECTPLAYSP        lpISP;
-
-    SOCKET                tcpSock;
-    SOCKADDR_IN           tcpAddr;
-
-    BOOL                  started;
-} DPWS_DATA, *LPDPWS_DATA;
 
 #include "pshpack1.h"
 
@@ -56,6 +47,39 @@ typedef const DPSP_MSG_HEADER* LPCDPSP_MSG_HEADER;
 
 #include "poppack.h"
 
+typedef struct tagDPWS_IN_CONNECTION DPWS_IN_CONNECTION;
+typedef void DPWS_COMPLETION_ROUTINE( DPWS_IN_CONNECTION *connection );
+
+struct tagDPWS_IN_CONNECTION
+{
+    struct list              entry;
+    SOCKADDR_IN              addr;
+
+    SOCKET                   tcpSock;
+    WSAOVERLAPPED            overlapped;
+    WSABUF                   wsaBuffer;
+    DPWS_COMPLETION_ROUTINE *completionRoutine;
+
+    DPSP_MSG_HEADER          header;
+    char                    *buffer;
+    DWORD                    bufferSize;
+
+    IDirectPlaySP           *sp;
+};
+
+typedef struct tagDPWS_DATA
+{
+    LPDIRECTPLAYSP        lpISP;
+
+    SOCKET                tcpSock;
+    SOCKADDR_IN           tcpAddr;
+    WSAEVENT              acceptEvent;
+    struct list           inConnections;
+
+    BOOL                  started;
+    HANDLE                thread;
+    WSAEVENT              stopEvent;
+} DPWS_DATA, *LPDPWS_DATA;
 
 #define DPSP_MSG_TOKEN_REMOTE    0xFAB00000
 #define DPSP_MSG_TOKEN_FORWARDED 0xCAB00000
