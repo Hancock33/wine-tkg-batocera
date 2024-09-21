@@ -89,13 +89,24 @@ static DPQ_DECL_COMPARECB( cbUglyPig, GUID )
 void NS_AddRemoteComputerAsNameServer( LPCVOID                      lpcNSAddrHdr,
                                        DWORD                        dwHdrSize,
                                        LPCDPMSG_ENUMSESSIONSREPLY   lpcMsg,
+                                       DWORD                        msgSize,
                                        LPVOID                       lpNSInfo )
 {
   DWORD len;
   lpNSCache     lpCache = (lpNSCache)lpNSInfo;
   lpNSCacheData lpCacheNode;
+  DWORD maxNameLength;
+  DWORD nameLength;
 
   TRACE( "%p, %p, %p\n", lpcNSAddrHdr, lpcMsg, lpNSInfo );
+
+  if ( msgSize < sizeof( DPMSG_ENUMSESSIONSREPLY ) + sizeof( WCHAR ) )
+    return;
+
+  maxNameLength = (msgSize - sizeof( DPMSG_ENUMSESSIONSREPLY )) / sizeof( WCHAR );
+  nameLength = wcsnlen( (WCHAR *) (lpcMsg + 1), maxNameLength );
+  if ( nameLength == maxNameLength )
+    return;
 
   /* See if we can find this session. If we can, remove it as it's a dup */
   DPQ_REMOVE_ENTRY_CB( lpCache->first, next, data->guidInstance, cbUglyPig,
@@ -195,18 +206,20 @@ void NS_SetLocalAddr( LPVOID lpNSInfo, LPCVOID lpHdr, DWORD dwHdrSize )
  */
 HRESULT NS_SendSessionRequestBroadcast( LPCGUID lpcGuid,
                                         DWORD dwFlags,
+                                        WCHAR *password,
                                         const SPINITDATA *lpSpData )
 
 {
   DPSP_ENUMSESSIONSDATA data;
   LPDPMSG_ENUMSESSIONSREQUEST lpMsg;
+  DWORD passwordSize = 0;
 
   TRACE( "enumerating for guid %s\n", debugstr_guid( lpcGuid ) );
 
-  /* Get the SP to deal with sending the EnumSessions request */
-  FIXME( ": not all data fields are correct\n" );
+  if ( password )
+    passwordSize = (wcslen( password ) + 1) * sizeof( WCHAR );
 
-  data.dwMessageSize = lpSpData->dwSPHeaderSize + sizeof( *lpMsg ); /*FIXME!*/
+  data.dwMessageSize = lpSpData->dwSPHeaderSize + sizeof( *lpMsg ) + passwordSize;
   data.lpMessage = calloc( 1, data.dwMessageSize );
   data.lpISP = lpSpData->lpISP;
   data.bReturnStatus = (dwFlags & DPENUMSESSIONS_RETURNSTATUS) != 0;
@@ -219,10 +232,12 @@ HRESULT NS_SendSessionRequestBroadcast( LPCGUID lpcGuid,
   lpMsg->envelope.wCommandId = DPMSGCMD_ENUMSESSIONSREQUEST;
   lpMsg->envelope.wVersion   = DPMSGVER_DP6;
 
-  lpMsg->dwPasswordSize = 0; /* FIXME: If enumerating passwords..? */
+  lpMsg->passwordOffset = password ? sizeof( DPMSG_ENUMSESSIONSREQUEST ) : 0;
   lpMsg->dwFlags        = dwFlags;
 
   lpMsg->guidApplication = *lpcGuid;
+
+  memcpy( lpMsg + 1, password, passwordSize );
 
   return (lpSpData->lpCB->EnumSessions)( &data );
 }

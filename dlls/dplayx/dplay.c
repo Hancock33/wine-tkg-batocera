@@ -21,6 +21,7 @@
 
 #include <stdarg.h>
 #include <string.h>
+#include <limits.h>
 
 #include "windef.h"
 #include "winerror.h"
@@ -260,6 +261,67 @@ static inline DPID DP_NextObjectId(void)
   return (DPID)InterlockedIncrement( &kludgePlayerGroupId );
 }
 
+static DWORD DP_CopyString( char **dst, const void *src, BOOL dstAnsi, BOOL srcAnsi, void *buffer, DWORD offset )
+{
+    void *dstPtr = NULL;
+    DWORD dstSize = 0;
+    DWORD size;
+
+    if ( !src )
+    {
+        if ( buffer )
+            *dst = NULL;
+
+        return 0;
+    }
+
+    if ( buffer )
+    {
+        dstPtr = (char *) buffer + offset;
+        dstSize = INT_MAX;
+        *dst = dstPtr;
+    }
+
+    if ( dstAnsi == srcAnsi )
+    {
+        if ( srcAnsi )
+            size = strlen( src ) + 1;
+        else
+            size = (wcslen( src ) + 1) * sizeof( WCHAR );
+
+        if ( dstPtr )
+            memcpy( dstPtr, src, size );
+    }
+    else
+    {
+        if ( srcAnsi )
+            size = MultiByteToWideChar( CP_ACP, 0, src, -1, dstPtr, dstSize ) * sizeof( WCHAR );
+        else
+            size = WideCharToMultiByte( CP_ACP, 0, src, -1, dstPtr, dstSize, NULL, NULL );
+    }
+
+    return size;
+}
+
+static void *DP_DuplicateString( void *src, BOOL dstAnsi, BOOL srcAnsi )
+{
+    DWORD size;
+    char *dst;
+
+    if ( !src )
+        return NULL;
+
+    size = DP_CopyString( NULL, src, dstAnsi, srcAnsi, NULL, 0 );
+
+    dst = malloc( size );
+    if ( !dst )
+        return NULL;
+
+    DP_CopyString( &dst, src, dstAnsi, srcAnsi, dst, 0 );
+
+    return dst;
+}
+
 /* *lplpReply will be non NULL iff there is something to reply */
 HRESULT DP_HandleMessage( IDirectPlayImpl *This, const void *lpcMessageBody,
         DWORD dwMessageBodySize, const void *lpcMessageHeader, WORD wCommandId, WORD wVersion,
@@ -285,6 +347,7 @@ HRESULT DP_HandleMessage( IDirectPlayImpl *This, const void *lpcMessageBody,
       NS_AddRemoteComputerAsNameServer( lpcMessageHeader,
                                         This->dp2->spData.dwSPHeaderSize,
                                         lpcMessageBody,
+                                        dwMessageBodySize,
                                         This->dp2->lpNameServerData );
 
       LeaveCriticalSection( &This->lock );
@@ -2314,6 +2377,7 @@ static DWORD CALLBACK DP_EnumSessionsSendAsyncRequestThread( LPVOID lpContext )
     /* Now resend the enum request */
     hr = NS_SendSessionRequestBroadcast( &data->requestGuid,
                                          data->dwEnumSessionFlags,
+                                         data->password,
                                          data->lpSpData );
 
     if( FAILED(hr) )
@@ -2328,6 +2392,7 @@ static DWORD CALLBACK DP_EnumSessionsSendAsyncRequestThread( LPVOID lpContext )
 
   /* Clean up the thread data */
   CloseHandle( hSuicideRequest );
+  free( data->password );
   free( lpContext );
 
   /* FIXME: Need to have some notification to main app thread that this is
@@ -2403,11 +2468,14 @@ static HRESULT WINAPI IDirectPlay4Impl_EnumSessions( IDirectPlay4 *iface, DPSESS
         DWORD timeout, LPDPENUMSESSIONSCALLBACK2 enumsessioncb, void *context, DWORD flags )
 {
     IDirectPlayImpl *This = impl_from_IDirectPlay4( iface );
+    EnumSessionAsyncCallbackData *data;
+    WCHAR *password = NULL;
     DWORD defaultTimeout;
     void *connection;
     DPCAPS caps;
     DWORD  size;
-    HRESULT hr = DP_OK;
+    HRESULT hr;
+    DWORD tid;
 
     TRACE( "(%p)->(%p,0x%08lx,%p,%p,0x%08lx)\n", This, sdesc, timeout, enumsessioncb,
             context, flags );
@@ -2463,8 +2531,12 @@ static HRESULT WINAPI IDirectPlay4Impl_EnumSessions( IDirectPlay4 *iface, DPSESS
     if ( flags & DPENUMSESSIONS_STOPASYNC )
     {
         DP_KillEnumSessionThread( This );
-        return hr;
+        return DP_OK;
     }
+
+    password = DP_DuplicateString( sdesc->lpszPassword, FALSE, TRUE );
+    if ( !password && sdesc->lpszPassword )
+        return DPERR_OUTOFMEMORY;
 
     for ( ;; )
     {
@@ -2478,10 +2550,13 @@ static HRESULT WINAPI IDirectPlay4Impl_EnumSessions( IDirectPlay4 *iface, DPSESS
             LeaveCriticalSection( &This->lock );
 
             /* Send the broadcast for session enumeration */
-            hr = NS_SendSessionRequestBroadcast( &sdesc->guidApplication, flags,
+            hr = NS_SendSessionRequestBroadcast( &sdesc->guidApplication, flags, password,
                                                  &This->dp2->spData );
             if ( FAILED( hr ) )
+            {
+                free( password );
                 return hr;
+            }
             SleepEx( timeout ? timeout : defaultTimeout, FALSE );
         }
 
@@ -2497,47 +2572,64 @@ static HRESULT WINAPI IDirectPlay4Impl_EnumSessions( IDirectPlay4 *iface, DPSESS
             break;
     }
 
-    if ( flags & DPENUMSESSIONS_ASYNC )
+    if ( !(flags & DPENUMSESSIONS_ASYNC) )
     {
-        if ( This->dp2->dwEnumSessionLock )
-            return DPERR_CONNECTING;
-
-        /* See if we've already created a thread to service this interface */
-        if ( This->dp2->hEnumSessionThread == INVALID_HANDLE_VALUE )
-        {
-            DWORD tid;
-            This->dp2->dwEnumSessionLock++;
-
-            /* Send the first enum request inline since the user may cancel a dialog
-             * if one is presented. Also, may also have a connecting return code.
-             */
-            hr = NS_SendSessionRequestBroadcast( &sdesc->guidApplication, flags,
-                    &This->dp2->spData );
-
-            if ( SUCCEEDED(hr) )
-            {
-                EnumSessionAsyncCallbackData* data = calloc( 1, sizeof( *data ) );
-                /* FIXME: need to kill the thread on object deletion */
-                data->lpSpData  = &This->dp2->spData;
-                data->requestGuid = sdesc->guidApplication;
-                data->dwEnumSessionFlags = flags;
-                data->dwTimeout = timeout ? timeout : defaultTimeout;
-
-                This->dp2->hKillEnumSessionThreadEvent = CreateEventW( NULL, TRUE, FALSE, NULL );
-                if ( !DuplicateHandle( GetCurrentProcess(), This->dp2->hKillEnumSessionThreadEvent,
-                            GetCurrentProcess(), &data->hSuicideRequest, 0, FALSE,
-                            DUPLICATE_SAME_ACCESS ) )
-                    ERR( "Can't duplicate thread killing handle\n" );
-
-                TRACE( ": creating EnumSessionsRequest thread\n" );
-                This->dp2->hEnumSessionThread = CreateThread( NULL, 0,
-                        DP_EnumSessionsSendAsyncRequestThread, data, 0, &tid );
-            }
-            This->dp2->dwEnumSessionLock--;
-        }
+        free( password );
+        return DP_OK;
     }
 
-    return hr;
+    /* Async enumeration */
+
+    if ( This->dp2->dwEnumSessionLock )
+    {
+        free( password );
+        return DPERR_CONNECTING;
+    }
+
+    /* See if we've already created a thread to service this interface */
+    if ( This->dp2->hEnumSessionThread != INVALID_HANDLE_VALUE )
+    {
+        free( password );
+        return DP_OK;
+    }
+
+    This->dp2->dwEnumSessionLock++;
+
+    /* Send the first enum request inline since the user may cancel a dialog
+     * if one is presented. Also, may also have a connecting return code.
+     */
+    hr = NS_SendSessionRequestBroadcast( &sdesc->guidApplication, flags, password,
+                                         &This->dp2->spData );
+    if ( FAILED( hr ) )
+    {
+        This->dp2->dwEnumSessionLock--;
+        free( password );
+        return hr;
+    }
+
+    data = calloc( 1, sizeof( *data ) );
+    /* FIXME: need to kill the thread on object deletion */
+    data->lpSpData  = &This->dp2->spData;
+    data->requestGuid = sdesc->guidApplication;
+    data->dwEnumSessionFlags = flags;
+    data->dwTimeout = timeout ? timeout : defaultTimeout;
+    data->password = password;
+
+    This->dp2->hKillEnumSessionThreadEvent = CreateEventW( NULL, TRUE, FALSE, NULL );
+    if ( !DuplicateHandle( GetCurrentProcess(), This->dp2->hKillEnumSessionThreadEvent,
+                           GetCurrentProcess(), &data->hSuicideRequest, 0, FALSE,
+                           DUPLICATE_SAME_ACCESS ) )
+        ERR( "Can't duplicate thread killing handle\n" );
+
+    TRACE( ": creating EnumSessionsRequest thread\n" );
+    This->dp2->hEnumSessionThread = CreateThread( NULL, 0, DP_EnumSessionsSendAsyncRequestThread,
+                                                  data, 0, &tid );
+    if ( !This->dp2->hEnumSessionThread )
+        free( password );
+
+    This->dp2->dwEnumSessionLock--;
+
+    return DP_OK;
 }
 
 static HRESULT WINAPI IDirectPlay2AImpl_GetCaps( IDirectPlay2A *iface, DPCAPS *caps, DWORD flags )
@@ -3863,33 +3955,8 @@ static DWORD DP_CalcSessionDescSize( LPCDPSESSIONDESC2 lpSessDesc, BOOL bAnsi )
   }
 
   dwSize += sizeof( *lpSessDesc );
-
-  if( bAnsi )
-  {
-    if( lpSessDesc->lpszSessionNameA )
-    {
-      dwSize += lstrlenA( lpSessDesc->lpszSessionNameA ) + 1;
-    }
-
-    if( lpSessDesc->lpszPasswordA )
-    {
-      dwSize += lstrlenA( lpSessDesc->lpszPasswordA ) + 1;
-    }
-  }
-  else /* UNICODE */
-  {
-    if( lpSessDesc->lpszSessionName )
-    {
-      dwSize += sizeof( WCHAR ) *
-        ( lstrlenW( lpSessDesc->lpszSessionName ) + 1 );
-    }
-
-    if( lpSessDesc->lpszPassword )
-    {
-      dwSize += sizeof( WCHAR ) *
-        ( lstrlenW( lpSessDesc->lpszPassword ) + 1 );
-    }
-  }
+  dwSize += DP_CopyString( NULL, lpSessDesc->lpszSessionNameA, bAnsi, bAnsi, NULL, 0 );
+  dwSize += DP_CopyString( NULL, lpSessDesc->lpszPasswordA, bAnsi, bAnsi, NULL, 0 );
 
   return dwSize;
 }
@@ -3898,7 +3965,7 @@ static DWORD DP_CalcSessionDescSize( LPCDPSESSIONDESC2 lpSessDesc, BOOL bAnsi )
 static void DP_CopySessionDesc( LPDPSESSIONDESC2 lpSessionDest,
                                 LPCDPSESSIONDESC2 lpSessionSrc, BOOL bAnsi )
 {
-  BYTE* lpStartOfFreeSpace;
+  DWORD offset = sizeof( DPSESSIONDESC2 );
 
   if( lpSessionDest == NULL )
   {
@@ -3908,44 +3975,10 @@ static void DP_CopySessionDesc( LPDPSESSIONDESC2 lpSessionDest,
 
   CopyMemory( lpSessionDest, lpSessionSrc, sizeof( *lpSessionSrc ) );
 
-  lpStartOfFreeSpace = ((BYTE*)lpSessionDest) + sizeof( *lpSessionSrc );
-
-  if( bAnsi )
-  {
-    if( lpSessionSrc->lpszSessionNameA )
-    {
-      lstrcpyA( (LPSTR)lpStartOfFreeSpace,
-                lpSessionDest->lpszSessionNameA );
-      lpSessionDest->lpszSessionNameA = (LPSTR)lpStartOfFreeSpace;
-      lpStartOfFreeSpace +=
-        lstrlenA( lpSessionDest->lpszSessionNameA ) + 1;
-    }
-
-    if( lpSessionSrc->lpszPasswordA )
-    {
-      lstrcpyA( (LPSTR)lpStartOfFreeSpace,
-                lpSessionDest->lpszPasswordA );
-      lpSessionDest->lpszPasswordA = (LPSTR)lpStartOfFreeSpace;
-    }
-  }
-  else /* UNICODE */
-  {
-    if( lpSessionSrc->lpszSessionName )
-    {
-      lstrcpyW( (LPWSTR)lpStartOfFreeSpace,
-                lpSessionDest->lpszSessionName );
-      lpSessionDest->lpszSessionName = (LPWSTR)lpStartOfFreeSpace;
-      lpStartOfFreeSpace += sizeof(WCHAR) *
-        ( lstrlenW( lpSessionDest->lpszSessionName ) + 1 );
-    }
-
-    if( lpSessionSrc->lpszPassword )
-    {
-      lstrcpyW( (LPWSTR)lpStartOfFreeSpace,
-                lpSessionDest->lpszPassword );
-      lpSessionDest->lpszPassword = (LPWSTR)lpStartOfFreeSpace;
-    }
-  }
+  offset += DP_CopyString( &lpSessionDest->lpszSessionNameA, lpSessionSrc->lpszSessionNameA, bAnsi,
+                           bAnsi, lpSessionDest, offset );
+  offset += DP_CopyString( &lpSessionDest->lpszPasswordA, lpSessionSrc->lpszPasswordA, bAnsi,
+                           bAnsi, lpSessionDest, offset );
 }
 
 static HRESULT WINAPI IDirectPlay3AImpl_AddGroupToGroup( IDirectPlay3A *iface, DPID parent,

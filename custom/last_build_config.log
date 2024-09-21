@@ -1,8 +1,8 @@
-# Last wine-tkg-staging-fsync-git configuration - Fri 20 Sep 07:03:55 BST 2024 :
+# Last wine-tkg-staging-fsync-git configuration - Sat 21 Sep 13:15:22 BST 2024 :
 
 Local cfg files used
 
-Wine (plain) version: 9.17.r267.g70372012147
+Wine (plain) version: 9.18.r0.g42af68b8b7c
 Using wine-staging patchset (version 9.17.r8.g1baaa8fb)
 
 Disabled the local Esync patchset to use Staging impl instead.
@@ -26,6 +26,7 @@ proton-eac_bridge.patch -- ( Add support for Proton's EAC bridge )
 
 Applied hotfix Return_nt_filename_and_resolve_DOS_drive_path.mypatch
 Applied hotfix a608ef1.mypatch
+Applied hotfix opencl-fixup.mypatch
 Applied hotfix nostale_mouse_fix.mypatch
 
 wine-tkg-staging.patch -- ( Please don't report bugs about this wine build on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead. )

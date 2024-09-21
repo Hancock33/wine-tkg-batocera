@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
 HEAD is now at 1baaa8fb Updated vkd3d-latest patchset
-HEAD is now at 70372012147 wrc: Replace sprintf with snprintf to avoid deprecation warnings on macOS.
+HEAD is now at 42af68b8b7c Release 9.18.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
@@ -731,6 +731,13 @@ Hunk #2 succeeded at 5528 (offset 1253 lines).
 Applying hotfix wine-tkg-patches/hotfixes/08cccb5/a608ef1.mypatch
 patching file dlls/dxgi/dxgi_main.c
 Hunk #1 succeeded at 245 (offset -23 lines).
+
+Applying hotfix wine-tkg-patches/hotfixes/autoconf-opencl-hotfix/opencl-fixup.mypatch
+patching file configure.ac
+Hunk #1 succeeded at 44 with fuzz 2 (offset -6 lines).
+Hunk #2 succeeded at 363 with fuzz 1 (offset -67 lines).
+Hunk #3 succeeded at 441 (offset -73 lines).
+Hunk #4 succeeded at 666 with fuzz 2 (offset -89 lines).
 
 Applying hotfix wine-tkg-patches/hotfixes/NosTale/nostale_mouse_fix.mypatch
 patching file dlls/user32/Makefile.in
