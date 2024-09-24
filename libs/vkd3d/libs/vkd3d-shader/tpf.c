@@ -648,6 +648,7 @@ enum vkd3d_sm4_stat_field
     VKD3D_STAT_BARRIER,
     VKD3D_STAT_LOD,
     VKD3D_STAT_GATHER,
+    VKD3D_STAT_TEMPS,
     VKD3D_STAT_COUNT,
 };
 
@@ -1157,7 +1158,18 @@ static void shader_sm4_read_dcl_input_ps(struct vkd3d_shader_instruction *ins, u
         struct signature_element *e = vsir_signature_find_element_for_reg(
                 &priv->p.program->input_signature, dst->reg.idx[dst->reg.idx_count - 1].offset, dst->write_mask);
 
-        e->interpolation_mode = ins->flags;
+        if (!e)
+        {
+            WARN("No matching signature element for input register %u with mask %#x.\n",
+                    dst->reg.idx[dst->reg.idx_count - 1].offset, dst->write_mask);
+            vkd3d_shader_parser_error(&priv->p, VKD3D_SHADER_ERROR_TPF_INVALID_REGISTER_DCL,
+                    "No matching signature element for input register %u with mask %#x.\n",
+                    dst->reg.idx[dst->reg.idx_count - 1].offset, dst->write_mask);
+        }
+        else
+        {
+            e->interpolation_mode = ins->flags;
+        }
     }
 }
 
@@ -1172,7 +1184,18 @@ static void shader_sm4_read_dcl_input_ps_siv(struct vkd3d_shader_instruction *in
         struct signature_element *e = vsir_signature_find_element_for_reg(
                 &priv->p.program->input_signature, dst->reg.idx[dst->reg.idx_count - 1].offset, dst->write_mask);
 
-        e->interpolation_mode = ins->flags;
+        if (!e)
+        {
+            WARN("No matching signature element for input register %u with mask %#x.\n",
+                    dst->reg.idx[dst->reg.idx_count - 1].offset, dst->write_mask);
+            vkd3d_shader_parser_error(&priv->p, VKD3D_SHADER_ERROR_TPF_INVALID_REGISTER_DCL,
+                    "No matching signature element for input register %u with mask %#x.\n",
+                    dst->reg.idx[dst->reg.idx_count - 1].offset, dst->write_mask);
+        }
+        else
+        {
+            e->interpolation_mode = ins->flags;
+        }
     }
     ins->declaration.register_semantic.sysval_semantic = *tokens;
 }
@@ -1861,6 +1884,8 @@ static void init_sm4_lookup_tables(struct vkd3d_sm4_lookup_tables *lookup)
         {VKD3D_SM5_OP_DCL_OUTPUT_CONTROL_POINT_COUNT, VKD3D_STAT_TESS_CONTROL_POINT_COUNT},
 
         {VKD3D_SM5_OP_SYNC, VKD3D_STAT_BARRIER},
+
+        {VKD3D_SM4_OP_DCL_TEMPS, VKD3D_STAT_TEMPS},
     };
 
     memset(lookup, 0, sizeof(*lookup));
@@ -4403,12 +4428,55 @@ static void sm4_write_src_register(const struct tpf_writer *tpf, const struct vk
     }
 }
 
-static void write_sm4_instruction(const struct tpf_writer *tpf, const struct sm4_instruction *instr)
+static void sm4_update_stat_counters(const struct tpf_writer *tpf, const struct sm4_instruction *instr)
 {
     enum vkd3d_shader_type shader_type = tpf->ctx->profile->type;
-    uint32_t token = instr->opcode | instr->extra_bits, opcode;
-    struct vkd3d_bytecode_buffer *buffer = tpf->buffer;
     enum vkd3d_sm4_stat_field stat_field;
+    uint32_t opcode;
+
+    ++tpf->stat->fields[VKD3D_STAT_INSTR_COUNT];
+
+    opcode = instr->opcode & VKD3D_SM4_OPCODE_MASK;
+    stat_field = get_stat_field_from_sm4_opcode(&tpf->lookup, opcode);
+
+    switch (opcode)
+    {
+        case VKD3D_SM4_OP_DCL_TEMPS:
+            tpf->stat->fields[stat_field] = max(tpf->stat->fields[stat_field], instr->idx[0]);
+            break;
+        case VKD3D_SM4_OP_DCL_OUTPUT_TOPOLOGY:
+        case VKD3D_SM4_OP_DCL_INPUT_PRIMITIVE:
+            tpf->stat->fields[stat_field] = (instr->opcode & VKD3D_SM4_PRIMITIVE_TYPE_MASK)
+                    >> VKD3D_SM4_PRIMITIVE_TYPE_SHIFT;
+            break;
+        case VKD3D_SM4_OP_DCL_VERTICES_OUT:
+        case VKD3D_SM5_OP_DCL_GS_INSTANCES:
+            tpf->stat->fields[stat_field] = instr->idx[0];
+            break;
+        case VKD3D_SM5_OP_DCL_TESSELLATOR_DOMAIN:
+        case VKD3D_SM5_OP_DCL_TESSELLATOR_PARTITIONING:
+        case VKD3D_SM5_OP_DCL_TESSELLATOR_OUTPUT_PRIMITIVE:
+            tpf->stat->fields[stat_field] = (instr->opcode & VKD3D_SM5_TESSELLATOR_MASK) >> VKD3D_SM5_TESSELLATOR_SHIFT;
+            break;
+        case VKD3D_SM5_OP_DCL_INPUT_CONTROL_POINT_COUNT:
+        case VKD3D_SM5_OP_DCL_OUTPUT_CONTROL_POINT_COUNT:
+            if ((shader_type == VKD3D_SHADER_TYPE_HULL && opcode == VKD3D_SM5_OP_DCL_OUTPUT_CONTROL_POINT_COUNT)
+                    || (shader_type == VKD3D_SHADER_TYPE_DOMAIN
+                            && opcode == VKD3D_SM5_OP_DCL_INPUT_CONTROL_POINT_COUNT))
+            {
+                tpf->stat->fields[stat_field] = (instr->opcode & VKD3D_SM5_CONTROL_POINT_COUNT_MASK)
+                        >> VKD3D_SM5_CONTROL_POINT_COUNT_SHIFT;
+            }
+            break;
+        default:
+            ++tpf->stat->fields[stat_field];
+    }
+}
+
+static void write_sm4_instruction(const struct tpf_writer *tpf, const struct sm4_instruction *instr)
+{
+    uint32_t token = instr->opcode | instr->extra_bits;
+    struct vkd3d_bytecode_buffer *buffer = tpf->buffer;
     unsigned int size, i, j;
     size_t token_position;
 
@@ -4442,41 +4510,7 @@ static void write_sm4_instruction(const struct tpf_writer *tpf, const struct sm4
     token |= (size << VKD3D_SM4_INSTRUCTION_LENGTH_SHIFT);
     set_u32(buffer, token_position, token);
 
-    ++tpf->stat->fields[VKD3D_STAT_INSTR_COUNT];
-
-    opcode = instr->opcode & VKD3D_SM4_OPCODE_MASK;
-    stat_field = get_stat_field_from_sm4_opcode(&tpf->lookup, opcode);
-
-    switch (opcode)
-    {
-        case VKD3D_SM4_OP_DCL_OUTPUT_TOPOLOGY:
-        case VKD3D_SM4_OP_DCL_INPUT_PRIMITIVE:
-            tpf->stat->fields[stat_field] = (instr->opcode & VKD3D_SM4_PRIMITIVE_TYPE_MASK)
-                    >> VKD3D_SM4_PRIMITIVE_TYPE_SHIFT;
-            break;
-        case VKD3D_SM4_OP_DCL_VERTICES_OUT:
-        case VKD3D_SM5_OP_DCL_GS_INSTANCES:
-            tpf->stat->fields[stat_field] = instr->idx[0];
-            break;
-        case VKD3D_SM5_OP_DCL_TESSELLATOR_DOMAIN:
-        case VKD3D_SM5_OP_DCL_TESSELLATOR_PARTITIONING:
-        case VKD3D_SM5_OP_DCL_TESSELLATOR_OUTPUT_PRIMITIVE:
-            tpf->stat->fields[stat_field] = (instr->opcode & VKD3D_SM5_TESSELLATOR_MASK) >> VKD3D_SM5_TESSELLATOR_SHIFT;
-            break;
-        case VKD3D_SM5_OP_DCL_INPUT_CONTROL_POINT_COUNT:
-        case VKD3D_SM5_OP_DCL_OUTPUT_CONTROL_POINT_COUNT:
-            if ((shader_type == VKD3D_SHADER_TYPE_HULL && opcode == VKD3D_SM5_OP_DCL_OUTPUT_CONTROL_POINT_COUNT)
-                    || (shader_type == VKD3D_SHADER_TYPE_DOMAIN
-                            && opcode == VKD3D_SM5_OP_DCL_INPUT_CONTROL_POINT_COUNT))
-            {
-                tpf->stat->fields[stat_field] = (instr->opcode & VKD3D_SM5_CONTROL_POINT_COUNT_MASK)
-                        >> VKD3D_SM5_CONTROL_POINT_COUNT_SHIFT;
-            }
-            break;
-        default:
-            ++tpf->stat->fields[stat_field];
-    }
-
+    sm4_update_stat_counters(tpf, instr);
 }
 
 static bool encode_texel_offset_as_aoffimmi(struct sm4_instruction *instr,
@@ -6412,7 +6446,7 @@ static void write_sm4_stat(struct hlsl_ctx *ctx, const struct sm4_stat *stat, st
     struct vkd3d_bytecode_buffer buffer = {0};
 
     put_u32(&buffer, stat->fields[VKD3D_STAT_INSTR_COUNT]);
-    put_u32(&buffer, 0); /* Temp count */
+    put_u32(&buffer, stat->fields[VKD3D_STAT_TEMPS]);
     put_u32(&buffer, 0); /* Def count */
     put_u32(&buffer, 0); /* DCL count */
     put_u32(&buffer, stat->fields[VKD3D_STAT_FLOAT]);

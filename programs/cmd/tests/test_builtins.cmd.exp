@@ -1335,6 +1335,9 @@ d3
 a4
 c4
 d4
+--- EXIT /B inside FOR loops
+1
+2
 --- set /a
 ------ individual operations
 WINE_foo correctly 3
@@ -1822,9 +1825,9 @@ bar cp1 echo
 bar cp2 echo
 @todo_wine@cp3
 bar b1 echo
-@todo_wine@bar b2 echo
-@todo_wine@bar b3 echo
-@todo_wine@bar cb1 echo
+bar b2 echo
+bar b3 echo
+bar cb1 echo
 --- mixing batch and builtins
 bar@space@
 foo

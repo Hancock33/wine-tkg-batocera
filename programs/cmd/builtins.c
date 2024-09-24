@@ -3282,7 +3282,8 @@ RETURN_CODE WCMD_setshow_env(WCHAR *s)
       } else if (!status) WCMD_print_error();
     }
   }
-  return errorlevel = return_code;
+  return WCMD_is_in_context(L".bat") && return_code == NO_ERROR ?
+      return_code : (errorlevel = return_code);
 }
 
 /****************************************************************************
@@ -3311,7 +3312,7 @@ RETURN_CODE WCMD_setshow_path(const WCHAR *args)
         return errorlevel = ERROR_INVALID_FUNCTION;
     }
   }
-  return errorlevel = NO_ERROR;
+  return WCMD_is_in_context(L".bat") ? NO_ERROR : (errorlevel = NO_ERROR);
 }
 
 /****************************************************************************
@@ -3336,7 +3337,7 @@ RETURN_CODE WCMD_setshow_prompt(void)
     }
     else SetEnvironmentVariableW(L"PROMPT", s);
   }
-  return errorlevel = NO_ERROR;
+  return WCMD_is_in_context(L".bat") ? NO_ERROR : (errorlevel = NO_ERROR);
 }
 
 /****************************************************************************
@@ -3885,16 +3886,17 @@ RETURN_CODE WCMD_exit(void)
  */
 RETURN_CODE WCMD_assoc(const WCHAR *args, BOOL assoc)
 {
-    HKEY    key;
-    DWORD   accessOptions = KEY_READ;
-    WCHAR   *newValue;
-    LONG    rc = ERROR_SUCCESS;
-    WCHAR    keyValue[MAXSTRING];
-    DWORD   valueLen;
-    HKEY    readKey;
+    RETURN_CODE return_code;
+    HKEY        key;
+    DWORD       accessOptions = KEY_READ;
+    WCHAR      *newValue;
+    LONG        rc = ERROR_SUCCESS;
+    WCHAR       keyValue[MAXSTRING];
+    DWORD       valueLen;
+    HKEY        readKey;
 
     /* See if parameter includes '=' */
-    errorlevel = NO_ERROR;
+    return_code = NO_ERROR;
     newValue = wcschr(args, '=');
     if (newValue) accessOptions |= KEY_WRITE;
 
@@ -3969,7 +3971,7 @@ RETURN_CODE WCMD_assoc(const WCHAR *args, BOOL assoc)
           WCMD_output_asis(keyValue);
           WCMD_output_asis(L"\r\n");
           RegCloseKey(readKey);
-          errorlevel = NO_ERROR;
+          return_code = NO_ERROR;
         } else {
           WCHAR  msgbuffer[MAXSTRING];
 
@@ -3980,7 +3982,7 @@ RETURN_CODE WCMD_assoc(const WCHAR *args, BOOL assoc)
             LoadStringW(hinst, WCMD_NOFTYPE, msgbuffer, ARRAY_SIZE(msgbuffer));
           }
           WCMD_output_stderr(msgbuffer, keyValue);
-          errorlevel = assoc ? ERROR_INVALID_FUNCTION : ERROR_FILE_NOT_FOUND;
+          return_code = assoc ? ERROR_INVALID_FUNCTION : ERROR_FILE_NOT_FOUND;
         }
 
       /* Not a query - it's a set or clear of a value */
@@ -4013,7 +4015,7 @@ RETURN_CODE WCMD_assoc(const WCHAR *args, BOOL assoc)
 
           } else if (rc != ERROR_FILE_NOT_FOUND) {
             WCMD_print_error();
-            errorlevel = ERROR_FILE_NOT_FOUND;
+            return_code = ERROR_FILE_NOT_FOUND;
 
           } else {
             WCHAR  msgbuffer[MAXSTRING];
@@ -4025,7 +4027,7 @@ RETURN_CODE WCMD_assoc(const WCHAR *args, BOOL assoc)
               LoadStringW(hinst, WCMD_NOFTYPE, msgbuffer, ARRAY_SIZE(msgbuffer));
             }
             WCMD_output_stderr(msgbuffer, args);
-            errorlevel = ERROR_FILE_NOT_FOUND;
+            return_code = ERROR_FILE_NOT_FOUND;
           }
 
         /* It really is a set value = contents */
@@ -4041,7 +4043,7 @@ RETURN_CODE WCMD_assoc(const WCHAR *args, BOOL assoc)
 
           if (rc != ERROR_SUCCESS) {
             WCMD_print_error();
-            errorlevel = ERROR_FILE_NOT_FOUND;
+            return_code = ERROR_FILE_NOT_FOUND;
           } else {
             WCMD_output_asis(args);
             WCMD_output_asis(L"=");
@@ -4054,8 +4056,8 @@ RETURN_CODE WCMD_assoc(const WCHAR *args, BOOL assoc)
 
     /* Clean up */
     RegCloseKey(key);
-
-    return errorlevel;
+    return WCMD_is_in_context(L".bat") && return_code == NO_ERROR ?
+        return_code : (errorlevel = return_code);
 }
 
 /****************************************************************************

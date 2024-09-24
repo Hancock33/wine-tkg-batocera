@@ -144,6 +144,12 @@ static void shader_glsl_print_register_name(struct vkd3d_string_buffer *buffer,
                     vkd3d_string_buffer_printf(buffer, "%#xu", reg->u.immconst_u32[0]);
                     break;
 
+                case VSIR_DIMENSION_VEC4:
+                    vkd3d_string_buffer_printf(buffer, "uvec4(%#xu, %#xu, %#xu, %#xu)",
+                            reg->u.immconst_u32[0], reg->u.immconst_u32[1],
+                            reg->u.immconst_u32[2], reg->u.immconst_u32[3]);
+                    break;
+
                 default:
                     vkd3d_string_buffer_printf(buffer, "<unhandled_dimension %#x>", reg->dimension);
                     vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
@@ -211,7 +217,7 @@ static void glsl_src_cleanup(struct glsl_src *src, struct vkd3d_string_buffer_ca
 }
 
 static void shader_glsl_print_bitcast(struct vkd3d_string_buffer *dst, struct vkd3d_glsl_generator *gen,
-        const char *src, enum vkd3d_data_type dst_data_type, enum vkd3d_data_type src_data_type)
+        const char *src, enum vkd3d_data_type dst_data_type, enum vkd3d_data_type src_data_type, unsigned int size)
 {
     if (dst_data_type == VKD3D_DATA_UNORM || dst_data_type == VKD3D_DATA_SNORM)
         dst_data_type = VKD3D_DATA_FLOAT;
@@ -224,16 +230,37 @@ static void shader_glsl_print_bitcast(struct vkd3d_string_buffer *dst, struct vk
         return;
     }
 
-    if (src_data_type == VKD3D_DATA_FLOAT && dst_data_type == VKD3D_DATA_UINT)
+    if (src_data_type == VKD3D_DATA_FLOAT)
     {
-        vkd3d_string_buffer_printf(dst, "floatBitsToUint(%s)", src);
-        return;
+        switch (dst_data_type)
+        {
+            case VKD3D_DATA_INT:
+                vkd3d_string_buffer_printf(dst, "floatBitsToInt(%s)", src);
+                return;
+            case VKD3D_DATA_UINT:
+                vkd3d_string_buffer_printf(dst, "floatBitsToUint(%s)", src);
+                return;
+            default:
+                break;
+        }
     }
 
-    if (src_data_type == VKD3D_DATA_UINT && dst_data_type == VKD3D_DATA_FLOAT)
+    if (src_data_type == VKD3D_DATA_UINT)
     {
-        vkd3d_string_buffer_printf(dst, "uintBitsToFloat(%s)", src);
-        return;
+        switch (dst_data_type)
+        {
+            case VKD3D_DATA_FLOAT:
+                vkd3d_string_buffer_printf(dst, "uintBitsToFloat(%s)", src);
+                return;
+            case VKD3D_DATA_INT:
+                if (size == 1)
+                    vkd3d_string_buffer_printf(dst, "int(%s)", src);
+                else
+                    vkd3d_string_buffer_printf(dst, "ivec%u(%s)", size, src);
+                return;
+            default:
+                break;
+        }
     }
 
     vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
@@ -248,6 +275,7 @@ static void glsl_src_init(struct glsl_src *glsl_src, struct vkd3d_glsl_generator
     const struct vkd3d_shader_register *reg = &vsir_src->reg;
     struct vkd3d_string_buffer *register_name, *str;
     enum vkd3d_data_type src_data_type;
+    unsigned int size;
 
     glsl_src->str = vkd3d_string_buffer_get(&gen->string_buffers);
     register_name = vkd3d_string_buffer_get(&gen->string_buffers);
@@ -268,7 +296,8 @@ static void glsl_src_init(struct glsl_src *glsl_src, struct vkd3d_glsl_generator
     else
         str = vkd3d_string_buffer_get(&gen->string_buffers);
 
-    shader_glsl_print_bitcast(str, gen, register_name->buffer, reg->data_type, src_data_type);
+    size = reg->dimension == VSIR_DIMENSION_VEC4 ? 4 : 1;
+    shader_glsl_print_bitcast(str, gen, register_name->buffer, reg->data_type, src_data_type, size);
     if (reg->dimension == VSIR_DIMENSION_VEC4)
         shader_glsl_print_swizzle(str, vsir_src->swizzle, mask);
 
@@ -379,6 +408,30 @@ static void shader_glsl_binop(struct vkd3d_glsl_generator *gen,
     glsl_src_init(&src[1], gen, &ins->src[1], mask);
 
     shader_glsl_print_assignment(gen, &dst, "%s %s %s", src[0].str->buffer, op, src[1].str->buffer);
+
+    glsl_src_cleanup(&src[1], &gen->string_buffers);
+    glsl_src_cleanup(&src[0], &gen->string_buffers);
+    glsl_dst_cleanup(&dst, &gen->string_buffers);
+}
+
+static void shader_glsl_relop(struct vkd3d_glsl_generator *gen,
+        const struct vkd3d_shader_instruction *ins, const char *scalar_op, const char *vector_op)
+{
+    unsigned int mask_size;
+    struct glsl_src src[2];
+    struct glsl_dst dst;
+    uint32_t mask;
+
+    mask = glsl_dst_init(&dst, gen, ins, &ins->dst[0]);
+    glsl_src_init(&src[0], gen, &ins->src[0], mask);
+    glsl_src_init(&src[1], gen, &ins->src[1], mask);
+
+    if ((mask_size = vsir_write_mask_component_count(mask)) > 1)
+        shader_glsl_print_assignment(gen, &dst, "uvec%u(%s(%s, %s)) * 0xffffffffu",
+                mask_size, vector_op, src[0].str->buffer, src[1].str->buffer);
+    else
+        shader_glsl_print_assignment(gen, &dst, "%s %s %s ? 0xffffffffu : 0u",
+                src[0].str->buffer, scalar_op, src[1].str->buffer);
 
     glsl_src_cleanup(&src[1], &gen->string_buffers);
     glsl_src_cleanup(&src[0], &gen->string_buffers);
@@ -555,8 +608,18 @@ static void vkd3d_glsl_handle_instruction(struct vkd3d_glsl_generator *gen,
         case VKD3DSIH_DCL_OUTPUT_SIV:
         case VKD3DSIH_NOP:
             break;
+        case VKD3DSIH_INE:
+        case VKD3DSIH_NEU:
+            shader_glsl_relop(gen, ins, "!=", "notEqual");
+            break;
         case VKD3DSIH_MOV:
             shader_glsl_mov(gen, ins);
+            break;
+        case VKD3DSIH_MUL:
+            shader_glsl_binop(gen, ins, "*");
+            break;
+        case VKD3DSIH_OR:
+            shader_glsl_binop(gen, ins, "|");
             break;
         case VKD3DSIH_RET:
             shader_glsl_ret(gen, ins);
