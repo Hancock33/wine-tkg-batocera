@@ -126,8 +126,6 @@ static const struct object_ops handle_table_ops =
     no_add_queue,                    /* add_queue */
     NULL,                            /* remove_queue */
     NULL,                            /* signaled */
-    NULL,                            /* get_esync_fd */
-    NULL,                            /* get_fsync_idx */
     NULL,                            /* satisfied */
     no_signal,                       /* signal */
     no_get_fd,                       /* get_fd */
@@ -140,6 +138,7 @@ static const struct object_ops handle_table_ops =
     NULL,                            /* unlink_name */
     no_open_file,                    /* open_file */
     no_kernel_obj_list,              /* get_kernel_obj_list */
+    no_get_fast_sync,                /* get_fast_sync */
     no_close_handle,                 /* close_handle */
     handle_table_destroy             /* destroy */
 };
@@ -539,7 +538,8 @@ unsigned int get_obj_handle_count( struct process *process, const struct object 
 
 /* get/set the handle reserved flags */
 /* return the old flags (or -1 on error) */
-static int set_handle_flags( struct process *process, obj_handle_t handle, int mask, int flags )
+static int set_handle_flags( struct process *process, obj_handle_t handle,
+                             unsigned int mask, unsigned int flags )
 {
     struct handle_entry *entry;
     unsigned int old_access;
@@ -807,16 +807,14 @@ DECL_HANDLER(get_security_object)
         if (reply->sd_len <= get_reply_max_size())
         {
             char *ptr = set_reply_data_size(reply->sd_len);
-
-            memcpy( ptr, &req_sd, sizeof(req_sd) );
-            ptr += sizeof(req_sd);
-            memcpy( ptr, owner, req_sd.owner_len );
-            ptr += req_sd.owner_len;
-            memcpy( ptr, group, req_sd.group_len );
-            ptr += req_sd.group_len;
-            memcpy( ptr, sacl, req_sd.sacl_len );
-            ptr += req_sd.sacl_len;
-            memcpy( ptr, dacl, req_sd.dacl_len );
+            if (ptr)
+            {
+                ptr = mem_append( ptr, &req_sd, sizeof(req_sd) );
+                ptr = mem_append( ptr, owner, req_sd.owner_len );
+                ptr = mem_append( ptr, group, req_sd.group_len );
+                ptr = mem_append( ptr, sacl, req_sd.sacl_len );
+                mem_append( ptr, dacl, req_sd.dacl_len );
+            }
         }
         else
             set_error(STATUS_BUFFER_TOO_SMALL);
@@ -885,6 +883,43 @@ DECL_HANDLER(get_system_handles)
         info.handle = handle;
         enum_processes( enum_handles, &info );
     }
+}
+
+struct enum_process_handles_info
+{
+    const struct object_ops *ops;
+    int (*cb)(struct process*, struct object*, void*);
+    void *user;
+};
+
+static int enum_process_handles_cb( struct process *process, void *user )
+{
+    struct enum_process_handles_info *info = user;
+    struct handle_table *table = process->handles;
+    struct handle_entry *entry;
+    unsigned int i;
+
+    if (!table)
+        return 0;
+
+    for (i = 0, entry = table->entries; i <= table->last; i++, entry++)
+    {
+        if (!entry->ptr || entry->ptr->ops != info->ops) continue;
+        if ((info->cb)( process, entry->ptr, info->user )) return 1;
+    }
+
+    return 0;
+}
+
+void enum_handles_of_type( const struct object_ops *ops,
+                           int (*cb)(struct process*, struct object*, void*), void *user )
+{
+    struct enum_process_handles_info info;
+    info.ops = ops;
+    info.cb = cb;
+    info.user = user;
+
+    enum_processes( enum_process_handles_cb, &info );
 }
 
 DECL_HANDLER(set_object_permanence)

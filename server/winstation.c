@@ -76,8 +76,6 @@ static const struct object_ops winstation_ops =
     no_add_queue,                 /* add_queue */
     NULL,                         /* remove_queue */
     NULL,                         /* signaled */
-    NULL,                         /* get_esync_fd */
-    NULL,                         /* get_fsync_idx */
     NULL,                         /* satisfied */
     no_signal,                    /* signal */
     no_get_fd,                    /* get_fd */
@@ -90,6 +88,7 @@ static const struct object_ops winstation_ops =
     default_unlink_name,          /* unlink_name */
     no_open_file,                 /* open_file */
     no_kernel_obj_list,           /* get_kernel_obj_list */
+    no_get_fast_sync,             /* get_fast_sync */
     winstation_close_handle,      /* close_handle */
     winstation_destroy            /* destroy */
 };
@@ -118,8 +117,6 @@ static const struct object_ops desktop_ops =
     no_add_queue,                 /* add_queue */
     NULL,                         /* remove_queue */
     NULL,                         /* signaled */
-    NULL,                         /* get_esync_fd */
-    NULL,                         /* get_fsync_idx */
     NULL,                         /* satisfied */
     no_signal,                    /* signal */
     no_get_fd,                    /* get_fd */
@@ -132,6 +129,7 @@ static const struct object_ops desktop_ops =
     default_unlink_name,          /* unlink_name */
     no_open_file,                 /* open_file */
     no_kernel_obj_list,           /* get_kernel_obj_list */
+    no_get_fast_sync,             /* get_fast_sync */
     desktop_close_handle,         /* close_handle */
     desktop_destroy               /* destroy */
 };
@@ -883,9 +881,9 @@ DECL_HANDLER(set_user_object_info)
         len = winstation_len + desktop_len + sizeof(WCHAR);
         if ((full_name = mem_alloc( len )))
         {
-            memcpy( full_name, winstation_name, winstation_len );
-            full_name[winstation_len / sizeof(WCHAR)] = '\\';
-            memcpy( full_name + winstation_len / sizeof(WCHAR) + 1, desktop_name, desktop_len );
+            WCHAR *ptr = mem_append( full_name, winstation_name, winstation_len );
+            *ptr++ = '\\';
+            mem_append( ptr, desktop_name, desktop_len );
             set_reply_data_ptr( full_name, min( len, get_reply_max_size() ));
         }
     }

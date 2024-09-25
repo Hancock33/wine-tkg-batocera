@@ -24,6 +24,17 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <sys/types.h>
+#include <sys/socket.h>
+
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
+#ifdef HAVE_NETINET_TCP_H
+#include <netinet/tcp.h>
+#endif
+#ifdef HAVE_ARPA_INET_H
+#include <arpa/inet.h>
+#endif
 
 #ifdef HAVE_SYS_UIO_H
 #include <sys/uio.h>
@@ -42,6 +53,8 @@
 #include "ddk/ntddser.h"
 #define USE_WS_PREFIX
 #include "winsock2.h"
+#include "ws2tcpip.h"
+#include "tcpmib.h"
 #include "file.h"
 #include "request.h"
 #include "security.h"
@@ -969,7 +982,7 @@ static void dump_varargs_startup_info( const char *prefix, data_size_t size )
     pos = dump_inline_unicode_string( "\",title=L\"", pos, info.title_len, size );
     pos = dump_inline_unicode_string( "\",desktop=L\"", pos, info.desktop_len, size );
     pos = dump_inline_unicode_string( "\",shellinfo=L\"", pos, info.shellinfo_len, size );
-    pos = dump_inline_unicode_string( "\",runtime=L\"", pos, info.runtime_len, size );
+    dump_inline_unicode_string( "\",runtime=L\"", pos, info.runtime_len, size );
     fprintf( stderr, "\"}" );
     remove_data( size );
 }
@@ -1172,7 +1185,6 @@ static void dump_inline_security_descriptor( const char *prefix, const struct se
         if ((sd->dacl_len >= MAX_ACL_LEN) || (offset + sd->dacl_len > size))
             return;
         dump_inline_acl( ",dacl=", (const struct acl *)((const char *)sd + offset), sd->dacl_len );
-        offset += sd->dacl_len;
     }
     fputc( '}', stderr );
 }
@@ -1375,6 +1387,91 @@ static void dump_varargs_handle_infos( const char *prefix, data_size_t size )
                  handle->owner, handle->handle, handle->access, handle->attributes, handle->type );
         size -= sizeof(*handle);
         remove_data( sizeof(*handle) );
+        if (size) fputc( ',', stderr );
+    }
+    fputc( '}', stderr );
+}
+
+static void dump_varargs_tcp_connections( const char *prefix, data_size_t size )
+{
+    static const char * const state_names[] = {
+        NULL,
+        "CLOSED",
+        "LISTEN",
+        "SYN_SENT",
+        "SYN_RCVD",
+        "ESTAB",
+        "FIN_WAIT1",
+        "FIN_WAIT2",
+        "CLOSE_WAIT",
+        "CLOSING",
+        "LAST_ACK",
+        "TIME_WAIT",
+        "DELETE_TCB"
+    };
+    const tcp_connection *conn;
+
+    fprintf( stderr, "%s{", prefix );
+    while (size >= sizeof(*conn))
+    {
+        conn = cur_data;
+
+        if (conn->common.family == WS_AF_INET)
+        {
+            char local_addr_str[INET_ADDRSTRLEN] = { 0 };
+            char remote_addr_str[INET_ADDRSTRLEN] = { 0 };
+            inet_ntop( AF_INET, (struct in_addr *)&conn->ipv4.local_addr, local_addr_str, INET_ADDRSTRLEN );
+            inet_ntop( AF_INET, (struct in_addr *)&conn->ipv4.remote_addr, remote_addr_str, INET_ADDRSTRLEN );
+            fprintf( stderr, "{family=AF_INET,owner=%04x,state=%s,local=%s:%d,remote=%s:%d}",
+                     conn->ipv4.owner, state_names[conn->ipv4.state],
+                     local_addr_str, conn->ipv4.local_port,
+                     remote_addr_str, conn->ipv4.remote_port );
+        }
+        else
+        {
+            char local_addr_str[INET6_ADDRSTRLEN];
+            char remote_addr_str[INET6_ADDRSTRLEN];
+            inet_ntop( AF_INET6, (struct in6_addr *)&conn->ipv6.local_addr, local_addr_str, INET6_ADDRSTRLEN );
+            inet_ntop( AF_INET6, (struct in6_addr *)&conn->ipv6.remote_addr, remote_addr_str, INET6_ADDRSTRLEN );
+            fprintf( stderr, "{family=AF_INET6,owner=%04x,state=%s,local=[%s%%%d]:%d,remote=[%s%%%d]:%d}",
+                     conn->ipv6.owner, state_names[conn->ipv6.state],
+                     local_addr_str, conn->ipv6.local_scope_id, conn->ipv6.local_port,
+                     remote_addr_str, conn->ipv6.remote_scope_id, conn->ipv6.remote_port );
+        }
+
+        size -= sizeof(*conn);
+        remove_data( sizeof(*conn) );
+        if (size) fputc( ',', stderr );
+    }
+    fputc( '}', stderr );
+}
+
+static void dump_varargs_udp_endpoints( const char *prefix, data_size_t size )
+{
+    const udp_endpoint *endpt;
+
+    fprintf( stderr, "%s{", prefix );
+    while (size >= sizeof(*endpt))
+    {
+        endpt = cur_data;
+
+        if (endpt->common.family == WS_AF_INET)
+        {
+            char addr_str[INET_ADDRSTRLEN] = { 0 };
+            inet_ntop( AF_INET, (struct in_addr *)&endpt->ipv4.addr, addr_str, INET_ADDRSTRLEN );
+            fprintf( stderr, "{family=AF_INET,owner=%04x,addr=%s:%d}",
+                     endpt->ipv4.owner, addr_str, endpt->ipv4.port );
+        }
+        else
+        {
+            char addr_str[INET6_ADDRSTRLEN];
+            inet_ntop( AF_INET6, (struct in6_addr *)&endpt->ipv6.addr, addr_str, INET6_ADDRSTRLEN );
+            fprintf( stderr, "{family=AF_INET6,owner=%04x,addr=[%s%%%d]:%d}",
+                     endpt->ipv6.owner, addr_str, endpt->ipv6.scope_id, endpt->ipv6.port );
+        }
+
+        size -= sizeof(*endpt);
+        remove_data( sizeof(*endpt) );
         if (size) fputc( ',', stderr );
     }
     fputc( '}', stderr );
@@ -2112,8 +2209,8 @@ static void dump_recv_socket_reply( const struct recv_socket_reply *req )
 
 static void dump_send_socket_request( const struct send_socket_request *req )
 {
-    dump_async_data( " async=", &req->async );
-    fprintf( stderr, ", force_async=%d", req->force_async );
+    fprintf( stderr, " flags=%08x", req->flags );
+    dump_async_data( ", async=", &req->async );
 }
 
 static void dump_send_socket_reply( const struct send_socket_reply *req )
@@ -3182,6 +3279,7 @@ static void dump_set_window_pos_request( const struct set_window_pos_request *re
 {
     fprintf( stderr, " swp_flags=%04x", req->swp_flags );
     fprintf( stderr, ", paint_flags=%04x", req->paint_flags );
+    fprintf( stderr, ", monitor_dpi=%08x", req->monitor_dpi );
     fprintf( stderr, ", handle=%08x", req->handle );
     fprintf( stderr, ", previous=%08x", req->previous );
     dump_rectangle( ", window=", &req->window );
@@ -4092,6 +4190,27 @@ static void dump_get_system_handles_reply( const struct get_system_handles_reply
     dump_varargs_handle_infos( ", data=", cur_size );
 }
 
+static void dump_get_tcp_connections_request( const struct get_tcp_connections_request *req )
+{
+    fprintf( stderr, " state_filter=%08x", req->state_filter );
+}
+
+static void dump_get_tcp_connections_reply( const struct get_tcp_connections_reply *req )
+{
+    fprintf( stderr, " count=%08x", req->count );
+    dump_varargs_tcp_connections( ", connections=", cur_size );
+}
+
+static void dump_get_udp_endpoints_request( const struct get_udp_endpoints_request *req )
+{
+}
+
+static void dump_get_udp_endpoints_reply( const struct get_udp_endpoints_reply *req )
+{
+    fprintf( stderr, " count=%08x", req->count );
+    dump_varargs_udp_endpoints( ", endpoints=", cur_size );
+}
+
 static void dump_create_mailslot_request( const struct create_mailslot_request *req )
 {
     fprintf( stderr, " access=%08x", req->access );
@@ -4648,52 +4767,36 @@ static void dump_get_next_thread_reply( const struct get_next_thread_reply *req 
     fprintf( stderr, " handle=%04x", req->handle );
 }
 
-static void dump_create_esync_request( const struct create_esync_request *req )
+static void dump_get_linux_sync_device_request( const struct get_linux_sync_device_request *req )
 {
-    fprintf( stderr, " access=%08x", req->access );
-    fprintf( stderr, ", initval=%d", req->initval );
-    fprintf( stderr, ", type=%d", req->type );
-    fprintf( stderr, ", max=%d", req->max );
-    dump_varargs_object_attributes( ", objattr=", cur_size );
 }
 
-static void dump_create_esync_reply( const struct create_esync_reply *req )
-{
-    fprintf( stderr, " handle=%04x", req->handle );
-    fprintf( stderr, ", type=%d", req->type );
-    fprintf( stderr, ", shm_idx=%08x", req->shm_idx );
-}
-
-static void dump_open_esync_request( const struct open_esync_request *req )
-{
-    fprintf( stderr, " access=%08x", req->access );
-    fprintf( stderr, ", attributes=%08x", req->attributes );
-    fprintf( stderr, ", rootdir=%04x", req->rootdir );
-    fprintf( stderr, ", type=%d", req->type );
-    dump_varargs_unicode_str( ", name=", cur_size );
-}
-
-static void dump_open_esync_reply( const struct open_esync_reply *req )
-{
-    fprintf( stderr, " handle=%04x", req->handle );
-    fprintf( stderr, ", type=%d", req->type );
-    fprintf( stderr, ", shm_idx=%08x", req->shm_idx );
-}
-
-static void dump_get_esync_fd_request( const struct get_esync_fd_request *req )
+static void dump_get_linux_sync_device_reply( const struct get_linux_sync_device_reply *req )
 {
     fprintf( stderr, " handle=%04x", req->handle );
 }
 
-static void dump_get_esync_fd_reply( const struct get_esync_fd_reply *req )
+static void dump_get_linux_sync_obj_request( const struct get_linux_sync_obj_request *req )
 {
-    fprintf( stderr, " type=%d", req->type );
-    fprintf( stderr, ", shm_idx=%08x", req->shm_idx );
+    fprintf( stderr, " handle=%04x", req->handle );
 }
 
-static void dump_esync_msgwait_request( const struct esync_msgwait_request *req )
+static void dump_get_linux_sync_obj_reply( const struct get_linux_sync_obj_reply *req )
 {
-    fprintf( stderr, " in_msgwait=%d", req->in_msgwait );
+    fprintf( stderr, " handle=%04x", req->handle );
+    fprintf( stderr, ", type=%d", req->type );
+    fprintf( stderr, ", access=%08x", req->access );
+}
+
+static void dump_fast_select_queue_request( const struct fast_select_queue_request *req )
+{
+    fprintf( stderr, " handle=%04x", req->handle );
+}
+
+static void dump_fast_unselect_queue_request( const struct fast_unselect_queue_request *req )
+{
+    fprintf( stderr, " handle=%04x", req->handle );
+    fprintf( stderr, ", signaled=%d", req->signaled );
 }
 
 static void dump_set_keyboard_repeat_request( const struct set_keyboard_repeat_request *req )
@@ -4708,65 +4811,13 @@ static void dump_set_keyboard_repeat_reply( const struct set_keyboard_repeat_rep
     fprintf( stderr, " enable=%d", req->enable );
 }
 
-static void dump_get_esync_apc_fd_request( const struct get_esync_apc_fd_request *req )
+static void dump_get_fast_alert_event_request( const struct get_fast_alert_event_request *req )
 {
 }
 
-static void dump_create_fsync_request( const struct create_fsync_request *req )
-{
-    fprintf( stderr, " access=%08x", req->access );
-    fprintf( stderr, ", low=%d", req->low );
-    fprintf( stderr, ", high=%d", req->high );
-    fprintf( stderr, ", type=%d", req->type );
-    dump_varargs_object_attributes( ", objattr=", cur_size );
-}
-
-static void dump_create_fsync_reply( const struct create_fsync_reply *req )
+static void dump_get_fast_alert_event_reply( const struct get_fast_alert_event_reply *req )
 {
     fprintf( stderr, " handle=%04x", req->handle );
-    fprintf( stderr, ", type=%d", req->type );
-    fprintf( stderr, ", shm_idx=%08x", req->shm_idx );
-}
-
-static void dump_open_fsync_request( const struct open_fsync_request *req )
-{
-    fprintf( stderr, " access=%08x", req->access );
-    fprintf( stderr, ", attributes=%08x", req->attributes );
-    fprintf( stderr, ", rootdir=%04x", req->rootdir );
-    fprintf( stderr, ", type=%d", req->type );
-    dump_varargs_unicode_str( ", name=", cur_size );
-}
-
-static void dump_open_fsync_reply( const struct open_fsync_reply *req )
-{
-    fprintf( stderr, " handle=%04x", req->handle );
-    fprintf( stderr, ", type=%d", req->type );
-    fprintf( stderr, ", shm_idx=%08x", req->shm_idx );
-}
-
-static void dump_get_fsync_idx_request( const struct get_fsync_idx_request *req )
-{
-    fprintf( stderr, " handle=%04x", req->handle );
-}
-
-static void dump_get_fsync_idx_reply( const struct get_fsync_idx_reply *req )
-{
-    fprintf( stderr, " type=%d", req->type );
-    fprintf( stderr, ", shm_idx=%08x", req->shm_idx );
-}
-
-static void dump_fsync_msgwait_request( const struct fsync_msgwait_request *req )
-{
-    fprintf( stderr, " in_msgwait=%d", req->in_msgwait );
-}
-
-static void dump_get_fsync_apc_idx_request( const struct get_fsync_apc_idx_request *req )
-{
-}
-
-static void dump_get_fsync_apc_idx_reply( const struct get_fsync_apc_idx_reply *req )
-{
-    fprintf( stderr, " shm_idx=%08x", req->shm_idx );
 }
 
 static const dump_func req_dumpers[REQ_NB_REQUESTS] = {
@@ -5001,6 +5052,8 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] = {
     (dump_func)dump_set_security_object_request,
     (dump_func)dump_get_security_object_request,
     (dump_func)dump_get_system_handles_request,
+    (dump_func)dump_get_tcp_connections_request,
+    (dump_func)dump_get_udp_endpoints_request,
     (dump_func)dump_create_mailslot_request,
     (dump_func)dump_set_mailslot_info_request,
     (dump_func)dump_create_directory_request,
@@ -5056,17 +5109,12 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] = {
     (dump_func)dump_suspend_process_request,
     (dump_func)dump_resume_process_request,
     (dump_func)dump_get_next_thread_request,
-    (dump_func)dump_create_esync_request,
-    (dump_func)dump_open_esync_request,
-    (dump_func)dump_get_esync_fd_request,
-    (dump_func)dump_esync_msgwait_request,
+    (dump_func)dump_get_linux_sync_device_request,
+    (dump_func)dump_get_linux_sync_obj_request,
+    (dump_func)dump_fast_select_queue_request,
+    (dump_func)dump_fast_unselect_queue_request,
     (dump_func)dump_set_keyboard_repeat_request,
-    (dump_func)dump_get_esync_apc_fd_request,
-    (dump_func)dump_create_fsync_request,
-    (dump_func)dump_open_fsync_request,
-    (dump_func)dump_get_fsync_idx_request,
-    (dump_func)dump_fsync_msgwait_request,
-    (dump_func)dump_get_fsync_apc_idx_request,
+    (dump_func)dump_get_fast_alert_event_request,
 };
 
 static const dump_func reply_dumpers[REQ_NB_REQUESTS] = {
@@ -5301,6 +5349,8 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] = {
     NULL,
     (dump_func)dump_get_security_object_reply,
     (dump_func)dump_get_system_handles_reply,
+    (dump_func)dump_get_tcp_connections_reply,
+    (dump_func)dump_get_udp_endpoints_reply,
     (dump_func)dump_create_mailslot_reply,
     (dump_func)dump_set_mailslot_info_reply,
     (dump_func)dump_create_directory_reply,
@@ -5356,17 +5406,12 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] = {
     NULL,
     NULL,
     (dump_func)dump_get_next_thread_reply,
-    (dump_func)dump_create_esync_reply,
-    (dump_func)dump_open_esync_reply,
-    (dump_func)dump_get_esync_fd_reply,
+    (dump_func)dump_get_linux_sync_device_reply,
+    (dump_func)dump_get_linux_sync_obj_reply,
+    NULL,
     NULL,
     (dump_func)dump_set_keyboard_repeat_reply,
-    NULL,
-    (dump_func)dump_create_fsync_reply,
-    (dump_func)dump_open_fsync_reply,
-    (dump_func)dump_get_fsync_idx_reply,
-    NULL,
-    (dump_func)dump_get_fsync_apc_idx_reply,
+    (dump_func)dump_get_fast_alert_event_reply,
 };
 
 static const char * const req_names[REQ_NB_REQUESTS] = {
@@ -5601,6 +5646,8 @@ static const char * const req_names[REQ_NB_REQUESTS] = {
     "set_security_object",
     "get_security_object",
     "get_system_handles",
+    "get_tcp_connections",
+    "get_udp_endpoints",
     "create_mailslot",
     "set_mailslot_info",
     "create_directory",
@@ -5656,17 +5703,12 @@ static const char * const req_names[REQ_NB_REQUESTS] = {
     "suspend_process",
     "resume_process",
     "get_next_thread",
-    "create_esync",
-    "open_esync",
-    "get_esync_fd",
-    "esync_msgwait",
+    "get_linux_sync_device",
+    "get_linux_sync_obj",
+    "fast_select_queue",
+    "fast_unselect_queue",
     "set_keyboard_repeat",
-    "get_esync_apc_fd",
-    "create_fsync",
-    "open_fsync",
-    "get_fsync_idx",
-    "fsync_msgwait",
-    "get_fsync_apc_idx",
+    "get_fast_alert_event",
 };
 
 static const struct

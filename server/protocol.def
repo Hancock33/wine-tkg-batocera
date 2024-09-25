@@ -1578,14 +1578,16 @@ enum server_fd_type
 
 /* Perform a send on a socket */
 @REQ(send_socket)
+    unsigned int flags;         /* SERVER_SOCKET_IO_* flags */
     async_data_t async;         /* async I/O parameters */
-    int          force_async;   /* Force asynchronous mode? */
 @REPLY
     obj_handle_t wait;          /* handle to wait on for blocking send */
     unsigned int options;       /* device open options */
     int          nonblocking;   /* is socket non-blocking? */
 @END
 
+#define SERVER_SOCKET_IO_FORCE_ASYNC 0x01
+#define SERVER_SOCKET_IO_SYSTEM      0x02
 
 /* Get socket event flags */
 @REQ(socket_get_events)
@@ -2612,6 +2614,7 @@ enum message_type
 @REQ(set_window_pos)
     unsigned short swp_flags;     /* SWP_* flags */
     unsigned short paint_flags;   /* paint flags (see below) */
+    unsigned int   monitor_dpi;   /* DPI of the window's monitor */
     user_handle_t  handle;        /* handle to the window */
     user_handle_t  previous;      /* previous window in Z order */
     rectangle_t    window;        /* window rectangle (in parent coords) */
@@ -3449,6 +3452,79 @@ struct handle_info
 @END
 
 
+typedef union
+{
+    struct
+    {
+        unsigned int family;
+        process_id_t owner;
+        unsigned int state;
+    } common;
+    struct
+    {
+        unsigned int family;
+        process_id_t owner;
+        unsigned int state;
+        unsigned int local_addr;
+        unsigned int local_port;
+        unsigned int remote_addr;
+        unsigned int remote_port;
+    } ipv4;
+    struct
+    {
+        unsigned int family;
+        process_id_t owner;
+        unsigned int state;
+        unsigned char local_addr[16];
+        unsigned int local_scope_id;
+        unsigned int local_port;
+        unsigned char remote_addr[16];
+        unsigned int remote_scope_id;
+        unsigned int remote_port;
+    } ipv6;
+} tcp_connection;
+
+/* Retrieve a list of all processes' TCP connections. */
+@REQ(get_tcp_connections)
+    unsigned int    state_filter; /* MIB_TCP_STATE_* or 0 for no filter */
+@REPLY
+    unsigned int    count;
+    VARARG(connections,tcp_connections);
+@END
+
+
+typedef union
+{
+    struct
+    {
+        unsigned int family;
+        process_id_t owner;
+    } common;
+    struct
+    {
+        unsigned int family;
+        process_id_t owner;
+        unsigned int addr;
+        unsigned int port;
+    } ipv4;
+    struct
+    {
+        unsigned int family;
+        process_id_t owner;
+        unsigned char addr[16];
+        unsigned int scope_id;
+        unsigned int port;
+    } ipv6;
+} udp_endpoint;
+
+/* Retrieve a list of all processes' UDP endpoints. */
+@REQ(get_udp_endpoints)
+@REPLY
+    unsigned int    count;
+    VARARG(endpoints,udp_endpoints);
+@END
+
+
 /* Create a mailslot */
 @REQ(create_mailslot)
     unsigned int   access;        /* wanted access rights */
@@ -3952,6 +4028,7 @@ struct handle_info
     obj_handle_t handle;       /* process handle */
 @END
 
+
 /* Iterate thread list for process */
 @REQ(get_next_thread)
     obj_handle_t process;      /* process handle */
@@ -3963,52 +4040,46 @@ struct handle_info
     obj_handle_t handle;       /* next thread handle */
 @END
 
-enum esync_type
+
+enum fast_sync_type
 {
-    ESYNC_SEMAPHORE = 1,
-    ESYNC_AUTO_EVENT,
-    ESYNC_MANUAL_EVENT,
-    ESYNC_MUTEX,
-    ESYNC_AUTO_SERVER,
-    ESYNC_MANUAL_SERVER,
-    ESYNC_QUEUE,
+    FAST_SYNC_SEMAPHORE = 1,
+    FAST_SYNC_MUTEX,
+    FAST_SYNC_AUTO_EVENT,
+    FAST_SYNC_MANUAL_EVENT,
+    FAST_SYNC_AUTO_SERVER,
+    FAST_SYNC_MANUAL_SERVER,
+    FAST_SYNC_QUEUE,
 };
 
-/* Create a new eventfd-based synchronization object */
-@REQ(create_esync)
-    unsigned int access;        /* wanted access rights */
-    int          initval;       /* initial value */
-    int          type;          /* type of esync object */
-    int          max;           /* maximum count on a semaphore */
-    VARARG(objattr,object_attributes); /* object attributes */
+
+/* Obtain a handle to the fast synchronization device object */
+@REQ(get_linux_sync_device)
 @REPLY
-    obj_handle_t handle;        /* handle to the object */
-    int          type;          /* actual type (may be different for events) */
-    unsigned int shm_idx;
+    obj_handle_t handle;          /* handle to the device */
 @END
 
-@REQ(open_esync)
-    unsigned int access;        /* wanted access rights */
-    unsigned int attributes;    /* object attributes */
-    obj_handle_t rootdir;       /* root directory */
-    int          type;          /* type of esync object (above) */
-    VARARG(name,unicode_str);   /* object name */
+
+/* Get the fast synchronization object associated with the given handle */
+@REQ(get_linux_sync_obj)
+    obj_handle_t handle;          /* handle to the object */
 @REPLY
-    obj_handle_t handle;        /* handle to the event */
-    int          type;          /* type of esync object (above) */
-    unsigned int shm_idx;       /* this object's index into the shm section */
+    obj_handle_t handle;          /* handle to the fast synchronization object */
+    int          type;            /* object type */
+    unsigned int access;          /* handle access rights */
 @END
 
-/* Retrieve the esync fd for an object. */
-@REQ(get_esync_fd)
-    obj_handle_t handle;        /* handle to the object */
-@REPLY
-    int          type;
-    unsigned int shm_idx;
+
+/* Begin a client-side wait on a message queue */
+@REQ(fast_select_queue)
+    obj_handle_t handle;          /* handle to the queue */
 @END
 
-@REQ(esync_msgwait)
-    int          in_msgwait;    /* are we in a message wait? */
+
+/* End a client-side wait on a message queue */
+@REQ(fast_unselect_queue)
+    obj_handle_t handle;          /* handle to the queue */
+    int          signaled;        /* was the queue signaled? */
 @END
 
 /* Setup keyboard auto-repeat */
@@ -4020,60 +4091,9 @@ enum esync_type
     int enable;                /* previous state of auto-repeat enable */
 @END
 
-/* Retrieve the fd to wait on for user APCs. */
-@REQ(get_esync_apc_fd)
-@END
 
-enum fsync_type
-{
-    FSYNC_SEMAPHORE = 1,
-    FSYNC_AUTO_EVENT,
-    FSYNC_MANUAL_EVENT,
-    FSYNC_MUTEX,
-    FSYNC_AUTO_SERVER,
-    FSYNC_MANUAL_SERVER,
-    FSYNC_QUEUE,
-};
-
-/* Create a new futex-based synchronization object */
-@REQ(create_fsync)
-    unsigned int access;        /* wanted access rights */
-    int low;                    /* initial value of low word */
-    int high;                   /* initial value of high word */
-    int type;                   /* type of fsync object */
-    VARARG(objattr,object_attributes); /* object attributes */
+/* Get an event handle to be used for thread alerts with fast synchronization */
+@REQ(get_fast_alert_event)
 @REPLY
-    obj_handle_t handle;        /* handle to the object */
-    int type;                   /* type of fsync object */
-    unsigned int shm_idx;       /* this object's index into the shm section */
-@END
-
-/* Open an fsync object */
-@REQ(open_fsync)
-    unsigned int access;        /* wanted access rights */
-    unsigned int attributes;    /* object attributes */
-    obj_handle_t rootdir;       /* root directory */
-    int          type;          /* type of fsync object */
-    VARARG(name,unicode_str);   /* object name */
-@REPLY
-    obj_handle_t handle;        /* handle to the event */
-    int          type;          /* type of fsync object */
-    unsigned int shm_idx;       /* this object's index into the shm section */
-@END
-
-/* Retrieve the shm index for an object. */
-@REQ(get_fsync_idx)
-    obj_handle_t handle;        /* handle to the object */
-@REPLY
-    int          type;
-    unsigned int shm_idx;
-@END
-
-@REQ(fsync_msgwait)
-    int          in_msgwait;    /* are we in a message wait? */
-@END
-
-@REQ(get_fsync_apc_idx)
-@REPLY
-    unsigned int shm_idx;
+    obj_handle_t handle;          /* handle to the event */
 @END

@@ -55,6 +55,7 @@ enum vkd3d_shader_api_version
     VKD3D_SHADER_API_VERSION_1_10,
     VKD3D_SHADER_API_VERSION_1_11,
     VKD3D_SHADER_API_VERSION_1_12,
+    VKD3D_SHADER_API_VERSION_1_13,
 
     VKD3D_FORCE_32_BIT_ENUM(VKD3D_SHADER_API_VERSION),
 };
@@ -583,7 +584,7 @@ enum vkd3d_shader_parameter_name
 
 /**
  * The value of an immediate constant parameter, used in
- * struct vkd3d_shader_parameter and struct vkd3d_shader_parameter1.
+ * struct vkd3d_shader_parameter.
  */
 struct vkd3d_shader_parameter_immediate_constant
 {
@@ -601,6 +602,31 @@ struct vkd3d_shader_parameter_immediate_constant
          * \since 1.13
          */
         float f32;
+    } u;
+};
+
+/**
+ * The value of an immediate constant parameter, used in
+ * struct vkd3d_shader_parameter1.
+ *
+ * \since 1.13
+ */
+struct vkd3d_shader_parameter_immediate_constant1
+{
+    union
+    {
+        /**
+         * The value if the parameter's data type is
+         * VKD3D_SHADER_PARAMETER_DATA_TYPE_UINT32.
+         */
+        uint32_t u32;
+        /**
+         * The value if the parameter's data type is
+         * VKD3D_SHADER_PARAMETER_DATA_TYPE_FLOAT32.
+         */
+        float f32;
+        void *_pointer_pad;
+        uint32_t _pad[4];
     } u;
 };
 
@@ -689,7 +715,7 @@ struct vkd3d_shader_parameter1
          * Additional information if \a type is
          * VKD3D_SHADER_PARAMETER_TYPE_IMMEDIATE_CONSTANT.
          */
-        struct vkd3d_shader_parameter_immediate_constant immediate_constant;
+        struct vkd3d_shader_parameter_immediate_constant1 immediate_constant;
         /**
          * Additional information if \a type is
          * VKD3D_SHADER_PARAMETER_TYPE_SPECIALIZATION_CONSTANT.
@@ -1061,6 +1087,10 @@ enum vkd3d_shader_target_type
      * Output is a raw FX section without container. \since 1.11
      */
     VKD3D_SHADER_TARGET_FX,
+    /**
+     * A 'Metal Shading Language' shader. \since 1.14
+     */
+    VKD3D_SHADER_TARGET_MSL,
 
     VKD3D_FORCE_32_BIT_ENUM(VKD3D_SHADER_TARGET_TYPE),
 };
@@ -1266,7 +1296,8 @@ typedef int (*PFN_vkd3d_shader_open_include)(const char *filename, bool local,
  * vkd3d_shader_preprocess_info.
  *
  * \param code Contents of the included file, which were allocated by the
- * \ref pfn_open_include callback. The user must free them.
+ * vkd3d_shader_preprocess_info.pfn_open_include callback.
+ * The user must free them.
  *
  * \param context The user-defined pointer passed to struct
  * vkd3d_shader_preprocess_info.
@@ -1293,8 +1324,8 @@ struct vkd3d_shader_preprocess_info
 
     /**
      * Pointer to an array of predefined macros. Each macro in this array will
-     * be expanded as if a corresponding #define statement were prepended to the
-     * source code.
+     * be expanded as if a corresponding \#define statement were prepended to
+     * the source code.
      *
      * If the same macro is specified multiple times, only the last value is
      * used.
@@ -2772,7 +2803,7 @@ VKD3D_SHADER_API void vkd3d_shader_free_scan_signature_info(struct vkd3d_shader_
  * \param input_signature The input signature of the second shader.
  *
  * \param count On output, contains the number of entries written into
- * \ref varyings.
+ * "varyings".
  *
  * \param varyings Pointer to an output array of varyings.
  * This must point to space for N varyings, where N is the number of elements

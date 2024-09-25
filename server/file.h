@@ -108,8 +108,7 @@ extern char *dup_fd_name( struct fd *root, const char *name ) __WINE_DEALLOC(fre
 extern void get_nt_name( struct fd *fd, struct unicode_str *name );
 
 extern int default_fd_signaled( struct object *obj, struct wait_queue_entry *entry );
-extern int default_fd_get_esync_fd( struct object *obj, enum esync_type *type );
-extern unsigned int default_fd_get_fsync_idx( struct object *obj, enum fsync_type *type );
+extern struct fast_sync *default_fd_get_fast_sync( struct object *obj );
 extern int default_fd_get_poll_events( struct fd *fd );
 extern void default_poll_event( struct fd *fd, int event );
 extern void fd_cancel_async( struct fd *fd, struct async *async );
@@ -257,7 +256,8 @@ typedef void (*async_completion_callback)( void *private );
 
 extern void free_async_queue( struct async_queue *queue );
 extern struct async *create_async( struct fd *fd, struct thread *thread, const async_data_t *data, struct iosb *iosb );
-extern struct async *create_request_async( struct fd *fd, unsigned int comp_flags, const async_data_t *data );
+extern struct async *create_request_async( struct fd *fd, unsigned int comp_flags, const async_data_t *data,
+                                           int is_system );
 extern obj_handle_t async_handoff( struct async *async, data_size_t *result, int force_blocking );
 extern void queue_async( struct async_queue *queue, struct async *async );
 extern void async_set_timeout( struct async *async, timeout_t timeout, unsigned int status );

@@ -89,6 +89,7 @@ const WCHAR inbuilt[][10] = {
         L"MORE",
         L"CHOICE",
         L"MKLINK",
+        L"",
         L"EXIT"
 };
 static const WCHAR externals[][10] = {
@@ -411,6 +412,7 @@ RETURN_CODE WCMD_choice(WCHAR *args)
             LARGE_INTEGER li, zeroli = {0};
             OVERLAPPED overlapped = {0};
             DWORD count;
+            char choice;
 
             overlapped.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
             if (SetFilePointerEx(GetStdHandle(STD_INPUT_HANDLE), zeroli, &li, FILE_CURRENT))
@@ -418,11 +420,12 @@ RETURN_CODE WCMD_choice(WCHAR *args)
                 overlapped.Offset = li.LowPart;
                 overlapped.OffsetHigh = li.HighPart;
             }
-            if (ReadFile(GetStdHandle(STD_INPUT_HANDLE), answer, 1, NULL, &overlapped))
+            if (ReadFile(GetStdHandle(STD_INPUT_HANDLE), &choice, 1, NULL, &overlapped))
             {
                 switch (WaitForSingleObject(overlapped.hEvent, opt_timeout == -1 ? INFINITE : opt_timeout * 1000))
                 {
                 case WAIT_OBJECT_0:
+                    answer[0] = choice;
                     break;
                 case WAIT_TIMEOUT:
                     answer[0] = opt_default;
@@ -431,7 +434,7 @@ RETURN_CODE WCMD_choice(WCHAR *args)
                     return_code = ERROR_INVALID_FUNCTION;
                 }
             }
-            else if (ReadFile(GetStdHandle(STD_INPUT_HANDLE), answer, 1, &count, NULL))
+            else if (ReadFile(GetStdHandle(STD_INPUT_HANDLE), &choice, 1, &count, NULL))
             {
                 if (count == 0)
                 {
@@ -440,6 +443,8 @@ RETURN_CODE WCMD_choice(WCHAR *args)
                     else
                         return_code = ERROR_INVALID_FUNCTION;
                 }
+                else
+                    answer[0] = choice;
             }
             else
                 return_code = ERROR_INVALID_FUNCTION;
@@ -1796,7 +1801,7 @@ RETURN_CODE WCMD_give_help(WCHAR *args)
             WCHAR cmd[128];
             lstrcpyW(cmd, help_on);
             lstrcatW(cmd, L" /?");
-            WCMD_run_program(cmd, FALSE);
+            WCMD_run_builtin_command(WCMD_HELP, cmd);
         }
         else
         {
@@ -3277,7 +3282,8 @@ RETURN_CODE WCMD_setshow_env(WCHAR *s)
       } else if (!status) WCMD_print_error();
     }
   }
-  return errorlevel = return_code;
+  return WCMD_is_in_context(L".bat") && return_code == NO_ERROR ?
+      return_code : (errorlevel = return_code);
 }
 
 /****************************************************************************
@@ -3306,7 +3312,7 @@ RETURN_CODE WCMD_setshow_path(const WCHAR *args)
         return errorlevel = ERROR_INVALID_FUNCTION;
     }
   }
-  return errorlevel = NO_ERROR;
+  return WCMD_is_in_context(L".bat") ? NO_ERROR : (errorlevel = NO_ERROR);
 }
 
 /****************************************************************************
@@ -3331,7 +3337,7 @@ RETURN_CODE WCMD_setshow_prompt(void)
     }
     else SetEnvironmentVariableW(L"PROMPT", s);
   }
-  return errorlevel = NO_ERROR;
+  return WCMD_is_in_context(L".bat") ? NO_ERROR : (errorlevel = NO_ERROR);
 }
 
 /****************************************************************************
@@ -3880,16 +3886,17 @@ RETURN_CODE WCMD_exit(void)
  */
 RETURN_CODE WCMD_assoc(const WCHAR *args, BOOL assoc)
 {
-    HKEY    key;
-    DWORD   accessOptions = KEY_READ;
-    WCHAR   *newValue;
-    LONG    rc = ERROR_SUCCESS;
-    WCHAR    keyValue[MAXSTRING];
-    DWORD   valueLen;
-    HKEY    readKey;
+    RETURN_CODE return_code;
+    HKEY        key;
+    DWORD       accessOptions = KEY_READ;
+    WCHAR      *newValue;
+    LONG        rc = ERROR_SUCCESS;
+    WCHAR       keyValue[MAXSTRING];
+    DWORD       valueLen;
+    HKEY        readKey;
 
     /* See if parameter includes '=' */
-    errorlevel = NO_ERROR;
+    return_code = NO_ERROR;
     newValue = wcschr(args, '=');
     if (newValue) accessOptions |= KEY_WRITE;
 
@@ -3956,17 +3963,15 @@ RETURN_CODE WCMD_assoc(const WCHAR *args, BOOL assoc)
         lstrcpyW(subkey, keyValue);
         if (!assoc) lstrcatW(subkey, L"\\Shell\\Open\\Command");
 
-        if (RegOpenKeyExW(key, subkey, 0, accessOptions, &readKey) == ERROR_SUCCESS) {
-
-          valueLen = sizeof(keyValue);
-          rc = RegQueryValueExW(readKey, NULL, NULL, NULL, (LPBYTE)keyValue, &valueLen);
+        valueLen = sizeof(keyValue);
+        if (RegOpenKeyExW(key, subkey, 0, accessOptions, &readKey) == ERROR_SUCCESS &&
+            RegQueryValueExW(readKey, NULL, NULL, NULL, (LPBYTE)keyValue, &valueLen) == ERROR_SUCCESS) {
           WCMD_output_asis(args);
           WCMD_output_asis(L"=");
-          /* If no default value found, leave line empty after '=' */
-          if (rc == ERROR_SUCCESS) WCMD_output_asis(keyValue);
+          WCMD_output_asis(keyValue);
           WCMD_output_asis(L"\r\n");
           RegCloseKey(readKey);
-          errorlevel = rc == ERROR_SUCCESS ? NO_ERROR : ERROR_INVALID_FUNCTION;
+          return_code = NO_ERROR;
         } else {
           WCHAR  msgbuffer[MAXSTRING];
 
@@ -3977,7 +3982,7 @@ RETURN_CODE WCMD_assoc(const WCHAR *args, BOOL assoc)
             LoadStringW(hinst, WCMD_NOFTYPE, msgbuffer, ARRAY_SIZE(msgbuffer));
           }
           WCMD_output_stderr(msgbuffer, keyValue);
-          errorlevel = assoc ? ERROR_INVALID_FUNCTION : ERROR_FILE_NOT_FOUND;
+          return_code = assoc ? ERROR_INVALID_FUNCTION : ERROR_FILE_NOT_FOUND;
         }
 
       /* Not a query - it's a set or clear of a value */
@@ -3993,16 +3998,24 @@ RETURN_CODE WCMD_assoc(const WCHAR *args, BOOL assoc)
         lstrcpyW(subkey, args);
         if (!assoc) lstrcatW(subkey, L"\\Shell\\Open\\Command");
 
-        /* If nothing after '=' then clear value - only valid for ASSOC */
         if (*newValue == 0x00) {
 
-          if (assoc) rc = RegDeleteKeyW(key, args);
-          if (assoc && rc == ERROR_SUCCESS) {
+          if (assoc)
+            rc = RegDeleteKeyW(key, args);
+          else {
+            rc = RegCreateKeyExW(key, subkey, 0, NULL, REG_OPTION_NON_VOLATILE,
+                                accessOptions, NULL, &readKey, NULL);
+            if (rc == ERROR_SUCCESS) {
+              rc = RegDeleteValueW(readKey, NULL);
+              RegCloseKey(readKey);
+            }
+          }
+          if (rc == ERROR_SUCCESS) {
             WINE_TRACE("HKCR Key '%s' deleted\n", wine_dbgstr_w(args));
 
-          } else if (assoc && rc != ERROR_FILE_NOT_FOUND) {
+          } else if (rc != ERROR_FILE_NOT_FOUND) {
             WCMD_print_error();
-            errorlevel = ERROR_FILE_NOT_FOUND;
+            return_code = ERROR_FILE_NOT_FOUND;
 
           } else {
             WCHAR  msgbuffer[MAXSTRING];
@@ -4014,7 +4027,7 @@ RETURN_CODE WCMD_assoc(const WCHAR *args, BOOL assoc)
               LoadStringW(hinst, WCMD_NOFTYPE, msgbuffer, ARRAY_SIZE(msgbuffer));
             }
             WCMD_output_stderr(msgbuffer, args);
-            errorlevel = ERROR_FILE_NOT_FOUND;
+            return_code = ERROR_FILE_NOT_FOUND;
           }
 
         /* It really is a set value = contents */
@@ -4030,7 +4043,7 @@ RETURN_CODE WCMD_assoc(const WCHAR *args, BOOL assoc)
 
           if (rc != ERROR_SUCCESS) {
             WCMD_print_error();
-            errorlevel = ERROR_FILE_NOT_FOUND;
+            return_code = ERROR_FILE_NOT_FOUND;
           } else {
             WCMD_output_asis(args);
             WCMD_output_asis(L"=");
@@ -4043,8 +4056,8 @@ RETURN_CODE WCMD_assoc(const WCHAR *args, BOOL assoc)
 
     /* Clean up */
     RegCloseKey(key);
-
-    return errorlevel;
+    return WCMD_is_in_context(L".bat") && return_code == NO_ERROR ?
+        return_code : (errorlevel = return_code);
 }
 
 /****************************************************************************
@@ -4189,4 +4202,29 @@ RETURN_CODE WCMD_mklink(WCHAR *args)
 
     WCMD_output_stderr(WCMD_LoadMessage(WCMD_READFAIL), file1);
     return errorlevel = ERROR_INVALID_FUNCTION;
+}
+
+RETURN_CODE WCMD_change_drive(WCHAR drive)
+{
+    WCHAR envvar[4];
+    WCHAR dir[MAX_PATH];
+
+    /* According to MSDN CreateProcess docs, special env vars record
+     * the current directory on each drive, in the form =C:
+     * so see if one specified, and if so go back to it
+     */
+    envvar[0] = L'=';
+    envvar[1] = drive;
+    envvar[2] = L':';
+    envvar[3] = L'\0';
+
+    if (GetEnvironmentVariableW(envvar, dir, ARRAY_SIZE(dir)) == 0)
+        wcscpy(dir, envvar + 1);
+    WINE_TRACE("Got directory for %lc: as %s\n", drive, wine_dbgstr_w(dir));
+    if (!SetCurrentDirectoryW(dir))
+    {
+        WCMD_print_error();
+        return errorlevel = ERROR_INVALID_FUNCTION;
+    }
+    return NO_ERROR;
 }

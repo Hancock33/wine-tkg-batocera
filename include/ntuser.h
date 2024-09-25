@@ -37,7 +37,10 @@
 typedef NTSTATUS (WINAPI *ntuser_callback)( void *args, ULONG len );
 NTSYSAPI NTSTATUS KeUserModeCallback( ULONG id, const void *args, ULONG len, void **ret_ptr, ULONG *ret_len );
 
-/* KernelCallbackTable codes, not compatible with Windows */
+/* KernelCallbackTable codes, not compatible with Windows.
+   All of these functions must live inside user32.dll. Overwatch 2's
+   KiUserCallbackDispatcher hook verifies this and prevents the callback from
+   running if that check fails. */
 enum
 {
     /* user32 callbacks */
@@ -61,9 +64,6 @@ enum
     NtUserPostDDEMessage,
     NtUserRenderSynthesizedFormat,
     NtUserUnpackDDEMessage,
-    /* Driver-specific callbacks */
-    NtUserDriverCallbackFirst,
-    NtUserDriverCallbackLast = NtUserDriverCallbackFirst + 9,
     NtUserCallCount
 };
 
@@ -1072,7 +1072,6 @@ enum
     NtUserCallTwoParam_SetIMECompositionWindowPos,
     NtUserCallTwoParam_UnhookWindowsHook,
     NtUserCallTwoParam_AdjustWindowRect,
-    NtUserCallTwoParam_IsWindowRectFullScreen,
     /* temporary exports */
     NtUserAllocWinProc,
 };
@@ -1145,11 +1144,6 @@ static inline BOOL NtUserAdjustWindowRect( RECT *rect, DWORD style, BOOL menu, D
         .dpi = dpi,
     };
     return NtUserCallTwoParam( (ULONG_PTR)rect, (ULONG_PTR)&params, NtUserCallTwoParam_AdjustWindowRect );
-}
-
-static inline BOOL NtUserIsWindowRectFullScreen( const RECT *rect, UINT dpi )
-{
-    return NtUserCallTwoParam( (UINT_PTR)rect, dpi, NtUserCallTwoParam_IsWindowRectFullScreen );
 }
 
 /* NtUserCallHwnd codes, not compatible with Windows */

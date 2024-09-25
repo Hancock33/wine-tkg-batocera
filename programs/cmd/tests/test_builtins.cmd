@@ -467,6 +467,8 @@ if 1==0 (echo q1) else echo q2&echo q3
 echo ------------- Testing internal commands return codes
 setlocal EnableDelayedExpansion
 
+rem All the success/failure tests are meant to be duplicated in test_builtins.bat
+rem So be sure to update both files at once
 echo --- success/failure for basics
 call :setError 0 &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!
 call :setError 33 &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!
@@ -490,6 +492,10 @@ call :setError 666 & (Idontexist.exe &&echo SUCCESS !errorlevel!||echo FAILURE !
 call :setError 666 & Idontexist.exe & echo ERRORLEVEL !errorlevel!
 call :setError 666 & (cmd.exe /c "echo foo & exit /b 0" &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!)
 call :setError 666 & (cmd.exe /c "echo foo & exit /b 1024" &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!)
+call :setError 666 & (I\dont\exist.html &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!)
+rem can't run this test, generates a nice popup under windows
+rem echo:>foobar.IDontExist
+rem call :setError 666 & (foobar.IDontExist &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!)
 cd .. && rd /q /s foo
 echo --- success/failure for CALL command
 mkdir foo & cd foo
@@ -520,9 +526,7 @@ call :setError 666 & (start "" /foobar >NUL &&echo SUCCESS !errorlevel!||echo FA
 rem call :setError 666 & (start /B I\dont\exist.exe &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!)
 rem can't run this test, generates a nice popup under windows
 call :setError 666 & (start "" /B /WAIT cmd.exe /c "echo foo & exit /b 1024" &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!)
-rem A call :setError 666 & (start "" /B cmd.exe /c "(choice /C:YN /T:3 /D:Y > NUL) & exit /b 1024" &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!)
-rem can't do on Wine until /T is properly handled in CHOICE
-rem SUCCESS 666
+call :setError 666 & (start "" /B cmd.exe /c "(choice /C:YN /T:3 /D:Y > NUL) & exit /b 1024" &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!)
 echo --- success/failure for TYPE command
 mkdir foo & cd foo
 echo a > fileA
@@ -581,10 +585,12 @@ call :setError 666 & (erase file* i\dont\exist\at\all.txt &&echo SUCCESS !errorl
 cd .. && rd /q /s foo
 
 echo --- success/failure for change drive command
+pushd C:\
 call :setError 666 & (c: &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!)
 call :setError 666 & (1: &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!)
 call :setError 666 & (call c: &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!)
 call :setError 666 & (call 1: &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!)
+popd
 
 echo --- success/failure for MKDIR,MD command
 mkdir foo & cd foo
@@ -1071,6 +1077,14 @@ setlocal EnableDelayedExpansion
 set WINE_FOO=foo bar
 for %%i in ("!WINE_FOO!") do echo %%i
 for %%i in (!WINE_FOO!) do echo %%i
+
+setlocal DisableDelayedExpansion
+
+set "BEFORE_DELAY=before!"
+setlocal EnableDelayedExpansion
+set "AFTER_DELAY=after^!"
+echo !BEFORE_DELAY!
+echo !AFTER_DELAY!
 setlocal DisableDelayedExpansion
 
 echo --- in digit variables
@@ -2032,6 +2046,15 @@ for %%i in (test) do (
     )
     echo d4
 )
+echo --- EXIT /B inside FOR loops
+goto :after_exitBinsideForLoop
+:exitBinsideForLoop
+for /l %%i in (1,1,3) do (
+  echo %%i
+  if %%i==2 exit /b 0
+)
+:after_exitBinsideForLoop
+call :exitBinsideForLoop
 echo --- set /a
 goto :testseta
 
@@ -2983,6 +3006,17 @@ echo echo +++>> tmp.cmd
 echo ftype footype>> tmp.cmd
 cmd /c tmp.cmd
 
+echo --- testing association
+echo dummy>test.foo
+ftype footype=cmd.exe /c "echo '%%1'"
+test.foo
+ftype footype=cmd.exe /c "echo '%%*'"
+test.foo one two three
+del test.foo
+copy C:\windows\system32\cmd.exe test.foo >nul 2>&1
+test.foo /c "echo foobar"
+del test.foo
+
 echo --- resetting association
 assoc .foo=
 
@@ -3014,6 +3048,12 @@ echo .foo=footype
 echo footype=foo_opencmd
 echo +++
 echo footype=foo_opencmd
+echo --- testing association
+echo footype=cmd.exe /c "echo '%%1'"
+echo Skipped as not enough permissions
+echo footype=cmd.exe /c "echo '%%*'"
+echo Skipped as not enough permissions
+echo Skipped as not enough permissions
 echo --- resetting association
 echo original value
 
@@ -3118,6 +3158,32 @@ call echo %1 %2 %3
 exit /b 0
 
 :call_expand_done
+
+cd .. & rd /s/q foobar
+
+echo --- builtin in expansions
+
+mkdir foobar & cd foobar
+
+set foobar=echo
+
+echo echo %%*>bar.bat
+%foobar% bar p1 %foobar%
+%%foobar%% bar p2 %%foobar%%
+%%%foobar%%% bar p3 %%%foobar%%%
+call %foobar% bar cp1 %foobar%
+call %%foobar%% bar cp2 %%foobar%%
+call %%%foobar%%% bar cp3 %%%foobar%%%
+setlocal EnableDelayedExpansion
+!foobar! bar b1 !foobar!
+!!foobar!! bar b2 !!foobar!!
+!!!foobar!!! bar b3 !!!foobar!!!
+call !foobar! bar cb1 !foobar!
+call !!foobar!! bar cb2 !!foobar!!
+call !!!foobar!!! bar cb3 !!!foobar!!!
+call !!!!foobar!!!! bar cb4 !!!!foobar!!!!
+setlocal DisableDelayedExpansion
+set foobar=
 
 cd .. & rd /s/q foobar
 

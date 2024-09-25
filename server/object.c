@@ -553,6 +553,12 @@ struct fd *no_get_fd( struct object *obj )
     return NULL;
 }
 
+struct fast_sync *no_get_fast_sync( struct object *obj )
+{
+    set_error( STATUS_OBJECT_TYPE_MISMATCH );
+    return NULL;
+}
+
 unsigned int default_map_access( struct object *obj, unsigned int access )
 {
     return map_access( access, &obj->ops->type->mapping );
@@ -671,15 +677,11 @@ struct security_descriptor *set_sd_from_token_internal( const struct security_de
     }
     new_sd_ptr = (struct security_descriptor*)ptr;
 
-    memcpy( ptr, &new_sd, sizeof(new_sd) );
-    ptr += sizeof(new_sd);
-    memcpy( ptr, owner, new_sd.owner_len );
-    ptr += new_sd.owner_len;
-    memcpy( ptr, group, new_sd.group_len );
-    ptr += new_sd.group_len;
-    memcpy( ptr, sacl, new_sd.sacl_len );
-    ptr += new_sd.sacl_len;
-    memcpy( ptr, dacl, new_sd.dacl_len );
+    ptr = mem_append( ptr, &new_sd, sizeof(new_sd) );
+    ptr = mem_append( ptr, owner, new_sd.owner_len );
+    ptr = mem_append( ptr, group, new_sd.group_len );
+    ptr = mem_append( ptr, sacl, new_sd.sacl_len );
+    mem_append( ptr, dacl, new_sd.dacl_len );
 
     free( replaced_sacl );
     return new_sd_ptr;

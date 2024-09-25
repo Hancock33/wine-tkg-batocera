@@ -22,7 +22,6 @@
 
 #include "vkd3d_shader_private.h"
 #include "wine/rbtree.h"
-#include "d3dcommon.h"
 #include "d3dx9shader.h"
 
 /* The general IR structure is inspired by Mesa GLSL hir, even though the code
@@ -68,6 +67,14 @@
 static inline unsigned int hlsl_swizzle_get_component(uint32_t swizzle, unsigned int idx)
 {
     return (swizzle >> HLSL_SWIZZLE_SHIFT(idx)) & HLSL_SWIZZLE_MASK;
+}
+
+static inline uint32_t vsir_swizzle_from_hlsl(uint32_t swizzle)
+{
+    return vkd3d_shader_create_swizzle(hlsl_swizzle_get_component(swizzle, 0),
+            hlsl_swizzle_get_component(swizzle, 1),
+            hlsl_swizzle_get_component(swizzle, 2),
+            hlsl_swizzle_get_component(swizzle, 3));
 }
 
 enum hlsl_type_class
@@ -316,6 +323,8 @@ enum hlsl_ir_node_type
     HLSL_IR_STORE,
     HLSL_IR_SWIZZLE,
     HLSL_IR_SWITCH,
+
+    HLSL_IR_COMPILE,
     HLSL_IR_STATEBLOCK_CONSTANT,
 };
 
@@ -591,6 +600,8 @@ struct hlsl_ir_function_decl
     unsigned int attr_count;
     const struct hlsl_attribute *const *attrs;
 
+    bool early_depth_test;
+
     /* Synthetic boolean variable marking whether a return statement has been
      * executed. Needed to deal with return statements in non-uniform control
      * flow, since some backends can't handle them. */
@@ -703,7 +714,7 @@ enum hlsl_ir_expr_op
     HLSL_OP2_SLT,
 
     /* DP2ADD(a, b, c) computes the scalar product of a.xy and b.xy,
-     * then adds c. */
+     * then adds c, where c must have dimx=1. */
     HLSL_OP3_DP2ADD,
     /* TERNARY(a, b, c) returns 'b' if 'a' is true and 'c' otherwise. 'a' must always be boolean.
      * CMP(a, b, c) returns 'b' if 'a' >= 0, and 'c' otherwise. It's used only for SM1-SM3 targets. */
@@ -852,6 +863,35 @@ struct hlsl_ir_string_constant
 {
     struct hlsl_ir_node node;
     char *string;
+};
+
+/* Represents shader compilation call for effects, such as "CompileShader()".
+ *
+ * Unlike hlsl_ir_call, it is not flattened, thus, it keeps track of its
+ * arguments and maintains its own instruction block. */
+struct hlsl_ir_compile
+{
+    struct hlsl_ir_node node;
+
+    enum hlsl_compile_type
+    {
+        /* A shader compilation through the CompileShader() function or the "compile" syntax. */
+        HLSL_COMPILE_TYPE_COMPILE,
+        /* A call to ConstructGSWithSO(), which receives a geometry shader and retrieves one as well. */
+        HLSL_COMPILE_TYPE_CONSTRUCTGSWITHSO,
+    } compile_type;
+
+    /* Special field to store the profile argument for HLSL_COMPILE_TYPE_COMPILE. */
+    const struct hlsl_profile_info *profile;
+
+    /* Block containing the instructions required by the arguments of the
+     * compilation call. */
+    struct hlsl_block instrs;
+
+    /* Arguments to the compilation call. For HLSL_COMPILE_TYPE_COMPILE
+     * args[0] is an hlsl_ir_call to the specified function. */
+    struct hlsl_src *args;
+    unsigned int args_count;
 };
 
 /* Stateblock constants are undeclared values found on state blocks or technique passes descriptions,
@@ -1016,6 +1056,7 @@ struct hlsl_ctx
         {
             uint32_t index;
             struct hlsl_vec4 value;
+            struct vkd3d_shader_location loc;
         } *regs;
         size_t count, size;
     } constant_defs;
@@ -1028,6 +1069,12 @@ struct hlsl_ctx
     /* Number of threads to be executed (on the X, Y, and Z dimensions) in a single thread group in
      *   compute shader profiles. It is set using the numthreads() attribute in the entry point. */
     uint32_t thread_count[3];
+
+    enum vkd3d_tessellator_domain domain;
+    unsigned int output_control_point_count;
+    enum vkd3d_shader_tessellator_output_primitive output_primitive;
+    enum vkd3d_shader_tessellator_partitioning partitioning;
+    struct hlsl_ir_function_decl *patch_constant_func;
 
     /* In some cases we generate opcodes by parsing an HLSL function and then
      * invoking it. If not NULL, this field is the name of the function that we
@@ -1147,6 +1194,12 @@ static inline struct hlsl_ir_switch *hlsl_ir_switch(const struct hlsl_ir_node *n
 {
     VKD3D_ASSERT(node->type == HLSL_IR_SWITCH);
     return CONTAINING_RECORD(node, struct hlsl_ir_switch, node);
+}
+
+static inline struct hlsl_ir_compile *hlsl_ir_compile(const struct hlsl_ir_node *node)
+{
+    VKD3D_ASSERT(node->type == HLSL_IR_COMPILE);
+    return CONTAINING_RECORD(node, struct hlsl_ir_compile, node);
 }
 
 static inline struct hlsl_ir_stateblock_constant *hlsl_ir_stateblock_constant(const struct hlsl_ir_node *node)
@@ -1428,6 +1481,9 @@ bool hlsl_index_is_noncontiguous(struct hlsl_ir_index *index);
 bool hlsl_index_is_resource_access(struct hlsl_ir_index *index);
 bool hlsl_index_chain_has_resource_access(struct hlsl_ir_index *index);
 
+struct hlsl_ir_node *hlsl_new_compile(struct hlsl_ctx *ctx, enum hlsl_compile_type compile_type,
+        const char *profile_name, struct hlsl_ir_node **args, unsigned int args_count,
+        struct hlsl_block *args_instrs, const struct vkd3d_shader_location *loc);
 struct hlsl_ir_node *hlsl_new_index(struct hlsl_ctx *ctx, struct hlsl_ir_node *val,
         struct hlsl_ir_node *idx, const struct vkd3d_shader_location *loc);
 struct hlsl_ir_node *hlsl_new_loop(struct hlsl_ctx *ctx,
@@ -1493,6 +1549,7 @@ unsigned int hlsl_type_minor_size(const struct hlsl_type *type);
 unsigned int hlsl_type_major_size(const struct hlsl_type *type);
 unsigned int hlsl_type_element_count(const struct hlsl_type *type);
 bool hlsl_type_is_resource(const struct hlsl_type *type);
+bool hlsl_type_is_shader(const struct hlsl_type *type);
 unsigned int hlsl_type_get_sm4_offset(const struct hlsl_type *type, unsigned int offset);
 bool hlsl_types_are_equal(const struct hlsl_type *t1, const struct hlsl_type *t2);
 
@@ -1528,16 +1585,15 @@ D3DXPARAMETER_TYPE hlsl_sm1_base_type(const struct hlsl_type *type);
 bool hlsl_sm1_register_from_semantic(const struct vkd3d_shader_version *version, const char *semantic_name,
         unsigned int semantic_index, bool output, enum vkd3d_shader_register_type *type, unsigned int *reg);
 bool hlsl_sm1_usage_from_semantic(const char *semantic_name,
-        uint32_t semantic_index, D3DDECLUSAGE *usage, uint32_t *usage_idx);
+        uint32_t semantic_index, enum vkd3d_decl_usage *usage, uint32_t *usage_idx);
 
 void write_sm1_uniforms(struct hlsl_ctx *ctx, struct vkd3d_bytecode_buffer *buffer);
 int d3dbc_compile(struct vsir_program *program, uint64_t config_flags,
         const struct vkd3d_shader_compile_info *compile_info, const struct vkd3d_shader_code *ctab,
-        struct vkd3d_shader_code *out, struct vkd3d_shader_message_context *message_context,
-        struct hlsl_ctx *ctx, struct hlsl_ir_function_decl *entry_func);
+        struct vkd3d_shader_code *out, struct vkd3d_shader_message_context *message_context);
 
-bool hlsl_sm4_usage_from_semantic(struct hlsl_ctx *ctx,
-        const struct hlsl_semantic *semantic, bool output, D3D_NAME *usage);
+bool sysval_semantic_from_hlsl(enum vkd3d_shader_sysval_semantic *semantic,
+        struct hlsl_ctx *ctx, const struct hlsl_semantic *hlsl_semantic, bool output);
 bool hlsl_sm4_register_from_semantic(struct hlsl_ctx *ctx, const struct hlsl_semantic *semantic,
         bool output, enum vkd3d_shader_register_type *type, bool *has_idx);
 int hlsl_sm4_write(struct hlsl_ctx *ctx, struct hlsl_ir_function_decl *entry_func, struct vkd3d_shader_code *out);

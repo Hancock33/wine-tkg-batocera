@@ -45,6 +45,12 @@ extern BOOL allow_set_gamma;
 extern BOOL allow_software_rendering;
 extern BOOL force_backing_store;
 
+extern UINT64 app_icon_callback;
+extern UINT64 app_quit_request_callback;
+extern UINT64 dnd_query_drag_callback;
+extern UINT64 dnd_query_drop_callback;
+extern UINT64 dnd_query_exited_callback;
+
 extern const char* debugstr_cf(CFTypeRef t);
 
 static inline CGRect cgrect_from_rect(RECT rect)
@@ -151,8 +157,8 @@ extern BOOL macdrv_WindowPosChanging(HWND hwnd, UINT swp_flags, BOOL shaped, con
 extern BOOL macdrv_GetWindowStyleMasks(HWND hwnd, UINT style, UINT ex_style, UINT *style_mask, UINT *ex_style_mask);
 extern BOOL macdrv_CreateWindowSurface(HWND hwnd, BOOL layered, const RECT *surface_rect, struct window_surface **surface);
 extern void macdrv_MoveWindowBits(HWND hwnd, const struct window_rects *new_rects, const RECT *valid_rects);
-extern void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, UINT swp_flags, const struct window_rects *new_rects,
-                                    struct window_surface *surface);
+extern void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, UINT swp_flags, BOOL fullscreen,
+                                    const struct window_rects *new_rects, struct window_surface *surface);
 extern void macdrv_DestroyCursorIcon(HCURSOR cursor);
 extern BOOL macdrv_GetCursorPos(LPPOINT pos);
 extern void macdrv_SetCapture(HWND hwnd, UINT flags);
@@ -265,9 +271,6 @@ extern NTSTATUS macdrv_dnd_get_formats(void *arg);
 extern NTSTATUS macdrv_dnd_have_format(void *arg);
 extern NTSTATUS macdrv_dnd_release(void *arg);
 extern NTSTATUS macdrv_dnd_retain(void *arg);
-
-extern NTSTATUS macdrv_client_func(enum macdrv_client_funcs func, const void *params,
-                                   ULONG size);
 
 /* user helpers */
 

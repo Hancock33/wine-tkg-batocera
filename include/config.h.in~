@@ -24,7 +24,7 @@
 /* Define to 1 if you have the <capi20.h> header file. */
 #undef HAVE_CAPI20_H
 
-/* Define to 1 if you have the `clock_gettime' function. */
+/* Define to 1 if you have the 'clock_gettime' function. */
 #undef HAVE_CLOCK_GETTIME
 
 /* Define to 1 if you have the <CL/cl.h> header file. */
@@ -51,8 +51,8 @@
 /* Define to 1 if you have the `epoll_create' function. */
 #undef HAVE_EPOLL_CREATE
 
-/* Define to 1 if you have the <float.h> header file. */
-#undef HAVE_FLOAT_H
+/* Define to 1 if you have the FFmpeg libraries. */
+#undef HAVE_FFMPEG
 
 /* Define if FreeType 2 is installed */
 #undef HAVE_FREETYPE
@@ -117,22 +117,28 @@
 /* Define to 1 if you have the <krb5/krb5.h> header file. */
 #undef HAVE_KRB5_KRB5_H
 
-/* Define to 1 if you have the `gettextpo' library (-lgettextpo). */
+/* Define to 1 if you have the <libavcodec/avcodec.h> header file. */
+#undef HAVE_LIBAVCODEC_AVCODEC_H
+
+/* Define to 1 if you have the <libavformat/avformat.h> header file. */
+#undef HAVE_LIBAVFORMAT_AVFORMAT_H
+
+/* Define to 1 if you have the <libavutil/avutil.h> header file. */
+#undef HAVE_LIBAVUTIL_AVUTIL_H
+
+/* Define to 1 if you have the 'gettextpo' library (-lgettextpo). */
 #undef HAVE_LIBGETTEXTPO
 
-/* Define to 1 if you have the `procstat' library (-lprocstat). */
+/* Define to 1 if you have the 'procstat' library (-lprocstat). */
 #undef HAVE_LIBPROCSTAT
 
 /* Define to 1 if you have the <libprocstat.h> header file. */
 #undef HAVE_LIBPROCSTAT_H
 
-/* Define to 1 if you have the <libproc.h> header file. */
-#undef HAVE_LIBPROC_H
-
 /* Define to 1 if you have the <libudev.h> header file. */
 #undef HAVE_LIBUDEV_H
 
-/* Define to 1 if you have the `unwind' library (-lunwind). */
+/* Define to 1 if you have the 'unwind' library (-lunwind). */
 #undef HAVE_LIBUNWIND
 
 /* Define if we have the wayland-egl development environment */
@@ -155,9 +161,6 @@
 
 /* Define to 1 if you have the <linux/filter.h> header file. */
 #undef HAVE_LINUX_FILTER_H
-
-/* Define to 1 if you have the <linux/futex.h> header file. */
-#undef HAVE_LINUX_FUTEX_H
 
 /* Define if Linux-style gethostbyname_r and gethostbyaddr_r are available */
 #undef HAVE_LINUX_GETHOSTBYNAME_R_6
@@ -182,6 +185,9 @@
 
 /* Define to 1 if you have the <linux/major.h> header file. */
 #undef HAVE_LINUX_MAJOR_H
+
+/* Define to 1 if you have the <linux/ntsync.h> header file. */
+#undef HAVE_LINUX_NTSYNC_H
 
 /* Define to 1 if you have the <linux/param.h> header file. */
 #undef HAVE_LINUX_PARAM_H
@@ -215,9 +221,6 @@
 
 /* Define to 1 if you have the <machine/sysarch.h> header file. */
 #undef HAVE_MACHINE_SYSARCH_H
-
-/* Define to 1 if you have the `mach_continuous_time' function. */
-#undef HAVE_MACH_CONTINUOUS_TIME
 
 /* Define to 1 if you have the <mach/mach.h> header file. */
 #undef HAVE_MACH_MACH_H
@@ -321,14 +324,8 @@
 /* Define to 1 if you have the `posix_fallocate' function. */
 #undef HAVE_POSIX_FALLOCATE
 
-/* Define to 1 if you have the `ppoll' function. */
-#undef HAVE_PPOLL
-
 /* Define to 1 if you have the `prctl' function. */
 #undef HAVE_PRCTL
-
-/* Define to 1 if you have the `proc_pidinfo' function. */
-#undef HAVE_PROC_PIDINFO
 
 /* Define to 1 if you have the `pthread_getthreadid_np' function. */
 #undef HAVE_PTHREAD_GETTHREADID_NP
@@ -354,13 +351,13 @@
 /* Define to 1 if you have the <resolv.h> header file. */
 #undef HAVE_RESOLV_H
 
-/* Define to 1 if you have the `res_getservers' function. */
+/* Define to 1 if you have the 'res_getservers' function. */
 #undef HAVE_RES_GETSERVERS
 
 /* Define to 1 if you have the <sched.h> header file. */
 #undef HAVE_SCHED_H
 
-/* Define to 1 if you have the `sched_setaffinity' function. */
+/* Define to 1 if you have the 'sched_setaffinity' function. */
 #undef HAVE_SCHED_SETAFFINITY
 
 /* Define to 1 if you have the `sched_yield' function. */
@@ -389,9 +386,6 @@
 
 /* Define to 1 if `interface_id' is a member of `sg_io_hdr_t'. */
 #undef HAVE_SG_IO_HDR_T_INTERFACE_ID
-
-/* Define to 1 if you have the `shm_open' function. */
-#undef HAVE_SHM_OPEN
 
 /* Define to 1 if `si_fd' is a member of `siginfo_t'. */
 #undef HAVE_SIGINFO_T_SI_FD
@@ -498,9 +492,6 @@
 /* Define to 1 if `udps_ipackets' is a member of `struct udpstat'. */
 #undef HAVE_STRUCT_UDPSTAT_UDPS_IPACKETS
 
-/* Define to 1 if the system has the type `struct xinpgen'. */
-#undef HAVE_STRUCT_XINPGEN
-
 /* Define to 1 if `_u._ext.nscount6' is a member of `struct __res_state'. */
 #undef HAVE_STRUCT___RES_STATE__U__EXT_NSCOUNT6
 
@@ -524,9 +515,6 @@
 
 /* Define to 1 if you have the <sys/epoll.h> header file. */
 #undef HAVE_SYS_EPOLL_H
-
-/* Define to 1 if you have the <sys/eventfd.h> header file. */
-#undef HAVE_SYS_EVENTFD_H
 
 /* Define to 1 if you have the <sys/event.h> header file. */
 #undef HAVE_SYS_EVENT_H
@@ -648,7 +636,7 @@
 /* Define to 1 if you have the `thr_kill2' function. */
 #undef HAVE_THR_KILL2
 
-/* Define to 1 if you have the `udev' library (-ludev). */
+/* Define to 1 if you have the 'udev' library (-ludev). */
 #undef HAVE_UDEV
 
 /* Define to 1 if you have the <unistd.h> header file. */
@@ -717,10 +705,10 @@
 /* Define if Xrandr has the XRRGetProviderResources function */
 #undef HAVE_XRRGETPROVIDERRESOURCES
 
-/* Define to 1 if you have the `__builtin_popcount' built-in function. */
+/* Define to 1 if you have the '__builtin_popcount' built-in function. */
 #undef HAVE___BUILTIN_POPCOUNT
 
-/* Define to 1 if you have the `__clear_cache' (potentially built-in)
+/* Define to 1 if you have the '__clear_cache' (potentially built-in)
    function. */
 #undef HAVE___CLEAR_CACHE
 
@@ -786,6 +774,9 @@
 /* Define to the soname of the libnetapi library. */
 #undef SONAME_LIBNETAPI
 
+/* Define to the soname of the libodbc library. */
+#undef SONAME_LIBODBC
+
 /* Define to the soname of the libOSMesa library. */
 #undef SONAME_LIBOSMESA
 
@@ -828,9 +819,6 @@
 /* Define to the soname of the libXxf86vm library. */
 #undef SONAME_LIBXXF86VM
 
-/* Define to 1 if the `S_IS*' macros in <sys/stat.h> do not work properly. */
-#undef STAT_MACROS_BROKEN
-
 /* Define to 1 if all of the C90 standard headers exist (not just the ones
    required in a freestanding environment). This macro is provided for
    backward compatibility; new code need not use it. */
@@ -838,9 +826,6 @@
 
 /* Define if xattr functions take additional arguments (macOS) */
 #undef XATTR_ADDITIONAL_OPTIONS
-
-/* Define to 1 if the X Window System is missing or not being used. */
-#undef X_DISPLAY_MISSING
 
 /* Number of bits in a file offset, on hosts where this is settable. */
 #undef _FILE_OFFSET_BITS
@@ -853,11 +838,5 @@
 
 /* Define to 64 to enable 64-bit time_t */
 #undef _TIME_BITS
-
-/* Define to `__inline__' or `__inline' if that's what the C compiler
-   calls it, or to nothing if 'inline' is not supported under any name.  */
-#ifndef __cplusplus
-#undef inline
-#endif
 
 #endif /* __WINE_CONFIG_H */

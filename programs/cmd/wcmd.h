@@ -185,7 +185,6 @@ void WCMD_print_error (void);
 RETURN_CODE WCMD_pushd(const WCHAR *args);
 RETURN_CODE WCMD_remove_dir(WCHAR *command);
 RETURN_CODE WCMD_rename(void);
-RETURN_CODE WCMD_run_program (WCHAR *command, BOOL called);
 RETURN_CODE WCMD_setlocal(WCHAR *args);
 RETURN_CODE WCMD_setshow_date(void);
 RETURN_CODE WCMD_setshow_default(const WCHAR *args);
@@ -201,6 +200,7 @@ RETURN_CODE WCMD_verify(void);
 RETURN_CODE WCMD_version(void);
 RETURN_CODE WCMD_volume(void);
 RETURN_CODE WCMD_mklink(WCHAR *args);
+RETURN_CODE WCMD_change_drive(WCHAR drive);
 
 WCHAR *WCMD_fgets (WCHAR *buf, DWORD n, HANDLE stream);
 WCHAR *WCMD_parameter (WCHAR *s, int n, WCHAR **start, BOOL raw, BOOL wholecmdline);
@@ -221,6 +221,9 @@ void      node_dispose_tree(CMD_NODE *cmds);
 RETURN_CODE node_execute(CMD_NODE *node);
 
 RETURN_CODE WCMD_call_batch(const WCHAR *, WCHAR *);
+RETURN_CODE WCMD_call_command(WCHAR *command);
+RETURN_CODE WCMD_run_builtin_command(int cmd_index, WCHAR *cmd);
+
 BOOL WCMD_find_label(HANDLE h, const WCHAR*, LARGE_INTEGER *pos);
 void WCMD_set_label_end(WCHAR *string);
 
@@ -337,7 +340,17 @@ extern BATCH_CONTEXT *context;
 extern FOR_CONTEXT *forloopcontext;
 extern BOOL delayedsubst;
 
-#endif /* !RC_INVOKED */
+static inline BOOL WCMD_is_in_context(const WCHAR *ext)
+{
+    size_t c_len, e_len;
+    if (!context) return FALSE;
+    if (!ext) return TRUE;
+    c_len = wcslen(context->batchfileW);
+    e_len = wcslen(ext);
+    return (c_len > e_len) && !wcsicmp(&context->batchfileW[c_len - e_len], ext);
+}
+
+ #endif /* !RC_INVOKED */
 
 /*
  *	Serial nos of builtin commands. These constants must be in step with
@@ -395,9 +408,10 @@ extern BOOL delayedsubst;
 #define WCMD_MORE     43
 #define WCMD_CHOICE   44
 #define WCMD_MKLINK   45
+#define WCMD_CHGDRIVE 46
 
 /* Must be last in list */
-#define WCMD_EXIT     46
+#define WCMD_EXIT     47
 
 /* Some standard messages */
 extern WCHAR anykey[];

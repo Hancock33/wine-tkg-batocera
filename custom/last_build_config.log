@@ -1,9 +1,9 @@
-# Last wine-tkg-staging-fsync-git configuration - Sat 24 Aug 08:13:43 BST 2024 :
+# Last wine-tkg-staging-git configuration - Wed 25 Sep 19:18:20 BST 2024 :
 
 Local cfg files used
 
-Wine (plain) version: 9.16.r0.g65124f15acc
-Using wine-staging patchset (version 9.16.r0.g6c5cb546)
+Wine (plain) version: 9.18.r40.gb6196159bec
+Using wine-staging patchset (version 9.18.r1.g3dfacea3)
 
 Disabled the local Esync patchset to use Staging impl instead.
 Not using vkd3d native library for d3d12 translation (allows using vkd3d-proton)
@@ -15,13 +15,12 @@ CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 
 Staging overrides, if any: 
 
-fsync-unix-staging.patch -- ( Applied fsync patches (unix, staging) )
-fsync_futex_waitv.patch -- ( Applied patches for fsync to support futex_waitv )
 
 LAA-unix-staging.patch -- ( Applied large address aware override support (legacy) )
 
+ntsync-config.h.in-org.patch -- ( Using original config.h.in patchset for ntsync5 )
+ntsync5-staging.patch -- ( Using ntsync patchset )
 josh-flat-theme.patch -- ( Add Josh's better-theme )
-proton-win10-default.patch -- ( Enforce win10 as default wine version )
 proton_battleye.patch -- ( Add support for Proton's Battleye runtime )
 proton-eac_bridge.patch -- ( Add support for Proton's EAC bridge )
 
@@ -39,5 +38,5 @@ LDFLAGS = -Wl,-O1,--sort-common,--as-needed
 CROSSCFLAGS = -O2 -ftree-vectorize -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types
 CROSSLDFLAGS = -Wl,-O1,--sort-common,--as-needed
 
-configure arguments: --disable-tests --with-wine-tools=/home/lee/build-dir/batocera.x86_64/build/host-wine-custom-9.14 --without-x --without-gstreamer --without-vkd3d
+configure arguments: --disable-tests --without-vkd3d
 
