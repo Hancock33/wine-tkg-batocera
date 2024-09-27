@@ -494,18 +494,20 @@ static void wayland_surface_reconfigure_size(struct wayland_surface *surface,
  *
  * Reconfigures the subsurface covering the client area.
  */
-void wayland_surface_reconfigure_client(struct wayland_surface *surface, struct wayland_client_surface *client)
+static void wayland_surface_reconfigure_client(struct wayland_surface *surface,
+                                               struct wayland_client_surface *client,
+                                               const RECT *client_rect)
 {
     struct wayland_window_config *window = &surface->window;
     int client_x, client_y, x, y;
     int client_width, client_height, width, height;
 
     /* The offset of the client area origin relatively to the window origin. */
-    client_x = window->client_rect.left - window->rect.left;
-    client_y = window->client_rect.top - window->rect.top;
+    client_x = client_rect->left + window->client_rect.left - window->rect.left;
+    client_y = client_rect->top + window->client_rect.top - window->rect.top;
 
-    client_width = window->client_rect.right - window->client_rect.left;
-    client_height = window->client_rect.bottom - window->client_rect.top;
+    client_width = client_rect->right - client_rect->left;
+    client_height = client_rect->bottom - client_rect->top;
 
     wayland_surface_coords_from_window(surface, client_x, client_y, &x, &y);
     wayland_surface_coords_from_window(surface, client_width, client_height,
@@ -524,8 +526,6 @@ void wayland_surface_reconfigure_client(struct wayland_surface *surface, struct 
     else /* We can't have a 0x0 destination, use 1x1 instead. */
         wp_viewport_set_destination(client->wp_viewport, 1, 1);
 
-    wl_surface_commit(client->wl_surface);
-
     wayland_resize_gl_drawable(client->hwnd);
 }
 
@@ -535,7 +535,7 @@ void wayland_surface_reconfigure_client(struct wayland_surface *surface, struct 
  * Reconfigures the wayland surface as needed to match the latest requested
  * state.
  */
-BOOL wayland_surface_reconfigure(struct wayland_surface *surface, struct wayland_client_surface *client)
+BOOL wayland_surface_reconfigure(struct wayland_surface *surface)
 {
     struct wayland_window_config *window = &surface->window;
     int win_width, win_height, width, height;
@@ -586,7 +586,6 @@ BOOL wayland_surface_reconfigure(struct wayland_surface *surface, struct wayland
 
     wayland_surface_reconfigure_geometry(surface, width, height);
     wayland_surface_reconfigure_size(surface, width, height);
-    if (client) wayland_surface_reconfigure_client(surface, client);
 
     return TRUE;
 }
@@ -817,23 +816,41 @@ err:
     return NULL;
 }
 
-void wayland_client_surface_attach(struct wayland_client_surface *client, struct wayland_surface *surface)
+void wayland_client_surface_attach(struct wayland_client_surface *client, HWND toplevel)
 {
-    wayland_client_surface_detach(client);
+    struct wayland_win_data *toplevel_data = wayland_win_data_get_nolock(toplevel);
+    struct wayland_surface *surface;
+    RECT client_rect;
 
-    client->wl_subsurface =
-        wl_subcompositor_get_subsurface(process_wayland.wl_subcompositor,
-                                        client->wl_surface,
-                                        surface->wl_surface);
-    if (!client->wl_subsurface)
+    if (!toplevel_data || !(surface = toplevel_data->wayland_surface))
     {
-        ERR("Failed to create client wl_subsurface\n");
+        wayland_client_surface_detach(client);
         return;
     }
-    /* Present contents independently of the parent surface. */
-    wl_subsurface_set_desync(client->wl_subsurface);
 
-    wayland_surface_reconfigure_client(surface, client);
+    if (client->toplevel != toplevel)
+    {
+        wayland_client_surface_detach(client);
+
+        client->wl_subsurface =
+            wl_subcompositor_get_subsurface(process_wayland.wl_subcompositor,
+                                            client->wl_surface,
+                                            surface->wl_surface);
+        if (!client->wl_subsurface)
+        {
+            ERR("Failed to create client wl_subsurface\n");
+            return;
+        }
+        /* Present contents independently of the parent surface. */
+        wl_subsurface_set_desync(client->wl_subsurface);
+
+        client->toplevel = toplevel;
+    }
+
+    NtUserGetClientRect(client->hwnd, &client_rect, NtUserGetWinMonitorDpi(client->hwnd));
+    NtUserMapWindowPoints(client->hwnd, toplevel, (POINT *)&client_rect, 2, NtUserGetWinMonitorDpi(client->hwnd));
+
+    wayland_surface_reconfigure_client(surface, client, &client_rect);
     /* Commit to apply subsurface positioning. */
     wl_surface_commit(surface->wl_surface);
 }
@@ -845,6 +862,8 @@ void wayland_client_surface_detach(struct wayland_client_surface *client)
         wl_subsurface_destroy(client->wl_subsurface);
         client->wl_subsurface = NULL;
     }
+
+    client->toplevel = 0;
 }
 
 static void dummy_buffer_release(void *data, struct wl_buffer *buffer)
@@ -865,7 +884,7 @@ static const struct wl_buffer_listener dummy_buffer_listener =
  * Ensure that the wayland surface has up-to-date contents, by committing
  * a dummy buffer if necessary.
  */
-void wayland_surface_ensure_contents(struct wayland_surface *surface, struct wayland_client_surface *client)
+void wayland_surface_ensure_contents(struct wayland_surface *surface)
 {
     struct wayland_shm_buffer *dummy_shm_buffer;
     HRGN damage;
@@ -896,7 +915,7 @@ void wayland_surface_ensure_contents(struct wayland_surface *surface, struct way
     if (!(damage = NtGdiCreateRectRgn(0, 0, width, height)))
         WARN("Failed to create damage region for dummy buffer\n");
 
-    if (wayland_surface_reconfigure(surface, client))
+    if (wayland_surface_reconfigure(surface))
     {
         wayland_surface_attach_shm(surface, dummy_shm_buffer, damage);
         wl_surface_commit(surface->wl_surface);

@@ -660,7 +660,11 @@ static NTSTATUS get_builtin_unix_funcs( void *module, BOOL wow, const void **fun
     {
         if (builtin->module != module) continue;
         if (builtin->unix_path && !builtin->unix_handle)
+        {
             builtin->unix_handle = dlopen( builtin->unix_path, RTLD_NOW );
+            if (!builtin->unix_handle)
+                WARN_(module)( "failed to load %s: %s\n", debugstr_a(builtin->unix_path), dlerror() );
+        }
         if (builtin->unix_handle)
         {
             *funcs = dlsym( builtin->unix_handle, ptr_name );
@@ -3707,7 +3711,6 @@ static TEB *init_teb( void *ptr, BOOL is_wow )
     teb->StaticUnicodeString.MaximumLength = sizeof(teb->StaticUnicodeBuffer);
     thread_data = (struct ntdll_thread_data *)&teb->GdiTebBatch;
     thread_data->esync_apc_fd = -1;
-    thread_data->fsync_apc_futex = NULL;
     thread_data->request_fd = -1;
     thread_data->reply_fd   = -1;
     thread_data->wait_fd[0] = -1;

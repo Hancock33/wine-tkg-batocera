@@ -1,8 +1,8 @@
-# Last wine-tkg-staging-fsync-git configuration - Tue 24 Sep 17:59:51 BST 2024 :
+# Last wine-tkg-staging-git configuration - Fri 27 Sep 15:27:25 BST 2024 :
 
 Local cfg files used
 
-Wine (plain) version: 9.18.r40.gb6196159bec
+Wine (plain) version: 9.18.r127.gfb256d8b950
 Using wine-staging patchset (version 9.18.r1.g3dfacea3)
 
 Disabled the local Esync patchset to use Staging impl instead.
@@ -15,8 +15,6 @@ CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 
 Staging overrides, if any: 
 
-fsync-unix-staging.patch -- ( Applied fsync patches (unix, staging) )
-fsync_futex_waitv.patch -- ( Applied patches for fsync to support futex_waitv )
 
 LAA-unix-staging.patch -- ( Applied large address aware override support (legacy) )
 

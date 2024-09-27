@@ -373,7 +373,6 @@ AC_CHECK_HEADERS(\
 	link.h \
 	linux/cdrom.h \
 	linux/filter.h \
-	linux/futex.h \
 	linux/hdreg.h \
 	linux/hidraw.h \
 	linux/input.h \
@@ -3450,6 +3449,7 @@ WINE_CONFIG_MAKEFILE(programs/explorer)
 WINE_CONFIG_MAKEFILE(programs/explorer/tests)
 WINE_CONFIG_MAKEFILE(programs/extrac32)
 WINE_CONFIG_MAKEFILE(programs/fc)
+WINE_CONFIG_MAKEFILE(programs/fc/tests)
 WINE_CONFIG_MAKEFILE(programs/find)
 WINE_CONFIG_MAKEFILE(programs/find/tests)
 WINE_CONFIG_MAKEFILE(programs/findstr)
@@ -3694,7 +3694,7 @@ dnl Rules for generated source files
 
 WINE_APPEND_RULE(
 [dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-9.18.r1.g3dfacea3\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging Esync Fsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
+	@version=\`(echo \"wine-9.18.r1.g3dfacea3\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging Esync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$[@]) || echo \$\$build >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.nfo:
