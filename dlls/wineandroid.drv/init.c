@@ -78,7 +78,7 @@ void init_monitors( int width, int height )
     monitor_rc_work = virtual_screen_rect;
 
     if (!hwnd || !NtUserIsWindowVisible( hwnd )) return;
-    if (!NtUserGetWindowRect( hwnd, &rect, get_win_monitor_dpi( hwnd ) )) return;
+    if (!NtUserGetWindowRect( hwnd, &rect, NtUserGetWinMonitorDpi( hwnd ) )) return;
     if (rect.top) monitor_rc_work.bottom = rect.top;
     else monitor_rc_work.top = rect.bottom;
     TRACE( "found tray %p %s work area %s\n", hwnd,
@@ -280,10 +280,11 @@ UINT ANDROID_UpdateDisplayDevices( const struct gdi_device_manager *device_manag
                     DM_DISPLAYFLAGS | DM_DISPLAYFREQUENCY,
         .dmBitsPerPel = screen_bpp, .dmPelsWidth = screen_width, .dmPelsHeight = screen_height, .dmDisplayFrequency = 60,
     };
+    UINT dpi = NtUserGetSystemDpiForProcess( NULL );
     DEVMODEW current = mode;
 
     device_manager->add_gpu( "Wine GPU", &pci_id, NULL, param );
-    device_manager->add_source( "Default", source_flags, param );
+    device_manager->add_source( "Default", source_flags, dpi, param );
     device_manager->add_monitor( &gdi_monitor, param );
 
     current.dmFields |= DM_POSITION;

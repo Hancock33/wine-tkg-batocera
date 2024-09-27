@@ -68,9 +68,8 @@ static BOOL DP_BuildSPCompoundAddr( LPGUID lpcSpGuid, LPVOID* lplpAddrBuf,
 
 static DPID DP_GetRemoteNextObjectId(void);
 
-static DWORD DP_CalcSessionDescSize( LPCDPSESSIONDESC2 lpSessDesc, BOOL bAnsi );
-static void DP_CopySessionDesc( LPDPSESSIONDESC2 destSessionDesc,
-                                LPCDPSESSIONDESC2 srcSessDesc, BOOL bAnsi );
+static DWORD DP_CopySessionDesc( LPDPSESSIONDESC2 destSessionDesc,
+                                 LPCDPSESSIONDESC2 srcSessDesc, BOOL dstAnsi, BOOL srcAnsi );
 
 
 #define DPID_NOPARENT_GROUP 0 /* Magic number to indicate no parent of group */
@@ -383,6 +382,7 @@ HRESULT DP_HandleMessage( IDirectPlayImpl *This, const void *lpcMessageBody,
 
     case DPMSGCMD_GETNAMETABLEREPLY:
     case DPMSGCMD_NEWPLAYERIDREPLY:
+    case DPMSGCMD_SUPERENUMPLAYERSREPLY:
       DP_MSG_ReplyReceived( This, wCommandId, lpcMessageBody, dwMessageBodySize );
       break;
 
@@ -2344,7 +2344,7 @@ static BOOL DP_InvokeEnumSessionCallbacks
 
   /* Enumerate all sessions */
   /* FIXME: Need to indicate ANSI */
-  while( (lpSessionDesc = NS_WalkSessions( lpNSInfo ) ) != NULL )
+  while( (lpSessionDesc = NS_WalkSessions( lpNSInfo, NULL ) ) != NULL )
   {
     TRACE( "EnumSessionsCallback2 invoked\n" );
     if( !lpEnumSessionsCallback2( lpSessionDesc, timeout, 0, lpContext ) )
@@ -3185,8 +3185,7 @@ static HRESULT DP_GetSessionDesc( IDirectPlayImpl *This, void *lpData, DWORD *lp
     return DPERR_INVALIDPARAMS;
   }
 
-  /* FIXME: Get from This->dp2->lpSessionDesc */
-  dwRequiredSize = DP_CalcSessionDescSize( This->dp2->lpSessionDesc, bAnsi );
+  dwRequiredSize = DP_CopySessionDesc( NULL, This->dp2->lpSessionDesc, bAnsi, bAnsi );
 
   if ( ( lpData == NULL ) ||
        ( *lpdwDataSize < dwRequiredSize )
@@ -3196,7 +3195,7 @@ static HRESULT DP_GetSessionDesc( IDirectPlayImpl *This, void *lpData, DWORD *lp
     return DPERR_BUFFERTOOSMALL;
   }
 
-  DP_CopySessionDesc( lpData, This->dp2->lpSessionDesc, bAnsi );
+  DP_CopySessionDesc( lpData, This->dp2->lpSessionDesc, bAnsi, bAnsi );
 
   return DP_OK;
 }
@@ -3286,20 +3285,21 @@ static HRESULT WINAPI IDirectPlay4Impl_Initialize( IDirectPlay4 *iface, GUID *gu
 static HRESULT DP_SecureOpen( IDirectPlayImpl *This, const DPSESSIONDESC2 *lpsd, DWORD dwFlags,
         const DPSECURITYDESC *lpSecurity, const DPCREDENTIALS *lpCredentials, BOOL bAnsi )
 {
+  void *spMessageHeader = NULL;
   HRESULT hr = DP_OK;
 
   FIXME( "(%p)->(%p,0x%08lx,%p,%p): partial stub\n",
          This, lpsd, dwFlags, lpSecurity, lpCredentials );
 
-  if( This->dp2->connectionInitialized == NO_PROVIDER )
-  {
-    return DPERR_UNINITIALIZED;
-  }
-
   if( lpsd->dwSize != sizeof(DPSESSIONDESC2) )
   {
     TRACE( ": rejecting invalid dpsd size (%ld).\n", lpsd->dwSize );
     return DPERR_INVALIDPARAMS;
+  }
+
+  if( This->dp2->connectionInitialized == NO_PROVIDER )
+  {
+    return DPERR_UNINITIALIZED;
   }
 
   if( This->dp2->bConnectionOpen )
@@ -3326,6 +3326,24 @@ static HRESULT DP_SecureOpen( IDirectPlayImpl *This, const DPSESSIONDESC2 *lpsd,
       return hr;
     }
   }
+  else
+  {
+    DPSESSIONDESC2 *sessionDesc;
+
+    EnterCriticalSection( &This->lock );
+
+    NS_ResetSessionEnumeration( This->dp2->lpNameServerData );
+
+    LeaveCriticalSection( &This->lock );
+
+    sessionDesc = NS_WalkSessions( This->dp2->lpNameServerData, &spMessageHeader );
+    if ( !sessionDesc )
+      return DPERR_NOSESSIONS;
+
+    This->dp2->lpSessionDesc = DP_DuplicateSessionDesc( sessionDesc, bAnsi, bAnsi );
+    if ( !This->dp2->lpSessionDesc )
+      return DPERR_OUTOFMEMORY;
+  }
 
   /* Invoke the conditional callback for the service provider */
   if( This->dp2->spData.lpCB->Open )
@@ -3335,8 +3353,7 @@ static HRESULT DP_SecureOpen( IDirectPlayImpl *This, const DPSESSIONDESC2 *lpsd,
     FIXME( "Not all data fields are correct. Need new parameter\n" );
 
     data.bCreate           = (dwFlags & DPOPEN_CREATE ) != 0;
-    data.lpSPMessageHeader = (dwFlags & DPOPEN_CREATE ) ? NULL
-                                                        : NS_GetNSAddr( This->dp2->lpNameServerData );
+    data.lpSPMessageHeader = spMessageHeader;
     data.lpISP             = This->dp2->spData.lpISP;
     data.bReturnStatus     = (dwFlags & DPOPEN_RETURNSTATUS) != 0;
     data.dwOpenFlags       = dwFlags;
@@ -3846,7 +3863,6 @@ static HRESULT WINAPI IDirectPlay4Impl_SetPlayerName( IDirectPlay4 *iface, DPID 
 static HRESULT DP_SetSessionDesc( IDirectPlayImpl *This, const DPSESSIONDESC2 *lpSessDesc,
         DWORD dwFlags, BOOL bInitial, BOOL bAnsi  )
 {
-  DWORD            dwRequiredSize;
   LPDPSESSIONDESC2 lpTempSessDesc;
 
   TRACE( "(%p)->(%p,0x%08lx,%u,%u)\n",
@@ -3868,9 +3884,7 @@ static HRESULT DP_SetSessionDesc( IDirectPlayImpl *This, const DPSESSIONDESC2 *l
     return DPERR_ACCESSDENIED;
   }
 
-  /* FIXME: Copy into This->dp2->lpSessionDesc */
-  dwRequiredSize = DP_CalcSessionDescSize( lpSessDesc, bAnsi );
-  lpTempSessDesc = calloc( 1, dwRequiredSize );
+  lpTempSessDesc = DP_DuplicateSessionDesc( lpSessDesc, bAnsi, bAnsi );
 
   if( lpTempSessDesc == NULL )
   {
@@ -3881,13 +3895,7 @@ static HRESULT DP_SetSessionDesc( IDirectPlayImpl *This, const DPSESSIONDESC2 *l
   free( This->dp2->lpSessionDesc );
 
   This->dp2->lpSessionDesc = lpTempSessDesc;
-  /* Set the new */
-  DP_CopySessionDesc( This->dp2->lpSessionDesc, lpSessDesc, bAnsi );
-  if( bInitial )
-  {
-    /*Initializing session GUID*/
-    CoCreateGuid( &(This->dp2->lpSessionDesc->guidInstance) );
-  }
+
   /* If this is an external invocation of the interface, we should be
    * letting everyone know that things have changed. Otherwise this is
    * just an initialization and it doesn't need to be propagated.
@@ -3942,43 +3950,36 @@ static HRESULT WINAPI IDirectPlay4Impl_SetSessionDesc( IDirectPlay4 *iface,
     return DP_SetSessionDesc( This, lpSessDesc, dwFlags, FALSE, TRUE );
 }
 
-/* FIXME: See about merging some of this stuff with dplayx_global.c stuff */
-static DWORD DP_CalcSessionDescSize( LPCDPSESSIONDESC2 lpSessDesc, BOOL bAnsi )
-{
-  DWORD dwSize = 0;
-
-  if( lpSessDesc == NULL )
-  {
-    /* Hmmm..don't need any size? */
-    ERR( "NULL lpSessDesc\n" );
-    return dwSize;
-  }
-
-  dwSize += sizeof( *lpSessDesc );
-  dwSize += DP_CopyString( NULL, lpSessDesc->lpszSessionNameA, bAnsi, bAnsi, NULL, 0 );
-  dwSize += DP_CopyString( NULL, lpSessDesc->lpszPasswordA, bAnsi, bAnsi, NULL, 0 );
-
-  return dwSize;
-}
-
-/* Assumes that contiguous buffers are already allocated. */
-static void DP_CopySessionDesc( LPDPSESSIONDESC2 lpSessionDest,
-                                LPCDPSESSIONDESC2 lpSessionSrc, BOOL bAnsi )
+static DWORD DP_CopySessionDesc( LPDPSESSIONDESC2 lpSessionDest,
+                                 LPCDPSESSIONDESC2 lpSessionSrc, BOOL dstAnsi, BOOL srcAnsi )
 {
   DWORD offset = sizeof( DPSESSIONDESC2 );
 
-  if( lpSessionDest == NULL )
-  {
-    ERR( "NULL lpSessionDest\n" );
-    return;
-  }
+  if( lpSessionDest )
+    CopyMemory( lpSessionDest, lpSessionSrc, sizeof( *lpSessionSrc ) );
 
-  CopyMemory( lpSessionDest, lpSessionSrc, sizeof( *lpSessionSrc ) );
+  offset += DP_CopyString( &lpSessionDest->lpszSessionNameA, lpSessionSrc->lpszSessionNameA,
+                           dstAnsi, srcAnsi, lpSessionDest, offset );
+  offset += DP_CopyString( &lpSessionDest->lpszPasswordA, lpSessionSrc->lpszPasswordA,
+                           dstAnsi, srcAnsi, lpSessionDest, offset );
 
-  offset += DP_CopyString( &lpSessionDest->lpszSessionNameA, lpSessionSrc->lpszSessionNameA, bAnsi,
-                           bAnsi, lpSessionDest, offset );
-  offset += DP_CopyString( &lpSessionDest->lpszPasswordA, lpSessionSrc->lpszPasswordA, bAnsi,
-                           bAnsi, lpSessionDest, offset );
+  return offset;
+}
+
+DPSESSIONDESC2 *DP_DuplicateSessionDesc( const DPSESSIONDESC2 *src, BOOL dstAnsi, BOOL srcAnsi )
+{
+    DPSESSIONDESC2 *dst;
+    DWORD size;
+
+    size = DP_CopySessionDesc( NULL, src, dstAnsi, srcAnsi );
+
+    dst = malloc( size );
+    if ( !dst )
+        return NULL;
+
+    DP_CopySessionDesc( dst, src, dstAnsi, srcAnsi );
+
+    return dst;
 }
 
 static HRESULT WINAPI IDirectPlay3AImpl_AddGroupToGroup( IDirectPlay3A *iface, DPID parent,

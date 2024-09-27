@@ -565,7 +565,6 @@ static struct window *create_window( struct window *parent, struct window *owner
     win->desktop        = desktop;
     win->class          = class;
     win->atom           = atom;
-    win->last_active    = win->handle;
     win->win_region     = NULL;
     win->update_region  = NULL;
     win->style          = 0;
@@ -598,6 +597,7 @@ static struct window *create_window( struct window *parent, struct window *owner
         win->nb_extra_bytes = extra_bytes;
     }
     if (!(win->handle = alloc_user_handle( win, USER_WINDOW ))) goto failed;
+    win->last_active = win->handle;
 
     /* if parent belongs to a different thread and the window isn't */
     /* top-level, attach the two threads */

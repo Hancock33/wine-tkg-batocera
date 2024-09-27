@@ -1308,6 +1308,7 @@ enum
     NtUserCallHwndParam_ShowOwnedPopups,
     NtUserCallHwndParam_SendHardwareInput,
     NtUserCallHwndParam_ExposeWindowSurface,
+    NtUserCallHwndParam_GetWinMonitorDpi,
     /* temporary exports */
     NtUserSetWindowStyle,
 };
@@ -1535,6 +1536,11 @@ static inline BOOL NtUserExposeWindowSurface( HWND hwnd, UINT flags, const RECT 
     struct expose_window_surface_params params = {.flags = flags, .whole = !rect, .dpi = dpi};
     if (rect) params.rect = *rect;
     return NtUserCallHwndParam( hwnd, (UINT_PTR)&params, NtUserCallHwndParam_ExposeWindowSurface );
+}
+
+static inline UINT NtUserGetWinMonitorDpi( HWND hwnd )
+{
+    return NtUserCallHwndParam( hwnd, 0, NtUserCallHwndParam_GetWinMonitorDpi );
 }
 
 #endif /* _NTUSER_ */
