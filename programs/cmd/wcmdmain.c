@@ -720,11 +720,10 @@ static void handleExpansion(WCHAR *cmd, BOOL atExecute) {
   WCHAR *normalp;
 
   /* Display the FOR variables in effect */
-  for (i=0;i<MAX_FOR_VARIABLES;i++) {
+  for (i=0;i<ARRAY_SIZE(forloopcontext->variable);i++) {
     if (forloopcontext->variable[i]) {
-      WINE_TRACE("FOR variable context: %c = '%s'\n",
-                 for_var_index_to_char(i),
-                 wine_dbgstr_w(forloopcontext->variable[i]));
+      TRACE("FOR variable context: %s = '%s'\n",
+            debugstr_for_var((WCHAR)i), wine_dbgstr_w(forloopcontext->variable[i]));
     }
   }
 
@@ -748,7 +747,7 @@ static void handleExpansion(WCHAR *cmd, BOOL atExecute) {
         if (context) WCMD_strsubstW(p, p + 1, NULL, 0);
         if (!context || startchar == L'%') p++;
     /* Replace %~ modifications if in batch program */
-    } else if (*(p+1) == '~') {
+    } else if (p[1] == L'~' && p[2] && !iswspace(p[2])) {
       WCMD_HandleTildeModifiers(&p, atExecute);
       p++;
 
@@ -770,10 +769,9 @@ static void handleExpansion(WCHAR *cmd, BOOL atExecute) {
         p = WCMD_strsubstW(p, p+2, NULL, 0);
 
     } else {
-      int forvaridx = for_var_char_to_index(*(p+1));
-      if (startchar == L'%' && forvaridx != -1 && forloopcontext->variable[forvaridx]) {
+      if (startchar == L'%' && for_var_is_valid(p[1]) && forloopcontext->variable[p[1]]) {
         /* Replace the 2 characters, % and for variable character */
-        p = WCMD_strsubstW(p, p + 2, forloopcontext->variable[forvaridx], -1);
+        p = WCMD_strsubstW(p, p + 2, forloopcontext->variable[p[1]], -1);
       } else if (!atExecute || startchar == L'!') {
         BOOL first = p == cmd;
         p = WCMD_expand_envvar(p);
@@ -974,16 +972,16 @@ const char *debugstr_for_control(const CMD_FOR_CONTROL *for_ctrl)
         options = "";
         break;
     }
-    return wine_dbg_sprintf("[FOR] %s %s%s%%%c (%ls)",
+    return wine_dbg_sprintf("[FOR] %s %s%s%s (%ls)",
                             for_ctrl_strings[for_ctrl->operator], flags, options,
-                            for_var_index_to_char(for_ctrl->variable_index), for_ctrl->set);
+                            debugstr_for_var(for_ctrl->variable_index), for_ctrl->set);
 }
 
-static void for_control_create(enum for_control_operator for_op, unsigned flags, const WCHAR *options, int var_idx, CMD_FOR_CONTROL *for_ctrl)
+static void for_control_create(enum for_control_operator for_op, unsigned flags, const WCHAR *options, unsigned varidx, CMD_FOR_CONTROL *for_ctrl)
 {
     for_ctrl->operator = for_op;
     for_ctrl->flags = flags;
-    for_ctrl->variable_index = var_idx;
+    for_ctrl->variable_index = varidx;
     for_ctrl->set = NULL;
     switch (for_ctrl->operator)
     {
@@ -995,13 +993,13 @@ static void for_control_create(enum for_control_operator for_op, unsigned flags,
     }
 }
 
-static void for_control_create_fileset(unsigned flags, int var_idx, WCHAR eol, int num_lines_to_skip, BOOL use_backq,
+static void for_control_create_fileset(unsigned flags, unsigned varidx, WCHAR eol, int num_lines_to_skip, BOOL use_backq,
                                        const WCHAR *delims, const WCHAR *tokens,
                                        CMD_FOR_CONTROL *for_ctrl)
 {
     for_ctrl->operator = CMD_FOR_FILE_SET;
     for_ctrl->flags = flags;
-    for_ctrl->variable_index = var_idx;
+    for_ctrl->variable_index = varidx;
     for_ctrl->set = NULL;
 
     for_ctrl->eol = eol;
@@ -2024,7 +2022,7 @@ static CMD_FOR_CONTROL *for_control_parse(WCHAR *opts_var)
     WCHAR *arg;
     unsigned flags = 0;
     int arg_index;
-    int var_idx;
+    unsigned varidx;
 
     options[0] = L'\0';
     /* native allows two options only in the /D /R case, a repetition of the option
@@ -2106,8 +2104,9 @@ static CMD_FOR_CONTROL *for_control_parse(WCHAR *opts_var)
 
     /* Ensure line continues with variable */
     arg = WCMD_parameter(opts_var, arg_index++, NULL, FALSE, FALSE);
-    if (!arg || *arg != L'%' || (var_idx = for_var_char_to_index(arg[1])) == -1)
+    if (!arg || *arg != L'%' || !for_var_is_valid(arg[1]))
         goto syntax_error; /* FIXME native prints the offending token "%<whatever>" was unexpected at this time */
+    varidx = arg[1];
     for_ctrl = xalloc(sizeof(*for_ctrl));
     if (for_op == CMD_FOR_FILE_SET)
     {
@@ -2171,12 +2170,12 @@ static CMD_FOR_CONTROL *for_control_parse(WCHAR *opts_var)
                 goto syntax_error;
             }
         }
-        for_control_create_fileset(flags, var_idx, eol, num_lines_to_skip, use_backq,
+        for_control_create_fileset(flags, varidx, eol, num_lines_to_skip, use_backq,
                                    delims ? delims : xstrdupW(L" \t"),
                                    tokens ? tokens : xstrdupW(L"1"), for_ctrl);
     }
     else
-        for_control_create(for_op, flags, options, var_idx, for_ctrl);
+        for_control_create(for_op, flags, options, varidx, for_ctrl);
     return for_ctrl;
 syntax_error:
     WCMD_output_stderr(WCMD_LoadMessage(WCMD_SYNTAXERR));
@@ -3261,82 +3260,131 @@ static BOOL if_condition_evaluate(CMD_IF_CONDITION *cond, int *test)
     return TRUE;
 }
 
-static RETURN_CODE for_loop_fileset_parse_line(CMD_NODE *node, int varidx, WCHAR *buffer,
+struct for_loop_variables
+{
+    unsigned char table[32];
+    unsigned last, num_duplicates;
+    unsigned has_star;
+};
+
+static void for_loop_variables_init(struct for_loop_variables *flv)
+{
+    flv->last = flv->num_duplicates = 0;
+    flv->has_star = FALSE;
+}
+
+static BOOL for_loop_variables_push(struct for_loop_variables *flv, unsigned char o)
+{
+    unsigned i;
+    for (i = 0; i < flv->last; i++)
+         if (flv->table[i] == o)
+         {
+             flv->num_duplicates++;
+             return TRUE;
+         }
+    if (flv->last >= ARRAY_SIZE(flv->table)) return FALSE;
+    flv->table[flv->last] = o;
+    flv->last++;
+    return TRUE;
+}
+
+static int my_flv_compare(const void *a1, const void *a2)
+{
+    return *(const char*)a1 - *(const char*)a2;
+}
+
+static unsigned for_loop_variables_max(const struct for_loop_variables *flv)
+{
+    return flv->last == 0 ? -1 : flv->table[flv->last - 1];
+}
+
+static BOOL for_loop_fill_variables(const WCHAR *forf_tokens, struct for_loop_variables *flv)
+{
+    const WCHAR *pos = forf_tokens;
+
+    /* Loop through the token string, parsing it.
+     * Valid syntax is: token=m or x-y with comma delimiter and optionally * to finish
+     */
+    while (*pos)
+    {
+        unsigned num;
+        WCHAR *nextchar;
+
+        if (*pos == L'*')
+        {
+            if (pos[1] != L'\0') return FALSE;
+            qsort(flv->table, flv->last, sizeof(flv->table[0]), my_flv_compare);
+            if (flv->num_duplicates)
+            {
+                flv->num_duplicates++;
+                return TRUE;
+            }
+            flv->has_star = TRUE;
+            return for_loop_variables_push(flv, for_loop_variables_max(flv) + 1);
+        }
+
+        /* Get the next number */
+        num = wcstoul(pos, &nextchar, 10);
+        if (!num || num >= 32) return FALSE;
+        num--;
+        /* range x-y */
+        if (*nextchar == L'-')
+        {
+            unsigned int end = wcstoul(nextchar + 1, &nextchar, 10);
+            if (!end || end >= 32) return FALSE;
+            end--;
+            while (num <= end)
+                if (!for_loop_variables_push(flv, num++)) return FALSE;
+        }
+        else if (!for_loop_variables_push(flv, num)) return FALSE;
+
+        pos = nextchar;
+        if (*pos == L',') pos++;
+    }
+    if (flv->last)
+        qsort(flv->table, flv->last, sizeof(flv->table[0]), my_flv_compare);
+    else
+        for_loop_variables_push(flv, 0);
+    return TRUE;
+}
+
+static RETURN_CODE for_loop_fileset_parse_line(CMD_NODE *node, unsigned varidx, WCHAR *buffer,
                                                WCHAR forf_eol, const WCHAR *forf_delims, const WCHAR *forf_tokens)
 {
     RETURN_CODE return_code = NO_ERROR;
+    struct for_loop_variables flv;
     WCHAR *parm;
-    int varoffset;
-    int nexttoken, lasttoken = -1;
-    BOOL starfound = FALSE;
-    BOOL thisduplicate = FALSE;
-    BOOL anyduplicates = FALSE;
-    int  totalfound;
-    static WCHAR emptyW[] = L"";
+    unsigned i;
 
-    /* Extract the parameters based on the tokens= value (There will always
-       be some value, as if it is not supplied, it defaults to tokens=1).
-       Rough logic:
-       Count how many tokens are named in the line, identify the lowest
-       Empty (set to null terminated string) that number of named variables
-       While lasttoken != nextlowest
-       %letter = parameter number 'nextlowest'
-       letter++ (if >26 or >52 abort)
-       Go through token= string finding next lowest number
-       If token ends in * set %letter = raw position of token(nextnumber+1)
-    */
-    lasttoken = -1;
-    nexttoken = WCMD_for_nexttoken(lasttoken, forf_tokens, &totalfound,
-                                   &starfound, &thisduplicate);
-
-    TRACE("Using var=%lc on %d max\n", for_var_index_to_char(varidx), totalfound);
-    /* Empty out variables */
-    for (varoffset = 0;
-         varoffset < totalfound && for_var_index_in_range(varidx, varoffset);
-         varoffset++)
-        WCMD_set_for_loop_variable(varidx + varoffset, emptyW);
-
-    /* Loop extracting the tokens
-     * Note: nexttoken of 0 means there were no tokens requested, to handle
-     * the special case of tokens=*
-     */
-    varoffset = 0;
-    TRACE("Parsing buffer into tokens: '%s'\n", wine_dbgstr_w(buffer));
-    while (nexttoken > 0 && (nexttoken > lasttoken))
+    for_loop_variables_init(&flv);
+    if (!for_loop_fill_variables(forf_tokens, &flv))
     {
-        anyduplicates |= thisduplicate;
+        TRACE("Error while parsing tokens=%ls\n", forf_tokens);
+        return ERROR_INVALID_FUNCTION;
+    }
 
-        if (!for_var_index_in_range(varidx, varoffset))
+    TRACE("Using var=%s on %u max%s\n", debugstr_for_var(varidx), flv.last, flv.has_star ? " with star" : "");
+    /* Empty out variables */
+    for (i = 0; i < flv.last + flv.num_duplicates; i++)
+        WCMD_set_for_loop_variable(varidx + i, L"");
+
+    for (i = 0; i < flv.last; i++)
+    {
+        if (flv.has_star && i + 1 == flv.last)
         {
-            WARN("Out of range offset\n");
+            WCMD_parameter_with_delims(buffer, flv.table[i], &parm, FALSE, FALSE, forf_delims);
+            TRACE("Parsed all remaining tokens %d(%s) as parameter %s\n",
+                  flv.table[i], debugstr_for_var(varidx + i), wine_dbgstr_w(parm));
+            if (parm)
+                WCMD_set_for_loop_variable(varidx + i, parm);
             break;
         }
         /* Extract the token number requested and set into the next variable context */
-        parm = WCMD_parameter_with_delims(buffer, (nexttoken-1), NULL, TRUE, FALSE, forf_delims);
-        TRACE("Parsed token %d(%d) as parameter %s\n", nexttoken,
-              varidx + varoffset, wine_dbgstr_w(parm));
+        parm = WCMD_parameter_with_delims(buffer, flv.table[i], NULL, TRUE, FALSE, forf_delims);
+        TRACE("Parsed token %d(%s) as parameter %s\n",
+              flv.table[i], debugstr_for_var(varidx + i), wine_dbgstr_w(parm));
         if (parm)
-        {
-            WCMD_set_for_loop_variable(varidx + varoffset, parm);
-            varoffset++;
-        }
-
-        /* Find the next token */
-        lasttoken = nexttoken;
-        nexttoken = WCMD_for_nexttoken(lasttoken, forf_tokens, NULL,
-                                       &starfound, &thisduplicate);
-    }
-    /* If all the rest of the tokens were requested, and there is still space in
-     * the variable range, write them now
-     */
-    if (!anyduplicates && starfound && for_var_index_in_range(varidx, varoffset))
-    {
-        nexttoken++;
-        WCMD_parameter_with_delims(buffer, (nexttoken-1), &parm, FALSE, FALSE, forf_delims);
-        TRACE("Parsed all remaining tokens (%d) as parameter %s\n",
-              varidx + varoffset, wine_dbgstr_w(parm));
-        if (parm)
-            WCMD_set_for_loop_variable(varidx + varoffset, parm);
+            WCMD_set_for_loop_variable(varidx + i, parm);
     }
 
     /* Execute the body of the for loop with these values */
@@ -3365,13 +3413,13 @@ void WCMD_save_for_loop_context(BOOL reset)
 void WCMD_restore_for_loop_context(void)
 {
     FOR_CONTEXT *old = forloopcontext->previous;
-    int varidx;
+    unsigned varidx;
     if (!old)
     {
         FIXME("Unexpected situation\n");
         return;
     }
-    for (varidx = 0; varidx < MAX_FOR_VARIABLES; varidx++)
+    for (varidx = 0; varidx < ARRAY_SIZE(forloopcontext->variable); varidx++)
     {
         if (forloopcontext->variable[varidx] != old->variable[varidx])
             free(forloopcontext->variable[varidx]);
@@ -3380,13 +3428,13 @@ void WCMD_restore_for_loop_context(void)
     forloopcontext = old;
 }
 
-void WCMD_set_for_loop_variable(int var_idx, const WCHAR *value)
+void WCMD_set_for_loop_variable(unsigned varidx, const WCHAR *value)
 {
-    if (var_idx < 0 || var_idx >= MAX_FOR_VARIABLES) return;
+    if (!for_var_is_valid(varidx)) return;
     if (forloopcontext->previous &&
-        forloopcontext->previous->variable[var_idx] != forloopcontext->variable[var_idx])
-        free(forloopcontext->variable[var_idx]);
-    forloopcontext->variable[var_idx] = xstrdupW(value);
+        forloopcontext->previous->variable[varidx] != forloopcontext->variable[varidx])
+        free(forloopcontext->variable[varidx]);
+    forloopcontext->variable[varidx] = xstrdupW(value);
 }
 
 static BOOL match_ending_delim(WCHAR *string)
