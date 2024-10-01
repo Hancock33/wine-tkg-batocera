@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
 HEAD is now at 3dfacea3 Rebase against b6196159becb194a56434061fe3bba239863b783.
-HEAD is now at 658df7f2121 crypt32/tests: Fix a test failure.
+HEAD is now at 3a6e226e9ae user32/tests: Test that DragDetect() uses client coordinates instead of screen coordinates.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch

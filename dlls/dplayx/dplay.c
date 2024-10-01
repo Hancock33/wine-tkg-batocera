@@ -61,6 +61,8 @@ static lpGroupData DP_FindAnyGroup( IDirectPlayImpl *This, DPID dpid );
 /* Helper methods for player/group interfaces */
 static HRESULT DP_SetSessionDesc( IDirectPlayImpl *This, const DPSESSIONDESC2 *lpSessDesc,
         DWORD dwFlags, BOOL bInitial, BOOL bAnsi );
+static void DP_SetPlayerData( lpPlayerData lpPData, DWORD dwFlags,
+        LPVOID lpData, DWORD dwDataSize );
 static HRESULT DP_SP_SendEx( IDirectPlayImpl *This, DWORD dwFlags, void *lpData, DWORD dwDataSize,
         DWORD dwPriority, DWORD dwTimeout, void *lpContext, DWORD *lpdwMsgID );
 static BOOL DP_BuildSPCompoundAddr( LPGUID lpcSpGuid, LPVOID* lplpAddrBuf,
@@ -1356,11 +1358,11 @@ DP_SetGroupData( lpGroupData lpGData, DWORD dwFlags,
 
 }
 
-/* This function will just create the storage for the new player.  */
 static lpPlayerData DP_CreatePlayer( IDirectPlayImpl *This, DPID *lpid, DPNAME *lpName,
-        DWORD dwFlags, HANDLE hEvent, BOOL bAnsi )
+        void *data, DWORD dataSize, DWORD dwFlags, HANDLE hEvent, BOOL bAnsi )
 {
   lpPlayerData lpPData;
+  lpPlayerList lpPList;
 
   TRACE( "(%p)->(%p,%p,%u)\n", This, lpid, lpName, bAnsi );
 
@@ -1393,6 +1395,25 @@ static lpPlayerData DP_CreatePlayer( IDirectPlayImpl *This, DPID *lpid, DPNAME *
 
   /* Initialize the SP data section */
   lpPData->lpSPPlayerData = DPSP_CreateSPPlayerData();
+
+  /* Create the list object and link it in */
+  lpPList = calloc( 1, sizeof( *lpPList ) );
+  if( !lpPList )
+  {
+    free( lpPData->lpSPPlayerData );
+    CloseHandle( lpPData->hEvent );
+    DP_DeleteDPNameStruct( &lpPData->name );
+    free( lpPData );
+    return NULL;
+  }
+
+  lpPData->uRef = 1;
+  lpPList->lpPData = lpPData;
+
+  /* Add the player to the system group */
+  DPQ_INSERT( This->dp2->lpSysGroup->players, lpPList, players );
+
+  DP_SetPlayerData( lpPData, DPSET_REMOTE, data, dataSize );
 
   TRACE( "Created player id 0x%08lx\n", *lpid );
 
@@ -1542,7 +1563,6 @@ static HRESULT DP_IF_CreatePlayer( IDirectPlayImpl *This, void *lpMsgHdr, DPID *
 {
   HRESULT hr = DP_OK;
   lpPlayerData lpPData;
-  lpPlayerList lpPList;
   DWORD dwCreateFlags = 0;
 
   TRACE( "(%p)->(%p,%p,%p,%p,0x%08lx,0x%08lx,%u)\n",
@@ -1630,25 +1650,10 @@ static HRESULT DP_IF_CreatePlayer( IDirectPlayImpl *This, void *lpMsgHdr, DPID *
 
   /* We pass creation flags, so we can distinguish sysplayers and not count them in the current
      player total */
-  lpPData = DP_CreatePlayer( This, lpidPlayer, lpPlayerName, dwCreateFlags,
+  lpPData = DP_CreatePlayer( This, lpidPlayer, lpPlayerName, lpData, dwDataSize, dwCreateFlags,
                              hEvent, bAnsi );
-  /* Create the list object and link it in */
-  lpPList = calloc( 1, sizeof( *lpPList ) );
-  if( !lpPData || !lpPList )
-  {
-    free( lpPData );
-    free( lpPList );
+  if( !lpPData )
     return DPERR_CANTADDPLAYER;
-  }
-
-  lpPData->uRef = 1;
-  lpPList->lpPData = lpPData;
-
-  /* Add the player to the system group */
-  DPQ_INSERT( This->dp2->lpSysGroup->players, lpPList, players );
-
-  /* Update the information and send it to all players in the session */
-  DP_SetPlayerData( lpPData, DPSET_REMOTE, lpData, dwDataSize );
 
   /* Let the SP know that we've created this player */
   if( This->dp2->spData.lpCB->CreatePlayer )
@@ -2220,8 +2225,7 @@ static HRESULT WINAPI IDirectPlay4Impl_EnumGroupPlayers( IDirectPlay4 *iface, DP
         /* We do not enum the name server or app server as they are of no
          * consequence to the end user.
          */
-        if ( ( plist->lpPData->dpid != DPID_NAME_SERVER ) &&
-                ( plist->lpPData->dpid != DPID_SERVERPLAYER ) )
+        if ( !(plist->lpPData->dwFlags & DPLAYI_PLAYER_SYSPLAYER) )
         {
             /* FIXME: Need to add stuff for flags checking */
             if ( !enumplayercb( plist->lpPData->dpid, DPPLAYERTYPE_PLAYER,
@@ -3336,9 +3340,14 @@ static HRESULT DP_SecureOpen( IDirectPlayImpl *This, const DPSESSIONDESC2 *lpsd,
 
     LeaveCriticalSection( &This->lock );
 
-    sessionDesc = NS_WalkSessions( This->dp2->lpNameServerData, &spMessageHeader );
-    if ( !sessionDesc )
-      return DPERR_NOSESSIONS;
+    for ( ;; )
+    {
+      sessionDesc = NS_WalkSessions( This->dp2->lpNameServerData, &spMessageHeader );
+      if ( !sessionDesc )
+        return DPERR_NOSESSIONS;
+      if ( IsEqualGUID( &sessionDesc->guidInstance, &lpsd->guidInstance ) )
+        break;
+    }
 
     This->dp2->lpSessionDesc = DP_DuplicateSessionDesc( sessionDesc, bAnsi, bAnsi );
     if ( !This->dp2->lpSessionDesc )
