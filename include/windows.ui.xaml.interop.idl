@@ -1,7 +1,5 @@
 /*
- * Runtime Classes for windows.globalization.dll
- *
- * Copyright 2021 Rémi Bernon for CodeWeavers
+ * Copyright 2024 Zhiyi Zhang for CodeWeavers
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,8 +16,6 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#pragma makedep register
-
 #ifdef __WIDL__
 #pragma winrt ns_prefix
 #endif
@@ -29,9 +25,27 @@ import "asyncinfo.idl";
 import "eventtoken.idl";
 import "windowscontracts.idl";
 import "windows.foundation.idl";
-import "windows.system.idl";
 
-#define DO_NO_IMPORTS
-#define _WINDOWS_GLOBALIZATION
-#include "windows.globalization.idl"
-#include "windows.system.userprofile.idl"
+namespace Windows.UI.Xaml.Interop {
+    typedef enum TypeKind TypeKind;
+    typedef struct TypeName TypeName;
+
+    [
+        contract(Windows.Foundation.UniversalApiContract, 1.0)
+    ]
+    enum TypeKind
+    {
+        Primitive = 0,
+        Metadata  = 1,
+        Custom    = 2
+    };
+
+    [
+        contract(Windows.Foundation.UniversalApiContract, 1.0)
+    ]
+    struct TypeName
+    {
+        HSTRING Name;
+        Windows.UI.Xaml.Interop.TypeKind Kind;
+    };
+}
