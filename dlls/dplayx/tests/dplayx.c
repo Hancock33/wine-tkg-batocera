@@ -2021,6 +2021,10 @@ static BOOL CALLBACK checkPlayerListCallback( DPID dpid, DWORD playerType, const
         {
             BYTE playerData[ 256 ];
             DWORD playerDataSize;
+            BYTE nameData[ 256 ];
+            DWORD nameDataSize;
+            char *shortName;
+            char *longName;
             HRESULT hr;
 
             if ( player->actualCount )
@@ -2053,10 +2057,53 @@ static BOOL CALLBACK checkPlayerListCallback( DPID dpid, DWORD playerType, const
             playerDataSize = sizeof( playerData );
             hr = IDirectPlayX_GetPlayerData( data->dp, dpid, playerData, &playerDataSize, DPGET_REMOTE );
             ok_( __FILE__, data->line )( hr == DP_OK, "GetPlayerData() returned %#lx.\n", hr );
-            ok_( __FILE__, data->line )( playerDataSize == player->expectedPlayerDataSize,
-                                         "got player data size %lu.\n", playerDataSize );
+            todo_wine ok_( __FILE__, data->line )( playerDataSize == player->expectedPlayerDataSize,
+                                                   "got player data size %lu.\n", playerDataSize );
             ok_( __FILE__, data->line )( !memcmp( playerData, player->expectedPlayerData, player->expectedPlayerDataSize ),
                                          "player data doesn't match.\n" );
+
+            memset( &nameData, 0xcc, sizeof( nameData ) );
+            nameDataSize = sizeof( nameData );
+            hr = IDirectPlayX_GetPlayerName( data->dp, dpid, &nameData, &nameDataSize );
+            ok_( __FILE__, data->line )( hr == DP_OK, "GetPlayerName() returned %#lx.\n", hr );
+            ok_( __FILE__, data->line )( ((DPNAME *) nameData)->dwSize == sizeof( DPNAME ),
+                                         "got name size %lu.\n", ((DPNAME *) nameData)->dwSize );
+            ok_( __FILE__, data->line )( !((DPNAME *) nameData)->dwFlags, "got name flags %#lx.\n",
+                                         ((DPNAME *) nameData)->dwFlags );
+            shortName = ((DPNAME *) nameData)->lpszShortNameA;
+            if ( player->expectedShortName )
+            {
+                if ( (char *) nameData <= shortName && shortName < (char *) nameData + nameDataSize )
+                {
+                    ok_( __FILE__, data->line )( shortName && !strcmp( shortName, player->expectedShortName ),
+                                                 "got short name %s.\n", wine_dbgstr_a( shortName ) );
+                }
+                else
+                {
+                    ok_( __FILE__, data->line)( 0, "got short name %p.\n", shortName );
+                }
+            }
+            else
+            {
+                ok_( __FILE__, data->line )( !shortName, "got short name %s.\n", wine_dbgstr_a( shortName ) );
+            }
+            longName = ((DPNAME *) nameData)->lpszLongNameA;
+            if ( player->expectedLongName )
+            {
+                if ( (char *) nameData <= longName && longName < (char *) nameData + nameDataSize )
+                {
+                    ok_( __FILE__, data->line )( longName && !strcmp( longName, player->expectedLongName ),
+                                                 "got long name %s.\n", wine_dbgstr_a( longName ) );
+                }
+                else
+                {
+                    ok_( __FILE__, data->line)( 0, "got long name %p.\n", longName );
+                }
+            }
+            else
+            {
+                ok_( __FILE__, data->line )( !longName, "got long name %s.\n", wine_dbgstr_a( longName ) );
+            }
 
             ++player->actualCount;
             ++data->actualPlayerCount;
@@ -2085,8 +2132,8 @@ static void checkPlayerList_( int line, IDirectPlay4 *dp, ExpectedPlayer *expect
 
     hr = IDirectPlayX_EnumPlayers( dp, NULL, checkPlayerListCallback, &data, 0 );
     ok_( __FILE__, line )( hr == DP_OK, "EnumPlayers() returned %#lx.\n", hr );
-    todo_wine ok_( __FILE__, line )( data.actualPlayerCount == data.expectedPlayerCount, "got player count %d.\n",
-                                     data.actualPlayerCount );
+    ok_( __FILE__, line )( data.actualPlayerCount == data.expectedPlayerCount, "got player count %d.\n",
+                           data.actualPlayerCount );
 }
 
 #define check_Open( dp, dpsd, serverDpsd, requestExpected, port, expectedPassword, expectedHr ) check_Open_( __LINE__, dp, dpsd, serverDpsd, requestExpected, port, expectedPassword, expectedHr )
