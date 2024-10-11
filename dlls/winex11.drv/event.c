@@ -982,6 +982,7 @@ static void reparent_notify( Display *display, HWND hwnd, Window xparent, int x,
 {
     HWND parent, old_parent;
     DWORD style, flags = 0;
+    RECT rect;
 
     style = NtUserGetWindowLongW( hwnd, GWL_STYLE );
     if (xparent == root_window)
@@ -1000,7 +1001,8 @@ static void reparent_notify( Display *display, HWND hwnd, Window xparent, int x,
     NtUserSetWindowLong( hwnd, GWL_STYLE, style, FALSE );
 
     if (style & WS_VISIBLE) flags = SWP_SHOWWINDOW;
-    set_window_pos( hwnd, HWND_TOP, x, y, 0, 0, SWP_NOACTIVATE | SWP_NOSIZE | SWP_NOCOPYBITS | flags );
+    SetRect( &rect, x, y, x, y );
+    NtUserSetRawWindowPos( hwnd, rect, SWP_NOACTIVATE | SWP_NOSIZE | SWP_NOCOPYBITS | flags, FALSE );
 
     /* make old parent destroy itself if it no longer has children */
     if (old_parent != NtUserGetDesktopWindow()) NtUserPostMessage( old_parent, WM_CLOSE, 0, 0 );
@@ -1043,6 +1045,33 @@ static BOOL X11DRV_ReparentNotify( HWND hwnd, XEvent *xev )
     return TRUE;
 }
 
+/* map XConfigureNotify event coordinates to parent-relative monitor DPI coordinates */
+static POINT map_configure_event_coords( struct x11drv_win_data *data, XConfigureEvent *event )
+{
+    Window child, parent = data->embedder ? data->embedder : root_window;
+    POINT pos;
+
+    if (event->send_event && parent == DefaultRootWindow( event->display ))
+    {
+        pos.x = event->x;
+        pos.y = event->y;
+    }
+    else if (event->send_event)
+    {
+        /* synthetic events are always in root coords */
+        XTranslateCoordinates( event->display, DefaultRootWindow( event->display ), parent,
+                               event->x, event->y, (int *)&pos.x, (int *)&pos.y, &child );
+    }
+    else
+    {
+        /* query the current window position, events are relative to their parent */
+        XTranslateCoordinates( event->display, event->window, parent, 0, 0,
+                               (int *)&pos.x, (int *)&pos.y, &child );
+    }
+
+    if (parent == root_window) pos = root_to_virtual_screen( pos.x, pos.y );
+    return pos;
+}
 
 /***********************************************************************
  *		X11DRV_ConfigureNotify
@@ -1054,8 +1083,6 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
     RECT rect;
     POINT pos;
     UINT flags;
-    HWND parent;
-    BOOL root_coords;
     int cx, cy, x = event->x, y = event->y;
     DWORD style;
 
@@ -1075,27 +1102,9 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
 
     /* Get geometry */
 
-    parent = NtUserGetAncestor( hwnd, GA_PARENT );
-    root_coords = event->send_event;  /* synthetic events are always in root coords */
-
-    if (!root_coords && parent == NtUserGetDesktopWindow()) /* normal event, map coordinates to the root */
-    {
-        Window child;
-        XTranslateCoordinates( event->display, event->window, root_window,
-                               0, 0, &x, &y, &child );
-        root_coords = TRUE;
-    }
-
-    if (!root_coords)
-    {
-        pos.x = x;
-        pos.y = y;
-    }
-    else pos = root_to_virtual_screen( x, y );
-
+    pos = map_configure_event_coords( data, event );
     SetRect( &rect, pos.x, pos.y, pos.x + event->width, pos.y + event->height );
     rect = window_rect_from_visible( &data->rects, rect );
-    if (root_coords) NtUserMapWindowPoints( 0, parent, (POINT *)&rect, 2, 0 /* per-monitor DPI */ );
 
     TRACE( "win %p/%lx new X rect %d,%d,%dx%d (event %d,%d,%dx%d)\n",
            hwnd, data->whole_window, (int)rect.left, (int)rect.top,
@@ -1152,7 +1161,7 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
     if ((flags & (SWP_NOSIZE | SWP_NOMOVE)) != (SWP_NOSIZE | SWP_NOMOVE))
     {
         release_win_data( data );
-        set_window_pos( hwnd, 0, x, y, cx, cy, flags );
+        NtUserSetRawWindowPos( hwnd, rect, flags, FALSE );
         return TRUE;
     }
 
@@ -1190,7 +1199,10 @@ static BOOL X11DRV_GravityNotify( HWND hwnd, XEvent *xev )
     release_win_data( data );
 
     if (window_rect.left != x || window_rect.top != y)
-        set_window_pos( hwnd, 0, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS );
+    {
+        RECT rect = {x, y, x, y};
+        NtUserSetRawWindowPos( hwnd, rect, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS, FALSE );
+    }
 
     return TRUE;
 }
