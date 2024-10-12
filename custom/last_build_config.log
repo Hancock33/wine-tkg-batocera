@@ -1,8 +1,8 @@
-# Last wine-tkg-staging-git configuration - Fri 11 Oct 20:48:43 BST 2024 :
+# Last wine-tkg-staging-git configuration - Sat 12 Oct 17:50:19 BST 2024 :
 
 Local cfg files used
 
-Wine (plain) version: 9.19.r86.g5569c8051ba
+Wine (plain) version: 9.19.r92.g7ce580d1fa0
 Using wine-staging patchset (version 9.19.r0.g858bf979)
 
 Disabled the local Esync patchset to use Staging impl instead.
