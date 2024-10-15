@@ -265,6 +265,39 @@ static void check_dds_pixel_format_(unsigned int line,
         ok_(__FILE__, line)(info.Format == expected_format, "D3DXGetImageInfoFromFileInMemory returned format %#x, expected %#x\n",
                 info.Format, expected_format);
     }
+
+    /* Test again with unused fields set. */
+    if (flags & DDS_PF_FOURCC)
+        rmask = gmask = bmask = amask = bpp = ~0u;
+    else if ((flags & (DDS_PF_INDEXED | DDS_PF_ALPHA)) == (DDS_PF_INDEXED | DDS_PF_ALPHA))
+        rmask = gmask = bmask = fourcc = ~0u;
+    else if (flags & DDS_PF_INDEXED)
+        rmask = gmask = bmask = amask = fourcc = ~0u;
+    else if ((flags & (DDS_PF_RGB | DDS_PF_ALPHA)) == (DDS_PF_RGB | DDS_PF_ALPHA))
+        fourcc = ~0u;
+    else if (flags & DDS_PF_RGB)
+        fourcc = amask = ~0u;
+    else if ((flags & (DDS_PF_LUMINANCE | DDS_PF_ALPHA)) == (DDS_PF_LUMINANCE | DDS_PF_ALPHA))
+        gmask = bmask = fourcc = ~0u;
+    else if (flags & DDS_PF_LUMINANCE)
+        gmask = bmask = amask = fourcc = ~0u;
+    else if (flags & DDS_PF_ALPHA_ONLY)
+        rmask = gmask = bmask = fourcc = ~0u;
+    else if (flags & DDS_PF_BUMPDUDV)
+        fourcc = ~0u;
+    else if (flags & DDS_PF_BUMPLUMINANCE)
+        fourcc = amask = ~0u;
+
+    dds.header.pixel_format.fourcc = fourcc;
+    dds.header.pixel_format.bpp = bpp;
+    dds.header.pixel_format.rmask = rmask;
+    dds.header.pixel_format.gmask = gmask;
+    dds.header.pixel_format.bmask = bmask;
+    dds.header.pixel_format.amask = amask;
+    hr = D3DXGetImageInfoFromFileInMemory(&dds, sizeof(dds), &info);
+    ok_(__FILE__, line)(hr == D3D_OK, "Unexpected hr %#lx.\n", hr);
+    if (SUCCEEDED(hr))
+        ok_(__FILE__, line)(info.Format == expected_format, "Unexpected format %#x.\n", info.Format);
 }
 
 static void test_dds_header_handling(void)
@@ -292,6 +325,7 @@ static void test_dds_header_handling(void)
         {
             HRESULT hr;
             UINT miplevels;
+            BOOL todo;
         }
         expected;
     } tests[] = {
@@ -317,6 +351,7 @@ static void test_dds_header_handling(void)
         /* linear size is ignored */
         { { 32, DDS_PF_FOURCC, D3DFMT_DXT1, 0, 0, 0, 0, 0 }, 0, 4, 4, 0, 0,
           7 /* pixel data size */, { D3DXERR_INVALIDDATA, 1 } },
+        /* 10. */
         { { 32, DDS_PF_FOURCC, D3DFMT_DXT1, 0, 0, 0, 0, 0 }, DDS_LINEARSIZE, 4, 4, 0 /* linear size */, 0,
           8, { D3D_OK, 1 } },
         { { 32, DDS_PF_FOURCC, D3DFMT_DXT1, 0, 0, 0, 0, 0 }, DDS_LINEARSIZE, 4, 4, 1 /* linear size */, 0,
@@ -331,14 +366,14 @@ static void test_dds_header_handling(void)
           8, { D3D_OK, 1 } },
         /* integer overflows */
         { { 32, DDS_PF_RGB, 0, 32, 0xff0000, 0x00ff00, 0x0000ff, 0 }, 0, 0x80000000, 0x80000000 /* 0x80000000 * 0x80000000 * 4 = 0 */, 0, 0,
-          64, { D3D_OK, 1 } },
+          64, { D3D_OK, 1, .todo = TRUE } },
         { { 32, DDS_PF_RGB, 0, 32, 0xff0000, 0x00ff00, 0x0000ff, 0 }, 0, 0x8000100, 0x800100 /* 0x8000100 * 0x800100 * 4 = 262144 */, 0, 0,
           64, { D3DXERR_INVALIDDATA, 0 } },
         { { 32, DDS_PF_RGB, 0, 32, 0xff0000, 0x00ff00, 0x0000ff, 0 }, 0, 0x80000001, 0x80000001 /* 0x80000001 * 0x80000001 * 4 = 4 */, 0, 0,
           4, { D3D_OK, 1 } },
         { { 32, DDS_PF_RGB, 0, 32, 0xff0000, 0x00ff00, 0x0000ff, 0 }, 0, 0x80000001, 0x80000001 /* 0x80000001 * 0x80000001 * 4 = 4 */, 0, 0,
           3 /* pixel data size */, { D3DXERR_INVALIDDATA, 0 } },
-        /* file size is validated */
+        /* 20. File size is validated. */
         { { 32, DDS_PF_RGB, 0, 24, 0xff0000, 0x00ff00, 0x0000ff, 0x000000 }, 0, 256, 64, 0, 0, 49151, { D3DXERR_INVALIDDATA, 0 } },
         { { 32, DDS_PF_RGB, 0, 24, 0xff0000, 0x00ff00, 0x0000ff, 0x000000 }, 0, 256, 64, 0, 0, 49152, { D3D_OK, 1 } },
         { { 32, DDS_PF_RGB, 0, 24, 0xff0000, 0x00ff00, 0x0000ff, 0x000000 }, DDS_MIPMAPCOUNT, 256, 64, 0, 4, 65279, { D3DXERR_INVALIDDATA, 0 } },
@@ -349,6 +384,7 @@ static void test_dds_header_handling(void)
         { { 32, DDS_PF_RGB, 0, 24, 0xff0000, 0x00ff00, 0x0000ff, 0x000000 }, 0, 256, 256, 0, 0, 196608, { D3D_OK, 1 } },
         { { 32, DDS_PF_RGB, 0, 24, 0xff0000, 0x00ff00, 0x0000ff, 0x000000 }, 0, 256, 256, 0, 0, 196609, { D3D_OK, 1 } },
         { { 32, DDS_PF_RGB, 0, 24, 0xff0000, 0x00ff00, 0x0000ff, 0x000000 }, DDS_MIPMAPCOUNT, 256, 256, 0, 1, 196607, { D3DXERR_INVALIDDATA, 0 } },
+        /* 30. */
         { { 32, DDS_PF_RGB, 0, 24, 0xff0000, 0x00ff00, 0x0000ff, 0x000000 }, DDS_MIPMAPCOUNT, 256, 256, 0, 1, 196608, { D3D_OK, 1 } },
         { { 32, DDS_PF_RGB, 0, 24, 0xff0000, 0x00ff00, 0x0000ff, 0x000000 }, DDS_MIPMAPCOUNT, 256, 256, 0, 0, 196607, { D3DXERR_INVALIDDATA, 0 } },
         { { 32, DDS_PF_RGB, 0, 24, 0xff0000, 0x00ff00, 0x0000ff, 0x000000 }, DDS_MIPMAPCOUNT, 256, 256, 0, 0, 196608, { D3D_OK, 1 } },
@@ -359,6 +395,7 @@ static void test_dds_header_handling(void)
         { { 32, DDS_PF_RGB, 0, 24, 0xff0000, 0x00ff00, 0x0000ff, 0x000000 }, DDS_MIPMAPCOUNT, 256, 256, 0, 10, 262146, { D3D_OK, 10 } },
         { { 32, DDS_PF_RGB, 0, 24, 0xff0000, 0x00ff00, 0x0000ff, 0x000000 }, DDS_MIPMAPCOUNT, 256, 256, 0, 20, 262175, { D3DXERR_INVALIDDATA, 0 } },
         { { 32, DDS_PF_RGB, 0, 24, 0xff0000, 0x00ff00, 0x0000ff, 0x000000 }, DDS_MIPMAPCOUNT, 256, 256, 0, 20, 262176, { D3D_OK, 20 } },
+        /* 40. */
         { { 32, DDS_PF_FOURCC, D3DFMT_DXT1, 0, 0, 0, 0, 0 }, 0, 256, 256, 0, 0, 32767, { D3DXERR_INVALIDDATA, 0 } },
         { { 32, DDS_PF_FOURCC, D3DFMT_DXT1, 0, 0, 0, 0, 0 }, 0, 256, 256, 0, 0, 32768, { D3D_OK, 1 } },
         { { 32, DDS_PF_FOURCC, D3DFMT_DXT1, 0, 0, 0, 0, 0 }, DDS_MIPMAPCOUNT, 256, 256, 0, 0, 32767, { D3DXERR_INVALIDDATA, 0 } },
@@ -369,6 +406,7 @@ static void test_dds_header_handling(void)
         { { 32, DDS_PF_FOURCC, D3DFMT_DXT1, 0, 0, 0, 0, 0 }, DDS_MIPMAPCOUNT, 256, 256, 0, 20, 43792, { D3D_OK, 20 } },
         { { 32, DDS_PF_FOURCC, D3DFMT_DXT4, 0, 0, 0, 0, 0 }, 0, 256, 256, 0, 0, 65535, { D3DXERR_INVALIDDATA, 0 } },
         { { 32, DDS_PF_FOURCC, D3DFMT_DXT4, 0, 0, 0, 0, 0 }, 0, 256, 256, 0, 0, 65536, { D3D_OK, 1 } },
+        /* 50. */
         { { 32, DDS_PF_FOURCC, D3DFMT_DXT4, 0, 0, 0, 0, 0 }, DDS_MIPMAPCOUNT, 256, 256, 0, 0, 65535, { D3DXERR_INVALIDDATA, 0 } },
         { { 32, DDS_PF_FOURCC, D3DFMT_DXT4, 0, 0, 0, 0, 0 }, DDS_MIPMAPCOUNT, 256, 256, 0, 0, 65536, { D3D_OK, 1 } },
         { { 32, DDS_PF_FOURCC, D3DFMT_DXT4, 0, 0, 0, 0, 0 }, DDS_MIPMAPCOUNT, 256, 256, 0, 9, 87407, { D3DXERR_INVALIDDATA, 0 } },
@@ -380,8 +418,24 @@ static void test_dds_header_handling(void)
         /* DDS_MIPMAPCOUNT is ignored */
         { { 32, DDS_PF_RGB, 0, 24, 0xff0000, 0x00ff00, 0x0000ff, 0x000000 }, 0, 256, 256, 0, 0, 262146, { D3D_OK, 1 } },
         { { 32, DDS_PF_RGB, 0, 24, 0xff0000, 0x00ff00, 0x0000ff, 0x000000 }, 0, 256, 256, 0, 2, 262146, { D3D_OK, 2 } },
+        /* 60. */
         { { 32, DDS_PF_RGB, 0, 24, 0xff0000, 0x00ff00, 0x0000ff, 0x000000 }, 0, 256, 256, 0, 9, 262146, { D3D_OK, 9 } },
         { { 32, DDS_PF_RGB, 0, 24, 0xff0000, 0x00ff00, 0x0000ff, 0x000000 }, 0, 256, 256, 0, 10, 262146, { D3D_OK, 10 } },
+        /* Packed formats. */
+        { { 32, DDS_PF_FOURCC, D3DFMT_R8G8_B8G8, 0, 0, 0, 0, 0 }, 0, 3, 3, 0, 0, (4 * 3 * 2), { D3D_OK, 1 } },
+        { { 32, DDS_PF_FOURCC, D3DFMT_G8R8_G8B8, 0, 0, 0, 0, 0 }, 0, 3, 3, 0, 0, (4 * 3 * 2), { D3D_OK, 1 } },
+        { { 32, DDS_PF_FOURCC, D3DFMT_UYVY, 0, 0, 0, 0, 0 }, 0, 3, 3, 0, 0, (4 * 3 * 2), { D3D_OK, 1 } },
+        { { 32, DDS_PF_FOURCC, D3DFMT_YUY2, 0, 0, 0, 0, 0 }, 0, 3, 3, 0, 0, (4 * 3 * 2), { D3D_OK, 1 } },
+        /* Uneven height/width is supported, but pixel size must align. */
+        { { 32, DDS_PF_FOURCC, D3DFMT_R8G8_B8G8, 0, 0, 0, 0, 0 }, 0, 3, 3, 0, 0, (3 * 3 * 2), { D3DXERR_INVALIDDATA, 0 } },
+        { { 32, DDS_PF_FOURCC, D3DFMT_G8R8_G8B8, 0, 0, 0, 0, 0 }, 0, 3, 3, 0, 0, (3 * 3 * 2), { D3DXERR_INVALIDDATA, 0 } },
+        /* 70. */
+        { { 32, DDS_PF_FOURCC, D3DFMT_R8G8_B8G8, 0, 0, 0, 0, 0 }, 0, 4, 3, 4, 1, (4 * 3 * 2), { D3D_OK, 1 } },
+        { { 32, DDS_PF_FOURCC, D3DFMT_G8R8_G8B8, 0, 0, 0, 0, 0 }, 0, 4, 3, 4, 1, (4 * 3 * 2), { D3D_OK, 1 } },
+        { { 32, DDS_PF_FOURCC, D3DFMT_UYVY, 0, 0, 0, 0, 0 }, 0, 3, 3, 0, 0, (3 * 3 * 2), { D3DXERR_INVALIDDATA, 0 } },
+        { { 32, DDS_PF_FOURCC, D3DFMT_YUY2, 0, 0, 0, 0, 0 }, 0, 3, 3, 0, 0, (3 * 3 * 2), { D3DXERR_INVALIDDATA, 0 } },
+        { { 32, DDS_PF_FOURCC, D3DFMT_UYVY, 0, 0, 0, 0, 0 }, 0, 4, 3, 4, 1, (4 * 3 * 2), { D3D_OK, 1 } },
+        { { 32, DDS_PF_FOURCC, D3DFMT_YUY2, 0, 0, 0, 0, 0 }, 0, 4, 3, 4, 1, (4 * 3 * 2), { D3D_OK, 1 } },
     };
     static const struct
     {
@@ -451,6 +505,7 @@ static void test_dds_header_handling(void)
         DWORD file_size = sizeof(dds->magic) + sizeof(dds->header) + tests[i].pixel_data_size;
         assert(file_size <= sizeof(*dds));
 
+        winetest_push_context("Test %u", i);
         dds->magic = MAKEFOURCC('D','D','S',' ');
         fill_dds_header(&dds->header);
         dds->header.flags |= tests[i].flags;
@@ -461,14 +516,14 @@ static void test_dds_header_handling(void)
         dds->header.pixel_format = tests[i].pixel_format;
 
         hr = D3DXGetImageInfoFromFileInMemory(dds, file_size, &info);
-        todo_wine_if(i == 16)
-        ok(hr == tests[i].expected.hr, "%d: D3DXGetImageInfoFromFileInMemory returned %#lx, expected %#lx\n",
-                i, hr, tests[i].expected.hr);
+        todo_wine_if(tests[i].expected.todo) ok(hr == tests[i].expected.hr, "Unexpected hr %#lx, expected %#lx.\n",
+                hr, tests[i].expected.hr);
         if (SUCCEEDED(hr))
         {
-            ok(info.MipLevels == tests[i].expected.miplevels, "%d: Got MipLevels %u, expected %u\n",
-                    i, info.MipLevels, tests[i].expected.miplevels);
+            ok(info.MipLevels == tests[i].expected.miplevels, "Unexpected MipLevels %u, expected %u.\n",
+                    info.MipLevels, tests[i].expected.miplevels);
         }
+        winetest_pop_context();
     }
 
     for (i = 0; i < ARRAY_SIZE(info_tests); i++)
@@ -716,10 +771,22 @@ static void test_D3DXGetImageInfo(void)
     check_dds_pixel_format(DDS_PF_FOURCC, D3DFMT_DXT3, 0, 0, 0, 0, 0, D3DFMT_DXT3);
     check_dds_pixel_format(DDS_PF_FOURCC, D3DFMT_DXT4, 0, 0, 0, 0, 0, D3DFMT_DXT4);
     check_dds_pixel_format(DDS_PF_FOURCC, D3DFMT_DXT5, 0, 0, 0, 0, 0, D3DFMT_DXT5);
-    todo_wine check_dds_pixel_format(DDS_PF_FOURCC, D3DFMT_R8G8_B8G8, 0, 0, 0, 0, 0, D3DFMT_R8G8_B8G8);
-    todo_wine check_dds_pixel_format(DDS_PF_FOURCC, D3DFMT_G8R8_G8B8, 0, 0, 0, 0, 0, D3DFMT_G8R8_G8B8);
-    todo_wine check_dds_pixel_format(DDS_PF_FOURCC, D3DFMT_UYVY, 0, 0, 0, 0, 0, D3DFMT_UYVY);
-    todo_wine check_dds_pixel_format(DDS_PF_FOURCC, D3DFMT_YUY2, 0, 0, 0, 0, 0, D3DFMT_YUY2);
+    check_dds_pixel_format(DDS_PF_FOURCC, D3DFMT_R8G8_B8G8, 0, 0, 0, 0, 0, D3DFMT_R8G8_B8G8);
+    check_dds_pixel_format(DDS_PF_FOURCC, D3DFMT_G8R8_G8B8, 0, 0, 0, 0, 0, D3DFMT_G8R8_G8B8);
+    check_dds_pixel_format(DDS_PF_FOURCC, D3DFMT_UYVY, 0, 0, 0, 0, 0, D3DFMT_UYVY);
+    check_dds_pixel_format(DDS_PF_FOURCC, D3DFMT_YUY2, 0, 0, 0, 0, 0, D3DFMT_YUY2);
+    /*
+     * D3DFMTs that aren't fourCC values, but are supported in the fourCC
+     * field.
+     */
+    check_dds_pixel_format(DDS_PF_FOURCC, D3DFMT_A16B16G16R16, 0, 0, 0, 0, 0, D3DFMT_A16B16G16R16);
+    check_dds_pixel_format(DDS_PF_FOURCC, D3DFMT_Q16W16V16U16, 0, 0, 0, 0, 0, D3DFMT_Q16W16V16U16);
+    check_dds_pixel_format(DDS_PF_FOURCC, D3DFMT_R16F, 0, 0, 0, 0, 0, D3DFMT_R16F);
+    check_dds_pixel_format(DDS_PF_FOURCC, D3DFMT_G16R16F, 0, 0, 0, 0, 0, D3DFMT_G16R16F);
+    check_dds_pixel_format(DDS_PF_FOURCC, D3DFMT_A16B16G16R16F, 0, 0, 0, 0, 0, D3DFMT_A16B16G16R16F);
+    check_dds_pixel_format(DDS_PF_FOURCC, D3DFMT_R32F, 0, 0, 0, 0, 0, D3DFMT_R32F);
+    check_dds_pixel_format(DDS_PF_FOURCC, D3DFMT_G32R32F, 0, 0, 0, 0, 0, D3DFMT_G32R32F);
+    check_dds_pixel_format(DDS_PF_FOURCC, D3DFMT_A32B32G32R32F, 0, 0, 0, 0, 0, D3DFMT_A32B32G32R32F);
     check_dds_pixel_format(DDS_PF_RGB, 0, 16, 0xf800, 0x07e0, 0x001f, 0, D3DFMT_R5G6B5);
     check_dds_pixel_format(DDS_PF_RGB | DDS_PF_ALPHA, 0, 16, 0x7c00, 0x03e0, 0x001f, 0x8000, D3DFMT_A1R5G5B5);
     check_dds_pixel_format(DDS_PF_RGB | DDS_PF_ALPHA, 0, 16, 0x0f00, 0x00f0, 0x000f, 0xf000, D3DFMT_A4R4G4B4);
@@ -738,10 +805,15 @@ static void test_D3DXGetImageInfo(void)
     check_dds_pixel_format(DDS_PF_LUMINANCE, 0, 8, 0xff, 0, 0, 0, D3DFMT_L8);
     check_dds_pixel_format(DDS_PF_LUMINANCE, 0, 16, 0xffff, 0, 0, 0, D3DFMT_L16);
     check_dds_pixel_format(DDS_PF_LUMINANCE | DDS_PF_ALPHA, 0, 16, 0x00ff, 0, 0, 0xff00, D3DFMT_A8L8);
+    /* 8bpp works too for D3DFMT_A8L8. */
+    check_dds_pixel_format(DDS_PF_LUMINANCE | DDS_PF_ALPHA, 0, 8, 0x00ff, 0, 0, 0xff00, D3DFMT_A8L8);
     check_dds_pixel_format(DDS_PF_LUMINANCE | DDS_PF_ALPHA, 0, 8, 0x0f, 0, 0, 0xf0, D3DFMT_A4L4);
     check_dds_pixel_format(DDS_PF_BUMPDUDV, 0, 16, 0x00ff, 0xff00, 0, 0, D3DFMT_V8U8);
     check_dds_pixel_format(DDS_PF_BUMPDUDV, 0, 32, 0x0000ffff, 0xffff0000, 0, 0, D3DFMT_V16U16);
+    check_dds_pixel_format(DDS_PF_BUMPDUDV, 0, 32, 0xff, 0xff00, 0x00ff0000, 0xff000000, D3DFMT_Q8W8V8U8);
+    check_dds_pixel_format(DDS_PF_BUMPDUDV | DDS_PF_ALPHA, 0, 32, 0x3ff00000, 0x000ffc00, 0x000003ff, 0xc0000000, D3DFMT_A2W10V10U10);
     check_dds_pixel_format(DDS_PF_BUMPLUMINANCE, 0, 32, 0x0000ff, 0x00ff00, 0xff0000, 0, D3DFMT_X8L8V8U8);
+    todo_wine check_dds_pixel_format(DDS_PF_BUMPLUMINANCE, 0, 16, 0x001f, 0x03e0, 0xfc00, 0, D3DFMT_L6V5U5);
     check_dds_pixel_format(DDS_PF_INDEXED, 0, 8, 0, 0, 0, 0, D3DFMT_P8);
     check_dds_pixel_format(DDS_PF_INDEXED | DDS_PF_ALPHA, 0, 16, 0, 0, 0, 0xff00, D3DFMT_A8P8);
 

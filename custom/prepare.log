@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
 HEAD is now at 858bf979 Release v9.19
-HEAD is now at 7ce580d1fa0 comdlg32/tests: Add tests for itemdlg filters longer than MAX_PATH.
+HEAD is now at 100645ac4de dplayx: Prevent multiplication overflow in DP_MSG_ReadSuperPackedPlayer().
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
