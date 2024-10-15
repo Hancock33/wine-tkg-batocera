@@ -323,12 +323,12 @@ static void *DP_DuplicateString( void *src, BOOL dstAnsi, BOOL srcAnsi )
 }
 
 /* *lplpReply will be non NULL iff there is something to reply */
-HRESULT DP_HandleMessage( IDirectPlayImpl *This, const void *lpcMessageBody,
-        DWORD dwMessageBodySize, const void *lpcMessageHeader, WORD wCommandId, WORD wVersion,
+HRESULT DP_HandleMessage( IDirectPlayImpl *This, void *messageBody,
+        DWORD dwMessageBodySize, void *messageHeader, WORD wCommandId, WORD wVersion,
         void **lplpReply, DWORD *lpdwMsgSize )
 {
   TRACE( "(%p)->(%p,0x%08lx,%p,%u,%u)\n",
-         This, lpcMessageBody, dwMessageBodySize, lpcMessageHeader, wCommandId,
+         This, messageBody, dwMessageBodySize, messageHeader, wCommandId,
          wVersion );
 
   switch( wCommandId )
@@ -336,7 +336,7 @@ HRESULT DP_HandleMessage( IDirectPlayImpl *This, const void *lpcMessageBody,
     /* Name server needs to handle this request */
     case DPMSGCMD_ENUMSESSIONSREQUEST:
       /* Reply expected */
-      NS_ReplyToEnumSessionsRequest( lpcMessageBody, lplpReply, lpdwMsgSize, This );
+      NS_ReplyToEnumSessionsRequest( messageBody, lplpReply, lpdwMsgSize, This );
       break;
 
     /* Name server needs to handle this request */
@@ -344,9 +344,9 @@ HRESULT DP_HandleMessage( IDirectPlayImpl *This, const void *lpcMessageBody,
       EnterCriticalSection( &This->lock );
 
       /* No reply expected */
-      NS_AddRemoteComputerAsNameServer( lpcMessageHeader,
+      NS_AddRemoteComputerAsNameServer( messageHeader,
                                         This->dp2->spData.dwSPHeaderSize,
-                                        lpcMessageBody,
+                                        messageBody,
                                         dwMessageBodySize,
                                         This->dp2->lpNameServerData );
 
@@ -355,7 +355,7 @@ HRESULT DP_HandleMessage( IDirectPlayImpl *This, const void *lpcMessageBody,
 
     case DPMSGCMD_REQUESTNEWPLAYERID:
     {
-      LPCDPMSG_REQUESTNEWPLAYERID lpcMsg = lpcMessageBody;
+      LPCDPMSG_REQUESTNEWPLAYERID lpcMsg = messageBody;
 
       LPDPMSG_NEWPLAYERIDREPLY lpReply;
 
@@ -385,18 +385,58 @@ HRESULT DP_HandleMessage( IDirectPlayImpl *This, const void *lpcMessageBody,
     case DPMSGCMD_NEWPLAYERIDREPLY:
     case DPMSGCMD_FORWARDADDPLAYERNACK:
     case DPMSGCMD_SUPERENUMPLAYERSREPLY:
-      DP_MSG_ReplyReceived( This, wCommandId, lpcMessageBody, dwMessageBodySize, lpcMessageHeader );
+      DP_MSG_ReplyReceived( This, wCommandId, messageBody, dwMessageBodySize, messageHeader );
       break;
 
     case DPMSGCMD_JUSTENVELOPE:
-      TRACE( "GOT THE SELF MESSAGE: %p -> 0x%08lx\n", lpcMessageHeader, ((const DWORD *)lpcMessageHeader)[1] );
-      NS_SetLocalAddr( This->dp2->lpNameServerData, lpcMessageHeader, 20 );
-      DP_MSG_ReplyReceived( This, wCommandId, lpcMessageBody, dwMessageBodySize, lpcMessageHeader );
+      TRACE( "GOT THE SELF MESSAGE: %p -> 0x%08lx\n", messageHeader, ((const DWORD *)messageHeader)[1] );
+      NS_SetLocalAddr( This->dp2->lpNameServerData, messageHeader, 20 );
+      DP_MSG_ReplyReceived( This, wCommandId, messageBody, dwMessageBodySize, messageHeader );
 
     case DPMSGCMD_FORWARDADDPLAYER:
       TRACE( "Sending message to self to get my addr\n" );
       DP_MSG_ToSelf( This, 1 ); /* This is a hack right now */
       break;
+
+    case DPMSGCMD_ADDFORWARD: {
+      DPSP_MSG_ADDFORWARD *msg;
+      DPPLAYERINFO playerInfo;
+      DWORD offset = 0;
+      HRESULT hr;
+
+      if( dwMessageBodySize < sizeof( DPSP_MSG_ADDFORWARD ) )
+        return DPERR_GENERIC;
+      msg = (DPSP_MSG_ADDFORWARD *) messageBody;
+      offset += sizeof( DPSP_MSG_ADDFORWARD );
+
+      hr = DP_MSG_ReadPackedPlayer( (char *) messageBody, &offset, dwMessageBodySize, &playerInfo );
+      if ( FAILED( hr ) )
+        return hr;
+
+      EnterCriticalSection( &This->lock );
+
+      if ( !This->dp2->bConnectionOpen )
+      {
+        LeaveCriticalSection( &This->lock );
+        return DP_OK;
+      }
+
+      hr = DP_CreatePlayer( This, messageHeader, &msg->playerId, &playerInfo.name,
+                            playerInfo.playerData, playerInfo.playerDataLength, playerInfo.spData,
+                            playerInfo.spDataLength, playerInfo.flags & ~DPLAYI_PLAYER_PLAYERLOCAL,
+                            NULL, FALSE );
+      if ( FAILED( hr ) )
+      {
+        LeaveCriticalSection( &This->lock );
+        return hr;
+      }
+
+      LeaveCriticalSection( &This->lock );
+
+      DP_MSG_SendAddForwardAck( This, msg->playerId );
+
+      break;
+    }
 
     default:
       FIXME( "Unknown wCommandId %u. Ignoring message\n", wCommandId );
@@ -937,18 +977,29 @@ static HRESULT WINAPI IDirectPlay4Impl_AddPlayerToGroup( IDirectPlay4 *iface, DP
     if ( This->dp2->connectionInitialized == NO_PROVIDER )
         return DPERR_UNINITIALIZED;
 
+    EnterCriticalSection( &This->lock );
+
     /* Find the group */
     if ( ( gdata = DP_FindAnyGroup( This, group ) ) == NULL )
+    {
+        LeaveCriticalSection( &This->lock );
         return DPERR_INVALIDGROUP;
+    }
 
     /* Find the player */
     if ( ( plist = DP_FindPlayer( This, player ) ) == NULL )
+    {
+        LeaveCriticalSection( &This->lock );
         return DPERR_INVALIDPLAYER;
+    }
 
     /* Create a player list (ie "shortcut" ) */
     newplist = calloc( 1, sizeof( *newplist ) );
     if ( !newplist )
+    {
+        LeaveCriticalSection( &This->lock );
         return DPERR_CANTADDPLAYER;
+    }
 
     /* Add the shortcut */
     plist->lpPData->uRef++;
@@ -992,6 +1043,8 @@ static HRESULT WINAPI IDirectPlay4Impl_AddPlayerToGroup( IDirectPlay4 *iface, DP
                 0, 0, NULL, NULL );
     }
 
+    LeaveCriticalSection( &This->lock );
+
     return DP_OK;
 }
 
@@ -1031,6 +1084,12 @@ static HRESULT WINAPI IDirectPlay4Impl_Close( IDirectPlay4 *iface )
     HRESULT hr = DP_OK;
 
     TRACE( "(%p)\n", This );
+
+    EnterCriticalSection( &This->lock );
+
+    This->dp2->bConnectionOpen = FALSE;
+
+    LeaveCriticalSection( &This->lock );
 
     /* FIXME: Need to find a new host I assume (how?) */
     /* FIXME: Need to destroy all local groups */
@@ -1755,10 +1814,15 @@ static HRESULT DP_IF_CreatePlayer( IDirectPlayImpl *This, void *lpMsgHdr, DPID *
      */
   }
 
+  EnterCriticalSection( &This->lock );
+
   /* We pass creation flags, so we can distinguish sysplayers and not count them in the current
      player total */
   hr = DP_CreatePlayer( This, NULL, lpidPlayer, lpPlayerName, lpData, dwDataSize, NULL, 0,
                         dwCreateFlags, hEvent, bAnsi );
+
+  LeaveCriticalSection( &This->lock );
+
   if( FAILED( hr ) )
     return hr;
 
@@ -1941,19 +2005,30 @@ static HRESULT WINAPI IDirectPlay4Impl_DeletePlayerFromGroup( IDirectPlay4 *ifac
 
     TRACE( "(%p)->(0x%08lx,0x%08lx)\n", This, group, player );
 
+    EnterCriticalSection( &This->lock );
+
     /* Find the group */
     if ( ( gdata = DP_FindAnyGroup( This, group ) ) == NULL )
+    {
+        LeaveCriticalSection( &This->lock );
         return DPERR_INVALIDGROUP;
+    }
 
     /* Find the player */
     if ( DP_FindPlayer( This, player ) == NULL )
+    {
+        LeaveCriticalSection( &This->lock );
         return DPERR_INVALIDPLAYER;
+    }
 
     /* Remove the player shortcut from the group */
     DPQ_REMOVE_ENTRY( gdata->players, players, lpPData->dpid, ==, player, plist );
 
     if ( !plist )
+    {
+        LeaveCriticalSection( &This->lock );
         return DPERR_INVALIDPLAYER;
+    }
 
     /* One less reference */
     plist->lpPData->uRef--;
@@ -1975,6 +2050,8 @@ static HRESULT WINAPI IDirectPlay4Impl_DeletePlayerFromGroup( IDirectPlay4 *ifac
 
     /* Need to send a DELETEPLAYERFROMGROUP message */
     FIXME( "Need to send a message\n" );
+
+    LeaveCriticalSection( &This->lock );
 
     return hr;
 }
@@ -2120,8 +2197,11 @@ static HRESULT DP_IF_DestroyPlayer( IDirectPlayImpl *This, void *lpMsgHdr, DPID 
     return DPERR_UNINITIALIZED;
   }
 
+  EnterCriticalSection( &This->lock );
+
   if( DP_FindPlayer( This, idPlayer ) == NULL )
   {
+    LeaveCriticalSection( &This->lock );
     return DPERR_INVALIDPLAYER;
   }
 
@@ -2154,6 +2234,8 @@ static HRESULT DP_IF_DestroyPlayer( IDirectPlayImpl *This, void *lpMsgHdr, DPID 
   }
 
   FIXME( "Send a DELETEPLAYERORGROUP msg\n" );
+
+  LeaveCriticalSection( &This->lock );
 
   return DP_OK;
 }
@@ -2267,15 +2349,17 @@ static HRESULT DP_IF_EnumGroupPlayers( IDirectPlayImpl *This, DPID group, GUID *
     if ( This->dp2->connectionInitialized == NO_PROVIDER )
         return DPERR_UNINITIALIZED;
 
+    EnterCriticalSection( &This->lock );
+
     /* Find the group */
     if ( ( gdata = DP_FindAnyGroup( This, group ) ) == NULL )
+    {
+        LeaveCriticalSection( &This->lock );
         return DPERR_INVALIDGROUP;
-
-    if ( DPQ_IS_EMPTY( gdata->players ) )
-        return DP_OK;
+    }
 
     /* Walk the players in this group */
-    for( plist = DPQ_FIRST( gdata->players ); ; plist = DPQ_NEXT( plist->players ) )
+    for( plist = DPQ_FIRST( gdata->players ); plist; plist = DPQ_NEXT( plist->players ) )
     {
         /* We do not enum the name server or app server as they are of no
          * consequence to the end user.
@@ -2287,12 +2371,12 @@ static HRESULT DP_IF_EnumGroupPlayers( IDirectPlayImpl *This, DPID group, GUID *
                         ansi ? plist->lpPData->nameA : plist->lpPData->name,
                         plist->lpPData->dwFlags, context ) )
               /* User requested break */
-              return DP_OK;
+              break;
         }
-
-        if ( DPQ_IS_ENDOFLIST( plist->players ) )
-            break;
     }
+
+    LeaveCriticalSection( &This->lock );
+
     return DP_OK;
 }
 
@@ -3076,8 +3160,13 @@ static HRESULT WINAPI IDirectPlay4Impl_GetPlayerData( IDirectPlay4 *iface, DPID 
     if ( This->dp2->connectionInitialized == NO_PROVIDER )
         return DPERR_UNINITIALIZED;
 
+    EnterCriticalSection( &This->lock );
+
     if ( ( plist = DP_FindPlayer( This, player ) ) == NULL )
+    {
+        LeaveCriticalSection( &This->lock );
         return DPERR_INVALIDPLAYER;
+    }
 
     if ( flags & DPSET_LOCAL )
     {
@@ -3094,10 +3183,13 @@ static HRESULT WINAPI IDirectPlay4Impl_GetPlayerData( IDirectPlay4 *iface, DPID 
     if ( !data || *size < bufsize )
     {
         *size = bufsize;
+        LeaveCriticalSection( &This->lock );
         return DPERR_BUFFERTOOSMALL;
     }
 
     CopyMemory( data, src, bufsize );
+
+    LeaveCriticalSection( &This->lock );
 
     return DP_OK;
 }
@@ -3116,8 +3208,11 @@ static HRESULT DP_IF_GetPlayerName( IDirectPlayImpl *This, DPID idPlayer, void *
     return DPERR_UNINITIALIZED;
   }
 
+  EnterCriticalSection( &This->lock );
+
   if( ( lpPList = DP_FindPlayer( This, idPlayer ) ) == NULL )
   {
+    LeaveCriticalSection( &This->lock );
     return DPERR_INVALIDPLAYER;
   }
 
@@ -3129,10 +3224,13 @@ static HRESULT DP_IF_GetPlayerName( IDirectPlayImpl *This, DPID idPlayer, void *
     )
   {
     *lpdwDataSize = dwRequiredDataSize;
+    LeaveCriticalSection( &This->lock );
     return DPERR_BUFFERTOOSMALL;
   }
 
   DP_CopyName( lpData, bAnsi ? lpPList->lpPData->nameA : lpPList->lpPData->name, bAnsi, bAnsi );
+
+  LeaveCriticalSection( &This->lock );
 
   return DP_OK;
 }
@@ -3196,6 +3294,8 @@ static HRESULT DP_GetSessionDesc( IDirectPlayImpl *This, void *lpData, DWORD *lp
     return DPERR_INVALIDPARAMS;
   }
 
+  EnterCriticalSection( &This->lock );
+
   dwRequiredSize = DP_CopySessionDesc( NULL, This->dp2->lpSessionDesc, bAnsi, bAnsi );
 
   if ( ( lpData == NULL ) ||
@@ -3203,10 +3303,13 @@ static HRESULT DP_GetSessionDesc( IDirectPlayImpl *This, void *lpData, DWORD *lp
      )
   {
     *lpdwDataSize = dwRequiredSize;
+    LeaveCriticalSection( &This->lock );
     return DPERR_BUFFERTOOSMALL;
   }
 
   DP_CopySessionDesc( lpData, This->dp2->lpSessionDesc, bAnsi, bAnsi );
+
+  LeaveCriticalSection( &This->lock );
 
   return DP_OK;
 }
@@ -3356,6 +3459,9 @@ static HRESULT DP_SecureOpen( IDirectPlayImpl *This, const DPSESSIONDESC2 *lpsd,
         break;
     }
 
+    /* No need to enter the critical section here as the messaging thread won't access the data
+     * while bConnectionOpen is FALSE. */
+
     free( This->dp2->lpSessionDesc );
     This->dp2->lpSessionDesc = DP_DuplicateSessionDesc( sessionDesc, bAnsi, bAnsi );
     if ( !This->dp2->lpSessionDesc )
@@ -3404,7 +3510,6 @@ static HRESULT DP_SecureOpen( IDirectPlayImpl *This, const DPSESSIONDESC2 *lpsd,
   if( dwFlags & DPOPEN_JOIN )
   {
     DWORD createFlags = DPLAYI_PLAYER_SYSPLAYER | DPLAYI_PLAYER_PLAYERLOCAL;
-    DPID dpidServerId = DPID_UNKNOWN;
     WCHAR *password;
 
     password = DP_DuplicateString( lpsd->lpszPassword, FALSE, bAnsi );
@@ -3428,7 +3533,7 @@ static HRESULT DP_SecureOpen( IDirectPlayImpl *This, const DPSESSIONDESC2 *lpsd,
      *        up. DPlay would then trigger the hEvent for the player the
      *        message is directed to.
      */
-    hr = DP_MSG_SendRequestPlayerId( This, createFlags, &dpidServerId );
+    hr = DP_MSG_SendRequestPlayerId( This, createFlags, &This->dp2->systemPlayerId );
     if( FAILED( hr ) )
     {
       ERR( "Request for ID failed: %s\n", DPLAYX_HresultToString( hr ) );
@@ -3443,8 +3548,11 @@ static HRESULT DP_SecureOpen( IDirectPlayImpl *This, const DPSESSIONDESC2 *lpsd,
       return hr;
     }
 
-    hr = DP_CreatePlayer( This, NULL, &dpidServerId, NULL, NULL, 0, NULL, 0, createFlags, NULL,
-                          bAnsi );
+    /* No need to enter the critical section here as the messaging thread won't access the data
+     * while bConnectionOpen is FALSE. */
+
+    hr = DP_CreatePlayer( This, NULL, &This->dp2->systemPlayerId, NULL, NULL, 0, NULL, 0,
+                          createFlags, NULL, bAnsi );
     if( FAILED( hr ) )
     {
       free( password );
@@ -3458,11 +3566,11 @@ static HRESULT DP_SecureOpen( IDirectPlayImpl *This, const DPSESSIONDESC2 *lpsd,
       return hr;
     }
 
-    hr = DP_MSG_ForwardPlayerCreation( This, dpidServerId, password );
+    hr = DP_MSG_ForwardPlayerCreation( This, This->dp2->systemPlayerId, password );
     free( password );
     if( FAILED( hr ) )
     {
-      DP_DeletePlayer( This, dpidServerId );
+      DP_DeletePlayer( This, This->dp2->systemPlayerId );
       DP_IF_DestroyGroup( This, NULL, DPID_SYSTEM_GROUP, TRUE );
       if( This->dp2->spData.lpCB->CloseEx )
       {
@@ -3476,10 +3584,11 @@ static HRESULT DP_SecureOpen( IDirectPlayImpl *This, const DPSESSIONDESC2 *lpsd,
   else if( dwFlags & DPOPEN_CREATE )
   {
     DWORD createFlags = DPLAYI_PLAYER_APPSERVER | DPLAYI_PLAYER_PLAYERLOCAL;
-    DPID dpidNameServerId = DP_NextObjectId();
 
-    hr = DP_CreatePlayer( This, NULL, &dpidNameServerId, NULL, NULL, 0, NULL, 0, createFlags, NULL,
-                          bAnsi );
+    This->dp2->systemPlayerId = DP_NextObjectId();
+
+    hr = DP_CreatePlayer( This, NULL, &This->dp2->systemPlayerId, NULL, NULL, 0, NULL, 0,
+                          createFlags, NULL, bAnsi );
     if( FAILED( hr ) )
     {
       DP_IF_DestroyGroup( This, NULL, DPID_SYSTEM_GROUP, TRUE );
@@ -3492,6 +3601,12 @@ static HRESULT DP_SecureOpen( IDirectPlayImpl *This, const DPSESSIONDESC2 *lpsd,
       return hr;
     }
   }
+
+  EnterCriticalSection( &This->lock );
+
+  This->dp2->bConnectionOpen = TRUE;
+
+  LeaveCriticalSection( &This->lock );
 
   return DP_OK;
 }
@@ -3872,9 +3987,14 @@ static HRESULT WINAPI IDirectPlay4Impl_SetPlayerData( IDirectPlay4 *iface, DPID 
     if ( !data && size )
         return DPERR_INVALIDPARAMS;
 
+    EnterCriticalSection( &This->lock );
+
     /* Find the pointer to the data for this player */
     if ( (plist = DP_FindPlayer( This, player )) == NULL )
+    {
+        LeaveCriticalSection( &This->lock );
         return DPERR_INVALIDPLAYER;
+    }
 
     if ( !(flags & DPSET_LOCAL) )
     {
@@ -3888,6 +4008,8 @@ static HRESULT WINAPI IDirectPlay4Impl_SetPlayerData( IDirectPlay4 *iface, DPID 
 
     if ( !(flags & DPSET_LOCAL) )
         FIXME( "Send msg?\n" );
+
+    LeaveCriticalSection( &This->lock );
 
     return DP_OK;
 }
@@ -3907,19 +4029,26 @@ static HRESULT DP_IF_SetPlayerName( IDirectPlayImpl *This, DPID idPlayer, DPNAME
     return DPERR_UNINITIALIZED;
   }
 
+  EnterCriticalSection( &This->lock );
+
   if( ( lpPList = DP_FindPlayer( This, idPlayer ) ) == NULL )
   {
+    LeaveCriticalSection( &This->lock );
     return DPERR_INVALIDGROUP;
   }
 
   name = DP_DuplicateName( lpPlayerName, FALSE, bAnsi );
   if ( !name )
+  {
+    LeaveCriticalSection( &This->lock );
     return DPERR_OUTOFMEMORY;
+  }
 
   nameA = DP_DuplicateName( lpPlayerName, TRUE, bAnsi );
   if ( !nameA )
   {
     free( name );
+    LeaveCriticalSection( &This->lock );
     return DPERR_OUTOFMEMORY;
   }
 
@@ -3928,6 +4057,8 @@ static HRESULT DP_IF_SetPlayerName( IDirectPlayImpl *This, DPID idPlayer, DPNAME
 
   /* Should send a DPMSG_SETPLAYERORGROUPNAME message */
   FIXME( "Message not sent and dwFlags ignored\n" );
+
+  LeaveCriticalSection( &This->lock );
 
   return DP_OK;
 }
@@ -3998,10 +4129,13 @@ static HRESULT DP_SetSessionDesc( IDirectPlayImpl *This, const DPSESSIONDESC2 *l
     return DPERR_ACCESSDENIED;
   }
 
+  EnterCriticalSection( &This->lock );
+
   lpTempSessDesc = DP_DuplicateSessionDesc( lpSessDesc, bAnsi, bAnsi );
 
   if( lpTempSessDesc == NULL )
   {
+    LeaveCriticalSection( &This->lock );
     return DPERR_OUTOFMEMORY;
   }
 
@@ -4018,6 +4152,8 @@ static HRESULT DP_SetSessionDesc( IDirectPlayImpl *This, const DPSESSIONDESC2 *l
   {
     FIXME( "Need to send a DPMSG_SETSESSIONDESC msg to everyone\n" );
   }
+
+  LeaveCriticalSection( &This->lock );
 
   return DP_OK;
 }
@@ -5338,6 +5474,7 @@ static HRESULT WINAPI IDirectPlay4Impl_SendEx( IDirectPlay4 *iface, DPID from, D
         DWORD *msgid )
 {
     IDirectPlayImpl *This = impl_from_IDirectPlay4( iface );
+    HRESULT hr;
 
     FIXME( "(%p)->(0x%08lx,0x%08lx,0x%08lx,%p,0x%08lx,0x%08lx,0x%08lx,%p,%p): semi-stub\n",
             This, from, to, flags, data, size, priority, timeout, context, msgid );
@@ -5352,12 +5489,15 @@ static HRESULT WINAPI IDirectPlay4Impl_SendEx( IDirectPlay4 *iface, DPID from, D
 
     /* NOTE: Can't send messages to yourself - this will be trapped in receive */
 
+    EnterCriticalSection( &This->lock );
+
     /* Verify that the message is being sent from a valid local player. The
      * from player may be anonymous DPID_UNKNOWN
      */
     if ( from != DPID_UNKNOWN && !DP_FindPlayer( This, from ) )
     {
         WARN( "INFO: Invalid from player 0x%08lx\n", from );
+        LeaveCriticalSection( &This->lock );
         return DPERR_INVALIDPLAYER;
     }
 
@@ -5378,7 +5518,9 @@ static HRESULT WINAPI IDirectPlay4Impl_SendEx( IDirectPlay4 *iface, DPID from, D
     {
         /* Have the service provider send this message */
         /* FIXME: Could optimize for local interface sends */
-        return DP_SP_SendEx( This, flags, data, size, priority, timeout, context, msgid );
+        hr = DP_SP_SendEx( This, flags, data, size, priority, timeout, context, msgid );
+        LeaveCriticalSection( &This->lock );
+        return hr;
     }
     else if ( DP_FindAnyGroup( This, to ) )
     {
@@ -5392,7 +5534,12 @@ static HRESULT WINAPI IDirectPlay4Impl_SendEx( IDirectPlay4 *iface, DPID from, D
 
     }
     else
+    {
+        LeaveCriticalSection( &This->lock );
         return DPERR_INVALIDPLAYER;
+    }
+
+    LeaveCriticalSection( &This->lock );
 
     /* FIXME: Should return what the send returned */
     return DP_OK;
@@ -5858,28 +6005,40 @@ HRESULT dplay_create( REFIID riid, void **ppv )
 
 HRESULT DP_GetSPPlayerData( IDirectPlayImpl *lpDP, DPID idPlayer, void **lplpData )
 {
-  lpPlayerList lpPlayer = DP_FindPlayer( lpDP, idPlayer );
+  lpPlayerList lpPlayer;
 
+  EnterCriticalSection( &lpDP->lock );
+
+  lpPlayer = DP_FindPlayer( lpDP, idPlayer );
   if( lpPlayer == NULL )
   {
+    LeaveCriticalSection( &lpDP->lock );
     return DPERR_INVALIDPLAYER;
   }
 
   *lplpData = lpPlayer->lpPData->lpSPPlayerData;
+
+  LeaveCriticalSection( &lpDP->lock );
 
   return DP_OK;
 }
 
 HRESULT DP_SetSPPlayerData( IDirectPlayImpl *lpDP, DPID idPlayer, void *lpData )
 {
-  lpPlayerList lpPlayer = DP_FindPlayer( lpDP, idPlayer );
+  lpPlayerList lpPlayer;
 
+  EnterCriticalSection( &lpDP->lock );
+
+  lpPlayer = DP_FindPlayer( lpDP, idPlayer );
   if( lpPlayer == NULL )
   {
+    LeaveCriticalSection( &lpDP->lock );
     return DPERR_INVALIDPLAYER;
   }
 
   lpPlayer->lpPData->lpSPPlayerData = lpData;
+
+  LeaveCriticalSection( &lpDP->lock );
 
   return DP_OK;
 }

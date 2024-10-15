@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
 HEAD is now at 858bf979 Release v9.19
-HEAD is now at 7ce580d1fa0 comdlg32/tests: Add tests for itemdlg filters longer than MAX_PATH.
+HEAD is now at 100645ac4de dplayx: Prevent multiplication overflow in DP_MSG_ReadSuperPackedPlayer().
 
 cd2cce28ccd2791d0a7ab02bb02b804551ee4095 reverted (staging hotfix)
 
@@ -396,8 +396,8 @@ patching file dlls/ntdll/unixlib.h
 
 ntsync-config.h.in-org.patch -- ( Using original config.h.in patchset for ntsync5 )
 patching file include/config.h.in
-Hunk #1 succeeded at 321 (offset 6 lines).
-Hunk #2 succeeded at 384 (offset 3 lines).
+Hunk #1 succeeded at 324 (offset 9 lines).
+Hunk #2 succeeded at 387 (offset 6 lines).
 
 ntsync5-staging.patch -- ( Using ntsync patchset )
 patching file README.esync
@@ -480,8 +480,8 @@ Hunk #1 succeeded at 3708 (offset -4 lines).
 patching file dlls/rpcrt4/rpc_server.c
 patching file dlls/webservices/tests/channel.c
 patching file include/config.h.in
-Hunk #1 succeeded at 186 (offset 9 lines).
-Hunk #2 succeeded at 516 (offset -9 lines).
+Hunk #1 succeeded at 189 (offset 12 lines).
+Hunk #2 succeeded at 519 (offset -6 lines).
 patching file include/wine/server_protocol.h
 Hunk #1 succeeded at 5919 (offset 285 lines).
 Hunk #2 succeeded at 6291 (offset 288 lines).
