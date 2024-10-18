@@ -32,9 +32,6 @@ WINE_DEFAULT_DEBUG_CHANNEL(d3dx);
 
 HRESULT WINAPI WICCreateImagingFactory_Proxy(UINT, IWICImagingFactory**);
 
-/* Wine-specific WIC GUIDs */
-DEFINE_GUID(GUID_WineContainerFormatTga, 0x0c44fda1,0xa5c5,0x4298,0x96,0x85,0x47,0x3f,0xc1,0x7c,0xd3,0x22);
-
 static const struct
 {
     const GUID *wic_guid;
@@ -544,6 +541,60 @@ static HRESULT save_dds_surface_to_memory(ID3DXBuffer **dst_buffer, IDirect3DSur
     return D3D_OK;
 }
 
+static const uint8_t bmp_file_signature[] =       { 'B', 'M' };
+static const uint8_t jpg_file_signature[] =       { 0xff, 0xd8 };
+static const uint8_t png_file_signature[] =       { 0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a };
+static const uint8_t dds_file_signature[] =       { 'D', 'D', 'S', ' ' };
+static const uint8_t ppm_plain_file_signature[] = { 'P', '3' };
+static const uint8_t ppm_raw_file_signature[] =   { 'P', '6' };
+static const uint8_t hdr_file_signature[] =       { '#', '?', 'R', 'A', 'D', 'I', 'A', 'N', 'C', 'E', '\n' };
+static const uint8_t pfm_color_file_signature[] = { 'P', 'F' };
+static const uint8_t pfm_gray_file_signature[] =  { 'P', 'f' };
+
+/*
+ * If none of these match, the file is either DIB, TGA, or something we don't
+ * support.
+ */
+struct d3dx_file_format_signature
+{
+    const uint8_t *file_signature;
+    uint32_t file_signature_len;
+    D3DXIMAGE_FILEFORMAT image_file_format;
+};
+
+static const struct d3dx_file_format_signature file_format_signatures[] =
+{
+    { bmp_file_signature,       sizeof(bmp_file_signature),       D3DXIFF_BMP },
+    { jpg_file_signature,       sizeof(jpg_file_signature),       D3DXIFF_JPG },
+    { png_file_signature,       sizeof(png_file_signature),       D3DXIFF_PNG },
+    { dds_file_signature,       sizeof(dds_file_signature),       D3DXIFF_DDS },
+    { ppm_plain_file_signature, sizeof(ppm_plain_file_signature), D3DXIFF_PPM },
+    { ppm_raw_file_signature,   sizeof(ppm_raw_file_signature),   D3DXIFF_PPM },
+    { hdr_file_signature,       sizeof(hdr_file_signature),       D3DXIFF_HDR },
+    { pfm_color_file_signature, sizeof(pfm_color_file_signature), D3DXIFF_PFM },
+    { pfm_gray_file_signature,  sizeof(pfm_gray_file_signature),  D3DXIFF_PFM },
+};
+
+static BOOL d3dx_get_image_file_format_from_file_signature(const void *src_data, uint32_t src_data_size,
+        D3DXIMAGE_FILEFORMAT *out_iff)
+{
+    unsigned int i;
+
+    for (i = 0; i < ARRAY_SIZE(file_format_signatures); ++i)
+    {
+        const struct d3dx_file_format_signature *signature = &file_format_signatures[i];
+
+        if ((src_data_size >= signature->file_signature_len)
+                && !memcmp(src_data, signature->file_signature, signature->file_signature_len))
+        {
+            *out_iff = signature->image_file_format;
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
 #define DDS_PALETTE_SIZE (sizeof(PALETTEENTRY) * 256)
 static HRESULT d3dx_initialize_image_from_dds(const void *src_data, uint32_t src_data_size,
         struct d3dx_image *image, uint32_t starting_mip_level)
@@ -701,8 +752,7 @@ static BOOL image_is_argb(IWICBitmapFrameDecode *frame, struct d3dx_image *image
     BYTE *buffer;
     HRESULT hr;
 
-    if (image->format != D3DFMT_X8R8G8B8 || (image->image_file_format != D3DXIFF_BMP
-            && image->image_file_format != D3DXIFF_TGA))
+    if (image->format != D3DFMT_X8R8G8B8 || image->image_file_format != D3DXIFF_BMP)
         return FALSE;
 
     size = image->size.width * image->size.height * 4;
@@ -735,31 +785,17 @@ struct d3dx_wic_file_format
     D3DXIMAGE_FILEFORMAT d3dx_file_format;
 };
 
-/* Sorted by GUID. */
-static const struct d3dx_wic_file_format file_formats[] =
+static const GUID *d3dx_file_format_to_wic_container_guid(D3DXIMAGE_FILEFORMAT iff)
 {
-    { &GUID_ContainerFormatBmp,     D3DXIFF_BMP },
-    { &GUID_WineContainerFormatTga, D3DXIFF_TGA },
-    { &GUID_ContainerFormatJpeg,    D3DXIFF_JPG },
-    { &GUID_ContainerFormatPng,     D3DXIFF_PNG },
-};
-
-static int __cdecl d3dx_wic_file_format_guid_compare(const void *a, const void *b)
-{
-    const struct d3dx_wic_file_format *format = b;
-    const GUID *guid = a;
-
-    return memcmp(guid, format->wic_container_guid, sizeof(*guid));
-}
-
-static D3DXIMAGE_FILEFORMAT wic_container_guid_to_d3dx_file_format(GUID *container_format)
-{
-    struct d3dx_wic_file_format *format;
-
-    if ((format = bsearch(container_format, file_formats, ARRAY_SIZE(file_formats), sizeof(*format),
-            d3dx_wic_file_format_guid_compare)))
-        return format->d3dx_file_format;
-    return D3DXIFF_FORCE_DWORD;
+    switch (iff)
+    {
+        case D3DXIFF_BMP: return &GUID_ContainerFormatBmp;
+        case D3DXIFF_JPG: return &GUID_ContainerFormatJpeg;
+        case D3DXIFF_PNG: return &GUID_ContainerFormatPng;
+        default:
+            assert(0); /* Shouldn't happen. */
+            return NULL;
+    }
 }
 
 static const char *debug_d3dx_image_file_format(D3DXIMAGE_FILEFORMAT format)
@@ -863,62 +899,37 @@ exit:
 }
 
 static HRESULT d3dx_initialize_image_from_wic(const void *src_data, uint32_t src_data_size,
-        struct d3dx_image *image, uint32_t flags)
+        struct d3dx_image *image, D3DXIMAGE_FILEFORMAT d3dx_file_format, uint32_t flags)
 {
+    const GUID *container_format_guid = d3dx_file_format_to_wic_container_guid(d3dx_file_format);
     IWICBitmapFrameDecode *bitmap_frame = NULL;
     IWICBitmapDecoder *bitmap_decoder = NULL;
-    uint32_t src_image_size = src_data_size;
     IWICImagingFactory *wic_factory;
-    const void *src_image = src_data;
     WICPixelFormatGUID pixel_format;
     IWICStream *wic_stream = NULL;
     uint32_t frame_count = 0;
-    GUID container_format;
-    BOOL is_dib = FALSE;
     HRESULT hr;
 
     hr = WICCreateImagingFactory_Proxy(WINCODEC_SDK_VERSION, &wic_factory);
     if (FAILED(hr))
         return hr;
 
-    is_dib = convert_dib_to_bmp(&src_image, &src_image_size);
+    hr = IWICImagingFactory_CreateDecoder(wic_factory, container_format_guid, NULL, &bitmap_decoder);
+    if (FAILED(hr))
+        goto exit;
+
     hr = IWICImagingFactory_CreateStream(wic_factory, &wic_stream);
     if (FAILED(hr))
         goto exit;
 
-    hr = IWICStream_InitializeFromMemory(wic_stream, (BYTE *)src_image, src_image_size);
+    hr = IWICStream_InitializeFromMemory(wic_stream, (BYTE *)src_data, src_data_size);
     if (FAILED(hr))
         goto exit;
 
-    hr = IWICImagingFactory_CreateDecoderFromStream(wic_factory, (IStream *)wic_stream, NULL, 0, &bitmap_decoder);
-    if (FAILED(hr))
-    {
-        if ((src_image_size >= 2) && (!memcmp(src_image, "P3", 2) || !memcmp(src_image, "P6", 2)))
-            FIXME("File type PPM is not supported yet.\n");
-        else if ((src_image_size >= 10) && !memcmp(src_image, "#?RADIANCE", 10))
-            FIXME("File type HDR is not supported yet.\n");
-        else if ((src_image_size >= 2) && (!memcmp(src_image, "PF", 2) || !memcmp(src_image, "Pf", 2)))
-            FIXME("File type PFM is not supported yet.\n");
-        goto exit;
-    }
-
-    hr = IWICBitmapDecoder_GetContainerFormat(bitmap_decoder, &container_format);
+    hr = IWICBitmapDecoder_Initialize(bitmap_decoder, (IStream *)wic_stream, 0);
     if (FAILED(hr))
         goto exit;
 
-    image->image_file_format = wic_container_guid_to_d3dx_file_format(&container_format);
-    if (is_dib && image->image_file_format == D3DXIFF_BMP)
-    {
-        image->image_file_format = D3DXIFF_DIB;
-    }
-    else if (image->image_file_format == D3DXIFF_FORCE_DWORD)
-    {
-        WARN("Unsupported image file format %s.\n", debugstr_guid(&container_format));
-        hr = D3DXERR_INVALIDDATA;
-        goto exit;
-    }
-
-    TRACE("File type is %s.\n", debug_d3dx_image_file_format(image->image_file_format));
     hr = IWICBitmapDecoder_GetFrameCount(bitmap_decoder, &frame_count);
     if (FAILED(hr) || (SUCCEEDED(hr) && !frame_count))
     {
@@ -926,6 +937,7 @@ static HRESULT d3dx_initialize_image_from_wic(const void *src_data, uint32_t src
         goto exit;
     }
 
+    image->image_file_format = d3dx_file_format;
     hr = IWICBitmapDecoder_GetFrame(bitmap_decoder, 0, &bitmap_frame);
     if (FAILED(hr))
         goto exit;
@@ -961,8 +973,6 @@ static HRESULT d3dx_initialize_image_from_wic(const void *src_data, uint32_t src
     image->resource_type = D3DRTYPE_TEXTURE;
 
 exit:
-    if (is_dib)
-        free((void *)src_image);
     if (bitmap_frame)
         IWICBitmapFrameDecode_Release(bitmap_frame);
     if (bitmap_decoder)
@@ -974,17 +984,322 @@ exit:
     return hr;
 }
 
+static D3DFORMAT d3dx_get_tga_format_for_bpp(uint8_t bpp)
+{
+    switch (bpp)
+    {
+        case 15: return D3DFMT_X1R5G5B5;
+        case 16: return D3DFMT_A1R5G5B5;
+        case 24: return D3DFMT_R8G8B8;
+        case 32: return D3DFMT_A8R8G8B8;
+        default:
+            WARN("Unhandled bpp %u for targa.\n", bpp);
+            return D3DFMT_UNKNOWN;
+    }
+}
+
+#define IMAGETYPE_COLORMAPPED 1
+#define IMAGETYPE_TRUECOLOR 2
+#define IMAGETYPE_GRAYSCALE 3
+#define IMAGETYPE_MASK 0x07
+#define IMAGETYPE_RLE 8
+
+#define IMAGE_RIGHTTOLEFT 0x10
+#define IMAGE_TOPTOBOTTOM 0x20
+
+#include "pshpack1.h"
+struct tga_header
+{
+    uint8_t  id_length;
+    uint8_t  color_map_type;
+    uint8_t  image_type;
+    uint16_t color_map_firstentry;
+    uint16_t color_map_length;
+    uint8_t  color_map_entrysize;
+    uint16_t xorigin;
+    uint16_t yorigin;
+    uint16_t width;
+    uint16_t height;
+    uint8_t  depth;
+    uint8_t  image_descriptor;
+};
+#include "poppack.h"
+
+static HRESULT d3dx_image_tga_rle_decode_row(const uint8_t **src, uint32_t src_bytes_left, uint32_t row_width,
+        uint32_t bytes_per_pixel, uint8_t *dst_row)
+{
+    const uint8_t *src_ptr = *src;
+    uint32_t pixel_count = 0;
+
+    while (pixel_count != row_width)
+    {
+        uint32_t rle_count = (src_ptr[0] & 0x7f) + 1;
+        uint32_t rle_packet_size = 1;
+
+        rle_packet_size += (src_ptr[0] & 0x80) ? bytes_per_pixel : (bytes_per_pixel * rle_count);
+        if ((rle_packet_size > src_bytes_left) || (pixel_count + rle_count) > row_width)
+            return D3DXERR_INVALIDDATA;
+
+        if (src_ptr[0] & 0x80)
+        {
+            uint32_t i;
+
+            for (i = 0; i < rle_count; ++i)
+                memcpy(&dst_row[(pixel_count + i) * bytes_per_pixel], src_ptr + 1, bytes_per_pixel);
+        }
+        else
+        {
+            memcpy(&dst_row[pixel_count * bytes_per_pixel], src_ptr + 1, rle_packet_size - 1);
+        }
+
+        src_ptr += rle_packet_size;
+        src_bytes_left -= rle_packet_size;
+        pixel_count += rle_count;
+        if (!src_bytes_left && pixel_count != row_width)
+            return D3DXERR_INVALIDDATA;
+    }
+
+    *src = src_ptr;
+    return D3D_OK;
+}
+
+static HRESULT d3dx_image_tga_decode(const void *src_data, uint32_t src_data_size, uint32_t src_header_size,
+        struct d3dx_image *image)
+{
+    const struct tga_header *header = (const struct tga_header *)src_data;
+    const BOOL right_to_left = !!(header->image_descriptor & IMAGE_RIGHTTOLEFT);
+    const BOOL bottom_to_top = !(header->image_descriptor & IMAGE_TOPTOBOTTOM);
+    const struct pixel_format_desc *fmt_desc = get_format_info(image->format);
+    const BOOL is_rle = !!(header->image_type & IMAGETYPE_RLE);
+    uint8_t *img_buf = NULL, *src_row = NULL;
+    uint32_t row_pitch, slice_pitch, i;
+    PALETTEENTRY *palette = NULL;
+    const uint8_t *src_pos;
+    HRESULT hr;
+
+    hr = d3dx_calculate_pixels_size(image->format, image->size.width, image->size.height, &row_pitch, &slice_pitch);
+    if (FAILED(hr))
+        return hr;
+
+    /* File is too small. */
+    if (!is_rle && (src_header_size + slice_pitch) > src_data_size)
+        return D3DXERR_INVALIDDATA;
+
+    if (image->format == D3DFMT_P8)
+    {
+        const uint8_t *src_palette = ((const uint8_t *)src_data) + sizeof(*header) + header->id_length;
+        const struct volume image_map_size = { header->color_map_length, 1, 1 };
+        uint32_t src_row_pitch, src_slice_pitch, dst_row_pitch, dst_slice_pitch;
+        const struct pixel_format_desc *src_desc, *dst_desc;
+
+        if (!(palette = malloc(sizeof(*palette) * 256)))
+            return E_OUTOFMEMORY;
+
+        /*
+         * Convert from a TGA colormap to PALETTEENTRY. TGA is BGRA,
+         * PALETTEENTRY is RGBA.
+         */
+        src_desc = get_format_info(d3dx_get_tga_format_for_bpp(header->color_map_entrysize));
+        hr = d3dx_calculate_pixels_size(src_desc->format, header->color_map_length, 1, &src_row_pitch, &src_slice_pitch);
+        if (FAILED(hr))
+            goto exit;
+
+        dst_desc = get_format_info(D3DFMT_A8B8G8R8);
+        d3dx_calculate_pixels_size(dst_desc->format, 256, 1, &dst_row_pitch, &dst_slice_pitch);
+        convert_argb_pixels(src_palette, src_row_pitch, src_slice_pitch, &image_map_size, src_desc, (BYTE *)palette,
+                dst_row_pitch, dst_slice_pitch, &image_map_size, dst_desc, 0, NULL);
+
+        /* Initialize unused palette entries to 0xff. */
+        if (header->color_map_length < 256)
+            memset(&palette[header->color_map_length], 0xff, sizeof(*palette) * (256 - header->color_map_length));
+    }
+
+    if (!is_rle && !bottom_to_top && !right_to_left)
+    {
+        image->pixels = (uint8_t *)src_data + src_header_size;
+        image->image_palette = image->palette = palette;
+        return D3D_OK;
+    }
+
+    if (!(img_buf = malloc(slice_pitch)))
+    {
+        hr = E_OUTOFMEMORY;
+        goto exit;
+    }
+
+    /* Allocate an extra row to use as a temporary buffer. */
+    if (is_rle)
+    {
+        if (!(src_row = malloc(row_pitch)))
+        {
+            hr = E_OUTOFMEMORY;
+            goto exit;
+        }
+    }
+
+    src_pos = (const uint8_t *)src_data + src_header_size;
+    for (i = 0; i < image->size.height; ++i)
+    {
+        const uint32_t dst_row_idx = bottom_to_top ? (image->size.height - i - 1) : i;
+        uint8_t *dst_row = img_buf + (dst_row_idx * row_pitch);
+
+        if (is_rle)
+        {
+            hr = d3dx_image_tga_rle_decode_row(&src_pos, src_data_size - (src_pos - (const uint8_t *)src_data),
+                    image->size.width, fmt_desc->bytes_per_pixel, src_row);
+            if (FAILED(hr))
+                goto exit;
+        }
+        else
+        {
+            src_row = (uint8_t *)src_pos;
+            src_pos += row_pitch;
+        }
+
+        if (right_to_left)
+        {
+            const uint8_t *src_pixel = &src_row[((image->size.width - 1)) * fmt_desc->bytes_per_pixel];
+            uint8_t *dst_pixel = dst_row;
+            uint32_t j;
+
+            for (j = 0; j < image->size.width; ++j)
+            {
+                memcpy(dst_pixel, src_pixel, fmt_desc->bytes_per_pixel);
+                src_pixel -= fmt_desc->bytes_per_pixel;
+                dst_pixel += fmt_desc->bytes_per_pixel;
+            }
+        }
+        else
+        {
+            memcpy(dst_row, src_row, row_pitch);
+        }
+    }
+
+    image->image_buf = image->pixels = img_buf;
+    image->image_palette = image->palette = palette;
+
+exit:
+    if (is_rle)
+        free(src_row);
+    if (img_buf && (image->image_buf != img_buf))
+        free(img_buf);
+    if (palette && (image->image_palette != palette))
+        free(palette);
+
+    return hr;
+}
+
+static HRESULT d3dx_initialize_image_from_tga(const void *src_data, uint32_t src_data_size, struct d3dx_image *image,
+        uint32_t flags)
+{
+    const struct tga_header *header = (const struct tga_header *)src_data;
+    uint32_t expected_header_size = sizeof(*header);
+
+    if (src_data_size < sizeof(*header))
+        return D3DXERR_INVALIDDATA;
+
+    expected_header_size += header->id_length;
+    expected_header_size += header->color_map_length * ((header->color_map_entrysize + 7) / CHAR_BIT);
+    if (src_data_size < expected_header_size)
+        return D3DXERR_INVALIDDATA;
+
+    if (header->color_map_type && ((header->color_map_type > 1) || (!header->color_map_length)
+                || (d3dx_get_tga_format_for_bpp(header->color_map_entrysize) == D3DFMT_UNKNOWN)))
+        return D3DXERR_INVALIDDATA;
+
+    switch (header->image_type & IMAGETYPE_MASK)
+    {
+        case IMAGETYPE_COLORMAPPED:
+            if (header->depth != 8 || !header->color_map_type)
+                return D3DXERR_INVALIDDATA;
+            image->format = D3DFMT_P8;
+            break;
+
+        case IMAGETYPE_TRUECOLOR:
+            if ((image->format = d3dx_get_tga_format_for_bpp(header->depth)) == D3DFMT_UNKNOWN)
+                return D3DXERR_INVALIDDATA;
+            break;
+
+        case IMAGETYPE_GRAYSCALE:
+            if (header->depth != 8)
+                return D3DXERR_INVALIDDATA;
+            image->format = D3DFMT_L8;
+            break;
+
+        default:
+            return D3DXERR_INVALIDDATA;
+    }
+
+    set_volume_struct(&image->size, header->width, header->height, 1);
+    image->mip_levels = 1;
+    image->layer_count = 1;
+    image->resource_type = D3DRTYPE_TEXTURE;
+    image->image_file_format = D3DXIFF_TGA;
+
+    if (!(flags & D3DX_IMAGE_INFO_ONLY))
+        return d3dx_image_tga_decode(src_data, src_data_size, expected_header_size, image);
+
+    return D3D_OK;
+}
+
 HRESULT d3dx_image_init(const void *src_data, uint32_t src_data_size, struct d3dx_image *image,
         uint32_t starting_mip_level, uint32_t flags)
 {
+    D3DXIMAGE_FILEFORMAT iff = D3DXIFF_FORCE_DWORD;
+    HRESULT hr;
+
     if (!src_data || !src_data_size || !image)
         return D3DERR_INVALIDCALL;
 
     memset(image, 0, sizeof(*image));
-    if ((src_data_size >= 4) && !memcmp(src_data, "DDS ", 4))
-        return d3dx_initialize_image_from_dds(src_data, src_data_size, image, starting_mip_level);
+    if (!d3dx_get_image_file_format_from_file_signature(src_data, src_data_size, &iff))
+    {
+        uint32_t src_image_size = src_data_size;
+        const void *src_image = src_data;
 
-    return d3dx_initialize_image_from_wic(src_data, src_data_size, image, flags);
+        if (convert_dib_to_bmp(&src_image, &src_image_size))
+        {
+            hr = d3dx_image_init(src_image, src_image_size, image, starting_mip_level, flags);
+            free((void *)src_image);
+            if (SUCCEEDED(hr))
+                image->image_file_format = D3DXIFF_DIB;
+            return hr;
+        }
+
+        /* Last resort, try TGA. */
+        return d3dx_initialize_image_from_tga(src_data, src_data_size, image, flags);
+    }
+
+    switch (iff)
+    {
+        case D3DXIFF_BMP:
+        case D3DXIFF_JPG:
+        case D3DXIFF_PNG:
+            hr = d3dx_initialize_image_from_wic(src_data, src_data_size, image, iff, flags);
+            break;
+
+        case D3DXIFF_DDS:
+            hr = d3dx_initialize_image_from_dds(src_data, src_data_size, image, starting_mip_level);
+            break;
+
+        case D3DXIFF_PPM:
+        case D3DXIFF_HDR:
+        case D3DXIFF_PFM:
+            WARN("Unsupported file format %s.\n", debug_d3dx_image_file_format(iff));
+            hr = E_NOTIMPL;
+            break;
+
+        case D3DXIFF_FORCE_DWORD:
+            ERR("Unrecognized file format.\n");
+            hr = D3DXERR_INVALIDDATA;
+            break;
+
+        default:
+            assert(0);
+            return E_FAIL;
+    }
+
+    return hr;
 }
 
 void d3dx_image_cleanup(struct d3dx_image *image)

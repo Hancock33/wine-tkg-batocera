@@ -73,6 +73,11 @@ enum
     NtUserPostDDEMessage,
     NtUserRenderSynthesizedFormat,
     NtUserUnpackDDEMessage,
+    NtUserDragDropEnter,
+    NtUserDragDropLeave,
+    NtUserDragDropDrag,
+    NtUserDragDropDrop,
+    NtUserDragDropPost,
     NtUserCallCount
 };
 
@@ -299,6 +304,49 @@ struct unpack_dde_message_result
     LPARAM lparam;
 };
 
+/* NtUserDragDropEnter params */
+struct format_entry
+{
+    UINT format;
+    UINT size;
+    char data[1];
+};
+
+/* NtUserDragDropDrag params */
+struct drag_drop_drag_params
+{
+    HWND hwnd;
+    POINT point;
+    UINT effect;
+};
+
+/* NtUserDragDropDrop params */
+struct drag_drop_drop_params
+{
+    HWND hwnd;
+};
+
+/* NtUserDragDropPost params */
+
+/* avoid including shlobj.h */
+struct drop_files
+{
+    DWORD pFiles;
+    POINT pt;
+    BOOL  fNC;
+    BOOL  fWide;
+};
+
+struct drag_drop_post_params
+{
+    HWND hwnd;
+    UINT drop_size;
+    struct drop_files drop;
+    BYTE files[];
+};
+
+C_ASSERT( sizeof(struct drag_drop_post_params) == offsetof(struct drag_drop_post_params, files[0]) );
+
 /* DPI awareness contexts */
 #define MAKE_NTUSER_DPI_CONTEXT( awareness, version, dpi, flags )  ((awareness) | ((version) << 4) | ((dpi) << 8) | (flags))
 #define NTUSER_DPI_CONTEXT_GET_AWARENESS( ctx )                    ((ctx) & 0x0f)
@@ -349,6 +397,7 @@ enum
     NtUserSpyExit             = 0x0304,
     NtUserImeDriverCall       = 0x0305,
     NtUserSystemTrayCall      = 0x0306,
+    NtUserDragDropCall        = 0x0307,
 };
 
 /* NtUserThunkedMenuItemInfo codes */
@@ -566,6 +615,16 @@ enum wine_systray_call
     WINE_SYSTRAY_DOCK_INSERT,
     WINE_SYSTRAY_DOCK_CLEAR,
     WINE_SYSTRAY_DOCK_REMOVE,
+};
+
+/* NtUserDragDropCall calls */
+enum wine_drag_drop_call
+{
+    WINE_DRAG_DROP_ENTER,
+    WINE_DRAG_DROP_LEAVE,
+    WINE_DRAG_DROP_DRAG,
+    WINE_DRAG_DROP_DROP,
+    WINE_DRAG_DROP_POST,
 };
 
 #define WM_SYSTIMER  0x0118
