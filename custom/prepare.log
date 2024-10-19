@@ -1,6 +1,6 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at 02792d03 Added win32u-NtGdiExtTextOutW-rotation patchset
+HEAD is now at 5a1b9d50 Release v9.20
 HEAD is now at 3a6e9365336 Release 9.20.
 
 cd2cce28ccd2791d0a7ab02bb02b804551ee4095 reverted (staging hotfix)
@@ -544,7 +544,7 @@ patching file server/mapping.c
 patching file server/mutex.c
 patching file server/named_pipe.c
 patching file server/object.c
-Hunk #1 succeeded at 639 (offset 101 lines).
+Hunk #1 succeeded at 641 (offset 103 lines).
 patching file server/object.h
 Hunk #4 succeeded at 234 (offset 9 lines).
 patching file server/process.c
