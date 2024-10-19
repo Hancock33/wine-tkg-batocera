@@ -1,6 +1,6 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at 02792d03 Added win32u-NtGdiExtTextOutW-rotation patchset
+HEAD is now at 5a1b9d50 Release v9.20
 HEAD is now at 3a6e9365336 Release 9.20.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
