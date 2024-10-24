@@ -1,9 +1,9 @@
-# Last wine-tkg-staging-ntsync-git configuration - Sat 19 Oct 08:16:43 BST 2024 :
+# Last wine-tkg-staging-ntsync-git configuration - Thu 24 Oct 21:36:40 BST 2024 :
 
 Local cfg files used
 
-Wine (plain) version: 9.20.r0.g3a6e9365336
-Using wine-staging patchset (version 9.20.r0.g5a1b9d50)
+Wine (plain) version: 9.20.r77.g83febc6b55c
+Using wine-staging patchset (version 9.20.r3.g78bd3f0c)
 
 Disabled the local Esync patchset to use Staging impl instead.
 Not using vkd3d native library for d3d12 translation (allows using vkd3d-proton)
@@ -27,6 +27,7 @@ proton-eac_bridge.patch -- ( Add support for Proton's EAC bridge )
 Applied hotfix Return_nt_filename_and_resolve_DOS_drive_path.mypatch
 Applied hotfix a608ef1.mypatch
 Applied hotfix opencl-fixup.mypatch
+Applied hotfix nostale_mouse_fix.mypatch
 
 wine-tkg-staging.patch -- ( Please don't report bugs about this wine build on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead. )
 

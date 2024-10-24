@@ -410,10 +410,12 @@ struct hlsl_attribute
 #define HLSL_MODIFIER_SINGLE             0x00020000
 #define HLSL_MODIFIER_EXPORT             0x00040000
 #define HLSL_STORAGE_ANNOTATION          0x00080000
+#define HLSL_MODIFIER_UNORM              0x00100000
+#define HLSL_MODIFIER_SNORM              0x00200000
 
 #define HLSL_TYPE_MODIFIERS_MASK     (HLSL_MODIFIER_PRECISE | HLSL_MODIFIER_VOLATILE | \
                                       HLSL_MODIFIER_CONST | HLSL_MODIFIER_ROW_MAJOR | \
-                                      HLSL_MODIFIER_COLUMN_MAJOR)
+                                      HLSL_MODIFIER_COLUMN_MAJOR | HLSL_MODIFIER_UNORM | HLSL_MODIFIER_SNORM)
 
 #define HLSL_INTERPOLATION_MODIFIERS_MASK (HLSL_STORAGE_NOINTERPOLATION | HLSL_STORAGE_CENTROID | \
                                            HLSL_STORAGE_NOPERSPECTIVE | HLSL_STORAGE_LINEAR)
@@ -514,6 +516,9 @@ struct hlsl_ir_var
 
     /* Whether the shader performs dereferences with non-constant offsets in the variable. */
     bool indexable;
+    /* Whether this is a semantic variable that was split from an array, or is the first
+     * element of a struct, and thus needs to be aligned when packed in the signature. */
+    bool force_align;
 
     uint32_t is_input_semantic : 1;
     uint32_t is_output_semantic : 1;
@@ -688,6 +693,7 @@ enum hlsl_ir_expr_op
     HLSL_OP1_DSY_FINE,
     HLSL_OP1_EXP2,
     HLSL_OP1_F16TOF32,
+    HLSL_OP1_F32TOF16,
     HLSL_OP1_FLOOR,
     HLSL_OP1_FRACT,
     HLSL_OP1_LOG2,
@@ -1633,6 +1639,9 @@ int d3dbc_compile(struct vsir_program *program, uint64_t config_flags,
 int tpf_compile(struct vsir_program *program, uint64_t config_flags,
         struct vkd3d_shader_code *out, struct vkd3d_shader_message_context *message_context,
         struct hlsl_ctx *ctx, struct hlsl_ir_function_decl *entry_func);
+
+enum vkd3d_shader_interpolation_mode sm4_get_interpolation_mode(struct hlsl_type *type,
+        unsigned int storage_modifiers);
 
 struct hlsl_ir_function_decl *hlsl_compile_internal_function(struct hlsl_ctx *ctx, const char *name, const char *hlsl);
 

@@ -3813,6 +3813,18 @@ typedef union
 /* get completion from completion port queue */
 @REQ(remove_completion)
     obj_handle_t handle;          /* port handle */
+    int          alertable;       /* completion wait is alertable */
+@REPLY
+    apc_param_t   ckey;           /* completion key */
+    apc_param_t   cvalue;         /* completion value */
+    apc_param_t   information;    /* IO_STATUS_BLOCK Information */
+    unsigned int  status;         /* completion result */
+    obj_handle_t  wait_handle;    /* handle to completion wait internal object */
+@END
+
+
+/* get completion after successful wait */
+@REQ(get_thread_completion)
 @REPLY
     apc_param_t   ckey;           /* completion key */
     apc_param_t   cvalue;         /* completion value */
