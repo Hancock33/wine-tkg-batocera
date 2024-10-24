@@ -1,7 +1,5 @@
 /*
- * Runtime Classes for wintypes.dll
- *
- * Copyright 2022 Zhiyi Zhang for CodeWeavers
+ * Copyright 2024 Zhiyi Zhang for CodeWeavers
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,12 +16,14 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#pragma makedep register
+#pragma makedep header
 
 #ifdef __WIDL__
 #pragma winrt ns_prefix
 #endif
 
-#define DO_NO_IMPORTS
-#include "windows.foundation.idl"
-#include "windows.foundation.metadata.idl"
+import "windows.foundation.idl";
+
+declare {
+    interface Windows.Foundation.IReference<HSTRING>;
+}

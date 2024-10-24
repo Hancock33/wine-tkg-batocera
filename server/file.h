@@ -109,6 +109,7 @@ extern void get_nt_name( struct fd *fd, struct unicode_str *name );
 
 extern int default_fd_signaled( struct object *obj, struct wait_queue_entry *entry );
 extern int default_fd_get_esync_fd( struct object *obj, enum esync_type *type );
+extern unsigned int default_fd_get_fsync_idx( struct object *obj, enum fsync_type *type );
 extern int default_fd_get_poll_events( struct fd *fd );
 extern void default_poll_event( struct fd *fd, int event );
 extern void fd_cancel_async( struct fd *fd, struct async *async );
@@ -244,6 +245,7 @@ extern struct dir *get_dir_obj( struct process *process, obj_handle_t handle, un
 extern struct completion *get_completion_obj( struct process *process, obj_handle_t handle, unsigned int access );
 extern void add_completion( struct completion *completion, apc_param_t ckey, apc_param_t cvalue,
                             unsigned int status, apc_param_t information );
+extern void cleanup_thread_completion( struct thread *thread );
 
 /* serial port functions */
 

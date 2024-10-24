@@ -47,9 +47,6 @@ extern BOOL force_backing_store;
 
 extern UINT64 app_icon_callback;
 extern UINT64 app_quit_request_callback;
-extern UINT64 dnd_query_drag_callback;
-extern UINT64 dnd_query_drop_callback;
-extern UINT64 dnd_query_exited_callback;
 
 extern const char* debugstr_cf(CFTypeRef t);
 
@@ -262,13 +259,7 @@ extern void macdrv_status_item_mouse_move(const macdrv_event *event);
 extern void check_retina_status(void);
 extern void init_user_driver(void);
 
-/* unixlib interface */
-
-extern NTSTATUS macdrv_dnd_get_data(void *arg);
-extern NTSTATUS macdrv_dnd_get_formats(void *arg);
-extern NTSTATUS macdrv_dnd_have_format(void *arg);
-extern NTSTATUS macdrv_dnd_release(void *arg);
-extern NTSTATUS macdrv_dnd_retain(void *arg);
+extern struct format_entry *get_format_entries(CFTypeRef pasteboard, UINT *entries_size);
 
 /* user helpers */
 

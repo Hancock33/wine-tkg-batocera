@@ -4538,9 +4538,23 @@ static void dump_add_completion_request( const struct add_completion_request *re
 static void dump_remove_completion_request( const struct remove_completion_request *req )
 {
     fprintf( stderr, " handle=%04x", req->handle );
+    fprintf( stderr, ", alertable=%d", req->alertable );
 }
 
 static void dump_remove_completion_reply( const struct remove_completion_reply *req )
+{
+    dump_uint64( " ckey=", &req->ckey );
+    dump_uint64( ", cvalue=", &req->cvalue );
+    dump_uint64( ", information=", &req->information );
+    fprintf( stderr, ", status=%08x", req->status );
+    fprintf( stderr, ", wait_handle=%04x", req->wait_handle );
+}
+
+static void dump_get_thread_completion_request( const struct get_thread_completion_request *req )
+{
+}
+
+static void dump_get_thread_completion_reply( const struct get_thread_completion_reply *req )
 {
     dump_uint64( " ckey=", &req->ckey );
     dump_uint64( ", cvalue=", &req->cvalue );
@@ -4842,6 +4856,63 @@ static void dump_get_esync_apc_fd_request( const struct get_esync_apc_fd_request
 {
 }
 
+static void dump_create_fsync_request( const struct create_fsync_request *req )
+{
+    fprintf( stderr, " access=%08x", req->access );
+    fprintf( stderr, ", low=%d", req->low );
+    fprintf( stderr, ", high=%d", req->high );
+    fprintf( stderr, ", type=%d", req->type );
+    dump_varargs_object_attributes( ", objattr=", cur_size );
+}
+
+static void dump_create_fsync_reply( const struct create_fsync_reply *req )
+{
+    fprintf( stderr, " handle=%04x", req->handle );
+    fprintf( stderr, ", type=%d", req->type );
+    fprintf( stderr, ", shm_idx=%08x", req->shm_idx );
+}
+
+static void dump_open_fsync_request( const struct open_fsync_request *req )
+{
+    fprintf( stderr, " access=%08x", req->access );
+    fprintf( stderr, ", attributes=%08x", req->attributes );
+    fprintf( stderr, ", rootdir=%04x", req->rootdir );
+    fprintf( stderr, ", type=%d", req->type );
+    dump_varargs_unicode_str( ", name=", cur_size );
+}
+
+static void dump_open_fsync_reply( const struct open_fsync_reply *req )
+{
+    fprintf( stderr, " handle=%04x", req->handle );
+    fprintf( stderr, ", type=%d", req->type );
+    fprintf( stderr, ", shm_idx=%08x", req->shm_idx );
+}
+
+static void dump_get_fsync_idx_request( const struct get_fsync_idx_request *req )
+{
+    fprintf( stderr, " handle=%04x", req->handle );
+}
+
+static void dump_get_fsync_idx_reply( const struct get_fsync_idx_reply *req )
+{
+    fprintf( stderr, " type=%d", req->type );
+    fprintf( stderr, ", shm_idx=%08x", req->shm_idx );
+}
+
+static void dump_fsync_msgwait_request( const struct fsync_msgwait_request *req )
+{
+    fprintf( stderr, " in_msgwait=%d", req->in_msgwait );
+}
+
+static void dump_get_fsync_apc_idx_request( const struct get_fsync_apc_idx_request *req )
+{
+}
+
+static void dump_get_fsync_apc_idx_reply( const struct get_fsync_apc_idx_reply *req )
+{
+    fprintf( stderr, " shm_idx=%08x", req->shm_idx );
+}
+
 static const dump_func req_dumpers[REQ_NB_REQUESTS] = {
     (dump_func)dump_new_process_request,
     (dump_func)dump_get_new_process_info_request,
@@ -5106,6 +5177,7 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] = {
     (dump_func)dump_open_completion_request,
     (dump_func)dump_add_completion_request,
     (dump_func)dump_remove_completion_request,
+    (dump_func)dump_get_thread_completion_request,
     (dump_func)dump_query_completion_request,
     (dump_func)dump_set_completion_info_request,
     (dump_func)dump_add_fd_completion_request,
@@ -5138,6 +5210,11 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] = {
     (dump_func)dump_esync_msgwait_request,
     (dump_func)dump_set_keyboard_repeat_request,
     (dump_func)dump_get_esync_apc_fd_request,
+    (dump_func)dump_create_fsync_request,
+    (dump_func)dump_open_fsync_request,
+    (dump_func)dump_get_fsync_idx_request,
+    (dump_func)dump_fsync_msgwait_request,
+    (dump_func)dump_get_fsync_apc_idx_request,
 };
 
 static const dump_func reply_dumpers[REQ_NB_REQUESTS] = {
@@ -5404,6 +5481,7 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] = {
     (dump_func)dump_open_completion_reply,
     NULL,
     (dump_func)dump_remove_completion_reply,
+    (dump_func)dump_get_thread_completion_reply,
     (dump_func)dump_query_completion_reply,
     NULL,
     NULL,
@@ -5436,6 +5514,11 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] = {
     NULL,
     (dump_func)dump_set_keyboard_repeat_reply,
     NULL,
+    (dump_func)dump_create_fsync_reply,
+    (dump_func)dump_open_fsync_reply,
+    (dump_func)dump_get_fsync_idx_reply,
+    NULL,
+    (dump_func)dump_get_fsync_apc_idx_reply,
 };
 
 static const char * const req_names[REQ_NB_REQUESTS] = {
@@ -5702,6 +5785,7 @@ static const char * const req_names[REQ_NB_REQUESTS] = {
     "open_completion",
     "add_completion",
     "remove_completion",
+    "get_thread_completion",
     "query_completion",
     "set_completion_info",
     "add_fd_completion",
@@ -5734,6 +5818,11 @@ static const char * const req_names[REQ_NB_REQUESTS] = {
     "esync_msgwait",
     "set_keyboard_repeat",
     "get_esync_apc_fd",
+    "create_fsync",
+    "open_fsync",
+    "get_fsync_idx",
+    "fsync_msgwait",
+    "get_fsync_apc_idx",
 };
 
 static const struct

@@ -362,6 +362,24 @@ extern HRGN get_dc_monitor_region( HWND hwnd, HDC hdc );
  * X11 USER driver
  */
 
+/* thread-local host-only window, for X11 relative position tracking */
+struct host_window
+{
+    LONG refcount;
+    Window window;
+    BOOL destroyed; /* host window has already been destroyed */
+    RECT rect; /* host window rect, relative to parent */
+    struct host_window *parent;
+    unsigned int children_count;
+    struct { Window window; RECT rect; } *children;
+};
+
+extern void host_window_destroy( struct host_window *win );
+extern void host_window_set_parent( struct host_window *win, Window parent );
+extern RECT host_window_configure_child( struct host_window *win, Window window, RECT rect, BOOL root_coords );
+extern POINT host_window_map_point( struct host_window *win, int x, int y );
+extern struct host_window *get_host_window( Window window, BOOL create );
+
 struct x11drv_thread_data
 {
     Display *display;
@@ -438,7 +456,6 @@ extern int alloc_system_colors;
 extern int xrender_error_base;
 extern char *process_name;
 extern Display *clipboard_display;
-extern UINT64 client_foreign_window_proc;
 
 /* atoms */
 
@@ -601,6 +618,7 @@ struct x11drv_win_data
     Window      whole_window;   /* X window for the complete window */
     Window      client_window;  /* X window for the client area */
     struct window_rects rects;  /* window rects in monitor DPI, relative to parent client area */
+    struct host_window *parent; /* the host window parent, frame or embedder, NULL if root_window */
     XIC         xic;            /* X input context */
     UINT        managed : 1;    /* is window managed? */
     UINT        mapped : 1;     /* is window mapped? (in either normal or iconic state) */
@@ -613,6 +631,7 @@ struct x11drv_win_data
     UINT        add_taskbar : 1; /* does window should be added to taskbar regardless of style */
     UINT        net_wm_fullscreen_monitors_set : 1; /* is _NET_WM_FULLSCREEN_MONITORS set */
     UINT        is_fullscreen : 1; /* is the window visible rect fullscreen */
+    UINT        parent_invalid : 1; /* is the parent host window possibly invalid */
     int         wm_state;       /* current value of the WM_STATE property */
     DWORD       net_wm_state;   /* bit mask of active x11drv_net_wm_state values */
     Window      embedder;       /* window id of embedder */
@@ -625,6 +644,7 @@ struct x11drv_win_data
 
 extern struct x11drv_win_data *get_win_data( HWND hwnd );
 extern void release_win_data( struct x11drv_win_data *data );
+extern void set_window_parent( struct x11drv_win_data *data, Window parent );
 extern Window X11DRV_get_whole_window( HWND hwnd );
 extern Window get_dummy_parent(void);
 
@@ -636,8 +656,7 @@ extern void destroy_vk_surface( HWND hwnd );
 extern void wait_for_withdrawn_state( HWND hwnd, BOOL set );
 extern Window init_clip_window(void);
 extern void update_user_time( Time time );
-extern void read_net_wm_states( Display *display, struct x11drv_win_data *data );
-extern void update_net_wm_states( struct x11drv_win_data *data );
+extern UINT get_window_net_wm_state( Display *display, Window window );
 extern void make_window_embedded( struct x11drv_win_data *data );
 extern Window create_client_window( HWND hwnd, const XVisualInfo *visual, Colormap colormap );
 extern void detach_client_window( struct x11drv_win_data *data, Window client_window );
@@ -645,7 +664,6 @@ extern void attach_client_window( struct x11drv_win_data *data, Window client_wi
 extern void destroy_client_window( HWND hwnd, Window client_window );
 extern void set_window_visual( struct x11drv_win_data *data, const XVisualInfo *vis, BOOL use_alpha );
 extern void change_systray_owner( Display *display, Window systray_window );
-extern HWND create_foreign_window( Display *display, Window window );
 extern BOOL update_clipboard( HWND hwnd );
 extern void init_win_context(void);
 extern DROPFILES *file_list_to_drop_files( const void *data, size_t size, size_t *ret_size );
@@ -672,7 +690,6 @@ extern void ungrab_clipping_window(void);
 extern void move_resize_window( HWND hwnd, int dir );
 extern void X11DRV_InitKeyboard( Display *display );
 extern void X11DRV_InitMouse( Display *display );
-extern BOOL process_events( Display *display, Bool (*filter)(Display*, XEvent*, XPointer), ULONG_PTR arg );
 extern BOOL X11DRV_ProcessEvents( DWORD mask );
 extern HWND *build_hwnd_list(void);
 

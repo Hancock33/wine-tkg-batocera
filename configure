@@ -7591,6 +7591,12 @@ then :
   printf "%s\n" "#define HAVE_LINUX_FILTER_H 1" >>confdefs.h
 
 fi
+ac_fn_c_check_header_compile "$LINENO" "linux/futex.h" "ac_cv_header_linux_futex_h" "$ac_includes_default"
+if test "x$ac_cv_header_linux_futex_h" = xyes
+then :
+  printf "%s\n" "#define HAVE_LINUX_FUTEX_H 1" >>confdefs.h
+
+fi
 ac_fn_c_check_header_compile "$LINENO" "linux/hdreg.h" "ac_cv_header_linux_hdreg_h" "$ac_includes_default"
 if test "x$ac_cv_header_linux_hdreg_h" = xyes
 then :
@@ -22133,7 +22139,7 @@ maintainer-clean::
 
 as_fn_append wine_rules "
 dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-9.20.r0.g5a1b9d50\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging Esync )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
+	@version=\`(echo \"wine-9.20.r3.g78bd3f0c\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging Esync Fsync )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$@) || echo \$\$build >\$@ || (rm -f \$@ && exit 1)
 programs/winetest/build.nfo:

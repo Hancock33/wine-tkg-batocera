@@ -75,7 +75,7 @@ static int convert_parameter_info(const struct vkd3d_shader_compile_info *compil
 
 bool vsir_program_init(struct vsir_program *program, const struct vkd3d_shader_compile_info *compile_info,
         const struct vkd3d_shader_version *version, unsigned int reserve, enum vsir_control_flow_type cf_type,
-        bool normalised_io)
+        enum vsir_normalisation_level normalisation_level)
 {
     memset(program, 0, sizeof(*program));
 
@@ -98,8 +98,7 @@ bool vsir_program_init(struct vsir_program *program, const struct vkd3d_shader_c
 
     program->shader_version = *version;
     program->cf_type = cf_type;
-    program->normalised_io = normalised_io;
-    program->normalised_hull_cp_io = normalised_io;
+    program->normalisation_level = normalisation_level;
     return shader_instruction_array_init(&program->instructions, reserve);
 }
 
@@ -263,6 +262,13 @@ static void dst_param_init_temp_bool(struct vkd3d_shader_dst_param *dst, unsigne
 {
     vsir_dst_param_init(dst, VKD3DSPR_TEMP, VKD3D_DATA_BOOL, 1);
     dst->reg.idx[0].offset = idx;
+}
+
+static void dst_param_init_temp_float4(struct vkd3d_shader_dst_param *dst, unsigned int idx)
+{
+    vsir_dst_param_init(dst, VKD3DSPR_TEMP, VKD3D_DATA_FLOAT, 1);
+    dst->reg.idx[0].offset = idx;
+    dst->reg.dimension = VSIR_DIMENSION_VEC4;
 }
 
 static void dst_param_init_temp_uint(struct vkd3d_shader_dst_param *dst, unsigned int idx)
@@ -693,6 +699,7 @@ static enum vkd3d_result vsir_program_lower_instructions(struct vsir_program *pr
 
             case VKD3DSIH_DCL:
             case VKD3DSIH_DCL_CONSTANT_BUFFER:
+            case VKD3DSIH_DCL_GLOBAL_FLAGS:
             case VKD3DSIH_DCL_SAMPLER:
             case VKD3DSIH_DCL_TEMPS:
             case VKD3DSIH_DCL_THREAD_GROUP:
@@ -1135,11 +1142,11 @@ static enum vkd3d_result instruction_array_normalise_hull_shader_control_point_i
     enum vkd3d_result ret;
     unsigned int i, j;
 
-    VKD3D_ASSERT(!program->normalised_hull_cp_io);
+    VKD3D_ASSERT(program->normalisation_level == VSIR_NOT_NORMALISED);
 
     if (program->shader_version.type != VKD3D_SHADER_TYPE_HULL)
     {
-        program->normalised_hull_cp_io = true;
+        program->normalisation_level = VSIR_NORMALISED_HULL_CONTROL_POINT_IO;
         return VKD3D_OK;
     }
 
@@ -1186,7 +1193,7 @@ static enum vkd3d_result instruction_array_normalise_hull_shader_control_point_i
                 break;
             case VKD3DSIH_HS_CONTROL_POINT_PHASE:
                 program->instructions = normaliser.instructions;
-                program->normalised_hull_cp_io = true;
+                program->normalisation_level = VSIR_NORMALISED_HULL_CONTROL_POINT_IO;
                 return VKD3D_OK;
             case VKD3DSIH_HS_FORK_PHASE:
             case VKD3DSIH_HS_JOIN_PHASE:
@@ -1195,7 +1202,7 @@ static enum vkd3d_result instruction_array_normalise_hull_shader_control_point_i
                 ret = control_point_normaliser_emit_hs_input(&normaliser, &program->input_signature,
                         input_control_point_count, i, &location);
                 program->instructions = normaliser.instructions;
-                program->normalised_hull_cp_io = true;
+                program->normalisation_level = VSIR_NORMALISED_HULL_CONTROL_POINT_IO;
                 return ret;
             default:
                 break;
@@ -1203,7 +1210,7 @@ static enum vkd3d_result instruction_array_normalise_hull_shader_control_point_i
     }
 
     program->instructions = normaliser.instructions;
-    program->normalised_hull_cp_io = true;
+    program->normalisation_level = VSIR_NORMALISED_HULL_CONTROL_POINT_IO;
     return VKD3D_OK;
 }
 
@@ -1917,7 +1924,7 @@ static enum vkd3d_result vsir_program_normalise_io_registers(struct vsir_program
     struct vkd3d_shader_instruction *ins;
     unsigned int i;
 
-    VKD3D_ASSERT(!program->normalised_io);
+    VKD3D_ASSERT(program->normalisation_level == VSIR_NORMALISED_HULL_CONTROL_POINT_IO);
 
     normaliser.phase = VKD3DSIH_INVALID;
     normaliser.shader_type = program->shader_version.type;
@@ -1975,7 +1982,7 @@ static enum vkd3d_result vsir_program_normalise_io_registers(struct vsir_program
 
     program->instructions = normaliser.instructions;
     program->use_vocp = normaliser.use_vocp;
-    program->normalised_io = true;
+    program->normalisation_level = VSIR_FULLY_NORMALISED_IO;
     return VKD3D_OK;
 }
 
@@ -6133,6 +6140,192 @@ static enum vkd3d_result vsir_program_insert_point_size_clamp(struct vsir_progra
     return VKD3D_OK;
 }
 
+static bool has_texcoord_signature_element(const struct shader_signature *signature)
+{
+    for (size_t i = 0; i < signature->element_count; ++i)
+    {
+        if (!ascii_strcasecmp(signature->elements[i].semantic_name, "TEXCOORD"))
+            return true;
+    }
+    return false;
+}
+
+/* Returns true if replacement was done. */
+static bool replace_texcoord_with_point_coord(struct vsir_program *program,
+        struct vkd3d_shader_src_param *src, unsigned int coord_temp)
+{
+    uint32_t prev_swizzle = src->swizzle;
+    const struct signature_element *e;
+
+    /* The input semantic may have a nontrivial mask, which we need to
+     * correct for. E.g. if the mask is .yz, and we read from .y, that needs
+     * to become .x. */
+    static const uint32_t inverse_swizzles[16] =
+    {
+        /* Use _ for "undefined" components, for clarity. */
+#define VKD3D_SHADER_SWIZZLE__ VKD3D_SHADER_SWIZZLE_X
+        0,
+        /* .x    */ VKD3D_SHADER_SWIZZLE(X, _, _, _),
+        /* .y    */ VKD3D_SHADER_SWIZZLE(_, X, _, _),
+        /* .xy   */ VKD3D_SHADER_SWIZZLE(X, Y, _, _),
+        /* .z    */ VKD3D_SHADER_SWIZZLE(_, _, X, _),
+        /* .xz   */ VKD3D_SHADER_SWIZZLE(X, _, Y, _),
+        /* .yz   */ VKD3D_SHADER_SWIZZLE(_, X, Y, _),
+        /* .xyz  */ VKD3D_SHADER_SWIZZLE(X, Y, Z, _),
+        /* .w    */ VKD3D_SHADER_SWIZZLE(_, _, _, X),
+        /* .xw   */ VKD3D_SHADER_SWIZZLE(X, _, _, Y),
+        /* .yw   */ VKD3D_SHADER_SWIZZLE(_, X, _, Y),
+        /* .xyw  */ VKD3D_SHADER_SWIZZLE(X, Y, _, Z),
+        /* .zw   */ VKD3D_SHADER_SWIZZLE(_, _, X, Y),
+        /* .xzw  */ VKD3D_SHADER_SWIZZLE(X, _, Y, Z),
+        /* .yzw  */ VKD3D_SHADER_SWIZZLE(_, X, Y, Z),
+        /* .xyzw */ VKD3D_SHADER_SWIZZLE(X, Y, Z, W),
+#undef VKD3D_SHADER_SWIZZLE__
+    };
+
+    if (src->reg.type != VKD3DSPR_INPUT)
+        return false;
+    e = &program->input_signature.elements[src->reg.idx[0].offset];
+
+    if (ascii_strcasecmp(e->semantic_name, "TEXCOORD"))
+        return false;
+
+    src->reg.type = VKD3DSPR_TEMP;
+    src->reg.idx[0].offset = coord_temp;
+
+    /* If the mask is already contiguous and zero-based, no need to remap
+     * the swizzle. */
+    if (!(e->mask & (e->mask + 1)))
+        return true;
+
+    src->swizzle = 0;
+    for (unsigned int i = 0; i < 4; ++i)
+    {
+        src->swizzle |= vsir_swizzle_get_component(inverse_swizzles[e->mask],
+                vsir_swizzle_get_component(prev_swizzle, i)) << VKD3D_SHADER_SWIZZLE_SHIFT(i);
+    }
+
+    return true;
+}
+
+static enum vkd3d_result vsir_program_insert_point_coord(struct vsir_program *program,
+        struct vsir_transformation_context *ctx)
+{
+    const struct vkd3d_shader_parameter1 *sprite_parameter = NULL;
+    static const struct vkd3d_shader_location no_loc;
+    struct vkd3d_shader_instruction *ins;
+    bool used_texcoord = false;
+    unsigned int coord_temp;
+    size_t i, insert_pos;
+
+    if (program->shader_version.type != VKD3D_SHADER_TYPE_PIXEL)
+        return VKD3D_OK;
+
+    for (i = 0; i < program->parameter_count; ++i)
+    {
+        const struct vkd3d_shader_parameter1 *parameter = &program->parameters[i];
+
+        if (parameter->name == VKD3D_SHADER_PARAMETER_NAME_POINT_SPRITE)
+            sprite_parameter = parameter;
+    }
+
+    if (!sprite_parameter)
+        return VKD3D_OK;
+
+    if (sprite_parameter->type != VKD3D_SHADER_PARAMETER_TYPE_IMMEDIATE_CONSTANT)
+    {
+        vkd3d_shader_error(ctx->message_context, &no_loc, VKD3D_SHADER_ERROR_VSIR_NOT_IMPLEMENTED,
+                "Unsupported point sprite parameter type %#x.", sprite_parameter->type);
+        return VKD3D_ERROR_NOT_IMPLEMENTED;
+    }
+    if (sprite_parameter->data_type != VKD3D_SHADER_PARAMETER_DATA_TYPE_UINT32)
+    {
+        vkd3d_shader_error(ctx->message_context, &no_loc, VKD3D_SHADER_ERROR_VSIR_INVALID_DATA_TYPE,
+                "Invalid point sprite parameter data type %#x.", sprite_parameter->data_type);
+        return VKD3D_ERROR_INVALID_ARGUMENT;
+    }
+    if (!sprite_parameter->u.immediate_constant.u.u32)
+        return VKD3D_OK;
+
+    if (!has_texcoord_signature_element(&program->input_signature))
+        return VKD3D_OK;
+
+    /* VKD3DSPR_POINTCOORD is a two-component value; fill the remaining two
+     * components with zeroes. */
+    coord_temp = program->temp_count++;
+
+    /* Construct the new temp after all LABEL, DCL, and NOP instructions.
+     * We need to skip NOP instructions because they might result from removed
+     * DCLs, and there could still be DCLs after NOPs. */
+    for (i = 0; i < program->instructions.count; ++i)
+    {
+        ins = &program->instructions.elements[i];
+
+        if (!vsir_instruction_is_dcl(ins) && ins->opcode != VKD3DSIH_LABEL && ins->opcode != VKD3DSIH_NOP)
+            break;
+    }
+
+    insert_pos = i;
+
+    /* Replace each texcoord read with a read from the point coord. */
+    for (; i < program->instructions.count; ++i)
+    {
+        ins = &program->instructions.elements[i];
+
+        if (vsir_instruction_is_dcl(ins))
+            continue;
+
+        for (unsigned int j = 0; j < ins->src_count; ++j)
+        {
+            used_texcoord |= replace_texcoord_with_point_coord(program, &ins->src[j], coord_temp);
+
+            for (unsigned int k = 0; k < ins->src[j].reg.idx_count; ++k)
+            {
+                if (ins->src[j].reg.idx[k].rel_addr)
+                    used_texcoord |= replace_texcoord_with_point_coord(program,
+                            ins->src[j].reg.idx[k].rel_addr, coord_temp);
+            }
+        }
+
+        for (unsigned int j = 0; j < ins->dst_count; ++j)
+        {
+            for (unsigned int k = 0; k < ins->dst[j].reg.idx_count; ++k)
+            {
+                if (ins->dst[j].reg.idx[k].rel_addr)
+                    used_texcoord |= replace_texcoord_with_point_coord(program,
+                            ins->dst[j].reg.idx[k].rel_addr, coord_temp);
+            }
+        }
+    }
+
+    if (used_texcoord)
+    {
+        if (!shader_instruction_array_insert_at(&program->instructions, insert_pos, 2))
+            return VKD3D_ERROR_OUT_OF_MEMORY;
+
+        ins = &program->instructions.elements[insert_pos];
+
+        vsir_instruction_init_with_params(program, ins, &no_loc, VKD3DSIH_MOV, 1, 1);
+        dst_param_init_temp_float4(&ins->dst[0], coord_temp);
+        ins->dst[0].write_mask = VKD3DSP_WRITEMASK_0 | VKD3DSP_WRITEMASK_1;
+        vsir_src_param_init(&ins->src[0], VKD3DSPR_POINT_COORD, VKD3D_DATA_FLOAT, 0);
+        ins->src[0].reg.dimension = VSIR_DIMENSION_VEC4;
+        ins->src[0].swizzle = VKD3D_SHADER_NO_SWIZZLE;
+        ++ins;
+
+        vsir_instruction_init_with_params(program, ins, &no_loc, VKD3DSIH_MOV, 1, 1);
+        dst_param_init_temp_float4(&ins->dst[0], coord_temp);
+        ins->dst[0].write_mask = VKD3DSP_WRITEMASK_2 | VKD3DSP_WRITEMASK_3;
+        vsir_src_param_init(&ins->src[0], VKD3DSPR_IMMCONST, VKD3D_DATA_FLOAT, 0);
+        ins->src[0].reg.dimension = VSIR_DIMENSION_VEC4;
+        ++ins;
+
+        program->has_point_coord = true;
+    }
+
+    return VKD3D_OK;
+}
+
 struct validation_context
 {
     struct vkd3d_shader_message_context *message_context;
@@ -6234,15 +6427,11 @@ static void vsir_validate_io_register(struct validation_context *ctx,
             switch (ctx->program->shader_version.type)
             {
                 case VKD3D_SHADER_TYPE_HULL:
-                    if (ctx->phase == VKD3DSIH_HS_CONTROL_POINT_PHASE)
+                    if (ctx->phase == VKD3DSIH_HS_CONTROL_POINT_PHASE
+                            || ctx->program->normalisation_level >= VSIR_FULLY_NORMALISED_IO)
                     {
                         signature = &ctx->program->output_signature;
-                        has_control_point = ctx->program->normalised_hull_cp_io;
-                    }
-                    else if (ctx->program->normalised_io)
-                    {
-                        signature = &ctx->program->output_signature;
-                        has_control_point = true;
+                        has_control_point = ctx->program->normalisation_level >= VSIR_NORMALISED_HULL_CONTROL_POINT_IO;
                     }
                     else
                     {
@@ -6274,7 +6463,7 @@ static void vsir_validate_io_register(struct validation_context *ctx,
             vkd3d_unreachable();
     }
 
-    if (!ctx->program->normalised_io)
+    if (ctx->program->normalisation_level < VSIR_FULLY_NORMALISED_IO)
     {
         /* Indices are [register] or [control point, register]. Both are
          * allowed to have a relative address. */
@@ -7700,8 +7889,10 @@ enum vkd3d_result vsir_program_validate(struct vsir_program *program, uint64_t c
 
     switch (program->shader_version.type)
     {
-        case VKD3D_SHADER_TYPE_HULL:
         case VKD3D_SHADER_TYPE_DOMAIN:
+            break;
+
+        case VKD3D_SHADER_TYPE_HULL:
         case VKD3D_SHADER_TYPE_GEOMETRY:
             if (program->input_control_point_count == 0)
                 validator_error(&ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_SIGNATURE,
@@ -7718,9 +7909,6 @@ enum vkd3d_result vsir_program_validate(struct vsir_program *program, uint64_t c
     switch (program->shader_version.type)
     {
         case VKD3D_SHADER_TYPE_HULL:
-            if (program->output_control_point_count == 0)
-                validator_error(&ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_SIGNATURE,
-                        "Invalid zero output control point count.");
             break;
 
         default:
@@ -7844,6 +8032,7 @@ enum vkd3d_result vsir_program_transform(struct vsir_program *program, uint64_t 
     vsir_transform(&ctx, vsir_program_insert_clip_planes);
     vsir_transform(&ctx, vsir_program_insert_point_size);
     vsir_transform(&ctx, vsir_program_insert_point_size_clamp);
+    vsir_transform(&ctx, vsir_program_insert_point_coord);
 
     if (TRACE_ON())
         vsir_program_trace(program);

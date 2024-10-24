@@ -104,6 +104,7 @@ struct ntdll_thread_data
     void              *cpu_data[16];  /* reserved for CPU-specific data */
     void              *kernel_stack;  /* stack for thread startup and kernel syscalls */
     int                esync_apc_fd;  /* fd to wait on for user APCs */
+    int               *fsync_apc_futex;
     int                request_fd;    /* fd for sending server requests */
     int                reply_fd;      /* fd for receiving server replies */
     int                wait_fd[2];    /* fd for sleeping server requests */
@@ -188,6 +189,9 @@ extern SYSTEM_CPU_INFORMATION cpu_info;
 #ifdef __i386__
 extern struct ldt_copy __wine_ldt_copy;
 #endif
+
+extern BOOL ac_odyssey;
+extern BOOL fsync_simulate_sched_quantum;
 
 extern void init_environment(void);
 extern void init_startup_info(void);

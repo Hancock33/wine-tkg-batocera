@@ -98,19 +98,151 @@ XContext winContext = 0;
 
 /* X context to associate a struct x11drv_win_data to an hwnd */
 static XContext win_data_context = 0;
+static XContext host_window_context = 0;
 
 /* time of last user event and window where it's stored */
 static Time last_user_time;
 static Window user_time_window;
 
-static const WCHAR foreign_window_prop[] =
-    {'_','_','w','i','n','e','_','x','1','1','_','f','o','r','e','i','g','n','_','w','i','n','d','o','w',0};
 static const WCHAR whole_window_prop[] =
     {'_','_','w','i','n','e','_','x','1','1','_','w','h','o','l','e','_','w','i','n','d','o','w',0};
 static const WCHAR clip_window_prop[] =
     {'_','_','w','i','n','e','_','x','1','1','_','c','l','i','p','_','w','i','n','d','o','w',0};
 
 static pthread_mutex_t win_data_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static void host_window_add_ref( struct host_window *win )
+{
+    int ref = ++win->refcount;
+    TRACE( "host window %p/%lx increasing refcount to %d\n", win, win->window, ref );
+}
+
+static void host_window_release( struct host_window *win )
+{
+    int ref = --win->refcount;
+
+    TRACE( "host window %p/%lx decreasing refcount to %d\n", win, win->window, ref );
+
+    if (!ref)
+    {
+        struct x11drv_thread_data *data = x11drv_thread_data();
+
+        if (!win->destroyed) XSelectInput( data->display, win->window, 0 );
+        XDeleteContext( data->display, win->window, host_window_context );
+        if (win->parent) host_window_release( win->parent );
+        free( win->children );
+        free( win );
+    }
+}
+
+POINT host_window_map_point( struct host_window *win, int x, int y )
+{
+    POINT pos = {x, y};
+
+    while (win)
+    {
+        pos.x += win->rect.left;
+        pos.y += win->rect.top;
+        win = win->parent;
+    }
+
+    return pos;
+}
+
+static unsigned int find_host_window_child( struct host_window *win, Window child )
+{
+    unsigned int i;
+    for (i = 0; i < win->children_count; i++) if (win->children[i].window == child) break;
+    return i;
+}
+
+static int host_window_error( Display *display, XErrorEvent *event, void *arg )
+{
+    return (event->error_code == BadWindow);
+}
+
+struct host_window *get_host_window( Window window, BOOL create )
+{
+    struct x11drv_thread_data *data = x11drv_thread_data();
+    Window xparent = 0, xroot, *xchildren;
+    struct host_window *win;
+    XWindowAttributes attr;
+    unsigned int nchildren;
+
+    if (window == root_window) return NULL;
+    if (!XFindContext( data->display, window, host_window_context, (XPointer *)&win )) return win;
+
+    if (!create || !(win = calloc( 1, sizeof(*win) ))) return NULL;
+    win->window = window;
+
+    X11DRV_expect_error( data->display, host_window_error, NULL );
+    XSelectInput( data->display, window, StructureNotifyMask );
+    if (!XGetWindowAttributes( data->display, window, &attr )) memset( &attr, 0, sizeof(attr) );
+    if (!XQueryTree( data->display, window, &xroot, &xparent, &xchildren, &nchildren )) xparent = root_window;
+    else XFree( xchildren );
+    if (X11DRV_check_error()) WARN( "window %lx already destroyed\n", window );
+
+    host_window_set_parent( win, xparent );
+    SetRect( &win->rect, attr.x, attr.y, attr.x + attr.width, attr.y + attr.height );
+    if (win->parent) host_window_configure_child( win->parent, win->window, win->rect, FALSE );
+
+    TRACE( "created host window %p/%lx, parent %lx rect %s\n", win, win->window,
+           xparent, wine_dbgstr_rect(&win->rect) );
+    XSaveContext( data->display, window, host_window_context, (char *)win );
+    return win;
+}
+
+static void host_window_reparent( struct host_window **win, Window parent, Window window )
+{
+    struct host_window *old = *win, *new = get_host_window( parent, TRUE );
+    unsigned int index;
+    RECT rect = {0};
+    void *tmp;
+
+    if ((*win = new)) host_window_add_ref( new );
+
+    if (old && (index = find_host_window_child( old, window )) < old->children_count)
+    {
+        rect = old->children[index].rect;
+        old->children[index] = old->children[old->children_count - 1];
+        old->children_count--;
+    }
+
+    if (new && (index = find_host_window_child( new, window )) == new->children_count)
+    {
+        if (!(tmp = realloc( new->children, (index + 1) * sizeof(*new->children) ))) return;
+        new->children = tmp;
+
+        OffsetRect( &rect, -rect.left, -rect.top );
+        new->children[index].window = window;
+        new->children[index].rect = rect;
+
+        new->children_count++;
+    }
+
+    if (old) host_window_release( old );
+}
+
+RECT host_window_configure_child( struct host_window *win, Window window, RECT rect, BOOL root_coords )
+{
+    unsigned int index;
+
+    if (root_coords)
+    {
+        POINT offset = host_window_map_point( win, 0, 0 );
+        OffsetRect( &rect, -offset.x, -offset.y );
+    }
+
+    index = find_host_window_child( win, window );
+    if (index < win->children_count) win->children[index].rect = rect;
+    return rect;
+}
+
+void host_window_set_parent( struct host_window *win, Window parent )
+{
+    TRACE( "host window %p/%lx, parent %lx\n", win, win->window, parent );
+    host_window_reparent( &win->parent, parent, win->window );
+}
 
 
 /***********************************************************************
@@ -357,8 +489,7 @@ static int get_window_attributes( struct x11drv_win_data *data, XSetWindowAttrib
     attr->event_mask        = (ExposureMask | PointerMotionMask |
                                ButtonPressMask | ButtonReleaseMask | EnterWindowMask |
                                KeyPressMask | KeyReleaseMask | FocusChangeMask |
-                               KeymapStateMask | StructureNotifyMask);
-    if (data->managed) attr->event_mask |= PropertyChangeMask;
+                               KeymapStateMask | StructureNotifyMask | PropertyChangeMask);
 
     return (CWOverrideRedirect | CWSaveUnder | CWColormap | CWBorderPixel |
             CWEventMask | CWBitGravity | CWBackingStore);
@@ -372,7 +503,7 @@ static int get_window_attributes( struct x11drv_win_data *data, XSetWindowAttrib
  */
 static void sync_window_style( struct x11drv_win_data *data )
 {
-    if (data->whole_window != root_window)
+    if (data->whole_window != root_window && !data->embedded)
     {
         XSetWindowAttributes attr;
         int mask = get_window_attributes( data, &attr );
@@ -1097,11 +1228,11 @@ static void update_net_wm_fullscreen_monitors( struct x11drv_win_data *data )
 /***********************************************************************
  *     update_net_wm_states
  */
-void update_net_wm_states( struct x11drv_win_data *data )
+static void update_net_wm_states( struct x11drv_win_data *data )
 {
     UINT i, style, ex_style, new_state = 0;
 
-    if (!data->managed) return;
+    if (!data->managed || data->embedded) return;
     if (data->whole_window == root_window)
     {
         update_desktop_fullscreen(data->display);
@@ -1185,17 +1316,15 @@ void update_net_wm_states( struct x11drv_win_data *data )
 /***********************************************************************
  *     read_net_wm_states
  */
-void read_net_wm_states( Display* display, struct x11drv_win_data *data )
+UINT get_window_net_wm_state( Display *display, Window window )
 {
     Atom type, *state;
     int format;
     unsigned long i, j, count, remaining;
-    DWORD new_state = 0;
+    UINT new_state = 0;
     BOOL maximized_horz = FALSE;
 
-    if (!data->whole_window) return;
-
-    if (!XGetWindowProperty( display, data->whole_window, x11drv_atom(_NET_WM_STATE), 0,
+    if (!XGetWindowProperty( display, window, x11drv_atom(_NET_WM_STATE), 0,
                              65536/sizeof(CARD32), False, XA_ATOM, &type, &format, &count,
                              &remaining, (unsigned char **)&state ))
     {
@@ -1220,7 +1349,7 @@ void read_net_wm_states( Display* display, struct x11drv_win_data *data )
     if (!maximized_horz)
         new_state &= ~(1 << NET_WM_STATE_MAXIMIZED);
 
-    data->net_wm_state = new_state;
+    return new_state;
 }
 
 
@@ -1258,15 +1387,12 @@ static void map_window( HWND hwnd, DWORD new_style )
 
         remove_startup_notification( data->display, data->whole_window );
         set_wm_hints( data );
+        update_net_wm_states( data );
+        sync_window_style( data );
 
-        if (!data->embedded)
-        {
-            update_net_wm_states( data );
-            sync_window_style( data );
-            XMapWindow( data->display, data->whole_window );
-            XFlush( data->display );
-        }
-        else set_xembed_flags( data, XEMBED_MAPPED );
+        if (data->embedded) set_xembed_flags( data, XEMBED_MAPPED );
+        else XMapWindow( data->display, data->whole_window );
+        XFlush( data->display );
 
         data->mapped = TRUE;
         data->iconic = (new_style & WS_MINIMIZE) != 0;
@@ -1739,17 +1865,7 @@ static void destroy_whole_window( struct x11drv_win_data *data, BOOL already_des
 
     if (!data->whole_window)
     {
-        if (data->embedded)
-        {
-            Window xwin = (Window)NtUserGetProp( data->hwnd, foreign_window_prop );
-            if (xwin)
-            {
-                if (!already_destroyed) XSelectInput( data->display, xwin, 0 );
-                XDeleteContext( data->display, xwin, winContext );
-                NtUserRemoveProp( data->hwnd, foreign_window_prop );
-            }
-            return;
-        }
+        if (data->embedded) return;
     }
     else
     {
@@ -1777,6 +1893,18 @@ static void destroy_whole_window( struct x11drv_win_data *data, BOOL already_des
     /* Outlook stops processing messages after destroying a dialog, so we need an explicit flush */
     XFlush( data->display );
     NtUserRemoveProp( data->hwnd, whole_window_prop );
+
+    /* It's possible that we are in a different thread, when called from
+     * set_window_visual, and about to recreate the window. In this case
+     * just set a window flag to indicate the parent isn't valid and let
+     * the thread eventually replace it with the proper one later on.
+     */
+    if (data->display != thread_init_display()) data->parent_invalid = 1;
+    else if (data->parent)
+    {
+        host_window_release( data->parent );
+        data->parent = NULL;
+    }
 }
 
 
@@ -1862,6 +1990,7 @@ void X11DRV_DestroyWindow( HWND hwnd )
     if (thread_data->last_xic_hwnd == hwnd) thread_data->last_xic_hwnd = 0;
     if (data->icon_pixmap) XFreePixmap( gdi_display, data->icon_pixmap );
     if (data->icon_mask) XFreePixmap( gdi_display, data->icon_mask );
+    if (data->parent) host_window_release( data->parent );
     free( data->icon_bits );
     XDeleteContext( gdi_display, (XID)hwnd, win_data_context );
     release_win_data( data );
@@ -2018,6 +2147,7 @@ BOOL X11DRV_CreateWindow( HWND hwnd )
                                            CWOverrideRedirect | CWEventMask, &attr );
         XFlush( data->display );
         NtUserSetProp( hwnd, clip_window_prop, (HANDLE)data->clip_window );
+        X11DRV_DisplayDevices_RegisterEventHandlers();
     }
     return TRUE;
 }
@@ -2049,6 +2179,16 @@ struct x11drv_win_data *get_win_data( HWND hwnd )
 void release_win_data( struct x11drv_win_data *data )
 {
     if (data) pthread_mutex_unlock( &win_data_mutex );
+}
+
+/* update the whole window parent host window, must be called from the window's owner thread */
+void set_window_parent( struct x11drv_win_data *data, Window parent )
+{
+    if (!data->whole_window) return; /* only keep track of parent if we have a toplevel */
+    TRACE( "window %p/%lx, parent %lx\n", data->hwnd, data->whole_window, parent );
+    host_window_reparent( &data->parent, parent, data->whole_window );
+    if (data->parent) host_window_configure_child( data->parent, data->whole_window, data->rects.visible, TRUE );
+    data->parent_invalid = 0;
 }
 
 
@@ -2089,93 +2229,6 @@ static struct x11drv_win_data *X11DRV_create_win_data( HWND hwnd, const struct w
                wine_dbgstr_rect( &data->rects.visible ), wine_dbgstr_rect( &data->rects.client ));
     }
     return data;
-}
-
-
-/***********************************************************************
- *		create_foreign_window
- *
- * Create a foreign window for the specified X window and its ancestors
- */
-HWND create_foreign_window( Display *display, Window xwin )
-{
-    static BOOL class_registered;
-    struct x11drv_win_data *data;
-    HWND hwnd, parent;
-    POINT pos;
-    Window xparent, xroot;
-    Window *xchildren;
-    unsigned int nchildren;
-    XWindowAttributes attr;
-    UINT style = WS_CLIPCHILDREN;
-    UNICODE_STRING class_name = RTL_CONSTANT_STRING( foreign_window_prop );
-
-    if (!class_registered)
-    {
-        UNICODE_STRING version = { 0 };
-        WNDCLASSEXW class;
-
-        memset( &class, 0, sizeof(class) );
-        class.cbSize        = sizeof(class);
-        class.lpfnWndProc   = (WNDPROC)(UINT_PTR)client_foreign_window_proc;
-        class.lpszClassName = foreign_window_prop;
-        if (!NtUserRegisterClassExWOW( &class, &class_name, &version, NULL, 0, 0, NULL ) &&
-            RtlGetLastWin32Error() != ERROR_CLASS_ALREADY_EXISTS)
-        {
-            ERR( "Could not register foreign window class\n" );
-            return FALSE;
-        }
-        class_registered = TRUE;
-    }
-
-    if (XFindContext( display, xwin, winContext, (char **)&hwnd )) hwnd = 0;
-    if (hwnd) return hwnd;  /* already created */
-
-    XSelectInput( display, xwin, StructureNotifyMask );
-    if (!XGetWindowAttributes( display, xwin, &attr ) ||
-        !XQueryTree( display, xwin, &xroot, &xparent, &xchildren, &nchildren ))
-    {
-        XSelectInput( display, xwin, 0 );
-        return 0;
-    }
-    XFree( xchildren );
-
-    if (xparent == xroot)
-    {
-        parent = NtUserGetDesktopWindow();
-        style |= WS_POPUP;
-        pos = root_to_virtual_screen( attr.x, attr.y );
-    }
-    else
-    {
-        parent = create_foreign_window( display, xparent );
-        style |= WS_CHILD;
-        pos.x = attr.x;
-        pos.y = attr.y;
-    }
-
-    hwnd = NtUserCreateWindowEx( 0, &class_name, &class_name, NULL, style, pos.x, pos.y,
-                                 attr.width, attr.height, parent, 0, NULL, NULL, 0, NULL,
-                                 0, FALSE );
-    if (!(data = get_win_data( hwnd )))
-    {
-        NtUserDestroyWindow( hwnd );
-        return 0;
-    }
-    destroy_whole_window( data, FALSE );
-    data->embedded = TRUE;
-    data->mapped = TRUE;
-
-    NtUserSetProp( hwnd, foreign_window_prop, (HANDLE)xwin );
-    XSaveContext( display, xwin, winContext, (char *)data->hwnd );
-
-    TRACE( "win %lx parent %p style %08x %s -> hwnd %p\n",
-           xwin, parent, style, wine_dbgstr_rect(&data->rects.window), hwnd );
-
-    release_win_data( data );
-
-    NtUserShowWindow( hwnd, SW_SHOW );
-    return hwnd;
 }
 
 
@@ -3001,7 +3054,8 @@ LRESULT X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
                 if (old_pos.x != pos.x) mask |= CWX;
                 if (old_pos.y != pos.y) mask |= CWY;
 
-                if (mask) XReconfigureWMWindow( data->display, data->whole_window, data->vis.screen, mask, &changes );
+                data->configure_serial = NextRequest( data->display );
+                XReconfigureWMWindow( data->display, data->whole_window, data->vis.screen, mask, &changes );
             }
 
             release_win_data( data );
@@ -3177,5 +3231,6 @@ void init_win_context(void)
 
     winContext = XUniqueContext();
     win_data_context = XUniqueContext();
+    host_window_context = XUniqueContext();
     cursor_context = XUniqueContext();
 }
