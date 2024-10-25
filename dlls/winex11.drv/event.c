@@ -1103,6 +1103,7 @@ static BOOL X11DRV_ConfigureNotify( HWND hwnd, XEvent *xev )
 
     pos = root_to_virtual_screen( pos.x, pos.y );
     SetRect( &rect, pos.x, pos.y, pos.x + event->width, pos.y + event->height );
+    window_configure_notify( data, event->serial, &rect );
 
     if (!data->mapped || data->iconic) goto done;
     if (!data->whole_window || !data->managed) goto done;
@@ -1206,6 +1207,31 @@ static int get_window_wm_state( Display *display, Window window )
     return ret;
 }
 
+/***********************************************************************
+ *           get_window_xembed_info
+ */
+static int get_window_xembed_info( Display *display, Window window )
+{
+    struct
+    {
+        unsigned long version;
+        unsigned long flags;
+    } *state;
+    Atom type;
+    int format, ret = -1;
+    unsigned long count, remaining;
+
+    if (!XGetWindowProperty( display, window, x11drv_atom(_XEMBED_INFO), 0, 65535, False, x11drv_atom(_XEMBED_INFO),
+                             &type, &format, &count, &remaining, (unsigned char **)&state ))
+    {
+        if (type == x11drv_atom(_XEMBED_INFO) && get_property_size( format, count ) >= sizeof(*state))
+            ret = state->flags;
+        XFree( state );
+    }
+
+    return ret;
+}
+
 
 /***********************************************************************
  *           handle_wm_state_notify
@@ -1214,10 +1240,12 @@ static int get_window_wm_state( Display *display, Window window )
  */
 static void handle_wm_state_notify( HWND hwnd, XPropertyEvent *event, BOOL update_window )
 {
-    struct x11drv_win_data *data = get_win_data( hwnd );
-    UINT style;
+    struct x11drv_win_data *data;
+    UINT style, value = 0;
 
-    if (!data) return;
+    if (!(data = get_win_data( hwnd ))) return;
+    if (event->state == PropertyNewValue) value = get_window_wm_state( event->display, event->window );
+    if (update_window) window_wm_state_notify( data, event->serial, value );
 
     switch(event->state)
     {
@@ -1291,6 +1319,27 @@ done:
     release_win_data( data );
 }
 
+static void handle_xembed_info_notify( HWND hwnd, XPropertyEvent *event )
+{
+    struct x11drv_win_data *data;
+    UINT value = 0;
+
+    if (!(data = get_win_data( hwnd ))) return;
+    if (event->state == PropertyNewValue) value = get_window_xembed_info( event->display, event->window );
+    window_wm_state_notify( data, event->serial, value ? NormalState : WithdrawnState );
+    release_win_data( data );
+}
+
+static void handle_net_wm_state_notify( HWND hwnd, XPropertyEvent *event )
+{
+    struct x11drv_win_data *data;
+    UINT value = 0;
+
+    if (!(data = get_win_data( hwnd ))) return;
+    if (event->state == PropertyNewValue) value = get_window_net_wm_state( event->display, event->window );
+    window_net_wm_state_notify( data, event->serial, value );
+    release_win_data( data );
+}
 
 /***********************************************************************
  *           X11DRV_PropertyNotify
@@ -1301,6 +1350,8 @@ static BOOL X11DRV_PropertyNotify( HWND hwnd, XEvent *xev )
 
     if (!hwnd) return FALSE;
     if (event->atom == x11drv_atom(WM_STATE)) handle_wm_state_notify( hwnd, event, TRUE );
+    if (event->atom == x11drv_atom(_XEMBED_INFO)) handle_xembed_info_notify( hwnd, event );
+    if (event->atom == x11drv_atom(_NET_WM_STATE)) handle_net_wm_state_notify( hwnd, event );
     return TRUE;
 }
 
