@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
 HEAD is now at 78bd3f0c Rebase against 83febc6b55cf9e7f97299e391771b9ad0d1f1ceb.
-HEAD is now at 3a736901cdd include: Add rstidn.idl.
+HEAD is now at 7d5ddd37fab include: Move ISAXXMLFilter interface to after base ISAXXMLReader.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
@@ -416,7 +416,8 @@ Hunk #1 succeeded at 113 (offset -3 lines).
 patching file server/clipboard.c
 Hunk #1 succeeded at 77 (offset -1 lines).
 patching file server/completion.c
-Hunk #1 succeeded at 168 (offset 103 lines).
+Hunk #1 succeeded at 93 (offset 1 line).
+Hunk #2 succeeded at 169 (offset 2 lines).
 patching file server/console.c
 Hunk #1 succeeded at 42 (offset -1 lines).
 Hunk #2 succeeded at 84 with fuzz 2 (offset 1 line).
@@ -525,11 +526,11 @@ Hunk #3 succeeded at 157 (offset -10 lines).
 Hunk #4 succeeded at 174 (offset -10 lines).
 Hunk #5 succeeded at 213 (offset -10 lines).
 Hunk #6 succeeded at 328 (offset 1 line).
-Hunk #7 succeeded at 764 (offset 244 lines).
-Hunk #8 succeeded at 1258 (offset 274 lines).
-Hunk #9 succeeded at 1325 (offset 273 lines).
-Hunk #10 succeeded at 3198 (offset 154 lines).
-Hunk #11 succeeded at 4274 (offset 711 lines).
+Hunk #7 succeeded at 773 (offset 253 lines).
+Hunk #8 succeeded at 1267 (offset 283 lines).
+Hunk #9 succeeded at 1334 (offset 282 lines).
+Hunk #10 succeeded at 3207 (offset 163 lines).
+Hunk #11 succeeded at 4283 (offset 720 lines).
 patching file server/registry.c
 Hunk #1 succeeded at 181 (offset 13 lines).
 patching file server/request.c
@@ -581,8 +582,11 @@ Hunk #1 succeeded at 505 (offset -71 lines).
 patching file dlls/ntdll/unix/esync.c
 Hunk #1 succeeded at 529 (offset 3 lines).
 patching file server/queue.c
-Hunk #1 succeeded at 3175 (offset 175 lines).
-Hunk #2 succeeded at 3475 (offset 187 lines).
+Hunk #1 succeeded at 3184 (offset 184 lines).
+Hunk #2 succeeded at 3484 (offset 196 lines).
+patching file server/object.c
+Hunk #1 succeeded at 109 (offset -11 lines).
+Hunk #2 succeeded at 135 (offset -10 lines).
 
 fsync_futex_waitv.patch -- ( Applied patches for fsync to support futex_waitv )
 patching file configure

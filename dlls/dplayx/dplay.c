@@ -322,6 +322,99 @@ static void *DP_DuplicateString( void *src, BOOL dstAnsi, BOOL srcAnsi )
     return dst;
 }
 
+static HRESULT DP_QueuePlayerMessage( IDirectPlayImpl *This, DPID fromId, struct PlayerData *player,
+                                      DPID excludeId, void *msg, FN_COPY_MESSAGE *copyMessage )
+{
+    struct DPMSG *elem;
+    DWORD msgSize;
+
+    if ( !( player->dwFlags & DPLAYI_PLAYER_PLAYERLOCAL ) )
+        return DP_OK;
+    if ( player->dwFlags & DPLAYI_PLAYER_SYSPLAYER )
+        return DP_OK;
+    if ( player->dpid == excludeId )
+        return DP_OK;
+
+    elem = calloc( 1, sizeof( struct DPMSG ) );
+    if( !elem )
+        return DPERR_OUTOFMEMORY;
+
+    msgSize = copyMessage( NULL, msg, FALSE );
+    elem->msg = malloc( msgSize );
+    if ( !elem->msg )
+    {
+        free( elem );
+        return DPERR_OUTOFMEMORY;
+    }
+    copyMessage( elem->msg, msg, FALSE );
+
+    elem->fromId = fromId;
+    elem->toId = player->dpid;
+    elem->copyMessage = copyMessage;
+
+    DPQ_INSERT_IN_TAIL( This->dp2->receiveMsgs, elem, msgs );
+
+    if( player->hEvent )
+        SetEvent( player->hEvent );
+
+    return DP_OK;
+}
+
+static HRESULT DP_QueueMessage( IDirectPlayImpl *This, DPID fromId, DPID toId, DPID excludeId,
+                                void *msg, FN_COPY_MESSAGE *copyMessage )
+{
+    struct PlayerList *plist;
+    struct GroupData *group;
+    HRESULT hr;
+
+    plist = DP_FindPlayer( This, toId );
+    if ( plist )
+        return DP_QueuePlayerMessage( This, fromId, plist->lpPData, excludeId, msg, copyMessage );
+
+    group = DP_FindAnyGroup( This, toId );
+    if( group )
+    {
+        for( plist = DPQ_FIRST( group->players ); plist; plist = DPQ_NEXT( plist->players ) )
+        {
+            hr = DP_QueuePlayerMessage( This, fromId, plist->lpPData, excludeId, msg, copyMessage );
+            if ( FAILED( hr ) )
+                return hr;
+        }
+
+        return DP_OK;
+    }
+
+    return DPERR_INVALIDPLAYER;
+}
+
+static DWORD DP_CopyCreatePlayerOrGroup( DPMSG_GENERIC *genericDst, DPMSG_GENERIC *genericSrc,
+                                         BOOL ansi )
+{
+    DPMSG_CREATEPLAYERORGROUP *src = (DPMSG_CREATEPLAYERORGROUP *) genericSrc;
+    DPMSG_CREATEPLAYERORGROUP *dst = (DPMSG_CREATEPLAYERORGROUP *) genericDst;
+    DWORD offset = sizeof( DPMSG_CREATEPLAYERORGROUP );
+
+    if ( dst )
+        *dst = *src;
+
+    if ( src->lpData )
+    {
+        if ( dst )
+        {
+            dst->lpData = (char *) dst + offset;
+            memcpy( dst->lpData, src->lpData, src->dwDataSize );
+        }
+        offset += src->dwDataSize;
+    }
+
+    offset += DP_CopyString( &dst->dpnName.lpszShortNameA, src->dpnName.lpszShortNameA, ansi, FALSE,
+                             genericDst, offset );
+    offset += DP_CopyString( &dst->dpnName.lpszLongNameA, src->dpnName.lpszLongNameA, ansi, FALSE,
+                             genericDst, offset );
+
+    return offset;
+}
+
 /* *lplpReply will be non NULL iff there is something to reply */
 HRESULT DP_HandleMessage( IDirectPlayImpl *This, void *messageBody,
         DWORD dwMessageBodySize, void *messageHeader, WORD wCommandId, WORD wVersion,
@@ -1492,6 +1585,26 @@ static HRESULT DP_CreateSPPlayer( IDirectPlayImpl *This, DPID dpid, DWORD flags,
   return DP_OK;
 }
 
+static void DP_DeleteSPPlayer( IDirectPlayImpl *This, DPID dpid )
+{
+    if ( This->dp2->spData.lpCB->RemovePlayerFromGroup )
+    {
+        DPSP_REMOVEPLAYERFROMGROUPDATA data;
+        data.idPlayer = dpid;
+        data.idGroup = DPID_SYSTEM_GROUP;
+        data.lpISP = This->dp2->spData.lpISP;
+        This->dp2->spData.lpCB->RemovePlayerFromGroup( &data );
+    }
+    if ( This->dp2->spData.lpCB->DeletePlayer )
+    {
+        DPSP_DELETEPLAYERDATA data;
+        data.idPlayer = dpid;
+        data.dwFlags = 0;
+        data.lpISP = This->dp2->spData.lpISP;
+        This->dp2->spData.lpCB->DeletePlayer( &data );
+    }
+}
+
 HRESULT DP_CreatePlayer( IDirectPlayImpl *This, void *msgHeader, DPID *lpid, DPNAME *lpName,
         void *data, DWORD dataSize, void *spData, DWORD spDataSize, DWORD dwFlags, HANDLE hEvent,
         struct PlayerData **playerData, BOOL bAnsi )
@@ -1592,10 +1705,45 @@ HRESULT DP_CreatePlayer( IDirectPlayImpl *This, void *msgHeader, DPID *lpid, DPN
     return hr;
   }
 
-  TRACE( "Created player id 0x%08lx\n", *lpid );
-
   if( ~dwFlags & DPLAYI_PLAYER_SYSPLAYER )
+  {
+    DPMSG_CREATEPLAYERORGROUP msg;
+    DWORD currentPlayers;
+
+    currentPlayers = This->dp2->lpSessionDesc->dwCurrentPlayers;
+    if ( ~dwFlags & DPLAYI_PLAYER_PLAYERLOCAL )
+        ++currentPlayers;
+
+    msg.dwType = DPSYS_CREATEPLAYERORGROUP;
+    msg.dwPlayerType = DPPLAYERTYPE_PLAYER;
+    msg.dpId = *lpid;
+    msg.dwCurrentPlayers = currentPlayers;
+    msg.lpData = data;
+    msg.dwDataSize = dataSize;
+    msg.dpnName = *lpPData->name;
+    msg.dpIdParent = 0;
+    msg.dwFlags = dwFlags;
+
+    hr = DP_QueueMessage( This, DPID_SYSMSG, DPID_ALLPLAYERS, *lpid, &msg,
+                          DP_CopyCreatePlayerOrGroup );
+    if ( FAILED( hr ) )
+    {
+        DP_DeleteSPPlayer( This, *lpid );
+        free( lpPData->lpLocalData );
+        free( lpPData->lpRemoteData );
+        DPQ_REMOVE( This->dp2->lpSysGroup->players, lpPList, players );
+        free( lpPList );
+        CloseHandle( lpPData->hEvent );
+        free( lpPData->nameA );
+        free( lpPData->name );
+        free( lpPData );
+        return hr;
+    }
+
     This->dp2->lpSessionDesc->dwCurrentPlayers++;
+  }
+
+  TRACE( "Created player id 0x%08lx\n", *lpid );
 
   if( playerData )
     *playerData = lpPData;
@@ -1827,7 +1975,6 @@ static HRESULT DP_IF_CreatePlayer( IDirectPlayImpl *This, DPID *lpidPlayer,
     return hr;
   }
 
-#if 1
   hr = DP_MSG_SendCreatePlayer( This, DPID_ALLPLAYERS, *lpidPlayer, dwCreateFlags, player->name,
                                 lpData, dwDataSize, This->dp2->systemPlayerId );
   if( FAILED( hr ) )
@@ -1835,34 +1982,6 @@ static HRESULT DP_IF_CreatePlayer( IDirectPlayImpl *This, DPID *lpidPlayer,
     LeaveCriticalSection( &This->lock );
     return hr;
   }
-#else
-  /* Inform all other peers of the creation of a new player. If there are
-   * no peers keep this quiet.
-   * Also, if this was a remote event, no need to rebroadcast it.
-   */
-  if( ( lpMsgHdr == NULL ) &&
-      This->dp2->lpSessionDesc &&
-      ( This->dp2->lpSessionDesc->dwFlags & DPSESSION_MULTICASTSERVER ) )
-  {
-    DPMSG_CREATEPLAYERORGROUP msg;
-    msg.dwType = DPSYS_CREATEPLAYERORGROUP;
-
-    msg.dwPlayerType     = DPPLAYERTYPE_PLAYER;
-    msg.dpId             = *lpidPlayer;
-    msg.dwCurrentPlayers = 0; /* FIXME: Incorrect */
-    msg.lpData           = lpData;
-    msg.dwDataSize       = dwDataSize;
-    msg.dpnName          = *lpPlayerName;
-    msg.dpIdParent       = DPID_NOPARENT_GROUP;
-    msg.dwFlags          = DPMSG_CREATEPLAYER_DWFLAGS( dwFlags );
-
-    /* FIXME: Correct to just use send effectively? */
-    /* FIXME: Should size include data w/ message or just message "header" */
-    /* FIXME: Check return code */
-    hr = IDirectPlayX_SendEx( &This->IDirectPlay4_iface, DPID_SERVERPLAYER, DPID_ALLPLAYERS, 0,
-            &msg, sizeof( msg ), 0, 0, NULL, NULL );
-  }
-#endif
 
   LeaveCriticalSection( &This->lock );
 
@@ -3631,6 +3750,7 @@ static HRESULT DP_IF_Receive( IDirectPlayImpl *This, DPID *lpidFrom, DPID *lpidT
         void *lpData, DWORD *lpdwDataSize, BOOL bAnsi )
 {
   LPDPMSG lpMsg = NULL;
+  DWORD msgSize;
 
   FIXME( "(%p)->(%p,%p,0x%08lx,%p,%p,%u): stub\n",
          This, lpidFrom, lpidTo, dwFlags, lpData, lpdwDataSize, bAnsi );
@@ -3656,11 +3776,6 @@ static HRESULT DP_IF_Receive( IDirectPlayImpl *This, DPID *lpidFrom, DPID *lpidT
   if( dwFlags & DPRECEIVE_ALL )
   {
     lpMsg = This->dp2->receiveMsgs.lpQHFirst;
-
-    if( !( dwFlags & DPRECEIVE_PEEK ) )
-    {
-      FIXME( "Remove from queue\n" );
-    }
   }
   else if( ( dwFlags & DPRECEIVE_TOPLAYER ) ||
            ( dwFlags & DPRECEIVE_FROMPLAYER )
@@ -3678,8 +3793,21 @@ static HRESULT DP_IF_Receive( IDirectPlayImpl *This, DPID *lpidFrom, DPID *lpidT
     return DPERR_NOMESSAGES;
   }
 
+  msgSize = lpMsg->copyMessage( NULL, lpMsg->msg, bAnsi );
+
+  *lpidFrom = lpMsg->fromId;
+  *lpidTo = lpMsg->toId;
+  *lpdwDataSize = msgSize;
+
   /* Copy into the provided buffer */
-  if (lpData) CopyMemory( lpData, lpMsg->msg, *lpdwDataSize );
+  if (lpData) lpMsg->copyMessage( lpData, lpMsg->msg, bAnsi );
+
+  if( !( dwFlags & DPRECEIVE_PEEK ) )
+  {
+    DPQ_REMOVE( This->dp2->receiveMsgs, lpMsg, msgs );
+    free( lpMsg->msg );
+    free( lpMsg );
+  }
 
   return DP_OK;
 }

@@ -1723,6 +1723,7 @@ typedef enum _PROC_THREAD_ATTRIBUTE_NUM
 #define PROC_THREAD_ATTRIBUTE_ENABLE_OPTIONAL_XSTATE_FEATURES (ProcThreadAttributeEnableOptionalXStateFeatures | PROC_THREAD_ATTRIBUTE_THREAD | PROC_THREAD_ATTRIBUTE_INPUT)
 
 #define SYMBOLIC_LINK_FLAG_DIRECTORY (0x1)
+#define SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE (0x2)
 #define VALID_SYMBOLIC_LINK_FLAGS SYMBOLIC_LINK_FLAG_DIRECTORY
 
 typedef struct _STARTUPINFOEXA
@@ -2978,6 +2979,7 @@ WINBASEAPI UINT        WINAPI _lwrite(HFILE,LPCSTR,UINT);
 #define     ZeroMemory RtlZeroMemory
 #define     CopyMemory RtlCopyMemory
 #define     SecureZeroMemory RtlSecureZeroMemory
+#define     CaptureStackBackTrace RtlCaptureStackBackTrace
 
 /* Wine internal functions */
 

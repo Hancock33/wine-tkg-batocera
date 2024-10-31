@@ -4053,14 +4053,15 @@ if(0)
 
 #define checkCreatePlayerOrGroupMessage( dp, expectedType, expectedDpid, expectedCurrentPlayers, expectedPlayerData, \
                                          expectedPlayerDataSize, expectedShortName, expectedLongName, expectedParent, \
-                                         expectedFlags ) \
+                                         expectedFlags, flagsTodo ) \
         checkCreatePlayerOrGroupMessage_( __LINE__, dp, expectedType, expectedDpid, expectedCurrentPlayers, \
                                           expectedPlayerData, expectedPlayerDataSize, expectedShortName, \
-                                          expectedLongName, expectedParent, expectedFlags )
+                                          expectedLongName, expectedParent, expectedFlags, flagsTodo )
 static DPID checkCreatePlayerOrGroupMessage_( int line, IDirectPlay4 *dp, DWORD expectedType, DPID expectedDpid,
                                               DWORD expectedCurrentPlayers, void *expectedPlayerData,
                                               DWORD expectedPlayerDataSize, const char *expectedShortName,
-                                              const char *expectedLongName, DPID expectedParent, DWORD expectedFlags )
+                                              const char *expectedLongName, DPID expectedParent, DWORD expectedFlags,
+                                              BOOL flagsTodo )
 {
     DPMSG_CREATEPLAYERORGROUP *msg;
     DWORD expectedShortNameSize;
@@ -4076,9 +4077,7 @@ static DPID checkCreatePlayerOrGroupMessage_( int line, IDirectPlay4 *dp, DWORD 
     fromId = 0xdeadbeef;
     toId = 0xdeadbeef;
     hr = IDirectPlayX_Receive( dp, &fromId, &toId, 0, msgData, &msgDataSize );
-    todo_wine ok_( __FILE__, line )( hr == DP_OK, "got hr %#lx.\n", hr );
-    if ( FAILED( hr ) )
-        return toId;
+    ok_( __FILE__, line )( hr == DP_OK, "got hr %#lx.\n", hr );
     ok_( __FILE__, line )( fromId == DPID_SYSMSG, "got source id %#lx.\n", fromId );
 
     msg = (DPMSG_CREATEPLAYERORGROUP *) msgData;
@@ -4120,7 +4119,7 @@ static DPID checkCreatePlayerOrGroupMessage_( int line, IDirectPlay4 *dp, DWORD 
                                wine_dbgstr_a( msg->dpnName.lpszLongNameA ) );
     }
     ok_( __FILE__, line )( msg->dpIdParent == expectedParent, "got parent id %#lx.\n", msg->dpIdParent );
-    ok_( __FILE__, line )( msg->dwFlags == expectedFlags, "got flags %#lx.\n", msg->dwFlags );
+    todo_wine_if( flagsTodo ) ok_( __FILE__, line )( msg->dwFlags == expectedFlags, "got flags %#lx.\n", msg->dwFlags );
 
     expectedShortNameSize = expectedShortName ? strlen( expectedShortName ) + 1 : 0;
     expectedLongNameSize = expectedLongName ? strlen( expectedLongName ) + 1 : 0;
@@ -4167,14 +4166,15 @@ static BOOL CALLBACK getPlayerIdsCallback( DPID dpid, DWORD playerType, const DP
 
 #define checkCreatePlayerOrGroupMessages( dp, expectedType, expectedDpid, expectedCurrentPlayers, expectedPlayerData, \
                                           expectedPlayerDataSize, expectedShortName, expectedLongName, expectedParent, \
-                                          expectedFlags ) \
+                                          expectedFlags, flagsTodo ) \
         checkCreatePlayerOrGroupMessages_( __LINE__, dp, expectedType, expectedDpid, expectedCurrentPlayers, \
                                            expectedPlayerData, expectedPlayerDataSize, expectedShortName, \
-                                           expectedLongName, expectedParent, expectedFlags )
+                                           expectedLongName, expectedParent, expectedFlags, flagsTodo )
 static void checkCreatePlayerOrGroupMessages_( int line, IDirectPlay4 *dp, DWORD expectedType, DPID expectedDpid,
                                                DWORD expectedCurrentPlayers, void *expectedPlayerData,
                                                DWORD expectedPlayerDataSize, const char *expectedShortName,
-                                               const char *expectedLongName, DPID expectedParent, DWORD expectedFlags )
+                                               const char *expectedLongName, DPID expectedParent, DWORD expectedFlags,
+                                               BOOL flagsTodo )
 {
     GetPlayerIdsCallbackData data = { 0 };
     HRESULT hr;
@@ -4189,7 +4189,7 @@ static void checkCreatePlayerOrGroupMessages_( int line, IDirectPlay4 *dp, DWORD
     {
         dpid = checkCreatePlayerOrGroupMessage_( line, dp, expectedType, expectedDpid, expectedCurrentPlayers,
                                                  expectedPlayerData, expectedPlayerDataSize, expectedShortName,
-                                                 expectedLongName, expectedParent, expectedFlags );
+                                                 expectedLongName, expectedParent, expectedFlags, flagsTodo );
         for ( j = 0; j < data.idCount; ++j )
         {
             if ( data.ids[ j ] == dpid )
@@ -4198,8 +4198,7 @@ static void checkCreatePlayerOrGroupMessages_( int line, IDirectPlay4 *dp, DWORD
                 break;
             }
         }
-        todo_wine ok_( __FILE__, line )( dpid && dpid != expectedDpid && j < data.idCount, "got destination id %#lx.\n",
-                                         dpid );
+        ok_( __FILE__, line )( dpid && dpid != expectedDpid && j < data.idCount, "got destination id %#lx.\n", dpid );
     }
 }
 
@@ -4245,7 +4244,7 @@ static void check_CreatePlayer_( int line, IDirectPlay4 *dp, DPID *dpid, DPNAME 
         if ( hr == DP_OK )
             checkCreatePlayerOrGroupMessages_( line, dp, DPPLAYERTYPE_PLAYER, expectedDpid, expectedCurrentPlayers,
                                                playerData, sizeof( playerData ), expectedShortNameA, expectedLongNameA,
-                                               0, expectedFlags );
+                                               0, expectedFlags, flagsTodo );
 
         checkNoMorePlayerMessages_( line, dp );
 
