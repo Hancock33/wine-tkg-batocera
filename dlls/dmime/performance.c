@@ -1678,11 +1678,11 @@ static HRESULT WINAPI performance_CreateAudioPath(IDirectMusicPerformance8 *ifac
         ERR("Unexpected object class %s for source config.\n", debugstr_dmguid(&objDesc.guidClass));
         return E_INVALIDARG;
     }
-
+FIXME("4\n");
     hr = path_config_get_audio_path_params(pSourceConfig, &format, &desc, &port_params);
     if (FAILED(hr))
         return hr;
-
+FIXME("5\n");
     hr = perf_dmport_create(This, &port_params);
     if (FAILED(hr))
         return hr;

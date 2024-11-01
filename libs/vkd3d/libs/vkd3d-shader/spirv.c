@@ -1913,7 +1913,11 @@ static uint32_t vkd3d_spirv_get_type_id(struct vkd3d_spirv_builder *builder,
     uint32_t scalar_id, type_id;
 
     VKD3D_ASSERT(component_type < VKD3D_SHADER_COMPONENT_TYPE_COUNT);
-    VKD3D_ASSERT(1 <= component_count && component_count <= VKD3D_VEC4_SIZE);
+    if (!component_count || component_count > VKD3D_VEC4_SIZE)
+    {
+        ERR("Invalid component count %u.\n", component_count);
+        return 0;
+    }
 
     if ((type_id = builder->numeric_type_ids[component_type][component_count - 1]))
         return type_id;
@@ -3192,6 +3196,14 @@ static bool spirv_compiler_get_register_name(char *buffer, unsigned int buffer_s
         case VKD3DSPR_CONSTBUFFER:
             snprintf(buffer, buffer_size, "cb%u_%u", reg->idx[0].offset, reg->idx[1].offset);
             break;
+        case VKD3DSPR_RASTOUT:
+            if (idx == VSIR_RASTOUT_POINT_SIZE)
+            {
+                snprintf(buffer, buffer_size, "oPts");
+                break;
+            }
+            FIXME("Unhandled rastout register %#x.\n", idx);
+            return false;
         case VKD3DSPR_INPUT:
             snprintf(buffer, buffer_size, "v%u", idx);
             break;

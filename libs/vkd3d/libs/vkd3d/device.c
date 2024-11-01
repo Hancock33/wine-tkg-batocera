@@ -136,7 +136,8 @@ static HRESULT vkd3d_create_vk_descriptor_heap_layout(struct d3d12_device *devic
         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
     };
 
-    if (device->vk_info.EXT_mutable_descriptor_type && index && index != VKD3D_SET_INDEX_UAV_COUNTER
+    if (device->vk_info.EXT_mutable_descriptor_type
+            && index != VKD3D_SET_INDEX_MUTABLE && index != VKD3D_SET_INDEX_UAV_COUNTER
             && device->vk_descriptor_heap_layouts[index].applicable_heap_type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)
     {
         device->vk_descriptor_heap_layouts[index].vk_set_layout = VK_NULL_HANDLE;
@@ -144,7 +145,7 @@ static HRESULT vkd3d_create_vk_descriptor_heap_layout(struct d3d12_device *devic
     }
 
     binding.binding = 0;
-    binding.descriptorType = (device->vk_info.EXT_mutable_descriptor_type && !index)
+    binding.descriptorType = (device->vk_info.EXT_mutable_descriptor_type && index == VKD3D_SET_INDEX_MUTABLE)
             ? VK_DESCRIPTOR_TYPE_MUTABLE_EXT : device->vk_descriptor_heap_layouts[index].type;
     binding.descriptorCount = device->vk_descriptor_heap_layouts[index].count;
     binding.stageFlags = VK_SHADER_STAGE_ALL;
@@ -200,14 +201,20 @@ static HRESULT vkd3d_vk_descriptor_heap_layouts_init(struct d3d12_device *device
 {
     static const struct vkd3d_vk_descriptor_heap_layout vk_descriptor_heap_layouts[VKD3D_SET_INDEX_COUNT] =
     {
-        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV},
-        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV},
-        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, false, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV},
-        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV},
-        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, false, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV},
-        {VK_DESCRIPTOR_TYPE_SAMPLER, false, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER},
-        /* UAV counters */
-        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV},
+        [VKD3D_SET_INDEX_UNIFORM_BUFFER] =
+                {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV},
+        [VKD3D_SET_INDEX_UNIFORM_TEXEL_BUFFER] =
+                {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV},
+        [VKD3D_SET_INDEX_SAMPLED_IMAGE] =
+                {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, false, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV},
+        [VKD3D_SET_INDEX_STORAGE_TEXEL_BUFFER] =
+                {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV},
+        [VKD3D_SET_INDEX_STORAGE_IMAGE] =
+                {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, false, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV},
+        [VKD3D_SET_INDEX_SAMPLER] =
+                {VK_DESCRIPTOR_TYPE_SAMPLER, false, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER},
+        [VKD3D_SET_INDEX_UAV_COUNTER] =
+                {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV},
     };
     const struct vkd3d_device_descriptor_limits *limits = &device->vk_info.descriptor_limits;
     enum vkd3d_vk_descriptor_set_index set;
@@ -1689,7 +1696,7 @@ static HRESULT vkd3d_init_device_caps(struct d3d12_device *device,
     VkPhysicalDeviceDescriptorIndexingFeaturesEXT *descriptor_indexing;
     VkPhysicalDevice physical_device = device->vk_physical_device;
     struct vkd3d_vulkan_info *vulkan_info = &device->vk_info;
-    VkExtensionProperties *vk_extensions;
+    VkExtensionProperties *vk_extensions = NULL;
     VkPhysicalDeviceFeatures *features;
     uint32_t vk_extension_count;
     HRESULT hr;
@@ -1918,24 +1925,26 @@ static HRESULT vkd3d_init_device_caps(struct d3d12_device *device,
             && descriptor_indexing->descriptorBindingUniformTexelBufferUpdateAfterBind
             && descriptor_indexing->descriptorBindingStorageTexelBufferUpdateAfterBind;
 
-    /* Many Vulkan implementations allow up to 8 descriptor sets. Unfortunately
-     * using vkd3d with Vulkan heaps and push descriptors currently requires up
-     * to 9 descriptor sets (up to one for the push descriptors, up to one for
-     * the static samplers and seven for Vulkan heaps, one for each needed
-     * descriptor type). If we detect such situation, we disable push
-     * descriptors, which allows us to stay within the limits (not doing so is
-     * fatal on many implmentations).
-     *
-     * It is possible that a different strategy might be used. For example, we
-     * could move the static samplers to one of the seven Vulkan heaps sets. Or
-     * we could decide whether to create the push descriptor set when creating
-     * the root signature, depending on whether there are static samplers or
-     * not. */
-    if (device->vk_info.device_limits.maxBoundDescriptorSets == 8 && device->use_vk_heaps
-            && device->vk_info.KHR_push_descriptor)
+    if (device->use_vk_heaps && device->vk_info.KHR_push_descriptor)
     {
-        TRACE("Disabling VK_KHR_push_descriptor to save a descriptor set.\n");
-        device->vk_info.KHR_push_descriptor = VK_FALSE;
+        /* VKD3D_SET_INDEX_COUNT for the Vulkan heaps, one for the push
+         * descriptors set and one for the static samplers set. */
+        unsigned int descriptor_set_count = VKD3D_SET_INDEX_COUNT + 2;
+
+        /* A mutable descriptor set can replace all those that should otherwise
+         * back the SRV-UAV-CBV descriptor heap. */
+        if (device->vk_info.EXT_mutable_descriptor_type)
+            descriptor_set_count -= VKD3D_SET_INDEX_COUNT - (VKD3D_SET_INDEX_MUTABLE + 1);
+
+        /* For many Vulkan implementations maxBoundDescriptorSets == 8; also,
+         * if mutable descriptors are not available the descriptor set count
+         * will be 9; so saving a descriptor set is going to be often
+         * significant. */
+        if (descriptor_set_count > device->vk_info.device_limits.maxBoundDescriptorSets)
+        {
+            WARN("Disabling VK_KHR_push_descriptor to save a descriptor set.\n");
+            device->vk_info.KHR_push_descriptor = VK_FALSE;
+        }
     }
 
     if (device->use_vk_heaps)

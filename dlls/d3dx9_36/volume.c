@@ -136,7 +136,7 @@ HRESULT WINAPI D3DXLoadVolumeFromMemory(IDirect3DVolume9 *dst_volume,
     }
 
     hr = d3dx_pixels_init(src_memory, src_row_pitch, src_slice_pitch,
-        src_palette, src_format, src_box->Left, src_box->Top, src_box->Right, src_box->Bottom,
+        src_palette, src_format_desc->format, src_box->Left, src_box->Top, src_box->Right, src_box->Bottom,
         src_box->Front, src_box->Back, &src_pixels);
     if (FAILED(hr))
         return hr;
@@ -209,8 +209,9 @@ HRESULT WINAPI D3DXLoadVolumeFromFileInMemory(IDirect3DVolume9 *dst_volume, cons
     if (FAILED(hr))
         goto exit;
 
-    hr = D3DXLoadVolumeFromMemory(dst_volume, dst_palette, dst_box, pixels.data, image_info.Format,
-            pixels.row_pitch, pixels.slice_pitch, pixels.palette, &box, filter, color_key);
+    hr = D3DXLoadVolumeFromMemory(dst_volume, dst_palette, dst_box, pixels.data,
+            d3dformat_from_d3dx_pixel_format_id(image.format), pixels.row_pitch, pixels.slice_pitch, pixels.palette,
+            &box, filter, color_key);
     if (SUCCEEDED(hr) && src_info)
         *src_info = image_info;
 
