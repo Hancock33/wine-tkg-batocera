@@ -25,5 +25,6 @@
 #endif
 
 #define DO_NO_IMPORTS
+#define _WINTYPES
 #include "windows.foundation.idl"
 #include "windows.foundation.metadata.idl"

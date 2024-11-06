@@ -585,6 +585,8 @@ enum vkd3d_shader_opcode
     VKD3DSIH_XOR,
 
     VKD3DSIH_INVALID,
+
+    VKD3DSIH_COUNT,
 };
 
 enum vkd3d_shader_register_type
@@ -1424,6 +1426,7 @@ struct vsir_program
     bool use_vocp;
     bool has_point_size;
     bool has_point_coord;
+    uint8_t diffuse_written_mask;
     enum vsir_control_flow_type cf_type;
     enum vsir_normalisation_level normalisation_level;
 
@@ -1441,6 +1444,8 @@ bool vsir_program_init(struct vsir_program *program, const struct vkd3d_shader_c
         const struct vkd3d_shader_version *version, unsigned int reserve, enum vsir_control_flow_type cf_type,
         enum vsir_normalisation_level normalisation_level);
 enum vkd3d_result vsir_program_transform(struct vsir_program *program, uint64_t config_flags,
+        const struct vkd3d_shader_compile_info *compile_info, struct vkd3d_shader_message_context *message_context);
+enum vkd3d_result vsir_program_transform_early(struct vsir_program *program, uint64_t config_flags,
         const struct vkd3d_shader_compile_info *compile_info, struct vkd3d_shader_message_context *message_context);
 enum vkd3d_result vsir_program_validate(struct vsir_program *program, uint64_t config_flags,
         const char *source_name, struct vkd3d_shader_message_context *message_context);

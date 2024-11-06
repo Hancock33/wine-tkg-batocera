@@ -496,7 +496,7 @@ static int is_cursor_clipped( struct desktop *desktop )
 {
     const desktop_shm_t *desktop_shm = desktop->shared;
     rectangle_t top_rect, clip_rect = desktop_shm->cursor.clip;
-    get_top_window_rectangle( desktop, &top_rect );
+    get_virtual_screen_rect( desktop, &top_rect, 1 );
     return !is_rect_equal( &clip_rect, &top_rect );
 }
 
@@ -636,7 +636,7 @@ void set_clip_rectangle( struct desktop *desktop, const rectangle_t *rect, unsig
     unsigned int old_flags;
     int x, y;
 
-    get_top_window_rectangle( desktop, &top_rect );
+    get_virtual_screen_rect( desktop, &top_rect, 1 );
     if (rect)
     {
         new_rect = *rect;
@@ -2599,7 +2599,7 @@ static void queue_pointer_message( struct pointer *pointer, int repeated )
     struct message *msg;
     int x, y;
 
-    get_top_window_rectangle( desktop, &top_rect );
+    get_virtual_screen_rect( desktop, &top_rect, 0 );
     x = LOWORD(input->hw.lparam) * (top_rect.right - top_rect.left) / 65535;
     y = HIWORD(input->hw.lparam) * (top_rect.bottom - top_rect.top) / 65535;
 

@@ -131,7 +131,8 @@ struct GroupList
 };
 typedef struct GroupList* lpGroupList;
 
-typedef DWORD FN_COPY_MESSAGE( DPMSG_GENERIC *genericDst, DPMSG_GENERIC *genericSrc, BOOL ansi );
+typedef DWORD FN_COPY_MESSAGE( DPMSG_GENERIC *genericDst, DPMSG_GENERIC *genericSrc,
+                               DWORD genericSize, BOOL ansi );
 
 struct DPMSG
 {
@@ -140,6 +141,7 @@ struct DPMSG
   DPID toId;
   DPMSG_GENERIC* msg;
   FN_COPY_MESSAGE *copyMessage;
+  DWORD genericSize;
 };
 typedef struct DPMSG* LPDPMSG;
 
@@ -172,7 +174,6 @@ typedef struct tagDirectPlay2Data
 
   /* I/O Msg queues */
   DPQ_HEAD( DPMSG ) receiveMsgs; /* Msg receive queue */
-  DPQ_HEAD( DPMSG ) sendMsgs;    /* Msg send pending queue */
 
   /* Information about the service provider active on this connection */
   SPINITDATA spData;
@@ -203,8 +204,7 @@ typedef struct IDirectPlayImpl
   IDirectPlay3 IDirectPlay3_iface;
   IDirectPlay4A IDirectPlay4A_iface;
   IDirectPlay4  IDirectPlay4_iface;
-  LONG numIfaces; /* "in use interfaces" refcount */
-  LONG ref, ref2A, ref2, ref3A, ref3, ref4A, ref4;
+  LONG ref;
   CRITICAL_SECTION lock;
   DirectPlay2Data *dp2;
 } IDirectPlayImpl;

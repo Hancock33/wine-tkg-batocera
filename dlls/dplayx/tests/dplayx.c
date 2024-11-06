@@ -965,6 +965,12 @@ typedef struct
     PackedPlayer playerInfo;
 } CreatePlayer;
 
+typedef struct
+{
+    DPID fromId;
+    DPID toId;
+} GameMessage;
+
 #include "poppack.h"
 
 #define bindUdp( port ) bindUdp_( __LINE__, port )
@@ -1149,19 +1155,18 @@ static void checkSpData_( int line, SpData *spData )
 }
 
 #define checkPackedPlayer( player, expectedFlags, expectedId, expectedShortNameLength, expectedLongNameLength, \
-                           expectedPlayerDataSize, expectedSystemPlayerId, flagsTodo ) \
+                           expectedPlayerDataSize, expectedSystemPlayerId ) \
         checkPackedPlayer_( __LINE__, player, expectedFlags, expectedId, expectedShortNameLength, expectedLongNameLength, \
-                            expectedPlayerDataSize, expectedSystemPlayerId, flagsTodo )
+                            expectedPlayerDataSize, expectedSystemPlayerId )
 static void checkPackedPlayer_( int line, PackedPlayer *player, DWORD expectedFlags, DPID expectedId,
                                 DWORD expectedShortNameLength, DWORD expectedLongNameLength,
-                                DWORD expectedPlayerDataSize, DPID expectedSystemPlayerId, BOOL flagsTodo )
+                                DWORD expectedPlayerDataSize, DPID expectedSystemPlayerId )
 {
     DWORD expectedSize = sizeof( PackedPlayer ) + expectedShortNameLength + expectedLongNameLength + sizeof( SpData )
                        + expectedPlayerDataSize;
 
     ok_( __FILE__, line )( player->size == expectedSize, "got player info size %lu.\n", player->size );
-    todo_wine_if( flagsTodo ) ok_( __FILE__, line )( player->flags == expectedFlags, "got flags %#lx.\n",
-                                                     player->flags );
+    ok_( __FILE__, line )( player->flags == expectedFlags, "got flags %#lx.\n", player->flags );
     ok_( __FILE__, line )( player->id == expectedId, "got player info player id %#lx.\n", player->id );
     ok_( __FILE__, line )( player->shortNameLength == expectedShortNameLength, "got short name length %lu.\n",
                            player->shortNameLength );
@@ -1175,6 +1180,14 @@ static void checkPackedPlayer_( int line, PackedPlayer *player, DWORD expectedFl
                            player->systemPlayerId );
     ok_( __FILE__, line )( player->fixedSize == sizeof( PackedPlayer ), "got fixed size %lu.\n", player->fixedSize );
     ok_( __FILE__, line )( !player->parentId, "got parent id %#lx.\n", player->parentId );
+}
+
+#define checkGameMessage( message, expectedFromId, expectedToId ) \
+        checkGameMessage_( __LINE__, message, expectedFromId, expectedToId )
+static void checkGameMessage_( int line, GameMessage *message, DPID expectedFromId, DPID expectedToId )
+{
+    ok_( __FILE__, line )( message->fromId == expectedFromId, "got source id %#lx.\n", message->fromId );
+    ok_( __FILE__, line )( message->toId == expectedToId, "got destination id %#lx.\n", message->toId );
 }
 
 #define receiveEnumSessionsRequest( sock, expectedAppGuid, expectedPassword, expectedFlags ) \
@@ -1270,7 +1283,7 @@ static void sendEnumSessionsReply_( int line, SOCKET sock, unsigned short port, 
 }
 
 #define receiveRequestPlayerId( sock, expectedFlags, flagsTodo ) receiveRequestPlayerId_( __LINE__, sock, expectedFlags, flagsTodo )
-static unsigned short receiveRequestPlayerId_( int line, SOCKET sock, DWORD expectedFlags, BOOL flagsTodo )
+static unsigned short receiveRequestPlayerId_( int line, SOCKET sock, DWORD expectedFlags )
 {
     struct
     {
@@ -1285,8 +1298,7 @@ static unsigned short receiveRequestPlayerId_( int line, SOCKET sock, DWORD expe
 
     port = checkSpHeader_( line, &request.spHeader, sizeof( request ) );
     checkMessageHeader_( line, &request.request.header, 5 );
-    todo_wine_if( flagsTodo ) ok_( __FILE__, line )( request.request.flags == expectedFlags, "got flags %#lx.\n",
-                                                     request.request.flags );
+    ok_( __FILE__, line )( request.request.flags == expectedFlags, "got flags %#lx.\n", request.request.flags );
 
     return port;
 }
@@ -1362,7 +1374,7 @@ static unsigned short receiveAddForwardRequest_( int line, SOCKET sock, DPID exp
                            request.request.createOffset );
     ok_( __FILE__, line )( request.request.passwordOffset == 108, "got password offset %lu.\n",
                            request.request.passwordOffset );
-    checkPackedPlayer_( line, &request.request.playerInfo, 0x9, expectedPlayerId, 0, 0, 0, expectedPlayerId, FALSE );
+    checkPackedPlayer_( line, &request.request.playerInfo, 0x9, expectedPlayerId, 0, 0, 0, expectedPlayerId );
     checkSpData_( line, &request.request.spData );
 
     wsResult = receiveMessage_( line, sock, password, expectedPasswordSize );
@@ -1482,7 +1494,7 @@ static void sendSuperEnumPlayersReply_( int line, SOCKET sock, unsigned short tc
             .flags = 0x8,
             .id = 0x1337,
             .infoMask = 0x17,
-            .versionOrSystemPlayerId = 14,
+            .versionOrSystemPlayerId = 0x51573,
         },
         .shortName = SHORT_NAME,
         .longName = LONG_NAME,
@@ -1639,12 +1651,12 @@ static unsigned short receiveAddForwardAck_( int line, SOCKET sock, DPID expecte
 }
 
 #define receiveCreatePlayer( sock, expectedPlayerId, expectedFlags, expectedShortName, expectedLongName, \
-                             expectedPlayerData, expectedPlayerDataSize, flagsTodo ) \
+                             expectedPlayerData, expectedPlayerDataSize ) \
         receiveCreatePlayer_( __LINE__, sock, expectedPlayerId, expectedFlags, expectedShortName, expectedLongName, \
-                              expectedPlayerData, expectedPlayerDataSize, flagsTodo )
+                              expectedPlayerData, expectedPlayerDataSize )
 static unsigned short receiveCreatePlayer_( int line, SOCKET sock, DPID expectedPlayerId, DWORD expectedFlags,
                                             const WCHAR *expectedShortName, const WCHAR *expectedLongName,
-                                            void *expectedPlayerData, DWORD expectedPlayerDataSize, BOOL flagsTodo )
+                                            void *expectedPlayerData, DWORD expectedPlayerDataSize )
 {
     struct
     {
@@ -1682,7 +1694,7 @@ static unsigned short receiveCreatePlayer_( int line, SOCKET sock, DPID expected
     ok_( __FILE__, line )( !request.request.passwordOffset, "got password offset %lu.\n",
                            request.request.passwordOffset );
     checkPackedPlayer_( line, &request.request.playerInfo, expectedFlags, expectedPlayerId, expectedShortNameSize,
-                        expectedLongNameSize, expectedPlayerDataSize, 0x12345678, flagsTodo );
+                        expectedLongNameSize, expectedPlayerDataSize, 0x12345678 );
 
     if ( expectedShortName )
     {
@@ -1724,6 +1736,134 @@ static unsigned short receiveCreatePlayer_( int line, SOCKET sock, DPID expected
 
     ok_( __FILE__, line )( wsResult == sizeof( reserved2 ), "recv() returned %d.\n", wsResult );
     ok_( __FILE__, line )( !reserved2, "got reserved2 %lu.\n", reserved2 );
+
+    return port;
+}
+
+#define sendCreatePlayer( sock, tcpPort, udpPort, shortName, longName, playerData, playerDataSize ) \
+        sendCreatePlayer_( __LINE__, sock, tcpPort, udpPort, shortName, longName, playerData, playerDataSize )
+static void sendCreatePlayer_( int line, SOCKET sock, unsigned short tcpPort, unsigned short udpPort,
+                               const WCHAR *shortName, const WCHAR *longName, void *playerData, DWORD playerDataSize )
+{
+    struct
+    {
+        SpHeader spHeader;
+        CreatePlayer request;
+    } request =
+    {
+        .spHeader =
+        {
+            .mixed = 0xfab00000,
+            .addr =
+            {
+                .sin_family = AF_INET,
+                .sin_port = htons( tcpPort ),
+            },
+        },
+        .request =
+        {
+            .header =
+            {
+                .magic = 0x79616c70,
+                .command = 8,
+                .version = 14,
+            },
+            .toId = 0,
+            .playerId = 0x07734,
+            .groupId = 0,
+            .createOffset = 28,
+            .passwordOffset = 0,
+            .playerInfo =
+            {
+                .size = sizeof( request.request.playerInfo ) + sizeof( SpData ),
+                .flags = 0x8,
+                .id = 0x07734,
+                .shortNameLength = 0,
+                .longNameLength = 0,
+                .spDataSize = sizeof( SpData ),
+                .playerDataSize = 0,
+                .playerCount = 0,
+                .systemPlayerId = 0x51573,
+                .fixedSize = 48,
+                .playerVersion = 14,
+                .parentId = 0,
+            },
+        },
+    };
+    SpData spData = {
+        .tcpAddr.sin_family = AF_INET,
+        .tcpAddr.sin_port = htons( tcpPort ),
+        .udpAddr.sin_family = AF_INET,
+        .udpAddr.sin_port = htons( udpPort ),
+    };
+    char reserved[ 6 ] = { 0 };
+    DWORD shortNameSize = 0;
+    DWORD longNameSize = 0;
+    int wsResult;
+
+    if ( shortName )
+        shortNameSize = (wcslen( shortName ) + 1) * sizeof( WCHAR );
+
+    if ( longName )
+        longNameSize = (wcslen( longName ) + 1) * sizeof( WCHAR );
+
+    request.spHeader.mixed += sizeof( request ) + shortNameSize + longNameSize + sizeof( spData )
+                            + playerDataSize + sizeof( reserved );
+    request.request.playerInfo.size += shortNameSize + longNameSize + playerDataSize;
+    request.request.playerInfo.shortNameLength = shortNameSize;
+    request.request.playerInfo.longNameLength = longNameSize;
+    request.request.playerInfo.playerDataSize = playerDataSize;
+
+    wsResult = send( sock, (char *) &request, sizeof( request ), 0 );
+    ok_( __FILE__, line )( wsResult == sizeof( request ), "send() returned %d.\n", wsResult );
+
+    if ( shortName )
+    {
+        wsResult = send( sock, (char *) shortName, shortNameSize, 0 );
+        ok_( __FILE__, line )( wsResult == shortNameSize, "send() returned %d.\n", wsResult );
+    }
+
+    if ( longName )
+    {
+        wsResult = send( sock, (char *) longName, longNameSize, 0 );
+        ok_( __FILE__, line )( wsResult == longNameSize, "send() returned %d.\n", wsResult );
+    }
+
+    wsResult = send( sock, (char *) &spData, sizeof( spData ), 0 );
+    ok_( __FILE__, line )( wsResult == sizeof( spData ), "send() returned %d.\n", wsResult );
+
+    if ( playerData )
+    {
+        wsResult = send( sock, playerData, playerDataSize, 0 );
+        ok_( __FILE__, line )( wsResult == playerDataSize, "send() returned %d.\n", wsResult );
+    }
+
+    wsResult = send( sock, reserved, sizeof( reserved ), 0 );
+    ok_( __FILE__, line )( wsResult == sizeof( reserved ), "send() returned %d.\n", wsResult );
+}
+
+#define receiveGuaranteedGameMessage( sock, expectedFromId, expectedToId, expectedData, expectedDataSize ) \
+        receiveGuaranteedGameMessage_( __LINE__, sock, expectedFromId, expectedToId, expectedData, expectedDataSize )
+static unsigned short receiveGuaranteedGameMessage_( int line, SOCKET sock, DPID expectedFromId, DPID expectedToId,
+                                                     void *expectedData, DWORD expectedDataSize )
+{
+    struct
+    {
+        SpHeader spHeader;
+        GameMessage request;
+        BYTE data[ 256 ];
+    } request;
+    unsigned short port;
+    int wsResult;
+
+    DWORD expectedSize = sizeof( request.spHeader ) + sizeof( request.request ) + expectedDataSize;
+
+    wsResult = receiveMessage_( line, sock, &request, expectedSize );
+    ok_( __FILE__, line )( wsResult == expectedSize, "recv() returned %d.\n", wsResult );
+
+    port = checkSpHeader_( line, &request.spHeader, expectedSize );
+    checkGameMessage_( line, &request.request, expectedFromId, expectedToId );
+    ok_( __FILE__, line )( !memcmp( &request.data, expectedData, expectedDataSize ), "message data didn't match.\n" );
 
     return port;
 }
@@ -2357,7 +2497,6 @@ typedef struct
     DWORD expectedFlags;
     BYTE *expectedPlayerData;
     DWORD expectedPlayerDataSize;
-    BOOL flagsTodo;
     int actualCount;
 } ExpectedPlayer;
 
@@ -2414,15 +2553,14 @@ static BOOL CALLBACK checkPlayerListCallback( DPID dpid, DWORD playerType, const
                 ok_( __FILE__, data->line )( !name->lpszLongNameA, "got long name %s.\n",
                                              wine_dbgstr_a( name->lpszLongNameA ) );
             }
-            todo_wine_if( player->flagsTodo ) ok_( __FILE__, data->line )( flags == player->expectedFlags,
-                                                                           "got flags %#lx.\n", flags );
+            ok_( __FILE__, data->line )( flags == player->expectedFlags, "got flags %#lx.\n", flags );
 
             memset( &playerData, 0xcc, sizeof( playerData ) );
             playerDataSize = sizeof( playerData );
             hr = IDirectPlayX_GetPlayerData( data->dp, dpid, playerData, &playerDataSize, DPGET_REMOTE );
             ok_( __FILE__, data->line )( hr == DP_OK, "GetPlayerData() returned %#lx.\n", hr );
-            todo_wine ok_( __FILE__, data->line )( playerDataSize == player->expectedPlayerDataSize,
-                                                   "got player data size %lu.\n", playerDataSize );
+            ok_( __FILE__, data->line )( playerDataSize == player->expectedPlayerDataSize,
+                                         "got player data size %lu.\n", playerDataSize );
             ok_( __FILE__, data->line )( !memcmp( playerData, player->expectedPlayerData, player->expectedPlayerDataSize ),
                                          "player data doesn't match.\n" );
 
@@ -2506,12 +2644,12 @@ static void checkPlayerList_( int line, IDirectPlay4 *dp, ExpectedPlayer *expect
 }
 
 #define checkPlayerExists( dp, expectedDpid, expectedPlayerType, expectedShortName, expectedLongName, expectedFlags, \
-                           expectedPlayerData, expectedPlayerDataSize, flagsTodo ) \
+                           expectedPlayerData, expectedPlayerDataSize ) \
         checkPlayerExists_( __LINE__, dp, expectedDpid, expectedPlayerType, expectedShortName, expectedLongName, \
-                            expectedFlags, expectedPlayerData, expectedPlayerDataSize, flagsTodo )
+                            expectedFlags, expectedPlayerData, expectedPlayerDataSize )
 static void checkPlayerExists_( int line, IDirectPlay4 *dp, DPID expectedDpid, DWORD expectedPlayerType,
                                const char *expectedShortName, const char *expectedLongName, DWORD expectedFlags,
-                               BYTE *expectedPlayerData, DWORD expectedPlayerDataSize, BOOL flagsTodo )
+                               BYTE *expectedPlayerData, DWORD expectedPlayerDataSize )
 {
     ExpectedPlayer expectedPlayer =
     {
@@ -2522,7 +2660,6 @@ static void checkPlayerExists_( int line, IDirectPlay4 *dp, DPID expectedDpid, D
         .expectedFlags = expectedFlags,
         .expectedPlayerData = expectedPlayerData,
         .expectedPlayerDataSize = expectedPlayerDataSize,
-        .flagsTodo = flagsTodo,
     };
     CheckPlayerListCallbackData data =
     {
@@ -2574,7 +2711,7 @@ static void check_Open_( int line, IDirectPlay4A *dp, DPSESSIONDESC2 *dpsd, cons
         recvSock = acceptTcp_( line, listenSock );
         ok_( __FILE__, line )( recvSock != INVALID_SOCKET, "accept() returned %#Ix.\n", recvSock );
 
-        port = receiveRequestPlayerId_( line, recvSock, 0x9, FALSE );
+        port = receiveRequestPlayerId_( line, recvSock, 0x9 );
 
         sendSock = connectTcp_( line, port );
 
@@ -2979,7 +3116,7 @@ static void joinSession_( int line, IDirectPlay4 *dp, DPSESSIONDESC2 *dpsd, DPSE
     *recvSock = acceptTcp_( line, listenSock );
     ok_( __FILE__, line )( *recvSock != INVALID_SOCKET, "accept() returned %#Ix.\n", *recvSock );
 
-    receiveRequestPlayerId_( line, *recvSock, 0x9, FALSE );
+    receiveRequestPlayerId_( line, *recvSock, 0x9 );
     sendRequestPlayerReply_( line, *sendSock, 2349, 0x12345678, DP_OK );
     receiveAddForwardRequest_( line, *recvSock, 0x12345678, L"", serverDpsd->dwReserved1 );
     sendSuperEnumPlayersReply_( line, *sendSock, 2349, 2399, serverDpsd, L"normal" );
@@ -4053,15 +4190,14 @@ if(0)
 
 #define checkCreatePlayerOrGroupMessage( dp, expectedType, expectedDpid, expectedCurrentPlayers, expectedPlayerData, \
                                          expectedPlayerDataSize, expectedShortName, expectedLongName, expectedParent, \
-                                         expectedFlags, flagsTodo ) \
+                                         expectedFlags ) \
         checkCreatePlayerOrGroupMessage_( __LINE__, dp, expectedType, expectedDpid, expectedCurrentPlayers, \
                                           expectedPlayerData, expectedPlayerDataSize, expectedShortName, \
-                                          expectedLongName, expectedParent, expectedFlags, flagsTodo )
+                                          expectedLongName, expectedParent, expectedFlags )
 static DPID checkCreatePlayerOrGroupMessage_( int line, IDirectPlay4 *dp, DWORD expectedType, DPID expectedDpid,
                                               DWORD expectedCurrentPlayers, void *expectedPlayerData,
                                               DWORD expectedPlayerDataSize, const char *expectedShortName,
-                                              const char *expectedLongName, DPID expectedParent, DWORD expectedFlags,
-                                              BOOL flagsTodo )
+                                              const char *expectedLongName, DPID expectedParent, DWORD expectedFlags )
 {
     DPMSG_CREATEPLAYERORGROUP *msg;
     DWORD expectedShortNameSize;
@@ -4119,7 +4255,7 @@ static DPID checkCreatePlayerOrGroupMessage_( int line, IDirectPlay4 *dp, DWORD 
                                wine_dbgstr_a( msg->dpnName.lpszLongNameA ) );
     }
     ok_( __FILE__, line )( msg->dpIdParent == expectedParent, "got parent id %#lx.\n", msg->dpIdParent );
-    todo_wine_if( flagsTodo ) ok_( __FILE__, line )( msg->dwFlags == expectedFlags, "got flags %#lx.\n", msg->dwFlags );
+    ok_( __FILE__, line )( msg->dwFlags == expectedFlags, "got flags %#lx.\n", msg->dwFlags );
 
     expectedShortNameSize = expectedShortName ? strlen( expectedShortName ) + 1 : 0;
     expectedLongNameSize = expectedLongName ? strlen( expectedLongName ) + 1 : 0;
@@ -4127,6 +4263,30 @@ static DPID checkCreatePlayerOrGroupMessage_( int line, IDirectPlay4 *dp, DWORD 
                         + expectedPlayerDataSize;
 
     ok_( __FILE__, line )( msgDataSize == expectedMsgDataSize, "got message size %lu.\n", msgDataSize );
+
+    return toId;
+}
+
+#define checkPlayerMessage( dp, expectedFromId, expectedData, expectedDataSize ) \
+        checkPlayerMessage_( __LINE__, dp, expectedFromId, expectedData, expectedDataSize )
+static DPID checkPlayerMessage_( int line, IDirectPlay4 *dp, DPID expectedFromId, void *expectedData,
+                                 DWORD expectedDataSize )
+{
+    DPID fromId, toId;
+    BYTE data[ 1024 ];
+    DWORD dataSize;
+    HRESULT hr;
+
+    fromId = 0xdeadbeef;
+    toId = 0xdeadbeef;
+    memset( data, 0xcc, sizeof( data ) );
+    dataSize = sizeof( data );
+    hr = IDirectPlayX_Receive( dp, &fromId, &toId, 0, data, &dataSize );
+    ok_( __FILE__, line )( hr == DP_OK, "got hr %#lx.\n", hr );
+
+    ok_( __FILE__, line )( fromId == expectedFromId, "got source id %#lx.\n", fromId );
+    ok_( __FILE__, line )( !memcmp( data, expectedData, expectedDataSize ), "message data didn't match.\n" );
+    ok_( __FILE__, line )( dataSize == expectedDataSize, "got data size %lu.\n", dataSize );
 
     return toId;
 }
@@ -4166,15 +4326,14 @@ static BOOL CALLBACK getPlayerIdsCallback( DPID dpid, DWORD playerType, const DP
 
 #define checkCreatePlayerOrGroupMessages( dp, expectedType, expectedDpid, expectedCurrentPlayers, expectedPlayerData, \
                                           expectedPlayerDataSize, expectedShortName, expectedLongName, expectedParent, \
-                                          expectedFlags, flagsTodo ) \
+                                          expectedFlags ) \
         checkCreatePlayerOrGroupMessages_( __LINE__, dp, expectedType, expectedDpid, expectedCurrentPlayers, \
                                            expectedPlayerData, expectedPlayerDataSize, expectedShortName, \
-                                           expectedLongName, expectedParent, expectedFlags, flagsTodo )
+                                           expectedLongName, expectedParent, expectedFlags )
 static void checkCreatePlayerOrGroupMessages_( int line, IDirectPlay4 *dp, DWORD expectedType, DPID expectedDpid,
                                                DWORD expectedCurrentPlayers, void *expectedPlayerData,
                                                DWORD expectedPlayerDataSize, const char *expectedShortName,
-                                               const char *expectedLongName, DPID expectedParent, DWORD expectedFlags,
-                                               BOOL flagsTodo )
+                                               const char *expectedLongName, DPID expectedParent, DWORD expectedFlags )
 {
     GetPlayerIdsCallbackData data = { 0 };
     HRESULT hr;
@@ -4189,7 +4348,7 @@ static void checkCreatePlayerOrGroupMessages_( int line, IDirectPlay4 *dp, DWORD
     {
         dpid = checkCreatePlayerOrGroupMessage_( line, dp, expectedType, expectedDpid, expectedCurrentPlayers,
                                                  expectedPlayerData, expectedPlayerDataSize, expectedShortName,
-                                                 expectedLongName, expectedParent, expectedFlags, flagsTodo );
+                                                 expectedLongName, expectedParent, expectedFlags );
         for ( j = 0; j < data.idCount; ++j )
         {
             if ( data.ids[ j ] == dpid )
@@ -4204,15 +4363,15 @@ static void checkCreatePlayerOrGroupMessages_( int line, IDirectPlay4 *dp, DWORD
 
 #define check_CreatePlayer( dp, dpid, name, flags, expectedHr, expectedDpid, recvSock, requestExpected, \
                             expectedFlags, expectedShortName, expectedShortNameA, expectedLongName, expectedLongNameA, \
-                            expectedCurrentPlayers, flagsTodo ) \
+                            expectedCurrentPlayers ) \
         check_CreatePlayer_( __LINE__, dp, dpid, name, flags, expectedHr, expectedDpid, recvSock, requestExpected, \
                              expectedFlags, expectedShortName, expectedShortNameA, expectedLongName, expectedLongNameA, \
-                             expectedCurrentPlayers, flagsTodo )
+                             expectedCurrentPlayers )
 static void check_CreatePlayer_( int line, IDirectPlay4 *dp, DPID *dpid, DPNAME *name, DWORD flags, HRESULT expectedHr,
                                  DPID expectedDpid, SOCKET recvSock, BOOL requestExpected, DWORD expectedFlags,
                                  const WCHAR *expectedShortName, const char *expectedShortNameA,
                                  const WCHAR *expectedLongName, const char *expectedLongNameA,
-                                 DWORD expectedCurrentPlayers, BOOL flagsTodo )
+                                 DWORD expectedCurrentPlayers )
 {
     BYTE playerData[] = { 1, 2, 3, 4, 5, 6, 7, 8, };
     CreatePlayerParam *param;
@@ -4225,13 +4384,13 @@ static void check_CreatePlayer_( int line, IDirectPlay4 *dp, DPID *dpid, DPNAME 
     {
         unsigned short port;
 
-        port = receiveRequestPlayerId_( line, recvSock, expectedFlags, flagsTodo );
+        port = receiveRequestPlayerId_( line, recvSock, expectedFlags );
 
         sendSock = connectTcp_( line, port );
 
         sendRequestPlayerReply_( line, sendSock, 2349, expectedDpid, DP_OK );
         receiveCreatePlayer_( line, recvSock, expectedDpid, expectedFlags, expectedShortName, expectedLongName,
-                              playerData, sizeof( playerData ), flagsTodo );
+                              playerData, sizeof( playerData ) );
 
         hr = createPlayerAsyncWait( param, 2000 );
         ok_( __FILE__, line )( hr == expectedHr, "CreatePlayer() returned %#lx.\n", hr );
@@ -4239,12 +4398,12 @@ static void check_CreatePlayer_( int line, IDirectPlay4 *dp, DPID *dpid, DPNAME 
             ok_( __FILE__, line )( *dpid == expectedDpid, "got dpid %#lx.\n", *dpid );
 
         checkPlayerExists_( line, dp, expectedDpid, DPPLAYERTYPE_PLAYER, expectedShortNameA, expectedLongNameA,
-                            expectedFlags, playerData, sizeof( playerData ), flagsTodo );
+                            expectedFlags, playerData, sizeof( playerData ) );
 
         if ( hr == DP_OK )
             checkCreatePlayerOrGroupMessages_( line, dp, DPPLAYERTYPE_PLAYER, expectedDpid, expectedCurrentPlayers,
                                                playerData, sizeof( playerData ), expectedShortNameA, expectedLongNameA,
-                                               0, expectedFlags, flagsTodo );
+                                               0, expectedFlags );
 
         checkNoMorePlayerMessages_( line, dp );
 
@@ -4301,47 +4460,46 @@ static void test_CreatePlayer(void)
     /* Connection not initialized */
     dpid = 0xdeadbeef;
     check_CreatePlayer( dp, &dpid, NULL, 0, DPERR_UNINITIALIZED, 0xdeadbeef, INVALID_SOCKET, FALSE, 0, NULL, NULL,
-                        NULL, NULL, 0, FALSE );
+                        NULL, NULL, 0 );
 
     init_TCPIP_provider( dp, "127.0.0.1", 0 );
 
     /* Session not open */
     dpid = 0xdeadbeef;
     check_CreatePlayer( dp, &dpid, NULL, 0, DPERR_INVALIDPARAMS, 0xdeadbeef, INVALID_SOCKET, FALSE, 0, NULL, NULL,
-                        NULL, NULL, 0, FALSE );
+                        NULL, NULL, 0 );
 
     /* Join to normal session */
     joinSession( dp, &appGuidDpsd, &serverDpsd, &sendSock, &recvSock );
 
     /* Player name */
     dpid = 0xdeadbeef;
-    check_CreatePlayer( dp, &dpid, NULL, 0, DP_OK, 2, recvSock, TRUE, 0x8, NULL, NULL, NULL, NULL, 1, FALSE );
+    check_CreatePlayer( dp, &dpid, NULL, 0, DP_OK, 2, recvSock, TRUE, 0x8, NULL, NULL, NULL, NULL, 1 );
 
     dpid = 0xdeadbeef;
     check_CreatePlayer( dp, &dpid, &fullName, 0, DP_OK, 3, recvSock, TRUE, 0x8, L"short player name",
-                        "short player name", L"long player name", "long player name", 2, FALSE );
+                        "short player name", L"long player name", "long player name", 2 );
 
     name = fullName;
     name.dwSize = 1;
     dpid = 0xdeadbeef;
     check_CreatePlayer( dp, &dpid, &name, 0, DP_OK, 4, recvSock, TRUE, 0x8, L"short player name", "short player name",
-                        L"long player name", "long player name", 3, FALSE );
+                        L"long player name", "long player name", 3 );
 
     dpid = 0xdeadbeef;
-    check_CreatePlayer( dp, &dpid, &nullName, 0, DP_OK, 5, recvSock, TRUE, 0x8, NULL, NULL, NULL, NULL, 4, FALSE );
+    check_CreatePlayer( dp, &dpid, &nullName, 0, DP_OK, 5, recvSock, TRUE, 0x8, NULL, NULL, NULL, NULL, 4 );
 
     /* Null dpid */
     dpid = 0xdeadbeef;
-    check_CreatePlayer( dp, NULL, NULL, 0, DPERR_INVALIDPARAMS, 0, recvSock, FALSE, 0, NULL, NULL, NULL, NULL, 0,
-                        FALSE );
+    check_CreatePlayer( dp, NULL, NULL, 0, DPERR_INVALIDPARAMS, 0, recvSock, FALSE, 0, NULL, NULL, NULL, NULL, 0 );
 
     /* Flags */
     dpid = 0xdeadbeef;
-    check_CreatePlayer( dp, &dpid, NULL, 0, DP_OK, 6, recvSock, TRUE, 0x8, NULL, NULL, NULL, NULL, 5, FALSE );
+    check_CreatePlayer( dp, &dpid, NULL, 0, DP_OK, 6, recvSock, TRUE, 0x8, NULL, NULL, NULL, NULL, 5 );
 
     dpid = 0xdeadbeef;
-    check_CreatePlayer( dp, &dpid, NULL, DPPLAYER_SPECTATOR, DP_OK, 7, recvSock, TRUE, 0x208, NULL, NULL, NULL, NULL, 6,
-                        TRUE );
+    check_CreatePlayer( dp, &dpid, NULL, DPPLAYER_SPECTATOR, DP_OK, 7, recvSock, TRUE, 0x208, NULL, NULL, NULL, NULL,
+                        6 );
 
     closesocket( recvSock );
     closesocket( sendSock );
@@ -4518,6 +4676,88 @@ static void test_interactive_CreatePlayer(void)
     IDirectPlayX_Release( pDP[0] );
     IDirectPlayX_Release( pDP[1] );
 
+}
+
+#define createPlayer( dp, inDpid, event, data, dataSize, flags, sendSock, recvSock ) \
+        createPlayer_( __LINE__, dp, inDpid, event, data, dataSize, flags, sendSock, recvSock )
+static void createPlayer_( int line, IDirectPlay4 *dp, DPID inDpid, HANDLE event, void *data,
+                           DWORD dataSize, DWORD flags, SOCKET sendSock, SOCKET recvSock )
+{
+    CreatePlayerParam *param;
+    HRESULT hr;
+    DPID dpid;
+
+    dpid = 0xdeadbeef;
+    param = createPlayerAsync( dp, &dpid, NULL, event, data, dataSize, flags );
+
+    receiveRequestPlayerId_( line, recvSock, flags | DPPLAYER_LOCAL );
+
+    sendRequestPlayerReply_( line, sendSock, 2349, inDpid, DP_OK );
+
+    receiveCreatePlayer_( line, recvSock, inDpid, flags | DPPLAYER_LOCAL, NULL, NULL, data, dataSize );
+
+    hr = createPlayerAsyncWait( param, 2000 );
+    ok_( __FILE__, line )( hr == DP_OK, "got hr %#lx.\n", hr );
+    ok_( __FILE__, line )( dpid == inDpid, "got dpid %#lx.\n", dpid );
+}
+
+static void test_CREATEPLAYER(void)
+{
+    BYTE playerData[] = { 4, 3, 2, 1, };
+    DPSESSIONDESC2 appGuidDpsd =
+    {
+        .dwSize = sizeof( DPSESSIONDESC2 ),
+        .guidInstance = appGuid,
+        .guidApplication = appGuid,
+    };
+    DPSESSIONDESC2 serverDpsd =
+    {
+        .dwSize = sizeof( DPSESSIONDESC2 ),
+        .guidApplication = appGuid,
+        .guidInstance = appGuid,
+        .lpszSessionName = (WCHAR *) L"normal",
+        .dwReserved1 = 0xaabbccdd,
+    };
+    IDirectPlay4A *dp;
+    DWORD waitResult;
+    SOCKET sendSock;
+    SOCKET recvSock;
+    HANDLE event;
+    HRESULT hr;
+    DPID dpid;
+
+    event = CreateEventA( NULL, FALSE, FALSE, NULL );
+
+    hr = CoCreateInstance( &CLSID_DirectPlay, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectPlay4A, (void **) &dp );
+    ok( hr == DP_OK, "got hr %#lx.\n", hr );
+
+    init_TCPIP_provider( dp, "127.0.0.1", 0 );
+
+    joinSession( dp, &appGuidDpsd, &serverDpsd, &sendSock, &recvSock );
+
+    createPlayer( dp, 0x11223344, event, NULL, 0, 0, sendSock, recvSock );
+
+    sendCreatePlayer( sendSock, 2349, 2399, L"new player short name", L"new player long name", playerData,
+                      sizeof( playerData ) );
+
+    waitResult = WaitForSingleObject( event, 2000 );
+    ok( waitResult == WAIT_OBJECT_0, "message wait returned %lu\n", waitResult );
+
+    checkPlayerExists( dp, 0x07734, DPPLAYERTYPE_PLAYER, "new player short name", "new player long name",
+                       DPENUMPLAYERS_REMOTE, playerData, sizeof( playerData ) );
+
+    dpid = checkCreatePlayerOrGroupMessage( dp, DPPLAYERTYPE_PLAYER, 0x07734, 3, playerData, sizeof( playerData ),
+                                            "new player short name", "new player long name", 0, 0 );
+    ok( dpid == 0x11223344, "got destination id %#lx.\n", dpid );
+
+    checkNoMorePlayerMessages( dp );
+
+    closesocket( recvSock );
+    closesocket( sendSock );
+
+    IDirectPlayX_Release( dp );
+
+    CloseHandle( event );
 }
 
 /* GetPlayerCaps */
@@ -7400,6 +7640,83 @@ static void test_groups_cs(void)
 
 static void test_Send(void)
 {
+    DPSESSIONDESC2 appGuidDpsd =
+    {
+        .dwSize = sizeof( DPSESSIONDESC2 ),
+        .guidApplication = appGuid,
+        .guidInstance = appGuid,
+    };
+    DPSESSIONDESC2 serverDpsd =
+    {
+        .dwSize = sizeof( DPSESSIONDESC2 ),
+        .guidApplication = appGuid,
+        .guidInstance = appGuid,
+        .lpszSessionName = (WCHAR *) L"normal",
+        .dwReserved1 = 0xaabbccdd,
+    };
+    BYTE data[] = { 1, 2, 3, 4, 5, 6, 7, 8, };
+    IDirectPlay4 *dp;
+    SOCKET sendSock;
+    SOCKET recvSock;
+    HRESULT hr;
+    DPID dpid;
+
+    hr = CoCreateInstance( &CLSID_DirectPlay, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectPlay4A, (void **) &dp );
+    ok( hr == DP_OK, "got hr %#lx.\n", hr );
+
+    hr = IDirectPlayX_Send( dp, 0x07734, 0x1337, DPSEND_GUARANTEED, data, sizeof( data ) );
+    ok( hr == DPERR_UNINITIALIZED, "got hr %#lx.\n", hr );
+
+    init_TCPIP_provider( dp, "127.0.0.1", 0 );
+
+    hr = IDirectPlayX_Send( dp, 0x07734, 0x1337, DPSEND_GUARANTEED, data, sizeof( data ) );
+    ok( hr == DPERR_INVALIDPLAYER, "got hr %#lx.\n", hr );
+
+    joinSession( dp, &appGuidDpsd, &serverDpsd, &sendSock, &recvSock );
+
+    createPlayer( dp, 0x07734, NULL, NULL, 0, 0, sendSock, recvSock );
+    createPlayer( dp, 0x14, NULL, NULL, 0, 0, sendSock, recvSock );
+
+    checkCreatePlayerOrGroupMessage( dp, DPPLAYERTYPE_PLAYER, 0x14, 2, NULL, 0, NULL, NULL, 0, DPPLAYER_LOCAL );
+
+    hr = IDirectPlayX_Send( dp, 0x07734, 0xdeadbeef, DPSEND_GUARANTEED, data, sizeof( data ) );
+    todo_wine ok( hr == DPERR_INVALIDPARAM, "got hr %#lx.\n", hr );
+
+    hr = IDirectPlayX_Send( dp, 0x07734, 0x1337, DPSEND_GUARANTEED, data, sizeof( data ) );
+    ok( hr == DP_OK, "got hr %#lx.\n", hr );
+
+    receiveGuaranteedGameMessage( recvSock, 0x07734, 0x1337, data, sizeof( data ) );
+
+    hr = IDirectPlayX_Send( dp, 0x07734, 0x14, DPSEND_GUARANTEED, data, sizeof( data ) );
+    ok( hr == DP_OK, "got hr %#lx.\n", hr );
+
+    dpid = checkPlayerMessage( dp, 0x07734, data, sizeof( data ) );
+    ok( dpid == 0x14, "got destination id %#lx.\n", dpid );
+
+    hr = IDirectPlayX_Send( dp, 0x07734, 0x07734, DPSEND_GUARANTEED, data, sizeof( data ) );
+    ok( hr == DP_OK, "got hr %#lx.\n", hr );
+
+    checkNoMorePlayerMessages( dp );
+    checkNoMoreMessages( recvSock );
+
+    hr = IDirectPlayX_Send( dp, 0x07734, DPID_ALLPLAYERS, DPSEND_GUARANTEED, data, sizeof( data ) );
+    ok( hr == DP_OK, "got hr %#lx.\n", hr );
+
+    dpid = checkPlayerMessage( dp, 0x07734, data, sizeof( data ) );
+    ok( dpid == 0x14, "got destination id %#lx.\n", dpid );
+    receiveGuaranteedGameMessage( recvSock, 0x07734, DPID_ALLPLAYERS, data, sizeof( data ) );
+
+    checkNoMorePlayerMessages( dp );
+    checkNoMoreMessages( recvSock );
+
+    closesocket( recvSock );
+    closesocket( sendSock );
+
+    IDirectPlayX_Release( dp );
+}
+
+static void test_interactive_Send(void)
+{
 
     IDirectPlay4 *pDP[2];
     DPSESSIONDESC2 dpsd;
@@ -8938,61 +9255,36 @@ static void test_COM(void)
     hr = CoCreateInstance(&CLSID_DirectPlay, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectPlay4,
             (void**)&dp4);
     ok(hr == S_OK, "DirectPlay create failed: %08lx, expected S_OK\n", hr);
-    refcount = IDirectPlayX_AddRef(dp4);
-    ok(refcount == 2, "refcount == %lu, expected 2\n", refcount);
 
     hr = IDirectPlayX_QueryInterface(dp4, &IID_IDirectPlay2A, (void**)&dp2A);
     ok(hr == S_OK, "QueryInterface for IID_IDirectPlay2A failed: %08lx\n", hr);
-    refcount = IDirectPlay2_AddRef(dp2A);
-    ok(refcount == 2, "refcount == %lu, expected 2\n", refcount);
     IDirectPlay2_Release(dp2A);
 
     hr = IDirectPlayX_QueryInterface(dp4, &IID_IDirectPlay2, (void**)&dp2);
     ok(hr == S_OK, "QueryInterface for IID_IDirectPlay2 failed: %08lx\n", hr);
-    refcount = IDirectPlay2_AddRef(dp2);
-    ok(refcount == 2, "refcount == %lu, expected 2\n", refcount);
     IDirectPlay2_Release(dp2);
 
     hr = IDirectPlayX_QueryInterface(dp4, &IID_IDirectPlay3A, (void**)&dp3A);
     ok(hr == S_OK, "QueryInterface for IID_IDirectPlay3A failed: %08lx\n", hr);
-    refcount = IDirectPlay3_AddRef(dp3A);
-    ok(refcount == 2, "refcount == %lu, expected 2\n", refcount);
     IDirectPlay3_Release(dp3A);
 
     hr = IDirectPlayX_QueryInterface(dp4, &IID_IDirectPlay3, (void**)&dp3);
     ok(hr == S_OK, "QueryInterface for IID_IDirectPlay3 failed: %08lx\n", hr);
-    refcount = IDirectPlay3_AddRef(dp3);
-    ok(refcount == 2, "refcount == %lu, expected 2\n", refcount);
     IDirectPlay3_Release(dp3);
 
     hr = IDirectPlayX_QueryInterface(dp4, &IID_IDirectPlay4A, (void**)&dp4A);
     ok(hr == S_OK, "QueryInterface for IID_IDirectPlay4A failed: %08lx\n", hr);
-    refcount = IDirectPlayX_AddRef(dp4A);
-    ok(refcount == 2, "refcount == %lu, expected 2\n", refcount);
     IDirectPlayX_Release(dp4A);
 
     /* IDirectPlay and IUnknown share a refcount */
     hr = IDirectPlayX_QueryInterface(dp4, &IID_IDirectPlay, (void**)&dp);
     ok(hr == S_OK, "QueryInterface for IID_IDirectPlay failed: %08lx\n", hr);
-    refcount = IDirectPlayX_AddRef(dp);
-    ok(refcount == 2, "refcount == %lu, expected 2\n", refcount);
     IDirectPlay_Release(dp);
 
     hr = IDirectPlayX_QueryInterface(dp4, &IID_IUnknown, (void**)&unk);
     ok(hr == S_OK, "QueryInterface for IID_IUnknown failed: %08lx\n", hr);
-    refcount = IUnknown_AddRef(unk);
-    ok(refcount == 3, "refcount == %lu, expected 3\n", refcount);
-    refcount = IUnknown_Release(unk);
-    ok(refcount == 2, "refcount == %lu, expected 2\n", refcount);
 
     IUnknown_Release(unk);
-    IDirectPlay_Release(dp);
-    IDirectPlayX_Release(dp4A);
-    IDirectPlay3_Release(dp3);
-    IDirectPlay3_Release(dp3A);
-    IDirectPlay2_Release(dp2);
-    IDirectPlay2_Release(dp2A);
-    IDirectPlayX_Release(dp4);
     refcount = IDirectPlayX_Release(dp4);
     ok(refcount == 0, "refcount == %lu, expected 0\n", refcount);
 }
@@ -9293,6 +9585,8 @@ START_TEST(dplayx)
     test_Open();
     test_ADDFORWARD();
     test_CreatePlayer();
+    test_CREATEPLAYER();
+    test_Send();
 
     if (!winetest_interactive)
     {
@@ -9329,7 +9623,7 @@ START_TEST(dplayx)
     test_groups_p2p();
     test_groups_cs();
 
-    test_Send();
+    test_interactive_Send();
     test_Receive();
     test_GetMessageCount();
     test_GetMessageQueue();

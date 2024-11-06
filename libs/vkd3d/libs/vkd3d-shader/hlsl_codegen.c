@@ -6579,7 +6579,43 @@ static void generate_vsir_signature(struct hlsl_ctx *ctx,
     }
 }
 
-static uint32_t sm1_generate_vsir_get_src_swizzle(uint32_t src_writemask, uint32_t dst_writemask)
+static enum vkd3d_data_type vsir_data_type_from_hlsl_type(struct hlsl_ctx *ctx, const struct hlsl_type *type)
+{
+    if (hlsl_version_lt(ctx, 4, 0))
+        return VKD3D_DATA_FLOAT;
+
+    if (type->class == HLSL_CLASS_ARRAY)
+        return vsir_data_type_from_hlsl_type(ctx, type->e.array.type);
+    if (type->class == HLSL_CLASS_STRUCT)
+        return VKD3D_DATA_MIXED;
+    if (type->class <= HLSL_CLASS_LAST_NUMERIC)
+    {
+        switch (type->e.numeric.type)
+        {
+            case HLSL_TYPE_DOUBLE:
+                return VKD3D_DATA_DOUBLE;
+            case HLSL_TYPE_FLOAT:
+                return VKD3D_DATA_FLOAT;
+            case HLSL_TYPE_HALF:
+                return VKD3D_DATA_HALF;
+            case HLSL_TYPE_INT:
+                return VKD3D_DATA_INT;
+            case HLSL_TYPE_UINT:
+            case HLSL_TYPE_BOOL:
+                return VKD3D_DATA_UINT;
+        }
+    }
+
+    vkd3d_unreachable();
+}
+
+static enum vkd3d_data_type vsir_data_type_from_hlsl_instruction(struct hlsl_ctx *ctx,
+        const struct hlsl_ir_node *instr)
+{
+    return vsir_data_type_from_hlsl_type(ctx, instr->data_type);
+}
+
+static uint32_t generate_vsir_get_src_swizzle(uint32_t src_writemask, uint32_t dst_writemask)
 {
     uint32_t swizzle;
 
@@ -6737,6 +6773,50 @@ static struct vkd3d_shader_instruction *generate_vsir_add_program_instruction(
     return ins;
 }
 
+static void vsir_src_from_hlsl_constant_value(struct vkd3d_shader_src_param *src,
+        struct hlsl_ctx *ctx, const struct hlsl_constant_value *value,
+        enum vkd3d_data_type type, unsigned int width, unsigned int map_writemask)
+{
+    unsigned int i, j;
+
+    vsir_src_param_init(src, VKD3DSPR_IMMCONST, type, 0);
+    if (width == 1)
+    {
+        src->reg.u.immconst_u32[0] = value->u[0].u;
+        return;
+    }
+
+    src->reg.dimension = VSIR_DIMENSION_VEC4;
+    for (i = 0, j = 0; i < 4; ++i)
+    {
+        if ((map_writemask & (1u << i)) && (j < width))
+            src->reg.u.immconst_u32[i] = value->u[j++].u;
+        else
+            src->reg.u.immconst_u32[i] = 0;
+    }
+}
+
+static void vsir_src_from_hlsl_node(struct vkd3d_shader_src_param *src,
+        struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, uint32_t map_writemask)
+{
+    struct hlsl_ir_constant *constant;
+
+    if (hlsl_version_ge(ctx, 4, 0) && instr->type == HLSL_IR_CONSTANT)
+    {
+        /* In SM4 constants are inlined */
+        constant = hlsl_ir_constant(instr);
+        vsir_src_from_hlsl_constant_value(src, ctx, &constant->value,
+                vsir_data_type_from_hlsl_instruction(ctx, instr), instr->data_type->dimx, map_writemask);
+    }
+    else
+    {
+        vsir_register_init(&src->reg, VKD3DSPR_TEMP, vsir_data_type_from_hlsl_instruction(ctx, instr), 1);
+        src->reg.idx[0].offset = instr->reg.id;
+        src->reg.dimension = VSIR_DIMENSION_VEC4;
+        src->swizzle = generate_vsir_get_src_swizzle(instr->reg.writemask, map_writemask);
+    }
+}
+
 static void sm1_generate_vsir_instr_constant(struct hlsl_ctx *ctx,
         struct vsir_program *program, struct hlsl_ir_constant *constant)
 {
@@ -6754,7 +6834,7 @@ static void sm1_generate_vsir_instr_constant(struct hlsl_ctx *ctx,
     src_param = &ins->src[0];
     vsir_register_init(&src_param->reg, VKD3DSPR_CONST, VKD3D_DATA_FLOAT, 1);
     src_param->reg.idx[0].offset = constant->reg.id;
-    src_param->swizzle = sm1_generate_vsir_get_src_swizzle(constant->reg.writemask, instr->reg.writemask);
+    src_param->swizzle = generate_vsir_get_src_swizzle(constant->reg.writemask, instr->reg.writemask);
 
     dst_param = &ins->dst[0];
     vsir_register_init(&dst_param->reg, VKD3DSPR_TEMP, VKD3D_DATA_FLOAT, 1);
@@ -6763,9 +6843,9 @@ static void sm1_generate_vsir_instr_constant(struct hlsl_ctx *ctx,
 }
 
 /* Translate ops that can be mapped to a single vsir instruction with only one dst register. */
-static void sm1_generate_vsir_instr_expr_single_instr_op(struct hlsl_ctx *ctx, struct vsir_program *program,
-        struct hlsl_ir_expr *expr, enum vkd3d_shader_opcode opcode, uint32_t src_mod, uint32_t dst_mod,
-        bool map_src_swizzles)
+static void generate_vsir_instr_expr_single_instr_op(struct hlsl_ctx *ctx,
+        struct vsir_program *program, struct hlsl_ir_expr *expr, enum vkd3d_shader_opcode opcode,
+        uint32_t src_mod, uint32_t dst_mod, bool map_src_swizzles)
 {
     struct hlsl_ir_node *instr = &expr->node;
     struct vkd3d_shader_dst_param *dst_param;
@@ -6786,8 +6866,9 @@ static void sm1_generate_vsir_instr_expr_single_instr_op(struct hlsl_ctx *ctx, s
         return;
 
     dst_param = &ins->dst[0];
-    vsir_register_init(&dst_param->reg, VKD3DSPR_TEMP, VKD3D_DATA_FLOAT, 1);
+    vsir_register_init(&dst_param->reg, VKD3DSPR_TEMP, vsir_data_type_from_hlsl_instruction(ctx, instr), 1);
     dst_param->reg.idx[0].offset = instr->reg.id;
+    dst_param->reg.dimension = VSIR_DIMENSION_VEC4;
     dst_param->write_mask = instr->reg.writemask;
     dst_param->modifiers = dst_mod;
 
@@ -6796,9 +6877,7 @@ static void sm1_generate_vsir_instr_expr_single_instr_op(struct hlsl_ctx *ctx, s
         struct hlsl_ir_node *operand = expr->operands[i].node;
 
         src_param = &ins->src[i];
-        vsir_register_init(&src_param->reg, VKD3DSPR_TEMP, VKD3D_DATA_FLOAT, 1);
-        src_param->reg.idx[0].offset = operand->reg.id;
-        src_param->swizzle = sm1_generate_vsir_get_src_swizzle(operand->reg.writemask,
+        vsir_src_from_hlsl_node(src_param, ctx, operand,
                 map_src_swizzles ? dst_param->write_mask : VKD3DSP_WRITEMASK_ALL);
         src_param->modifiers = src_mod;
     }
@@ -6820,7 +6899,7 @@ static void sm1_generate_vsir_instr_expr_per_component_instr_op(struct hlsl_ctx 
     VKD3D_ASSERT(instr->reg.allocated);
     VKD3D_ASSERT(operand);
 
-    src_swizzle = sm1_generate_vsir_get_src_swizzle(operand->reg.writemask, instr->reg.writemask);
+    src_swizzle = generate_vsir_get_src_swizzle(operand->reg.writemask, instr->reg.writemask);
     for (i = 0; i < 4; ++i)
     {
         if (instr->reg.writemask & (1u << i))
@@ -6866,7 +6945,7 @@ static void sm1_generate_vsir_instr_expr_sincos(struct hlsl_ctx *ctx, struct vsi
     src_param = &ins->src[0];
     vsir_register_init(&src_param->reg, VKD3DSPR_TEMP, VKD3D_DATA_FLOAT, 1);
     src_param->reg.idx[0].offset = operand->reg.id;
-    src_param->swizzle = sm1_generate_vsir_get_src_swizzle(operand->reg.writemask, VKD3DSP_WRITEMASK_ALL);
+    src_param->swizzle = generate_vsir_get_src_swizzle(operand->reg.writemask, VKD3DSP_WRITEMASK_ALL);
 
     if (ctx->profile->major_version < 3)
     {
@@ -6908,13 +6987,13 @@ static bool sm1_generate_vsir_instr_expr_cast(struct hlsl_ctx *ctx,
                     /* Integrals are internally represented as floats, so no change is necessary.*/
                 case HLSL_TYPE_HALF:
                 case HLSL_TYPE_FLOAT:
-                    sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MOV, 0, 0, true);
+                    generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MOV, 0, 0, true);
                     return true;
 
                 case HLSL_TYPE_DOUBLE:
                     if (ctx->double_as_float_alias)
                     {
-                        sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MOV, 0, 0, true);
+                        generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MOV, 0, 0, true);
                         return true;
                     }
                     hlsl_error(ctx, &instr->loc, VKD3D_SHADER_ERROR_HLSL_INVALID_TYPE,
@@ -6939,7 +7018,7 @@ static bool sm1_generate_vsir_instr_expr_cast(struct hlsl_ctx *ctx,
 
                 case HLSL_TYPE_INT:
                 case HLSL_TYPE_UINT:
-                    sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MOV, 0, 0, true);
+                    generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MOV, 0, 0, true);
                     return true;
 
                 case HLSL_TYPE_BOOL:
@@ -6961,7 +7040,7 @@ static bool sm1_generate_vsir_instr_expr_cast(struct hlsl_ctx *ctx,
                 case HLSL_TYPE_FLOAT:
                     if (ctx->double_as_float_alias)
                     {
-                        sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MOV, 0, 0, true);
+                        generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MOV, 0, 0, true);
                         return true;
                     }
                     hlsl_error(ctx, &instr->loc, VKD3D_SHADER_ERROR_HLSL_INVALID_TYPE,
@@ -7001,7 +7080,7 @@ static bool sm1_generate_vsir_instr_expr(struct hlsl_ctx *ctx, struct vsir_progr
     switch (expr->op)
     {
         case HLSL_OP1_ABS:
-            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_ABS, 0, 0, true);
+            generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_ABS, 0, 0, true);
             break;
 
         case HLSL_OP1_CAST:
@@ -7013,11 +7092,11 @@ static bool sm1_generate_vsir_instr_expr(struct hlsl_ctx *ctx, struct vsir_progr
             break;
 
         case HLSL_OP1_DSX:
-            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_DSX, 0, 0, true);
+            generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_DSX, 0, 0, true);
             break;
 
         case HLSL_OP1_DSY:
-            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_DSY, 0, 0, true);
+            generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_DSY, 0, 0, true);
             break;
 
         case HLSL_OP1_EXP2:
@@ -7029,7 +7108,7 @@ static bool sm1_generate_vsir_instr_expr(struct hlsl_ctx *ctx, struct vsir_progr
             break;
 
         case HLSL_OP1_NEG:
-            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MOV, VKD3DSPSM_NEG, 0, true);
+            generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MOV, VKD3DSPSM_NEG, 0, true);
             break;
 
         case HLSL_OP1_RCP:
@@ -7037,7 +7116,7 @@ static bool sm1_generate_vsir_instr_expr(struct hlsl_ctx *ctx, struct vsir_progr
             break;
 
         case HLSL_OP1_REINTERPRET:
-            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MOV, 0, 0, true);
+            generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MOV, 0, 0, true);
             break;
 
         case HLSL_OP1_RSQ:
@@ -7045,7 +7124,7 @@ static bool sm1_generate_vsir_instr_expr(struct hlsl_ctx *ctx, struct vsir_progr
             break;
 
         case HLSL_OP1_SAT:
-            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MOV, 0, VKD3DSPDM_SATURATE, true);
+            generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MOV, 0, VKD3DSPDM_SATURATE, true);
             break;
 
         case HLSL_OP1_SIN_REDUCED:
@@ -7054,18 +7133,18 @@ static bool sm1_generate_vsir_instr_expr(struct hlsl_ctx *ctx, struct vsir_progr
             break;
 
         case HLSL_OP2_ADD:
-            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_ADD, 0, 0, true);
+            generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_ADD, 0, 0, true);
             break;
 
         case HLSL_OP2_DOT:
             switch (expr->operands[0].node->data_type->dimx)
             {
                 case 3:
-                    sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_DP3, 0, 0, false);
+                    generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_DP3, 0, 0, false);
                     break;
 
                 case 4:
-                    sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_DP4, 0, 0, false);
+                    generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_DP4, 0, 0, false);
                     break;
 
                 default:
@@ -7075,43 +7154,43 @@ static bool sm1_generate_vsir_instr_expr(struct hlsl_ctx *ctx, struct vsir_progr
             break;
 
         case HLSL_OP2_MAX:
-            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MAX, 0, 0, true);
+            generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MAX, 0, 0, true);
             break;
 
         case HLSL_OP2_MIN:
-            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MIN, 0, 0, true);
+            generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MIN, 0, 0, true);
             break;
 
         case HLSL_OP2_MUL:
-            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MUL, 0, 0, true);
+            generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MUL, 0, 0, true);
             break;
 
         case HLSL_OP1_FRACT:
-            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_FRC, 0, 0, true);
+            generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_FRC, 0, 0, true);
             break;
 
         case HLSL_OP2_LOGIC_AND:
-            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MIN, 0, 0, true);
+            generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MIN, 0, 0, true);
             break;
 
         case HLSL_OP2_LOGIC_OR:
-            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MAX, 0, 0, true);
+            generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MAX, 0, 0, true);
             break;
 
         case HLSL_OP2_SLT:
-            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_SLT, 0, 0, true);
+            generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_SLT, 0, 0, true);
             break;
 
         case HLSL_OP3_CMP:
-            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_CMP, 0, 0, true);
+            generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_CMP, 0, 0, true);
             break;
 
         case HLSL_OP3_DP2ADD:
-            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_DP2ADD, 0, 0, false);
+            generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_DP2ADD, 0, 0, false);
             break;
 
         case HLSL_OP3_MAD:
-            sm1_generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MAD, 0, 0, true);
+            generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MAD, 0, 0, true);
             break;
 
         default:
@@ -7227,7 +7306,7 @@ static void sm1_generate_vsir_init_src_param_from_deref(struct hlsl_ctx *ctx,
 
     vsir_register_init(&src_param->reg, type, VKD3D_DATA_FLOAT, 1);
     src_param->reg.idx[0].offset = register_index;
-    src_param->swizzle = sm1_generate_vsir_get_src_swizzle(writemask, dst_writemask);
+    src_param->swizzle = generate_vsir_get_src_swizzle(writemask, dst_writemask);
 
     if (deref->rel_offset.node)
         hlsl_fixme(ctx, loc, "Translate relative addressing on src register for vsir.");
@@ -7306,9 +7385,7 @@ static void sm1_generate_vsir_instr_resource_load(struct hlsl_ctx *ctx,
     dst_param->write_mask = instr->reg.writemask;
 
     src_param = &ins->src[0];
-    vsir_register_init(&src_param->reg, VKD3DSPR_TEMP, VKD3D_DATA_FLOAT, 1);
-    src_param->reg.idx[0].offset = coords->reg.id;
-    src_param->swizzle = sm1_generate_vsir_get_src_swizzle(coords->reg.writemask, VKD3DSP_WRITEMASK_ALL);
+    vsir_src_from_hlsl_node(src_param, ctx, coords, VKD3DSP_WRITEMASK_ALL);
 
     sm1_generate_vsir_init_src_param_from_deref(ctx, &ins->src[1], &load->resource,
             VKD3DSP_WRITEMASK_ALL, &ins->location);
@@ -7316,19 +7393,15 @@ static void sm1_generate_vsir_instr_resource_load(struct hlsl_ctx *ctx,
     if (load->load_type == HLSL_RESOURCE_SAMPLE_GRAD)
     {
         src_param = &ins->src[2];
-        vsir_register_init(&src_param->reg, VKD3DSPR_TEMP, VKD3D_DATA_FLOAT, 1);
-        src_param->reg.idx[0].offset = ddx->reg.id;
-        src_param->swizzle = sm1_generate_vsir_get_src_swizzle(ddx->reg.writemask, VKD3DSP_WRITEMASK_ALL);
+        vsir_src_from_hlsl_node(src_param, ctx, ddx, VKD3DSP_WRITEMASK_ALL);
 
         src_param = &ins->src[3];
-        vsir_register_init(&src_param->reg, VKD3DSPR_TEMP, VKD3D_DATA_FLOAT, 1);
-        src_param->reg.idx[0].offset = ddy->reg.id;
-        src_param->swizzle = sm1_generate_vsir_get_src_swizzle(ddy->reg.writemask, VKD3DSP_WRITEMASK_ALL);
+        vsir_src_from_hlsl_node(src_param, ctx, ddy, VKD3DSP_WRITEMASK_ALL);
     }
 }
 
-static void sm1_generate_vsir_instr_swizzle(struct hlsl_ctx *ctx, struct vsir_program *program,
-        struct hlsl_ir_swizzle *swizzle_instr)
+static void generate_vsir_instr_swizzle(struct hlsl_ctx *ctx,
+        struct vsir_program *program, struct hlsl_ir_swizzle *swizzle_instr)
 {
     struct hlsl_ir_node *instr = &swizzle_instr->node, *val = swizzle_instr->val.node;
     struct vkd3d_shader_dst_param *dst_param;
@@ -7342,8 +7415,9 @@ static void sm1_generate_vsir_instr_swizzle(struct hlsl_ctx *ctx, struct vsir_pr
         return;
 
     dst_param = &ins->dst[0];
-    vsir_register_init(&dst_param->reg, VKD3DSPR_TEMP, VKD3D_DATA_FLOAT, 1);
+    vsir_register_init(&dst_param->reg, VKD3DSPR_TEMP, vsir_data_type_from_hlsl_instruction(ctx, instr), 1);
     dst_param->reg.idx[0].offset = instr->reg.id;
+    dst_param->reg.dimension = VSIR_DIMENSION_VEC4;
     dst_param->write_mask = instr->reg.writemask;
 
     swizzle = hlsl_swizzle_from_writemask(val->reg.writemask);
@@ -7352,8 +7426,10 @@ static void sm1_generate_vsir_instr_swizzle(struct hlsl_ctx *ctx, struct vsir_pr
     swizzle = vsir_swizzle_from_hlsl(swizzle);
 
     src_param = &ins->src[0];
-    vsir_register_init(&src_param->reg, VKD3DSPR_TEMP, VKD3D_DATA_FLOAT, 1);
+    VKD3D_ASSERT(val->type != HLSL_IR_CONSTANT);
+    vsir_register_init(&src_param->reg, VKD3DSPR_TEMP, vsir_data_type_from_hlsl_instruction(ctx, val), 1);
     src_param->reg.idx[0].offset = val->reg.id;
+    src_param->reg.dimension = VSIR_DIMENSION_VEC4;
     src_param->swizzle = swizzle;
 }
 
@@ -7371,9 +7447,7 @@ static void sm1_generate_vsir_instr_store(struct hlsl_ctx *ctx, struct vsir_prog
     sm1_generate_vsir_init_dst_param_from_deref(ctx, &ins->dst[0], &store->lhs, &ins->location, store->writemask);
 
     src_param = &ins->src[0];
-    vsir_register_init(&src_param->reg, VKD3DSPR_TEMP, VKD3D_DATA_FLOAT, 1);
-    src_param->reg.idx[0].offset = rhs->reg.id;
-    src_param->swizzle = sm1_generate_vsir_get_src_swizzle(rhs->reg.writemask, ins->dst[0].write_mask);
+    vsir_src_from_hlsl_node(src_param, ctx, rhs, ins->dst[0].write_mask);
 }
 
 static void sm1_generate_vsir_instr_jump(struct hlsl_ctx *ctx,
@@ -7408,7 +7482,6 @@ static void sm1_generate_vsir_instr_if(struct hlsl_ctx *ctx, struct vsir_program
     struct vkd3d_shader_src_param *src_param;
     struct hlsl_ir_node *instr = &iff->node;
     struct vkd3d_shader_instruction *ins;
-    uint32_t swizzle;
 
     if (hlsl_version_lt(ctx, 2, 1))
     {
@@ -7421,19 +7494,12 @@ static void sm1_generate_vsir_instr_if(struct hlsl_ctx *ctx, struct vsir_program
         return;
     ins->flags = VKD3D_SHADER_REL_OP_NE;
 
-    swizzle = hlsl_swizzle_from_writemask(condition->reg.writemask);
-    swizzle = vsir_swizzle_from_hlsl(swizzle);
-
     src_param = &ins->src[0];
-    vsir_register_init(&src_param->reg, VKD3DSPR_TEMP, VKD3D_DATA_FLOAT, 1);
-    src_param->reg.idx[0].offset = condition->reg.id;
-    src_param->swizzle = swizzle;
+    vsir_src_from_hlsl_node(src_param, ctx, condition, VKD3DSP_WRITEMASK_ALL);
     src_param->modifiers = 0;
 
     src_param = &ins->src[1];
-    vsir_register_init(&src_param->reg, VKD3DSPR_TEMP, VKD3D_DATA_FLOAT, 1);
-    src_param->reg.idx[0].offset = condition->reg.id;
-    src_param->swizzle = swizzle;
+    vsir_src_from_hlsl_node(src_param, ctx, condition, VKD3DSP_WRITEMASK_ALL);
     src_param->modifiers = VKD3DSPSM_NEG;
 
     sm1_generate_vsir_block(ctx, &iff->then_block, program);
@@ -7496,7 +7562,7 @@ static void sm1_generate_vsir_block(struct hlsl_ctx *ctx, struct hlsl_block *blo
                 break;
 
             case HLSL_IR_SWIZZLE:
-                sm1_generate_vsir_instr_swizzle(ctx, program, hlsl_ir_swizzle(instr));
+                generate_vsir_instr_swizzle(ctx, program, hlsl_ir_swizzle(instr));
                 break;
 
             default:
@@ -7557,6 +7623,25 @@ static void add_last_vsir_instr_to_block(struct hlsl_ctx *ctx, struct vsir_progr
     hlsl_block_add_instr(block, vsir_instr);
 }
 
+static void replace_instr_with_last_vsir_instr(struct hlsl_ctx *ctx,
+        struct vsir_program *program, struct hlsl_ir_node *instr)
+{
+    struct vkd3d_shader_location *loc;
+    struct hlsl_ir_node *vsir_instr;
+
+    loc = &program->instructions.elements[program->instructions.count - 1].location;
+
+    if (!(vsir_instr = hlsl_new_vsir_instruction_ref(ctx,
+            program->instructions.count - 1, instr->data_type, &instr->reg, loc)))
+    {
+        ctx->result = VKD3D_ERROR_OUT_OF_MEMORY;
+        return;
+    }
+
+    list_add_before(&instr->entry, &vsir_instr->entry);
+    hlsl_replace_node(instr, vsir_instr);
+}
+
 static void sm4_generate_vsir_instr_dcl_temps(struct hlsl_ctx *ctx, struct vsir_program *program,
         uint32_t temp_count, struct hlsl_block *block, const struct vkd3d_shader_location *loc)
 {
@@ -7587,6 +7672,60 @@ static void sm4_generate_vsir_instr_dcl_indexable_temp(struct hlsl_ctx *ctx,
     ins->declaration.indexable_temp.has_function_scope = false;
 
     add_last_vsir_instr_to_block(ctx, program, block);
+}
+
+static bool sm4_generate_vsir_instr_expr(struct hlsl_ctx *ctx,
+        struct vsir_program *program, struct hlsl_ir_expr *expr)
+{
+    switch (expr->op)
+    {
+        case HLSL_OP1_ABS:
+            generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VKD3DSIH_MOV, VKD3DSPSM_ABS, 0, true);
+            return true;
+
+        default:
+            return false;
+    }
+}
+
+static void sm4_generate_vsir_block(struct hlsl_ctx *ctx, struct hlsl_block *block, struct vsir_program *program)
+{
+    struct hlsl_ir_node *instr, *next;
+
+    LIST_FOR_EACH_ENTRY_SAFE(instr, next, &block->instrs, struct hlsl_ir_node, entry)
+    {
+        if (instr->data_type)
+        {
+            if (instr->data_type->class != HLSL_CLASS_SCALAR && instr->data_type->class != HLSL_CLASS_VECTOR)
+            {
+                hlsl_fixme(ctx, &instr->loc, "Class %#x should have been lowered or removed.", instr->data_type->class);
+                break;
+            }
+        }
+
+        switch (instr->type)
+        {
+            case HLSL_IR_CALL:
+                vkd3d_unreachable();
+
+            case HLSL_IR_CONSTANT:
+                /* In SM4 all constants are inlined. */
+                break;
+
+            case HLSL_IR_EXPR:
+                if (sm4_generate_vsir_instr_expr(ctx, program, hlsl_ir_expr(instr)))
+                    replace_instr_with_last_vsir_instr(ctx, program, instr);
+                break;
+
+            case HLSL_IR_SWIZZLE:
+                generate_vsir_instr_swizzle(ctx, program, hlsl_ir_swizzle(instr));
+                replace_instr_with_last_vsir_instr(ctx, program, instr);
+                break;
+
+            default:
+                break;
+        }
+    }
 }
 
 static void sm4_generate_vsir_add_function(struct hlsl_ctx *ctx,
@@ -7631,6 +7770,8 @@ static void sm4_generate_vsir_add_function(struct hlsl_ctx *ctx,
     list_move_head(&func->body.instrs, &block.instrs);
 
     hlsl_block_cleanup(&block);
+
+    sm4_generate_vsir_block(ctx, &func->body, program);
 }
 
 /* OBJECTIVE: Translate all the information from ctx and entry_func to the
