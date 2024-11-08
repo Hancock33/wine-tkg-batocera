@@ -1932,6 +1932,8 @@ static bool shader_dst_param_io_normalise(struct vkd3d_shader_dst_param *dst_par
     const struct shader_signature *signature;
     const struct signature_element *e;
 
+    write_mask = dst_param->write_mask;
+
     switch (reg->type)
     {
         case VKD3DSPR_OUTPUT:
@@ -1987,6 +1989,10 @@ static bool shader_dst_param_io_normalise(struct vkd3d_shader_dst_param *dst_par
             signature = normaliser->output_signature;
             reg->type = VKD3DSPR_OUTPUT;
             dcl_params = normaliser->output_dcl_params;
+            /* Fog and point size are scalar, but fxc/d3dcompiler emits a full
+             * write mask when writing to them. */
+            if (reg->idx[0].offset > 0)
+                write_mask = VKD3DSP_WRITEMASK_0;
             break;
 
         default:
@@ -1994,7 +2000,6 @@ static bool shader_dst_param_io_normalise(struct vkd3d_shader_dst_param *dst_par
     }
 
     id_idx = reg->idx_count - 1;
-    write_mask = dst_param->write_mask;
     if (!shader_signature_find_element_for_reg(signature, reg_idx, write_mask, &element_idx))
         vkd3d_unreachable();
     e = &signature->elements[element_idx];
@@ -6214,6 +6219,14 @@ static enum vkd3d_result vsir_program_insert_clip_planes(struct vsir_program *pr
     return VKD3D_OK;
 }
 
+static bool is_pre_rasterization_shader(enum vkd3d_shader_type type)
+{
+    return type == VKD3D_SHADER_TYPE_VERTEX
+            || type == VKD3D_SHADER_TYPE_HULL
+            || type == VKD3D_SHADER_TYPE_DOMAIN
+            || type == VKD3D_SHADER_TYPE_GEOMETRY;
+}
+
 static enum vkd3d_result insert_point_size_before_ret(struct vsir_program *program,
         const struct vkd3d_shader_instruction *ret, size_t *ret_pos)
 {
@@ -6244,10 +6257,7 @@ static enum vkd3d_result vsir_program_insert_point_size(struct vsir_program *pro
     if (program->has_point_size)
         return VKD3D_OK;
 
-    if (program->shader_version.type != VKD3D_SHADER_TYPE_VERTEX
-            && program->shader_version.type != VKD3D_SHADER_TYPE_GEOMETRY
-            && program->shader_version.type != VKD3D_SHADER_TYPE_HULL
-            && program->shader_version.type != VKD3D_SHADER_TYPE_DOMAIN)
+    if (!is_pre_rasterization_shader(program->shader_version.type))
         return VKD3D_OK;
 
     for (unsigned int i = 0; i < program->parameter_count; ++i)
@@ -6298,10 +6308,7 @@ static enum vkd3d_result vsir_program_insert_point_size_clamp(struct vsir_progra
     if (!program->has_point_size)
         return VKD3D_OK;
 
-    if (program->shader_version.type != VKD3D_SHADER_TYPE_VERTEX
-            && program->shader_version.type != VKD3D_SHADER_TYPE_GEOMETRY
-            && program->shader_version.type != VKD3D_SHADER_TYPE_HULL
-            && program->shader_version.type != VKD3D_SHADER_TYPE_DOMAIN)
+    if (!is_pre_rasterization_shader(program->shader_version.type))
         return VKD3D_OK;
 
     for (unsigned int i = 0; i < program->parameter_count; ++i)

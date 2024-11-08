@@ -53,7 +53,7 @@ struct parse_parameter
     struct parse_initializer initializer;
 };
 
-struct parse_colon_attribute
+struct parse_colon_attributes
 {
     struct hlsl_semantic semantic;
     struct hlsl_reg_reservation reg_reservation;
@@ -5175,6 +5175,10 @@ static bool intrinsic_GetRenderTargetSampleCount(struct hlsl_ctx *ctx,
     struct hlsl_ir_node *operands[HLSL_MAX_OPERANDS] = {0};
     struct hlsl_ir_node *expr;
 
+    if (ctx->profile->type != VKD3D_SHADER_TYPE_PIXEL || hlsl_version_lt(ctx, 4, 1))
+        hlsl_error(ctx, loc, VKD3D_SHADER_ERROR_HLSL_INCOMPATIBLE_PROFILE,
+                "GetRenderTargetSampleCount() can only be used from a pixel shader using version 4.1 or higher.");
+
     if (!(expr = hlsl_new_expr(ctx, HLSL_OP0_RASTERIZER_SAMPLE_COUNT,
             operands, hlsl_get_scalar_type(ctx, HLSL_TYPE_UINT), loc)))
         return false;
@@ -5599,6 +5603,55 @@ static bool raise_invalid_method_object_type(struct hlsl_ctx *ctx, const struct 
     return false;
 }
 
+static bool add_raw_load_method_call(struct hlsl_ctx *ctx, struct hlsl_block *block, struct hlsl_ir_node *object,
+        const char *name, const struct parse_initializer *params, const struct vkd3d_shader_location *loc)
+{
+    struct hlsl_resource_load_params load_params = {.type = HLSL_RESOURCE_LOAD};
+    struct hlsl_ir_node *load;
+    unsigned int value_dim;
+
+    if (params->args_count != 1 && params->args_count != 2)
+    {
+        hlsl_error(ctx, loc, VKD3D_SHADER_ERROR_HLSL_WRONG_PARAMETER_COUNT,
+                "Wrong number of arguments to method 'Load': expected between 1 and 2, but got %u.",
+                params->args_count);
+        return false;
+    }
+
+    if (params->args_count == 2)
+    {
+        hlsl_fixme(ctx, loc, "Tiled resource status argument.");
+        return false;
+    }
+
+    if (params->args[0]->data_type->class != HLSL_CLASS_SCALAR)
+    {
+        hlsl_error(ctx, loc, VKD3D_SHADER_ERROR_HLSL_INVALID_TYPE, "Scalar address argument expected for '%s'.", name);
+        return false;
+    }
+
+    if (!strcmp(name, "Load"))
+        value_dim = 1;
+    else if (!strcmp(name, "Load2"))
+        value_dim = 2;
+    else if (!strcmp(name, "Load3"))
+        value_dim = 3;
+    else
+        value_dim = 4;
+
+    if (!(load_params.coords = add_implicit_conversion(ctx, block, params->args[0],
+            hlsl_get_scalar_type(ctx, HLSL_TYPE_UINT), loc)))
+        return false;
+
+    load_params.format = hlsl_get_vector_type(ctx, HLSL_TYPE_UINT, value_dim);
+    load_params.resource = object;
+
+    if (!(load = hlsl_new_resource_load(ctx, &load_params, loc)))
+        return false;
+    hlsl_block_add_instr(block, load);
+    return true;
+}
+
 static bool add_load_method_call(struct hlsl_ctx *ctx, struct hlsl_block *block, struct hlsl_ir_node *object,
         const char *name, const struct parse_initializer *params, const struct vkd3d_shader_location *loc)
 {
@@ -5607,6 +5660,9 @@ static bool add_load_method_call(struct hlsl_ctx *ctx, struct hlsl_block *block,
     unsigned int sampler_dim, offset_dim;
     struct hlsl_ir_node *load;
     bool multisampled;
+
+    if (object_type->sampler_dim == HLSL_SAMPLER_DIM_RAW_BUFFER)
+        return add_raw_load_method_call(ctx, block, object, name, params, loc);
 
     if (object_type->sampler_dim == HLSL_SAMPLER_DIM_STRUCTURED_BUFFER)
     {
@@ -6260,7 +6316,10 @@ texture_methods[] =
 
     { "GetDimensions",      add_getdimensions_method_call, "00111111111110" },
 
-    { "Load",               add_load_method_call,          "00111011110110" },
+    { "Load",               add_load_method_call,          "00111011110111" },
+    { "Load2",              add_raw_load_method_call,      "00000000000001" },
+    { "Load3",              add_raw_load_method_call,      "00000000000001" },
+    { "Load4",              add_raw_load_method_call,      "00000000000001" },
 
     { "Sample",             add_sample_method_call,        "00111111001000" },
     { "SampleBias",         add_sample_lod_method_call,    "00111111001000" },
@@ -6490,7 +6549,7 @@ static void validate_uav_type(struct hlsl_ctx *ctx, enum hlsl_sampler_dim dim,
     struct parse_if_body if_body;
     enum parse_assign_op assign_op;
     struct hlsl_reg_reservation reg_reservation;
-    struct parse_colon_attribute colon_attribute;
+    struct parse_colon_attributes colon_attributes;
     struct hlsl_semantic semantic;
     enum hlsl_buffer_type buffer_type;
     enum hlsl_sampler_dim sampler_dim;
@@ -6505,6 +6564,7 @@ static void validate_uav_type(struct hlsl_ctx *ctx, enum hlsl_sampler_dim dim,
 %token KW_BLENDSTATE
 %token KW_BREAK
 %token KW_BUFFER
+%token KW_BYTEADDRESSBUFFER
 %token KW_CASE
 %token KW_CONSTANTBUFFER
 %token KW_CBUFFER
@@ -6687,7 +6747,7 @@ static void validate_uav_type(struct hlsl_ctx *ctx, enum hlsl_sampler_dim dim,
 
 %type <buffer_type> buffer_type
 
-%type <colon_attribute> colon_attribute
+%type <colon_attributes> colon_attributes
 
 %type <fields> field
 %type <fields> fields_list
@@ -6875,7 +6935,7 @@ effect_group:
         }
 
 buffer_declaration:
-      var_modifiers buffer_type any_identifier colon_attribute annotations_opt
+      var_modifiers buffer_type any_identifier colon_attributes annotations_opt
         {
             if ($4.semantic.name)
                 hlsl_error(ctx, &@4, VKD3D_SHADER_ERROR_HLSL_INVALID_SEMANTIC, "Semantics are not allowed on buffers.");
@@ -7200,7 +7260,7 @@ func_declaration:
 
 func_prototype_no_attrs:
     /* var_modifiers is necessary to avoid shift/reduce conflicts. */
-      var_modifiers type var_identifier '(' parameters ')' colon_attribute
+      var_modifiers type var_identifier '(' parameters ')' colon_attributes
         {
             uint32_t modifiers = $1;
             struct hlsl_ir_var *var;
@@ -7377,28 +7437,39 @@ var_identifier:
       VAR_IDENTIFIER
     | NEW_IDENTIFIER
 
-colon_attribute:
+colon_attributes:
       %empty
         {
             $$.semantic = (struct hlsl_semantic){0};
             $$.reg_reservation.reg_type = 0;
             $$.reg_reservation.offset_type = 0;
         }
-    | semantic
+    | colon_attributes semantic
         {
-            $$.semantic = $1;
-            $$.reg_reservation.reg_type = 0;
-            $$.reg_reservation.offset_type = 0;
+            hlsl_cleanup_semantic(&$$.semantic);
+            $$.semantic = $2;
         }
-    | register_reservation
+    | colon_attributes register_reservation
         {
-            $$.semantic = (struct hlsl_semantic){0};
-            $$.reg_reservation = $1;
+            if ($$.reg_reservation.reg_type)
+                hlsl_fixme(ctx, &@2, "Multiple register() reservations.");
+
+            $$.reg_reservation.reg_type = $2.reg_type;
+            $$.reg_reservation.reg_index = $2.reg_index;
+            $$.reg_reservation.reg_space = $2.reg_space;
         }
-    | packoffset_reservation
+    | colon_attributes packoffset_reservation
         {
-            $$.semantic = (struct hlsl_semantic){0};
-            $$.reg_reservation = $1;
+            if (ctx->cur_buffer == ctx->globals_buffer)
+            {
+                hlsl_error(ctx, &@2, VKD3D_SHADER_ERROR_HLSL_INVALID_RESERVATION,
+                        "The packoffset() reservation is only allowed within 'cbuffer' blocks.");
+            }
+            else
+            {
+                $$.reg_reservation.offset_type = $2.offset_type;
+                $$.reg_reservation.offset_index = $2.offset_index;
+            }
         }
 
 semantic:
@@ -7594,7 +7665,7 @@ parameter:
         }
 
 parameter_decl:
-      var_modifiers type_no_void any_identifier arrays colon_attribute
+      var_modifiers type_no_void any_identifier arrays colon_attributes
         {
             uint32_t modifiers = $1;
             struct hlsl_type *type;
@@ -7863,6 +7934,10 @@ type_no_void:
 
             $$ = hlsl_new_texture_type(ctx, $1, $3, sample_count);
         }
+    | KW_BYTEADDRESSBUFFER
+        {
+            $$ = hlsl_new_texture_type(ctx, HLSL_SAMPLER_DIM_RAW_BUFFER, hlsl_get_scalar_type(ctx, HLSL_TYPE_UINT), 0);
+        }
     | uav_type '<' resource_format '>'
         {
             validate_uav_type(ctx, $1, $3, &@3);
@@ -8095,7 +8170,7 @@ variables_def_typed:
         }
 
 variable_decl:
-      any_identifier arrays colon_attribute annotations_opt
+      any_identifier arrays colon_attributes annotations_opt
         {
             $$ = hlsl_alloc(ctx, sizeof(*$$));
             $$->loc = @1;

@@ -545,6 +545,28 @@ HRESULT DP_HandleMessage( IDirectPlayImpl *This, void *messageBody,
       DP_MSG_ToSelf( This, 1 ); /* This is a hack right now */
       break;
 
+    case DPMSGCMD_PING: {
+      const DPSP_MSG_PING *msg;
+
+      if( dwMessageBodySize < sizeof( DPSP_MSG_PING ) )
+        return DPERR_GENERIC;
+      msg = (const DPSP_MSG_PING *)messageBody;
+
+      EnterCriticalSection( &This->lock );
+
+      if ( !This->dp2->bConnectionOpen )
+      {
+        LeaveCriticalSection( &This->lock );
+        return DP_OK;
+      }
+
+      LeaveCriticalSection( &This->lock );
+
+      DP_MSG_SendPingReply( This, msg->fromId, This->dp2->systemPlayerId, msg->tickCount );
+
+      break;
+    }
+
     case DPMSGCMD_ADDFORWARD: {
       DPSP_MSG_ADDFORWARD *msg;
       DPPLAYERINFO playerInfo;
@@ -595,6 +617,26 @@ HRESULT DP_HandleMessage( IDirectPlayImpl *This, void *messageBody,
   return DP_OK;
 }
 
+HRESULT DP_HandleGameMessage( IDirectPlayImpl *This, void *messageBody, DWORD messageBodySize,
+                              DPID fromId, DPID toId )
+{
+  DPMSG_GENERIC *msg;
+  DWORD msgSize;
+  HRESULT hr;
+
+  TRACE( "(%p)->(%p,0x%08lx,0x%08lx,0x%08lx)\n", This, messageBody, messageBodySize, fromId, toId );
+
+  msg = (DPMSG_GENERIC *) ((char *) messageBody + sizeof( DPMSG_SYSMSGENVELOPE ));
+  msgSize = messageBodySize - sizeof( DPMSG_SYSMSGENVELOPE );
+
+  EnterCriticalSection( &This->lock );
+
+  hr = DP_QueueMessage( This, fromId, toId, 0, msg, DP_CopyGeneric, msgSize );
+
+  LeaveCriticalSection( &This->lock );
+
+  return hr;
+}
 
 static HRESULT WINAPI IDirectPlayImpl_QueryInterface( IDirectPlay *iface, REFIID riid, void **ppv )
 {
@@ -3778,7 +3820,7 @@ static HRESULT DP_IF_Receive( IDirectPlayImpl *This, DPID *lpidFrom, DPID *lpidT
   LPDPMSG lpMsg = NULL;
   DWORD msgSize;
 
-  FIXME( "(%p)->(%p,%p,0x%08lx,%p,%p,%u): stub\n",
+  TRACE( "(%p)->(%p,%p,0x%08lx,%p,%p,%u)\n",
          This, lpidFrom, lpidTo, dwFlags, lpData, lpdwDataSize, bAnsi );
 
   if( This->dp2->connectionInitialized == NO_PROVIDER )
@@ -3786,47 +3828,38 @@ static HRESULT DP_IF_Receive( IDirectPlayImpl *This, DPID *lpidFrom, DPID *lpidT
     return DPERR_UNINITIALIZED;
   }
 
-  if( dwFlags == 0 )
-  {
-    dwFlags = DPRECEIVE_ALL;
-  }
+  EnterCriticalSection( &This->lock );
 
-  /* If the lpData is NULL, we must be peeking the message */
-  if(  ( lpData == NULL ) &&
-      !( dwFlags & DPRECEIVE_PEEK )
-    )
+  for( lpMsg = DPQ_FIRST( This->dp2->receiveMsgs ); lpMsg; lpMsg = DPQ_NEXT( lpMsg->msgs ) )
   {
-    return DPERR_INVALIDPARAMS;
-  }
-
-  if( dwFlags & DPRECEIVE_ALL )
-  {
-    lpMsg = This->dp2->receiveMsgs.lpQHFirst;
-  }
-  else if( ( dwFlags & DPRECEIVE_TOPLAYER ) ||
-           ( dwFlags & DPRECEIVE_FROMPLAYER )
-         )
-  {
-    FIXME( "Find matching message 0x%08lx\n", dwFlags );
-  }
-  else
-  {
-    ERR( "Hmmm..dwFlags 0x%08lx\n", dwFlags );
+    if( ( dwFlags & DPRECEIVE_TOPLAYER ) && ( lpMsg->toId != *lpidTo ) )
+      continue;
+    if( ( dwFlags & DPRECEIVE_FROMPLAYER ) && ( lpMsg->fromId != *lpidFrom ) )
+      continue;
+    break;
   }
 
   if( lpMsg == NULL )
   {
+    LeaveCriticalSection( &This->lock );
     return DPERR_NOMESSAGES;
   }
 
   msgSize = lpMsg->copyMessage( NULL, lpMsg->msg, lpMsg->genericSize, bAnsi );
+
+  if( *lpdwDataSize < msgSize || !lpData )
+  {
+    *lpdwDataSize = msgSize;
+    LeaveCriticalSection( &This->lock );
+    return DPERR_BUFFERTOOSMALL;
+  }
 
   *lpidFrom = lpMsg->fromId;
   *lpidTo = lpMsg->toId;
   *lpdwDataSize = msgSize;
 
   /* Copy into the provided buffer */
-  if (lpData) lpMsg->copyMessage( lpData, lpMsg->msg, lpMsg->genericSize, bAnsi );
+  lpMsg->copyMessage( lpData, lpMsg->msg, lpMsg->genericSize, bAnsi );
 
   if( !( dwFlags & DPRECEIVE_PEEK ) )
   {
@@ -3834,6 +3867,8 @@ static HRESULT DP_IF_Receive( IDirectPlayImpl *This, DPID *lpidFrom, DPID *lpidT
     free( lpMsg->msg );
     free( lpMsg );
   }
+
+  LeaveCriticalSection( &This->lock );
 
   return DP_OK;
 }
