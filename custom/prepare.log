@@ -1,6 +1,6 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at 1bc2bc04 Rebase against 24694dabfc53fc850cf035e187a4c15b77d6bc77.
+HEAD is now at f03d32e3 Release v9.21
 HEAD is now at c9a8333c0f2 Release 9.21.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
@@ -510,6 +510,7 @@ Hunk #2 succeeded at 170 (offset 5 lines).
 Hunk #3 succeeded at 216 (offset 6 lines).
 Hunk #4 succeeded at 265 (offset 6 lines).
 Hunk #5 succeeded at 298 (offset 6 lines).
+Hunk #6 succeeded at 349 with fuzz 2.
 patching file server/object.h
 Hunk #1 succeeded at 80 (offset 10 lines).
 patching file server/process.c
