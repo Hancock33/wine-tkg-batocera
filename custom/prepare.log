@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
 HEAD is now at 3f86dff4 Rebase against ab40b7fd8686345bf77a27ceb12d4dfbaa753829.
-HEAD is now at ab40b7fd868 winex11: Always generate ConfigureNotify events for embedded windows.
+HEAD is now at ae6366b33c7 winex11: Introduce a new window_update_client_config helper.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
@@ -351,8 +351,8 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wininet-Cleanup/0002-wininet-tests-Test-auth-credential-reusage-with-host.patch
 include/wine/server_protocol.h updated
 include/wine/server_protocol.h updated
-server/trace.c updated
-server/request.h updated
+server/request_trace.h updated
+server/request_handlers.h updated
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wininet-Cleanup/0003-wininet-tests-Check-cookie-behaviour-when-overriding.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wininet-Cleanup/0004-wininet-Strip-filename-if-no-path-is-set-in-cookie.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wininet-Cleanup/0005-wininet-Replacing-header-fields-should-fail-if-they-.patch
@@ -540,7 +540,7 @@ Hunk #11 succeeded at 4284 (offset 721 lines).
 patching file server/registry.c
 Hunk #1 succeeded at 181 (offset 13 lines).
 patching file server/request.c
-Hunk #1 succeeded at 91 (offset -6 lines).
+Hunk #1 succeeded at 90 (offset -7 lines).
 patching file server/semaphore.c
 Hunk #1 succeeded at 71 (offset 12 lines).
 patching file server/serial.c

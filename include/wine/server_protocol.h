@@ -260,7 +260,7 @@ typedef struct
 } rectangle_t;
 
 
-typedef struct
+struct async_data
 {
     obj_handle_t    handle;
     obj_handle_t    event;
@@ -268,7 +268,7 @@ typedef struct
     client_ptr_t    user;
     client_ptr_t    apc;
     apc_param_t     apc_context;
-} async_data_t;
+};
 
 
 
@@ -488,18 +488,18 @@ enum apc_type
     APC_DUP_HANDLE
 };
 
-typedef struct
+struct user_apc
 {
     enum apc_type    type;
     int              __pad;
     client_ptr_t     func;
     apc_param_t      args[3];
-} user_apc_t;
+};
 
-typedef union
+union apc_call
 {
     enum apc_type type;
-    user_apc_t    user;
+    struct user_apc user;
     struct
     {
         enum apc_type    type;
@@ -620,9 +620,9 @@ typedef union
         unsigned int     attributes;
         unsigned int     options;
     } dup_handle;
-} apc_call_t;
+};
 
-typedef union
+union apc_result
 {
     enum apc_type type;
     struct
@@ -732,7 +732,7 @@ typedef union
         enum apc_type    type;
         unsigned int     status;
     } break_process;
-} apc_result_t;
+};
 
 enum irp_type
 {
@@ -1343,7 +1343,7 @@ struct get_apc_result_request
 struct get_apc_result_reply
 {
     struct reply_header __header;
-    apc_result_t result;
+    union apc_result result;
 };
 
 
@@ -1830,7 +1830,7 @@ struct flush_request
 {
     struct request_header __header;
     char __pad_12[4];
-    async_data_t   async;
+    struct async_data async;
 };
 struct flush_reply
 {
@@ -1858,7 +1858,7 @@ struct get_volume_info_request
 {
     struct request_header __header;
     obj_handle_t handle;
-    async_data_t async;
+    struct async_data async;
     unsigned int info_class;
     char __pad_60[4];
 };
@@ -1907,7 +1907,7 @@ struct recv_socket_request
 {
     struct request_header __header;
     int          oob;
-    async_data_t async;
+    struct async_data async;
     int          force_async;
     char __pad_60[4];
 };
@@ -1926,7 +1926,7 @@ struct send_socket_request
 {
     struct request_header __header;
     unsigned int flags;
-    async_data_t async;
+    struct async_data async;
 };
 struct send_socket_reply
 {
@@ -2017,7 +2017,7 @@ struct read_directory_changes_request
     unsigned int filter;
     int          subtree;
     int          want_data;
-    async_data_t async;
+    struct async_data async;
 };
 struct read_directory_changes_reply
 {
@@ -3178,7 +3178,7 @@ struct register_async_request
 {
     struct request_header __header;
     int          type;
-    async_data_t async;
+    struct async_data async;
     int          count;
     char __pad_60[4];
 };
@@ -3242,7 +3242,7 @@ struct read_request
 {
     struct request_header __header;
     char __pad_12[4];
-    async_data_t   async;
+    struct async_data async;
     file_pos_t     pos;
 };
 struct read_reply
@@ -3259,7 +3259,7 @@ struct write_request
 {
     struct request_header __header;
     char __pad_12[4];
-    async_data_t   async;
+    struct async_data async;
     file_pos_t     pos;
     /* VARARG(data,bytes); */
 };
@@ -3278,7 +3278,7 @@ struct ioctl_request
 {
     struct request_header __header;
     ioctl_code_t   code;
-    async_data_t   async;
+    struct async_data async;
     /* VARARG(in_data,bytes); */
 };
 struct ioctl_reply
@@ -6985,10 +6985,6 @@ union generic_reply
     struct get_fsync_apc_idx_reply get_fsync_apc_idx_reply;
 };
 
-/* ### protocol_version begin ### */
-
 #define SERVER_PROTOCOL_VERSION 850
-
-/* ### protocol_version end ### */
 
 #endif /* __WINE_WINE_SERVER_PROTOCOL_H */

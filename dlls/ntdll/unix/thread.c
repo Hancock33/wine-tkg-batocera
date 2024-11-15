@@ -1323,8 +1323,8 @@ NTSTATUS WINAPI NtCreateThreadEx( HANDLE *handle, ACCESS_MASK access, OBJECT_ATT
 
     if (process != NtCurrentProcess())
     {
-        apc_call_t call;
-        apc_result_t result;
+        union apc_call call;
+        union apc_result result;
 
         memset( &call, 0, sizeof(call) );
 
@@ -1712,7 +1712,7 @@ NTSTATUS WINAPI NtQueueApcThread( HANDLE handle, PNTAPCFUNC func, ULONG_PTR arg1
                                   ULONG_PTR arg2, ULONG_PTR arg3 )
 {
     unsigned int ret;
-    apc_call_t call;
+    union apc_call call;
 
     SERVER_START_REQ( queue_apc )
     {

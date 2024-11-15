@@ -81,8 +81,8 @@ struct thread_apc
     struct thread      *caller;   /* thread that queued this apc */
     struct object      *owner;    /* object that queued this apc */
     int                 executed; /* has it been executed by the client? */
-    apc_call_t          call;     /* call arguments */
-    apc_result_t        result;   /* call results once executed */
+    union apc_call      call;     /* call arguments */
+    union apc_result    result;   /* call results once executed */
 };
 
 static void dump_thread_apc( struct object *obj, int verbose );
@@ -552,7 +552,7 @@ static void thread_apc_destroy( struct object *obj )
 }
 
 /* queue an async procedure call */
-static struct thread_apc *create_apc( struct object *owner, const apc_call_t *call_data )
+static struct thread_apc *create_apc( struct object *owner, const union apc_call *call_data )
 {
     struct thread_apc *apc;
 
@@ -1217,7 +1217,7 @@ static int queue_apc( struct process *process, struct thread *thread, struct thr
 }
 
 /* queue an async procedure call */
-int thread_queue_apc( struct process *process, struct thread *thread, struct object *owner, const apc_call_t *call_data )
+int thread_queue_apc( struct process *process, struct thread *thread, struct object *owner, const union apc_call *call_data )
 {
     struct thread_apc *apc;
     int ret = 0;
@@ -1681,7 +1681,7 @@ DECL_HANDLER(select)
     data_size_t op_size, ctx_size;
     struct context *ctx;
     struct thread_apc *apc;
-    const apc_result_t *result = get_req_data();
+    const union apc_result *result = get_req_data();
     unsigned int ctx_count;
 
     if (get_req_data_size() < sizeof(*result)) goto invalid_param;
@@ -1762,13 +1762,13 @@ DECL_HANDLER(select)
 
     reply->signaled = select_on( &select_op, op_size, req->cookie, req->flags, req->timeout );
 
-    if (get_error() == STATUS_USER_APC && get_reply_max_size() >= sizeof(apc_call_t))
+    if (get_error() == STATUS_USER_APC && get_reply_max_size() >= sizeof(union apc_call))
     {
         apc = thread_dequeue_apc( current, 0 );
         set_reply_data( &apc->call, sizeof(apc->call) );
         release_object( apc );
     }
-    else if (get_error() == STATUS_KERNEL_APC && get_reply_max_size() >= sizeof(apc_call_t))
+    else if (get_error() == STATUS_KERNEL_APC && get_reply_max_size() >= sizeof(union apc_call))
     {
         apc = thread_dequeue_apc( current, 1 );
         if ((reply->apc_handle = alloc_handle( current->process, apc, SYNCHRONIZE, 0 )))
@@ -1782,13 +1782,13 @@ DECL_HANDLER(select)
         }
         release_object( apc );
     }
-    else if (reply->signaled && get_reply_max_size() >= sizeof(apc_call_t) + sizeof(context_t) &&
+    else if (reply->signaled && get_reply_max_size() >= sizeof(union apc_call) + sizeof(context_t) &&
              current->context && current->suspend_cookie == req->cookie)
     {
         ctx = current->context;
         if (ctx->regs[CTX_NATIVE].flags || ctx->regs[CTX_WOW].flags)
         {
-            apc_call_t *data;
+            union apc_call *data;
             data_size_t size = sizeof(*data) + (ctx->regs[CTX_WOW].flags ? 2 : 1) * sizeof(context_t);
             unsigned int flags = system_flags & ctx->regs[CTX_NATIVE].flags;
 
@@ -1815,7 +1815,7 @@ DECL_HANDLER(queue_apc)
     struct thread *thread = NULL;
     struct process *process = NULL;
     struct thread_apc *apc;
-    const apc_call_t *call = get_req_data();
+    const union apc_call *call = get_req_data();
 
     if (get_req_data_size() < sizeof(*call)) call = NULL;
 
