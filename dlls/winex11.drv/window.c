@@ -1227,10 +1227,12 @@ static void update_net_wm_fullscreen_monitors( struct x11drv_win_data *data )
 
 static void window_set_net_wm_state( struct x11drv_win_data *data, UINT new_state )
 {
-    UINT i, count;
+    UINT i, count, old_state = data->pending_state.net_wm_state;
 
     if (!data->whole_window) return; /* no window, nothing to update */
+    if (old_state == new_state) return; /* states are the same, nothing to update */
 
+    if (data->pending_state.wm_state == IconicState) return; /* window is iconic, don't update its state now */
     if (!data->mapped)  /* set the _NET_WM_STATE atom directly */
     {
         Atom atoms[NB_NET_WM_STATES + 1];
@@ -1266,6 +1268,8 @@ static void window_set_net_wm_state( struct x11drv_win_data *data, UINT new_stat
 
         for (i = 0; i < NB_NET_WM_STATES; i++)
         {
+            if (!((old_state ^ new_state) & (1 << i))) continue;
+
             xev.xclient.data.l[0] = (new_state & (1 << i)) ? _NET_WM_STATE_ADD : _NET_WM_STATE_REMOVE;
             xev.xclient.data.l[1] = X11DRV_Atoms[net_wm_state_atoms[i] - FIRST_XATOM];
             xev.xclient.data.l[2] = ((net_wm_state_atoms[i] == XATOM__NET_WM_STATE_MAXIMIZED_VERT) ?
@@ -1284,9 +1288,11 @@ static void window_set_net_wm_state( struct x11drv_win_data *data, UINT new_stat
 static void window_set_config( struct x11drv_win_data *data, const RECT *new_rect, BOOL above )
 {
     UINT style = NtUserGetWindowLongW( data->hwnd, GWL_STYLE ), mask = 0;
+    const RECT *old_rect = &data->pending_state.rect;
     XWindowChanges changes;
 
     if (!data->whole_window) return; /* no window, nothing to update */
+    if (EqualRect( old_rect, new_rect )) return; /* rects are the same, nothing to update */
 
     /* resizing a managed maximized window is not allowed */
     if (!(style & WS_MAXIMIZE) || !data->managed)
@@ -2334,7 +2340,12 @@ void set_window_parent( struct x11drv_win_data *data, Window parent )
     if (!data->whole_window) return; /* only keep track of parent if we have a toplevel */
     TRACE( "window %p/%lx, parent %lx\n", data->hwnd, data->whole_window, parent );
     host_window_reparent( &data->parent, parent, data->whole_window );
-    if (data->parent) host_window_configure_child( data->parent, data->whole_window, data->rects.visible, TRUE );
+    if (data->parent)
+    {
+        RECT rect = data->rects.visible;
+        OffsetRect( &rect, -rect.left, -rect.top );
+        host_window_configure_child( data->parent, data->whole_window, rect, TRUE );
+    }
     data->parent_invalid = 0;
 }
 
@@ -2488,6 +2499,7 @@ BOOL X11DRV_SystrayDockInsert( HWND hwnd, UINT cx, UINT cy, void *icon )
     window = data->whole_window;
     release_win_data( data );
 
+    NtUserSetWindowPos( hwnd, NULL, 0, 0, 0, 0, SWP_NOSIZE|SWP_NOZORDER );
     NtUserShowWindow( hwnd, SW_SHOWNA );
 
     TRACE_(systray)( "icon window %p/%lx\n", hwnd, window );

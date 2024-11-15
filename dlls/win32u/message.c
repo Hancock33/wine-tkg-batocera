@@ -4370,10 +4370,10 @@ LRESULT WINAPI NtUserMessageCall( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpa
         return scroll_bar_window_proc( hwnd, msg, wparam, lparam, ansi );
 
     case NtUserPopupMenuWndProc:
-        return popup_menu_window_proc( hwnd, msg, wparam, lparam );
+        return popup_menu_window_proc( hwnd, msg, wparam, lparam, ansi );
 
     case NtUserDesktopWindowProc:
-        return desktop_window_proc( hwnd, msg, wparam, lparam );
+        return desktop_window_proc( hwnd, msg, wparam, lparam, ansi );
 
     case NtUserDefWindowProc:
         return default_window_proc( hwnd, msg, wparam, lparam, ansi );

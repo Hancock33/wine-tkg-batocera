@@ -446,24 +446,58 @@ struct send_message_callback_params
 /* NtUserSetScrollInfo flag */
 #define SIF_RETURNPREV  0x1000
 
-/* NtUserInitializeClientPfnArrays parameter, not compatible with Windows */
-struct user_client_procs
+/* NtUserInitializeClientPfnArrays parameter */
+enum ntuser_client_procs
 {
-    WNDPROC pButtonWndProc;
-    WNDPROC pComboWndProc;
-    WNDPROC pDefWindowProc;
-    WNDPROC pDefDlgProc;
-    WNDPROC pEditWndProc;
-    WNDPROC pListBoxWndProc;
-    WNDPROC pMDIClientWndProc;
-    WNDPROC pScrollBarWndProc;
-    WNDPROC pStaticWndProc;
-    WNDPROC pImeWndProc;
-    WNDPROC pDesktopWndProc;
-    WNDPROC pIconTitleWndProc;
-    WNDPROC pPopupMenuWndProc;
-    WNDPROC pMessageWndProc;
+    NTUSER_WNDPROC_SCROLLBAR,
+    NTUSER_WNDPROC_MESSAGE,
+    NTUSER_WNDPROC_MENU,
+    NTUSER_WNDPROC_DESKTOP,
+    NTUSER_WNDPROC_DEFWND,
+    NTUSER_WNDPROC_ICONTITLE,
+    NTUSER_WNDPROC_UNKNOWN,
+    NTUSER_WNDPROC_BUTTON,
+    NTUSER_WNDPROC_COMBO,
+    NTUSER_WNDPROC_COMBOLBOX,
+    NTUSER_WNDPROC_DIALOG,
+    NTUSER_WNDPROC_EDIT,
+    NTUSER_WNDPROC_LISTBOX,
+    NTUSER_WNDPROC_MDICLIENT,
+    NTUSER_WNDPROC_STATIC,
+    NTUSER_WNDPROC_IME,
+    NTUSER_WNDPROC_GHOST,
+    NTUSER_NB_PROCS
 };
+
+#define NTUSER_NB_WORKERS 11
+
+/* 64-bit pointers are used on all platforms */
+typedef WNDPROC ntuser_client_func_ptr[sizeof(UINT64) / sizeof(void *)];
+
+struct ntuser_client_procs_table
+{
+    ntuser_client_func_ptr A[NTUSER_NB_PROCS];
+    ntuser_client_func_ptr W[NTUSER_NB_PROCS];
+    ntuser_client_func_ptr workers[NTUSER_NB_WORKERS];
+};
+#define ALL_NTUSER_CLIENT_PROCS \
+  USER_FUNC( ScrollBarWndProc, NTUSER_WNDPROC_SCROLLBAR ) \
+  USER_FUNC( MessageWndProc, NTUSER_WNDPROC_MESSAGE ) \
+  USER_FUNC( PopupMenuWndProc, NTUSER_WNDPROC_MENU ) \
+  USER_FUNC( DesktopWndProc, NTUSER_WNDPROC_DESKTOP ) \
+  USER_FUNC( DefWindowProc, NTUSER_WNDPROC_DEFWND ) \
+  USER_FUNC( IconTitleWndProc, NTUSER_WNDPROC_ICONTITLE ) \
+  USER_FUNC( ButtonWndProc, NTUSER_WNDPROC_BUTTON ) \
+  USER_FUNC( ComboWndProc, NTUSER_WNDPROC_COMBO ) \
+  USER_FUNC( ComboLBoxWndProc, NTUSER_WNDPROC_COMBOLBOX ) \
+  USER_FUNC( DialogWndProc, NTUSER_WNDPROC_DIALOG ) \
+  USER_FUNC( EditWndProc, NTUSER_WNDPROC_EDIT ) \
+  USER_FUNC( ListBoxWndProc, NTUSER_WNDPROC_LISTBOX ) \
+  USER_FUNC( MDIClientWndProc, NTUSER_WNDPROC_MDICLIENT ) \
+  USER_FUNC( StaticWndProc, NTUSER_WNDPROC_STATIC ) \
+  USER_FUNC( ImeWndProc, NTUSER_WNDPROC_IME ) \
+  USER_FUNC( GhostWndProc, NTUSER_WNDPROC_GHOST )
+
 
 /* NtUserSetCursorIconData parameter, not compatible with Windows */
 struct cursoricon_frame
@@ -775,9 +809,9 @@ W32KAPI BOOL    WINAPI NtUserGetWindowPlacement( HWND hwnd, WINDOWPLACEMENT *pla
 W32KAPI int     WINAPI NtUserGetWindowRgnEx( HWND hwnd, HRGN hrgn, UINT unk );
 W32KAPI BOOL    WINAPI NtUserHideCaret( HWND hwnd );
 W32KAPI BOOL    WINAPI NtUserHiliteMenuItem( HWND hwnd, HMENU handle, UINT item, UINT hilite );
-W32KAPI NTSTATUS WINAPI NtUserInitializeClientPfnArrays( const struct user_client_procs *client_procsA,
-                                                         const struct user_client_procs *client_procsW,
-                                                         const void *client_workers, HINSTANCE user_module );
+W32KAPI NTSTATUS WINAPI NtUserInitializeClientPfnArrays( const ntuser_client_func_ptr *client_procsA,
+                                                         const ntuser_client_func_ptr *client_procsW,
+                                                         const ntuser_client_func_ptr *client_workers, HINSTANCE user_module );
 W32KAPI HICON   WINAPI NtUserInternalGetWindowIcon( HWND hwnd, UINT type );
 W32KAPI INT     WINAPI NtUserInternalGetWindowText( HWND hwnd, WCHAR *text, INT count );
 W32KAPI BOOL    WINAPI NtUserIsClipboardFormatAvailable( UINT format );

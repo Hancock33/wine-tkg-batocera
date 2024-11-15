@@ -5438,8 +5438,8 @@ struct add_completion_request
     apc_param_t   ckey;
     apc_param_t   cvalue;
     apc_param_t   information;
+    obj_handle_t  reserve_handle;
     unsigned int  status;
-    char __pad_44[4];
 };
 struct add_completion_reply
 {
@@ -6987,7 +6987,7 @@ union generic_reply
 
 /* ### protocol_version begin ### */
 
-#define SERVER_PROTOCOL_VERSION 849
+#define SERVER_PROTOCOL_VERSION 850
 
 /* ### protocol_version end ### */
 

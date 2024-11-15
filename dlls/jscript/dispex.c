@@ -656,7 +656,13 @@ static HRESULT prop_put(jsdisp_t *This, dispex_prop_t *prop, jsval_t val)
             TRACE("no prop_put\n");
             return S_OK;
         }
-        return This->builtin_info->prop_put(This, prop->u.id, val);
+        hres = This->builtin_info->prop_put(This, prop->u.id, val);
+        if(hres != S_FALSE)
+            return hres;
+        prop->type = PROP_JSVAL;
+        prop->flags = PROPF_ENUMERABLE | PROPF_CONFIGURABLE | PROPF_WRITABLE;
+        prop->u.val = jsval_undefined();
+        break;
     default:
         ERR("type %d\n", prop->type);
         return E_FAIL;
@@ -2322,8 +2328,21 @@ static HRESULT WINAPI DispatchEx_DeleteMemberByDispID(IWineJSDispatch *iface, DI
 static HRESULT WINAPI DispatchEx_GetMemberProperties(IWineJSDispatch *iface, DISPID id, DWORD grfdexFetch, DWORD *pgrfdex)
 {
     jsdisp_t *This = impl_from_IWineJSDispatch(iface);
-    FIXME("(%p)->(%lx %lx %p)\n", This, id, grfdexFetch, pgrfdex);
-    return E_NOTIMPL;
+    dispex_prop_t *prop;
+
+    TRACE("(%p)->(%lx %lx %p)\n", This, id, grfdexFetch, pgrfdex);
+
+    prop = get_prop(This, id);
+    if(!prop)
+        return DISP_E_MEMBERNOTFOUND;
+    *pgrfdex = 0;
+
+    if(grfdexFetch) {
+        FIXME("unimplemented flags %08lx\n", grfdexFetch);
+        return E_NOTIMPL;
+    }
+
+    return S_OK;
 }
 
 static HRESULT WINAPI DispatchEx_GetMemberName(IWineJSDispatch *iface, DISPID id, BSTR *pbstrName)
