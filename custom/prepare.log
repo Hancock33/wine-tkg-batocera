@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at 3f86dff4 Rebase against ab40b7fd8686345bf77a27ceb12d4dfbaa753829.
-HEAD is now at ae6366b33c7 winex11: Introduce a new window_update_client_config helper.
+HEAD is now at 8b3f47c1 Rebase against 044527c671d87b917e01f39fcf33b596cc2e7878.
+HEAD is now at 044527c671d setupapi: Implement SetupDiGetDevicePropertyKeys.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
@@ -404,7 +404,7 @@ Hunk #13 succeeded at 679 with fuzz 1 (offset 34 lines).
 Hunk #14 succeeded at 707 (offset 29 lines).
 Hunk #15 succeeded at 743 (offset 38 lines).
 Hunk #16 succeeded at 1669 (offset 340 lines).
-Hunk #17 succeeded at 1708 (offset 335 lines).
+Hunk #17 succeeded at 1708 with fuzz 1 (offset 335 lines).
 Hunk #18 succeeded at 1754 (offset 353 lines).
 patching file dlls/ntdll/unix/unix_private.h
 Hunk #1 succeeded at 104 with fuzz 2 (offset 45 lines).
@@ -449,7 +449,10 @@ Hunk #3 succeeded at 97 (offset -2 lines).
 Hunk #4 succeeded at 115 (offset -2 lines).
 Hunk #5 succeeded at 174 (offset 11 lines).
 Hunk #6 succeeded at 228 (offset 12 lines).
-Hunk #10 succeeded at 1061 (offset 24 lines).
+Hunk #7 succeeded at 762 (offset 1 line).
+Hunk #8 succeeded at 810 (offset 1 line).
+Hunk #9 succeeded at 867 (offset 1 line).
+Hunk #10 succeeded at 1062 (offset 25 lines).
 patching file server/directory.c
 Hunk #1 succeeded at 70 (offset 11 lines).
 Hunk #2 succeeded at 122 (offset 22 lines).
@@ -524,7 +527,7 @@ Hunk #8 succeeded at 826 (offset 132 lines).
 patching file server/process.h
 Hunk #1 succeeded at 87 with fuzz 2 (offset -12 lines).
 patching file server/protocol.def
-Hunk #1 succeeded at 4138 (offset 372 lines).
+Hunk #1 succeeded at 4129 (offset 363 lines).
 patching file server/queue.c
 Hunk #1 succeeded at 45 (offset 1 line).
 Hunk #2 succeeded at 138 (offset -10 lines).
@@ -740,12 +743,12 @@ Applying hotfix wine-tkg-patches/hotfixes/shm_esync_fsync/HACK-user32-Always-cal
 patching file dlls/win32u/input.c
 Hunk #1 succeeded at 799 (offset -5 lines).
 patching file dlls/win32u/message.c
-Hunk #1 succeeded at 2709 (offset 15 lines).
-Hunk #2 succeeded at 2749 (offset 15 lines).
-Hunk #3 succeeded at 2950 (offset 15 lines).
-Hunk #4 succeeded at 3015 (offset 15 lines).
-Hunk #5 succeeded at 3249 (offset 15 lines).
-Hunk #6 succeeded at 3300 (offset 15 lines).
+Hunk #1 succeeded at 2708 (offset 14 lines).
+Hunk #2 succeeded at 2748 (offset 14 lines).
+Hunk #3 succeeded at 2949 (offset 14 lines).
+Hunk #4 succeeded at 3014 (offset 14 lines).
+Hunk #5 succeeded at 3248 (offset 14 lines).
+Hunk #6 succeeded at 3299 (offset 14 lines).
 patching file dlls/win32u/ntuser_private.h
 Hunk #1 succeeded at 217 (offset -18 lines).
 

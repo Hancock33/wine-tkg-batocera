@@ -189,7 +189,6 @@ DECL_HANDLER(set_input_desktop);
 DECL_HANDLER(close_desktop);
 DECL_HANDLER(get_thread_desktop);
 DECL_HANDLER(set_thread_desktop);
-DECL_HANDLER(enum_desktop);
 DECL_HANDLER(set_user_object_info);
 DECL_HANDLER(register_hotkey);
 DECL_HANDLER(unregister_hotkey);
@@ -495,7 +494,6 @@ static const req_handler req_handlers[REQ_NB_REQUESTS] =
     (req_handler)req_close_desktop,
     (req_handler)req_get_thread_desktop,
     (req_handler)req_set_thread_desktop,
-    (req_handler)req_enum_desktop,
     (req_handler)req_set_user_object_info,
     (req_handler)req_register_hotkey,
     (req_handler)req_unregister_hotkey,
@@ -626,16 +624,12 @@ C_ASSERT( sizeof(client_ptr_t) == 8 );
 C_ASSERT( sizeof(context_t) == 1728 );
 C_ASSERT( sizeof(cursor_pos_t) == 24 );
 C_ASSERT( sizeof(data_size_t) == 4 );
-C_ASSERT( sizeof(debug_event_t) == 160 );
 C_ASSERT( sizeof(file_pos_t) == 8 );
 C_ASSERT( sizeof(generic_map_t) == 16 );
-C_ASSERT( sizeof(hw_input_t) == 40 );
 C_ASSERT( sizeof(int) == 4 );
 C_ASSERT( sizeof(ioctl_code_t) == 4 );
-C_ASSERT( sizeof(irp_params_t) == 32 );
 C_ASSERT( sizeof(lparam_t) == 8 );
 C_ASSERT( sizeof(mem_size_t) == 8 );
-C_ASSERT( sizeof(message_data_t) == 48 );
 C_ASSERT( sizeof(mod_handle_t) == 8 );
 C_ASSERT( sizeof(obj_handle_t) == 4 );
 C_ASSERT( sizeof(obj_locator_t) == 16 );
@@ -644,7 +638,6 @@ C_ASSERT( sizeof(pe_image_info_t) == 88 );
 C_ASSERT( sizeof(process_id_t) == 4 );
 C_ASSERT( sizeof(property_data_t) == 16 );
 C_ASSERT( sizeof(rectangle_t) == 16 );
-C_ASSERT( sizeof(select_op_t) == 264 );
 C_ASSERT( sizeof(short int) == 2 );
 C_ASSERT( sizeof(startup_info_t) == 96 );
 C_ASSERT( sizeof(struct async_data) == 40 );
@@ -664,6 +657,11 @@ C_ASSERT( sizeof(timeout_t) == 8 );
 C_ASSERT( sizeof(udp_endpoint) == 32 );
 C_ASSERT( sizeof(union apc_call) == 64 );
 C_ASSERT( sizeof(union apc_result) == 40 );
+C_ASSERT( sizeof(union debug_event_data) == 160 );
+C_ASSERT( sizeof(union hw_input) == 40 );
+C_ASSERT( sizeof(union irp_params) == 32 );
+C_ASSERT( sizeof(union message_data) == 48 );
+C_ASSERT( sizeof(union select_op) == 264 );
 C_ASSERT( sizeof(unsigned __int64) == 8 );
 C_ASSERT( sizeof(unsigned char) == 1 );
 C_ASSERT( sizeof(unsigned int) == 4 );
@@ -1656,9 +1654,10 @@ C_ASSERT( offsetof(struct get_process_winstation_reply, handle) == 8 );
 C_ASSERT( sizeof(struct get_process_winstation_reply) == 16 );
 C_ASSERT( offsetof(struct set_process_winstation_request, handle) == 12 );
 C_ASSERT( sizeof(struct set_process_winstation_request) == 16 );
-C_ASSERT( offsetof(struct enum_winstation_request, index) == 12 );
+C_ASSERT( offsetof(struct enum_winstation_request, handle) == 12 );
 C_ASSERT( sizeof(struct enum_winstation_request) == 16 );
-C_ASSERT( offsetof(struct enum_winstation_reply, next) == 8 );
+C_ASSERT( offsetof(struct enum_winstation_reply, count) == 8 );
+C_ASSERT( offsetof(struct enum_winstation_reply, total) == 12 );
 C_ASSERT( sizeof(struct enum_winstation_reply) == 16 );
 C_ASSERT( offsetof(struct create_desktop_request, flags) == 12 );
 C_ASSERT( offsetof(struct create_desktop_request, access) == 16 );
@@ -1692,11 +1691,6 @@ C_ASSERT( offsetof(struct set_thread_desktop_request, handle) == 12 );
 C_ASSERT( sizeof(struct set_thread_desktop_request) == 16 );
 C_ASSERT( offsetof(struct set_thread_desktop_reply, locator) == 8 );
 C_ASSERT( sizeof(struct set_thread_desktop_reply) == 24 );
-C_ASSERT( offsetof(struct enum_desktop_request, winstation) == 12 );
-C_ASSERT( offsetof(struct enum_desktop_request, index) == 16 );
-C_ASSERT( sizeof(struct enum_desktop_request) == 24 );
-C_ASSERT( offsetof(struct enum_desktop_reply, next) == 8 );
-C_ASSERT( sizeof(struct enum_desktop_reply) == 16 );
 C_ASSERT( offsetof(struct set_user_object_info_request, handle) == 12 );
 C_ASSERT( offsetof(struct set_user_object_info_request, flags) == 16 );
 C_ASSERT( offsetof(struct set_user_object_info_request, obj_flags) == 20 );

@@ -279,7 +279,6 @@ struct post_dde_message_params
     WPARAM wparam;
     LPARAM lparam;
     DWORD dest_tid;
-    DWORD type;
 };
 
 /* NtUserRenderSynthesizedFormat params */
@@ -398,6 +397,7 @@ enum
     NtUserImeDriverCall       = 0x0305,
     NtUserSystemTrayCall      = 0x0306,
     NtUserDragDropCall        = 0x0307,
+    NtUserPostDdeCall         = 0x0308,
 };
 
 /* NtUserThunkedMenuItemInfo codes */
@@ -426,6 +426,13 @@ struct send_message_callback_params
 {
     SENDASYNCPROC callback;
     ULONG_PTR data;
+};
+
+struct post_dde_message_call_params
+{
+    void *ptr;
+    UINT  size;
+    DWORD dest_tid;
 };
 
 /* color index used to retrieve system 55aa brush */
@@ -661,6 +668,20 @@ enum wine_drag_drop_call
     WINE_DRAG_DROP_POST,
 };
 
+struct ntuser_property_list
+{
+    UINT64  data;
+    ATOM    atom;
+    BOOLEAN string;  /* Wine extension */
+};
+
+struct ntuser_name_list
+{
+    ULONG size;
+    ULONG count;
+    WCHAR strings[1];
+};
+
 #define WM_SYSTIMER  0x0118
 
 
@@ -672,6 +693,8 @@ W32KAPI HDC     WINAPI NtUserBeginPaint( HWND hwnd, PAINTSTRUCT *ps );
 W32KAPI NTSTATUS WINAPI NtUserBuildHimcList( UINT thread_id, UINT count, HIMC *buffer, UINT *size );
 W32KAPI NTSTATUS WINAPI NtUserBuildHwndList( HDESK desktop, ULONG unk2, ULONG unk3, ULONG unk4,
                                              ULONG thread_id, ULONG count, HWND *buffer, ULONG *size );
+W32KAPI NTSTATUS WINAPI NtUserBuildNameList( HWINSTA winsta, ULONG size, struct ntuser_name_list *buffer, ULONG *ret_size );
+W32KAPI NTSTATUS WINAPI NtUserBuildPropList( HWND hwnd, ULONG count, struct ntuser_property_list *buffer, ULONG *ret_count );
 W32KAPI ULONG_PTR WINAPI NtUserCallHwnd( HWND hwnd, DWORD code );
 W32KAPI ULONG_PTR WINAPI NtUserCallHwndParam( HWND hwnd, DWORD_PTR param, DWORD code );
 W32KAPI LRESULT WINAPI NtUserCallNextHookEx( HHOOK hhook, INT code, WPARAM wparam, LPARAM lparam );
@@ -1019,6 +1042,7 @@ enum
     NtUserCallOneParam_GetSystemMetrics,
     NtUserCallOneParam_GetVirtualScreenRect,
     NtUserCallOneParam_MessageBeep,
+    NtUserCallOneParam_PostQuitMessage,
     NtUserCallOneParam_RealizePalette,
     NtUserCallOneParam_ReplyMessage,
     NtUserCallOneParam_SetCaretBlinkTime,
@@ -1123,6 +1147,11 @@ static inline INT NtUserGetSystemMetrics( INT index )
 static inline BOOL NtUserMessageBeep( UINT i )
 {
     return NtUserCallOneParam( i, NtUserCallOneParam_MessageBeep );
+}
+
+static inline void NtUserPostQuitMessage( INT exit_code )
+{
+    NtUserCallOneParam( exit_code, NtUserCallOneParam_PostQuitMessage );
 }
 
 static inline UINT NtUserRealizePalette( HDC hdc )

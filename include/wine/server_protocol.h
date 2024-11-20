@@ -57,7 +57,7 @@ struct request_max_size
 
 
 
-typedef union
+union debug_event_data
 {
     int code;
     struct
@@ -109,7 +109,7 @@ typedef union
         int          __pad;
         mod_handle_t base;
     } unload_dll;
-} debug_event_t;
+};
 
 
 enum context_exec_space
@@ -312,7 +312,7 @@ struct winevent_msg_data
 
 };
 
-typedef union
+union hw_input
 {
     int type;
     struct
@@ -342,15 +342,15 @@ typedef union
         lparam_t       lparam;
         struct hid_input hid;
     } hw;
-} hw_input_t;
+};
 
-typedef union
+union message_data
 {
     unsigned char            bytes[1];
     struct hardware_msg_data hardware;
     struct callback_msg_data callback;
     struct winevent_msg_data winevent;
-} message_data_t;
+};
 
 
 struct filesystem_event
@@ -435,7 +435,7 @@ struct object_type_info
 
 };
 
-enum select_op
+enum select_opcode
 {
     SELECT_NONE,
     SELECT_WAIT,
@@ -445,28 +445,28 @@ enum select_op
     SELECT_KEYED_EVENT_RELEASE
 };
 
-typedef union
+union select_op
 {
-    enum select_op op;
+    enum select_opcode op;
     struct
     {
-        enum select_op  op;
+        enum select_opcode op;
         obj_handle_t    handles[MAXIMUM_WAIT_OBJECTS];
         int             __pad;
     } wait;
     struct
     {
-        enum select_op  op;
+        enum select_opcode op;
         obj_handle_t    wait;
         obj_handle_t    signal;
     } signal_and_wait;
     struct
     {
-        enum select_op  op;
+        enum select_opcode op;
         obj_handle_t    handle;
         client_ptr_t    key;
     } keyed_event;
-} select_op_t;
+};
 
 enum apc_type
 {
@@ -748,7 +748,7 @@ enum irp_type
     IRP_CALL_CANCEL
 };
 
-typedef union
+union irp_params
 {
     enum irp_type        type;
     struct
@@ -816,7 +816,7 @@ typedef union
         int              __pad;
         client_ptr_t     irp;
     } cancel;
-} irp_params_t;
+};
 
 
 typedef struct
@@ -2997,7 +2997,7 @@ struct send_hardware_message_request
 {
     struct request_header __header;
     user_handle_t   win;
-    hw_input_t      input;
+    union hw_input  input;
     unsigned int    flags;
     /* VARARG(report,bytes); */
     char __pad_60[4];
@@ -3921,14 +3921,14 @@ struct set_process_winstation_reply
 struct enum_winstation_request
 {
     struct request_header __header;
-    unsigned int index;
+    obj_handle_t handle;
 };
 struct enum_winstation_reply
 {
     struct reply_header __header;
-    unsigned int next;
-    /* VARARG(name,unicode_str); */
-    char __pad_12[4];
+    data_size_t count;
+    data_size_t total;
+    /* VARARG(names,unicode_strings); */
 };
 
 
@@ -4033,23 +4033,6 @@ struct set_thread_desktop_reply
 {
     struct reply_header __header;
     obj_locator_t  locator;
-};
-
-
-
-struct enum_desktop_request
-{
-    struct request_header __header;
-    obj_handle_t winstation;
-    unsigned int index;
-    char __pad_20[4];
-};
-struct enum_desktop_reply
-{
-    struct reply_header __header;
-    unsigned int next;
-    /* VARARG(name,unicode_str); */
-    char __pad_12[4];
 };
 
 
@@ -5265,7 +5248,7 @@ struct get_next_device_request_request
 struct get_next_device_request_reply
 {
     struct reply_header __header;
-    irp_params_t params;
+    union irp_params params;
     obj_handle_t next;
     thread_id_t  client_tid;
     client_ptr_t client_thread;
@@ -6247,7 +6230,6 @@ enum request
     REQ_close_desktop,
     REQ_get_thread_desktop,
     REQ_set_thread_desktop,
-    REQ_enum_desktop,
     REQ_set_user_object_info,
     REQ_register_hotkey,
     REQ_unregister_hotkey,
@@ -6556,7 +6538,6 @@ union generic_request
     struct close_desktop_request close_desktop_request;
     struct get_thread_desktop_request get_thread_desktop_request;
     struct set_thread_desktop_request set_thread_desktop_request;
-    struct enum_desktop_request enum_desktop_request;
     struct set_user_object_info_request set_user_object_info_request;
     struct register_hotkey_request register_hotkey_request;
     struct unregister_hotkey_request unregister_hotkey_request;
@@ -6863,7 +6844,6 @@ union generic_reply
     struct close_desktop_reply close_desktop_reply;
     struct get_thread_desktop_reply get_thread_desktop_reply;
     struct set_thread_desktop_reply set_thread_desktop_reply;
-    struct enum_desktop_reply enum_desktop_reply;
     struct set_user_object_info_reply set_user_object_info_reply;
     struct register_hotkey_reply register_hotkey_reply;
     struct unregister_hotkey_reply unregister_hotkey_reply;
@@ -6985,6 +6965,6 @@ union generic_reply
     struct get_fsync_apc_idx_reply get_fsync_apc_idx_reply;
 };
 
-#define SERVER_PROTOCOL_VERSION 850
+#define SERVER_PROTOCOL_VERSION 851
 
 #endif /* __WINE_WINE_SERVER_PROTOCOL_H */

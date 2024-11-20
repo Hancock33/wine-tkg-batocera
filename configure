@@ -10333,7 +10333,7 @@ fi }
         eval "${wine_arch}_DELAYLOADFLAG=\"-Wl,-delayload,\""
         as_fn_append ${wine_arch}_EXTRACFLAGS " $llvm_extra_cflags"
         as_fn_append ${wine_arch}_LDFLAGS " $llvm_extra_ldflags"
-        CFLAGS="$llvm_extra_cflags $llvm_cflags"
+        CFLAGS="$CFLAGS $llvm_extra_cflags $llvm_cflags"
     else
         as_wine_cv_crosscc=`printf "%s\n" "wine_cv_${wine_arch}_crosscc" | $as_tr_sh`
 
@@ -22137,6 +22137,7 @@ wine_fn_config_makefile programs/msidb enable_msidb
 wine_fn_config_makefile programs/msiexec enable_msiexec
 wine_fn_config_makefile programs/msinfo32 enable_msinfo32
 wine_fn_config_makefile programs/net enable_net
+wine_fn_config_makefile programs/net/tests enable_tests
 wine_fn_config_makefile programs/netsh enable_netsh
 wine_fn_config_makefile programs/netstat enable_netstat
 wine_fn_config_makefile programs/ngen enable_ngen
@@ -22328,7 +22329,7 @@ maintainer-clean::
 
 as_fn_append wine_rules "
 dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-9.21.r3.g3f86dff4\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging Esync Fsync )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
+	@version=\`(echo \"wine-9.21.r5.g8b3f47c1\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging Esync Fsync )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$@) || echo \$\$build >\$@ || (rm -f \$@ && exit 1)
 programs/winetest/build.nfo:

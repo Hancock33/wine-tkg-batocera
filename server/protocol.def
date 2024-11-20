@@ -73,7 +73,7 @@ struct request_max_size
 
 
 /* debug event data */
-typedef union
+union debug_event_data
 {
     int code;   /* event code */
     struct
@@ -125,7 +125,7 @@ typedef union
         int          __pad;
         mod_handle_t base;       /* base address of the dll */
     } unload_dll;
-} debug_event_t;
+};
 
 
 enum context_exec_space
@@ -328,7 +328,7 @@ struct winevent_msg_data
     /* followed by module name if any */
 };
 
-typedef union
+union hw_input
 {
     int type;
     struct
@@ -358,15 +358,15 @@ typedef union
         lparam_t       lparam;  /* parameters */
         struct hid_input hid;   /* defined in ntuser.h */
     } hw;
-} hw_input_t;
+};
 
-typedef union
+union message_data
 {
     unsigned char            bytes[1];   /* raw data for sent messages */
     struct hardware_msg_data hardware;
     struct callback_msg_data callback;
     struct winevent_msg_data winevent;
-} message_data_t;
+};
 
 /* structure returned in filesystem events */
 struct filesystem_event
@@ -451,7 +451,7 @@ struct object_type_info
     /* VARARG(name,unicode_str); */
 };
 
-enum select_op
+enum select_opcode
 {
     SELECT_NONE,
     SELECT_WAIT,
@@ -461,28 +461,28 @@ enum select_op
     SELECT_KEYED_EVENT_RELEASE
 };
 
-typedef union
+union select_op
 {
-    enum select_op op;
+    enum select_opcode op;
     struct
     {
-        enum select_op  op;      /* SELECT_WAIT or SELECT_WAIT_ALL */
+        enum select_opcode op;   /* SELECT_WAIT or SELECT_WAIT_ALL */
         obj_handle_t    handles[MAXIMUM_WAIT_OBJECTS];
         int             __pad;
     } wait;
     struct
     {
-        enum select_op  op;      /* SELECT_SIGNAL_AND_WAIT */
+        enum select_opcode op;   /* SELECT_SIGNAL_AND_WAIT */
         obj_handle_t    wait;
         obj_handle_t    signal;  /* must be last in the structure so we can remove it on retries */
     } signal_and_wait;
     struct
     {
-        enum select_op  op;      /* SELECT_KEYED_EVENT_WAIT or SELECT_KEYED_EVENT_RELEASE */
+        enum select_opcode op;   /* SELECT_KEYED_EVENT_WAIT or SELECT_KEYED_EVENT_RELEASE */
         obj_handle_t    handle;
         client_ptr_t    key;
     } keyed_event;
-} select_op_t;
+};
 
 enum apc_type
 {
@@ -764,7 +764,7 @@ enum irp_type
     IRP_CALL_CANCEL
 };
 
-typedef union
+union irp_params
 {
     enum irp_type        type;      /* irp call type */
     struct
@@ -832,7 +832,7 @@ typedef union
         int              __pad;
         client_ptr_t     irp;       /* opaque ptr for canceled irp */
     } cancel;
-} irp_params_t;
+};
 
 /* information about a PE image mapping, roughly equivalent to SECTION_IMAGE_INFORMATION */
 typedef struct
@@ -2262,7 +2262,7 @@ enum message_type
 /* Send a hardware message to a thread queue */
 @REQ(send_hardware_message)
     user_handle_t   win;       /* window handle */
-    hw_input_t      input;     /* input data */
+    union hw_input  input;     /* input data */
     unsigned int    flags;     /* flags (see ntuser.h) */
     VARARG(report,bytes);      /* HID report data */
 @REPLY
@@ -2852,12 +2852,13 @@ enum coords_relative
 @END
 
 
-/* Enumerate window stations */
+/* Enumerate window stations and desktops */
 @REQ(enum_winstation)
-    unsigned int index;           /* current index */
+    obj_handle_t handle;          /* handle to the window station */
 @REPLY
-    unsigned int next;            /* next index */
-    VARARG(name,unicode_str);     /* window station name */
+    data_size_t count;            /* number of names */
+    data_size_t total;            /* total needed buffer size */
+    VARARG(names,unicode_strings);/* window station names */
 @END
 
 
@@ -2920,16 +2921,6 @@ enum coords_relative
     obj_handle_t handle;          /* handle to the desktop */
 @REPLY
     obj_locator_t  locator;       /* locator for the shared session object */
-@END
-
-
-/* Enumerate desktops */
-@REQ(enum_desktop)
-    obj_handle_t winstation;      /* handle to the window station */
-    unsigned int index;           /* current index */
-@REPLY
-    unsigned int next;            /* next index */
-    VARARG(name,unicode_str);     /* window station name */
 @END
 
 
@@ -3715,7 +3706,7 @@ typedef union
     data_size_t  result;          /* IOSB result of the previous irp */
     VARARG(data,bytes);           /* output data of the previous irp */
 @REPLY
-    irp_params_t params;          /* irp parameters */
+    union irp_params params;      /* irp parameters */
     obj_handle_t next;            /* handle to the next irp */
     thread_id_t  client_tid;      /* tid of thread calling irp */
     client_ptr_t client_thread;   /* pointer to thread object of calling irp */

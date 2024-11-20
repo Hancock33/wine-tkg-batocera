@@ -1132,42 +1132,26 @@ static HRESULT WINAPI IDirectPlay4AImpl_AddPlayerToGroup( IDirectPlay4A *iface, 
     return IDirectPlayX_AddPlayerToGroup( &This->IDirectPlay4_iface, group, player );
 }
 
-static HRESULT WINAPI IDirectPlay4Impl_AddPlayerToGroup( IDirectPlay4 *iface, DPID group,
-        DPID player )
+HRESULT DP_AddPlayerToGroup( IDirectPlayImpl *This, DPID group, DPID player )
 {
-    IDirectPlayImpl *This = impl_from_IDirectPlay4( iface );
+    DPMSG_ADDPLAYERTOGROUP addPlayerToGroupMsg;
     lpGroupData  gdata;
     lpPlayerList plist;
     lpPlayerList newplist;
-
-    TRACE( "(%p)->(0x%08lx,0x%08lx)\n", This, group, player );
-
-    if ( This->dp2->connectionInitialized == NO_PROVIDER )
-        return DPERR_UNINITIALIZED;
-
-    EnterCriticalSection( &This->lock );
+    HRESULT hr;
 
     /* Find the group */
     if ( ( gdata = DP_FindAnyGroup( This, group ) ) == NULL )
-    {
-        LeaveCriticalSection( &This->lock );
         return DPERR_INVALIDGROUP;
-    }
 
     /* Find the player */
     if ( ( plist = DP_FindPlayer( This, player ) ) == NULL )
-    {
-        LeaveCriticalSection( &This->lock );
         return DPERR_INVALIDPLAYER;
-    }
 
     /* Create a player list (ie "shortcut" ) */
     newplist = calloc( 1, sizeof( *newplist ) );
     if ( !newplist )
-    {
-        LeaveCriticalSection( &This->lock );
         return DPERR_CANTADDPLAYER;
-    }
 
     /* Add the shortcut */
     plist->lpPData->uRef++;
@@ -1187,7 +1171,59 @@ static HRESULT WINAPI IDirectPlay4Impl_AddPlayerToGroup( IDirectPlay4 *iface, DP
         data.idGroup  = group;
         data.lpISP    = This->dp2->spData.lpISP;
 
-        (*This->dp2->spData.lpCB->AddPlayerToGroup)( &data );
+        hr = (*This->dp2->spData.lpCB->AddPlayerToGroup)( &data );
+        if ( FAILED( hr ) )
+        {
+            DPQ_REMOVE( gdata->players, newplist, players );
+            --plist->lpPData->uRef;
+            free( newplist );
+            return hr;
+        }
+    }
+
+    addPlayerToGroupMsg.dwType = DPSYS_ADDPLAYERTOGROUP;
+    addPlayerToGroupMsg.dpIdGroup = group;
+    addPlayerToGroupMsg.dpIdPlayer = player;
+
+    hr = DP_QueueMessage( This, DPID_SYSMSG, DPID_ALLPLAYERS, 0, &addPlayerToGroupMsg,
+                          DP_CopyGeneric, sizeof( DPMSG_ADDPLAYERTOGROUP ) );
+    if ( FAILED( hr ) )
+    {
+        if ( This->dp2->spData.lpCB->RemovePlayerFromGroup )
+        {
+            DPSP_REMOVEPLAYERFROMGROUPDATA data;
+            data.idPlayer = player;
+            data.idGroup = group;
+            data.lpISP = This->dp2->spData.lpISP;
+            This->dp2->spData.lpCB->RemovePlayerFromGroup( &data );
+        }
+        DPQ_REMOVE( gdata->players, newplist, players );
+        --plist->lpPData->uRef;
+        free( newplist );
+        return hr;
+    }
+
+    return DP_OK;
+}
+
+static HRESULT WINAPI IDirectPlay4Impl_AddPlayerToGroup( IDirectPlay4 *iface, DPID group,
+        DPID player )
+{
+    IDirectPlayImpl *This = impl_from_IDirectPlay4( iface );
+    HRESULT hr;
+
+    TRACE( "(%p)->(0x%08lx,0x%08lx)\n", This, group, player );
+
+    if ( This->dp2->connectionInitialized == NO_PROVIDER )
+        return DPERR_UNINITIALIZED;
+
+    EnterCriticalSection( &This->lock );
+
+    hr = DP_AddPlayerToGroup( This, group, player );
+    if ( FAILED( hr ) )
+    {
+        LeaveCriticalSection( &This->lock );
+        return hr;
     }
 
     /* Inform all other peers of the addition of player to the group. If there are
@@ -1195,20 +1231,11 @@ static HRESULT WINAPI IDirectPlay4Impl_AddPlayerToGroup( IDirectPlay4 *iface, DP
      * Also, if this event was the result of another machine sending it to us,
      * don't bother rebroadcasting it.
      */
-    if ( This->dp2->lpSessionDesc &&
-            ( This->dp2->lpSessionDesc->dwFlags & DPSESSION_MULTICASTSERVER ) )
+    hr = DP_MSG_SendAddPlayerToGroup( This, DPID_ALLPLAYERS, player, group );
+    if( FAILED( hr ) )
     {
-        DPMSG_ADDPLAYERTOGROUP msg;
-        msg.dwType = DPSYS_ADDPLAYERTOGROUP;
-
-        msg.dpIdGroup  = group;
-        msg.dpIdPlayer = player;
-
-        /* FIXME: Correct to just use send effectively? */
-        /* FIXME: Should size include data w/ message or just message "header" */
-        /* FIXME: Check return code */
-        IDirectPlayX_SendEx( iface, DPID_SERVERPLAYER, DPID_ALLPLAYERS, 0, &msg, sizeof( msg ),
-                0, 0, NULL, NULL );
+        LeaveCriticalSection( &This->lock );
+        return hr;
     }
 
     LeaveCriticalSection( &This->lock );
@@ -1281,17 +1308,28 @@ static HRESULT WINAPI IDirectPlay4Impl_Close( IDirectPlay4 *iface )
     return hr;
 }
 
-static lpGroupData DP_CreateGroup( IDirectPlayImpl *This, const DPID *lpid, const DPNAME *lpName,
-        DWORD dwFlags, DPID idParent, BOOL bAnsi )
+HRESULT DP_CreateGroup( IDirectPlayImpl *This, void *msgHeader, const DPID *lpid,
+        const DPNAME *lpName, void *data, DWORD dataSize, DWORD dwFlags, DPID idParent,
+        BOOL bAnsi )
 {
+  struct GroupList *groupList = NULL;
+  struct GroupData *parent = NULL;
   lpGroupData lpGData;
+  HRESULT hr;
+
+  if( DPID_SYSTEM_GROUP != *lpid )
+  {
+    parent = DP_FindAnyGroup( This, idParent );
+    if( !parent )
+      return DPERR_INVALIDGROUP;
+  }
 
   /* Allocate the new space and add to end of high level group list */
   lpGData = calloc( 1, sizeof( *lpGData ) );
 
   if( lpGData == NULL )
   {
-    return NULL;
+    return DPERR_OUTOFMEMORY;
   }
 
   DPQ_INIT(lpGData->groups);
@@ -1304,7 +1342,7 @@ static lpGroupData DP_CreateGroup( IDirectPlayImpl *This, const DPID *lpid, cons
   if ( !lpGData->name )
   {
     free( lpGData );
-    return NULL;
+    return DPERR_OUTOFMEMORY;
   }
 
   lpGData->nameA = DP_DuplicateName( lpName, TRUE, bAnsi );
@@ -1312,11 +1350,10 @@ static lpGroupData DP_CreateGroup( IDirectPlayImpl *This, const DPID *lpid, cons
   {
     free( lpGData->name );
     free( lpGData );
-    return NULL;
+    return DPERR_OUTOFMEMORY;
   }
 
-  /* FIXME: Should we check that the parent exists? */
-  lpGData->parent  = idParent;
+  lpGData->parent = idParent;
 
   /* FIXME: Should we validate the dwFlags? */
   lpGData->dwFlags = dwFlags;
@@ -1328,12 +1365,83 @@ static lpGroupData DP_CreateGroup( IDirectPlayImpl *This, const DPID *lpid, cons
     free( lpGData->nameA );
     free( lpGData->name );
     free( lpGData );
-    return NULL;
+    return DPERR_OUTOFMEMORY;
+  }
+
+  if( DPID_SYSTEM_GROUP == *lpid )
+  {
+    This->dp2->lpSysGroup = lpGData;
+    TRACE( "Inserting system group\n" );
+  }
+  else
+  {
+    /* Insert into the parent group */
+    groupList = calloc( 1, sizeof( *groupList ) );
+    if( !groupList )
+    {
+      free( lpGData->nameA );
+      free( lpGData->name );
+      free( lpGData );
+      return DPERR_OUTOFMEMORY;
+    }
+    groupList->lpGData = lpGData;
+
+    DPQ_INSERT( parent->groups, groupList, groups );
+  }
+
+  /* Something is now referencing this data */
+  lpGData->uRef++;
+
+  DP_SetGroupData( lpGData, DPSET_REMOTE, data, dataSize );
+
+  /* FIXME: We should only create the system group if GetCaps returns
+   *        DPCAPS_GROUPOPTIMIZED.
+   */
+
+  /* Let the SP know that we've created this group */
+  if( This->dp2->spData.lpCB->CreateGroup )
+  {
+    DPSP_CREATEGROUPDATA data;
+    DWORD dwCreateFlags = 0;
+
+    TRACE( "Calling SP CreateGroup\n" );
+
+    if( !parent )
+      dwCreateFlags |= DPLAYI_GROUP_SYSGROUP;
+
+    if( !msgHeader )
+      dwCreateFlags |= DPLAYI_PLAYER_PLAYERLOCAL;
+
+    if( dwFlags & DPGROUP_HIDDEN )
+      dwCreateFlags |= DPLAYI_GROUP_HIDDEN;
+
+    data.idGroup           = *lpid;
+    data.dwFlags           = dwCreateFlags;
+    data.lpSPMessageHeader = msgHeader;
+    data.lpISP             = This->dp2->spData.lpISP;
+
+    hr = (*This->dp2->spData.lpCB->CreateGroup)( &data );
+    if( FAILED( hr ) )
+    {
+      if( groupList )
+      {
+        DPQ_REMOVE( parent->groups, groupList, groups );
+        free( groupList );
+      }
+      else
+      {
+        This->dp2->lpSysGroup = NULL;
+      }
+      free( lpGData->nameA );
+      free( lpGData->name );
+      free( lpGData );
+      return hr;
+    }
   }
 
   TRACE( "Created group id 0x%08lx\n", *lpid );
 
-  return lpGData;
+  return DP_OK;
 }
 
 /* This method assumes that all links to it are already deleted */
@@ -1394,7 +1502,7 @@ static lpGroupData DP_FindAnyGroup( IDirectPlayImpl *This, DPID dpid )
 static HRESULT DP_IF_CreateGroup( IDirectPlayImpl *This, void *lpMsgHdr, DPID *lpidGroup,
         DPNAME *lpGroupName, void *lpData, DWORD dwDataSize, DWORD dwFlags, BOOL bAnsi )
 {
-  lpGroupData lpGData;
+  HRESULT hr;
 
   TRACE( "(%p)->(%p,%p,%p,%p,0x%08lx,0x%08lx,%u)\n",
          This, lpMsgHdr, lpidGroup, lpGroupName, lpData, dwDataSize,
@@ -1421,61 +1529,12 @@ static HRESULT DP_IF_CreateGroup( IDirectPlayImpl *This, void *lpMsgHdr, DPID *l
     }
   }
 
-  lpGData = DP_CreateGroup( This, lpidGroup, lpGroupName, dwFlags,
-                            DPID_NOPARENT_GROUP, bAnsi );
+  hr = DP_CreateGroup( This, lpMsgHdr, lpidGroup, lpGroupName, lpData, dwDataSize, dwFlags,
+                       DPID_NOPARENT_GROUP, bAnsi );
 
-  if( lpGData == NULL )
+  if( FAILED( hr ) )
   {
-    return DPERR_CANTADDPLAYER; /* yes player not group */
-  }
-
-  if( DPID_SYSTEM_GROUP == *lpidGroup )
-  {
-    This->dp2->lpSysGroup = lpGData;
-    TRACE( "Inserting system group\n" );
-  }
-  else
-  {
-    /* Insert into the system group */
-    lpGroupList lpGroup = calloc( 1, sizeof( *lpGroup ) );
-    lpGroup->lpGData = lpGData;
-
-    DPQ_INSERT( This->dp2->lpSysGroup->groups, lpGroup, groups );
-  }
-
-  /* Something is now referencing this data */
-  lpGData->uRef++;
-
-  /* Set all the important stuff for the group */
-  DP_SetGroupData( lpGData, DPSET_REMOTE, lpData, dwDataSize );
-
-  /* FIXME: We should only create the system group if GetCaps returns
-   *        DPCAPS_GROUPOPTIMIZED.
-   */
-
-  /* Let the SP know that we've created this group */
-  if( This->dp2->spData.lpCB->CreateGroup )
-  {
-    DPSP_CREATEGROUPDATA data;
-    DWORD dwCreateFlags = 0;
-
-    TRACE( "Calling SP CreateGroup\n" );
-
-    if( *lpidGroup == DPID_NOPARENT_GROUP )
-      dwCreateFlags |= DPLAYI_GROUP_SYSGROUP;
-
-    if( lpMsgHdr == NULL )
-      dwCreateFlags |= DPLAYI_PLAYER_PLAYERLOCAL;
-
-    if( dwFlags & DPGROUP_HIDDEN )
-      dwCreateFlags |= DPLAYI_GROUP_HIDDEN;
-
-    data.idGroup           = *lpidGroup;
-    data.dwFlags           = dwCreateFlags;
-    data.lpSPMessageHeader = lpMsgHdr;
-    data.lpISP             = This->dp2->spData.lpISP;
-
-    (*This->dp2->spData.lpCB->CreateGroup)( &data );
+    return hr;
   }
 
   /* Inform all other peers of the creation of a new group. If there are
@@ -3046,12 +3105,11 @@ static HRESULT WINAPI IDirectPlay4Impl_GetGroupData( IDirectPlay4 *iface, DPID g
         src = gdata->lpRemoteData;
     }
 
+    *size = bufsize;
+
     /* Is the user requesting to know how big a buffer is required? */
     if ( !data || *size < bufsize )
-    {
-        *size = bufsize;
         return DPERR_BUFFERTOOSMALL;
-    }
 
     CopyMemory( data, src, bufsize );
 
@@ -4458,9 +4516,7 @@ static HRESULT DP_IF_CreateGroupInGroup( IDirectPlayImpl *This, void *lpMsgHdr, 
         DPID *lpidGroup, DPNAME *lpGroupName, void *lpData, DWORD dwDataSize, DWORD dwFlags,
         BOOL bAnsi )
 {
-  lpGroupData lpGParentData;
-  lpGroupList lpGList;
-  lpGroupData lpGData;
+  HRESULT hr;
 
   TRACE( "(%p)->(0x%08lx,%p,%p,%p,0x%08lx,0x%08lx,%u)\n",
          This, idParentGroup, lpidGroup, lpGroupName, lpData,
@@ -4471,48 +4527,12 @@ static HRESULT DP_IF_CreateGroupInGroup( IDirectPlayImpl *This, void *lpMsgHdr, 
     return DPERR_UNINITIALIZED;
   }
 
-  /* Verify that the specified parent is valid */
-  if( ( lpGParentData = DP_FindAnyGroup(This, idParentGroup ) ) == NULL )
-    return DPERR_INVALIDGROUP;
+  hr = DP_CreateGroup(This, lpMsgHdr, lpidGroup, lpGroupName, lpData, dwDataSize, dwFlags,
+                      idParentGroup, bAnsi );
 
-  lpGData = DP_CreateGroup(This, lpidGroup, lpGroupName, dwFlags, idParentGroup, bAnsi );
-
-  if( lpGData == NULL )
+  if( FAILED( hr ) )
   {
-    return DPERR_CANTADDPLAYER; /* yes player not group */
-  }
-
-  /* Something else is referencing this data */
-  lpGData->uRef++;
-
-  DP_SetGroupData( lpGData, DPSET_REMOTE, lpData, dwDataSize );
-
-  /* The list has now been inserted into the interface group list. We now
-     need to put a "shortcut" to this group in the parent group */
-  lpGList = calloc( 1, sizeof( *lpGList ) );
-  if( lpGList == NULL )
-  {
-    FIXME( "Memory leak\n" );
-    return DPERR_CANTADDPLAYER; /* yes player not group */
-  }
-
-  lpGList->lpGData = lpGData;
-
-  DPQ_INSERT( lpGParentData->groups, lpGList, groups );
-
-  /* Let the SP know that we've created this group */
-  if( This->dp2->spData.lpCB->CreateGroup )
-  {
-    DPSP_CREATEGROUPDATA data;
-
-    TRACE( "Calling SP CreateGroup\n" );
-
-    data.idGroup           = *lpidGroup;
-    data.dwFlags           = dwFlags;
-    data.lpSPMessageHeader = lpMsgHdr;
-    data.lpISP             = This->dp2->spData.lpISP;
-
-    (*This->dp2->spData.lpCB->CreateGroup)( &data );
+    return hr;
   }
 
   /* Inform all other peers of the creation of a new group. If there are
@@ -4959,19 +4979,22 @@ static HRESULT DP_IF_EnumGroupsInGroup( IDirectPlayImpl *This, DPID group, GUID 
     if ( ( gdata = DP_FindAnyGroup(This, group ) ) == NULL )
         return DPERR_INVALIDGROUP;
 
-    if ( DPQ_IS_EMPTY( gdata->groups ) )
-        return DP_OK;
-
-
-    for( glist = DPQ_FIRST( gdata->groups ); ; glist = DPQ_NEXT( glist->groups ) )
+    for( glist = DPQ_FIRST( gdata->groups ); glist; glist = DPQ_NEXT( glist->groups ) )
     {
-        /* FIXME: Should check flags for match here */
-        if ( !(*enumplayercb)( glist->lpGData->dpid, DPPLAYERTYPE_GROUP,
-                    ansi ? glist->lpGData->nameA : glist->lpGData->name, flags, context ) )
-            return DP_OK; /* User requested break */
+        DWORD groupFlags;
 
-        if ( DPQ_IS_ENDOFLIST( glist->groups ) )
-            break;
+        if ( (glist->lpGData->dwFlags & flags) != (flags & ~DPENUMGROUPS_REMOTE) )
+            continue;
+        if ( (glist->lpGData->dwFlags & DPENUMGROUPS_LOCAL) && (flags & DPENUMGROUPS_REMOTE) )
+            continue;
+
+        groupFlags = glist->lpGData->dwFlags;
+        groupFlags &= ~(DPENUMGROUPS_LOCAL | DPLAYI_GROUP_DPLAYOWNS);
+        groupFlags |= flags;
+
+        if ( !(*enumplayercb)( glist->lpGData->dpid, DPPLAYERTYPE_GROUP,
+                    ansi ? glist->lpGData->nameA : glist->lpGData->name, groupFlags, context ) )
+            return DP_OK; /* User requested break */
     }
 
     return DP_OK;

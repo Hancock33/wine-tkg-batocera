@@ -387,7 +387,7 @@ static void dump_async_data( const char *prefix, const struct async_data *data )
     fputc( '}', stderr );
 }
 
-static void dump_irp_params( const char *prefix, const irp_params_t *data )
+static void dump_irp_params( const char *prefix, const union irp_params *data )
 {
     switch (data->type)
     {
@@ -449,7 +449,7 @@ static void dump_irp_params( const char *prefix, const irp_params_t *data )
     }
 }
 
-static void dump_hw_input( const char *prefix, const hw_input_t *input )
+static void dump_hw_input( const char *prefix, const union hw_input *input )
 {
     switch (input->type)
     {
@@ -582,7 +582,7 @@ static void dump_varargs_apc_result( const char *prefix, data_size_t size )
 
 static void dump_varargs_select_op( const char *prefix, data_size_t size )
 {
-    select_op_t data;
+    union select_op data;
 
     if (!size)
     {
@@ -601,9 +601,9 @@ static void dump_varargs_select_op( const char *prefix, data_size_t size )
     case SELECT_WAIT:
     case SELECT_WAIT_ALL:
         fprintf( stderr, "%s", data.op == SELECT_WAIT ? "WAIT" : "WAIT_ALL" );
-        if (size > offsetof( select_op_t, wait.handles ))
+        if (size > offsetof( union select_op, wait.handles ))
             dump_handles( ",handles=", data.wait.handles,
-                          min( size, sizeof(data.wait) ) - offsetof( select_op_t, wait.handles ));
+                          min( size, sizeof(data.wait) ) - offsetof( union select_op, wait.handles ));
         break;
     case SELECT_SIGNAL_AND_WAIT:
         fprintf( stderr, "SIGNAL_AND_WAIT,signal=%04x,wait=%04x",
@@ -667,6 +667,25 @@ static void dump_varargs_unicode_str( const char *prefix, data_size_t size )
     dump_strW( cur_data, size, stderr, "\"\"" );
     fputc( '\"', stderr );
     remove_data( size );
+}
+
+static void dump_varargs_unicode_strings( const char *prefix, data_size_t size )
+{
+    fprintf( stderr, "%s{", prefix );
+    while (cur_size >= sizeof(WCHAR))
+    {
+        const WCHAR *str = cur_data;
+        unsigned int len = 0;
+
+        while (len < cur_size / sizeof(WCHAR) && str[len]) len++;
+        fputs( "L\"", stderr );
+        dump_strW( cur_data, len * sizeof(WCHAR), stderr, "\"\"" );
+        fputc( '\"', stderr );
+        if (len < cur_size / sizeof(WCHAR)) len++;  /* skip terminating null */
+        remove_data( len * sizeof(WCHAR) );
+        if (cur_size >= sizeof(WCHAR)) fputc( ',', stderr );
+    }
+    fputc( '}', stderr );
 }
 
 static void dump_varargs_context( const char *prefix, data_size_t size )
@@ -887,7 +906,7 @@ static void dump_varargs_contexts( const char *prefix, data_size_t size )
 
 static void dump_varargs_debug_event( const char *prefix, data_size_t size )
 {
-    debug_event_t event;
+    union debug_event_data event;
 
     if (!size)
     {

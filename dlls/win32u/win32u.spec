@@ -813,8 +813,8 @@
 @ stub NtUserBroadcastThemeChangeEvent
 @ stdcall -syscall NtUserBuildHimcList(long long ptr ptr)
 @ stdcall -syscall NtUserBuildHwndList(long long long long long long ptr ptr)
-@ stub NtUserBuildNameList
-@ stub NtUserBuildPropList
+@ stdcall -syscall NtUserBuildNameList(long long ptr ptr)
+@ stdcall -syscall NtUserBuildPropList(long long ptr ptr)
 @ stub NtUserCalcMenuBar
 @ stub NtUserCalculatePopupWindowPosition
 @ stdcall -syscall NtUserCallHwnd(long long)
