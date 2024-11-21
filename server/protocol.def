@@ -222,7 +222,7 @@ typedef __int64 timeout_t;
 typedef __int64 abstime_t;
 
 /* structure for process startup info */
-typedef struct
+struct startup_info_data
 {
     unsigned int debug_flags;
     unsigned int console_flags;
@@ -256,15 +256,15 @@ typedef struct
     /* VARARG(desktop,unicode_str,desktop_len); */
     /* VARARG(shellinfo,unicode_str,shellinfo_len); */
     /* VARARG(runtime,unicode_str,runtime_len); */
-} startup_info_t;
+};
 
 /* structure returned in the list of window properties */
-typedef struct
+struct property_data
 {
     atom_t         atom;     /* property atom */
     int            string;   /* was atom a string originally? */
     lparam_t       data;     /* data stored in property */
-} property_data_t;
+};
 
 /* structure to specify window rectangles */
 typedef struct
@@ -405,13 +405,13 @@ struct sid
     unsigned int  sub_auth[15];
 };
 
-typedef struct
+struct generic_map
 {
     unsigned int read;
     unsigned int write;
     unsigned int exec;
     unsigned int all;
-} generic_map_t;
+};
 
 #define MAX_ACL_LEN 65535
 
@@ -447,7 +447,7 @@ struct object_type_info
     unsigned int  obj_max;       /* max count of objects of this type */
     unsigned int  handle_max;    /* max count of handles of this type */
     unsigned int  valid_access;  /* mask for valid access bits */
-    generic_map_t mapping;       /* generic access mappings */
+    struct generic_map mapping;  /* generic access mappings */
     /* VARARG(name,unicode_str); */
 };
 
@@ -835,7 +835,7 @@ union irp_params
 };
 
 /* information about a PE image mapping, roughly equivalent to SECTION_IMAGE_INFORMATION */
-typedef struct
+struct pe_image_info
 {
     client_ptr_t   base;
     client_ptr_t   map_addr;
@@ -864,7 +864,7 @@ typedef struct
     unsigned int   checksum;
     unsigned int   dbg_offset;
     unsigned int   dbg_size;
-} pe_image_info_t;
+};
 #define IMAGE_FLAGS_ComPlusNativeReady        0x01
 #define IMAGE_FLAGS_ComPlusILOnly             0x02
 #define IMAGE_FLAGS_ImageDynamicallyRelocated 0x04
@@ -879,14 +879,14 @@ struct rawinput_device
     user_handle_t  target;
 };
 
-typedef struct
+struct cursor_pos
 {
     int x;
     int y;
     unsigned int time;
     int __pad;
     lparam_t info;
-} cursor_pos_t;
+};
 
 struct directory_entry
 {
@@ -3398,7 +3398,7 @@ enum caret_state
 @REQ(access_check)
     obj_handle_t    handle; /* handle to the token */
     unsigned int    desired_access; /* desired access to the object */
-    generic_map_t   mapping;        /* mapping to specific rights */
+    struct generic_map mapping;     /* mapping to specific rights */
     VARARG(sd,security_descriptor); /* security descriptor to check */
 @REPLY
     unsigned int    access_granted; /* access rights actually granted */

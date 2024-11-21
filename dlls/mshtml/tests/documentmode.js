@@ -512,6 +512,9 @@ sync_test("elem_props", function() {
     test_exposed("readyState", v < 11);
     test_exposed("clientTop", true);
     test_exposed("title", true);
+    test_exposed("removeNode", true);
+    test_exposed("replaceNode", true);
+    test_exposed("swapNode", true);
     test_exposed("querySelectorAll", v >= 8);
     test_exposed("textContent", v >= 9);
     test_exposed("prefix", v >= 9);
@@ -584,6 +587,30 @@ sync_test("docfrag_props", function() {
     var v = document.documentMode;
 
     test_exposed("compareDocumentPosition", v >= 9);
+});
+
+sync_test("textnode_props", function() {
+    var node = document.createTextNode("testNode");
+
+    function test_exposed(prop, expect) {
+        if(expect)
+            ok(prop in node, prop + " not found in text node.");
+        else
+            ok(!(prop in node), prop + " found in text node.");
+    }
+
+    var v = document.documentMode;
+
+    test_exposed("childNodes", true);
+    test_exposed("nodeName", true);
+    test_exposed("nodeValue", true);
+    test_exposed("ownerDocument", true);
+    test_exposed("removeNode", true);
+    test_exposed("replaceNode", true);
+    test_exposed("swapNode", true);
+    test_exposed("compareDocumentPosition", v >= 9);
+    test_exposed("isEqualNode", v >= 9);
+    test_exposed("prefix", v >= 9);
 });
 
 sync_test("window_props", function() {
@@ -1180,6 +1207,9 @@ sync_test("doctype", function() {
     }
 
     ok(doctype.name === "html", "doctype.name = " + doctype.name);
+    ok(!("removeNode" in doctype), "removeNode found in doctype.");
+    ok(!("replaceNode" in doctype), "replaceNode found in doctype.");
+    ok(!("swapNode" in doctype), "swapNode found in doctype.");
 });
 
 async_test("iframe_doc_mode", function() {
@@ -3351,6 +3381,54 @@ sync_test("form", function() {
     ok(form[0] === "test", "form[0] = " + form[0]);
 });
 
+function test_own_props(obj, name, props, todos, flaky) {
+    var v = document.documentMode, prop, expected = {}, enumerated = Object.getOwnPropertyNames(obj).sort();
+
+    if(flaky)
+        enumerated = enumerated.filter(function(p) { return flaky.indexOf(p) === -1; });
+    if(props) {
+        for(i = 0; i < props.length; i++) {
+            prop = props[i];
+            if(Array.isArray(prop)) {
+                if(v < prop[1] || (prop.length > 2 && v > prop[2]))
+                    continue;
+                prop = prop[0];
+            }
+            expected[prop] |= 1;
+        }
+    }
+    if(todos) {
+        for(i = 0; i < todos.length; i++) {
+            prop = todos[i];
+            if(Array.isArray(prop)) {
+                if(v < prop[1] || (prop.length > 2 && v > prop[2]))
+                    continue;
+                prop = prop[0];
+            }
+            expected[prop] |= 2;  /* 2 marks todo */
+        }
+    }
+    for(i = 0; i < enumerated.length; i++) {
+        prop = enumerated[i];
+        if(!expected.hasOwnProperty(prop))
+            ok(false, prop + " is a prop of " + name);
+        else {
+            if(expected[prop] & 1) {
+                todo_wine_if(expected[prop] & 2).
+                ok(true, prop + " not a prop of " + name);
+            }else {
+                todo_wine_if(expected[prop] & 2).
+                ok(false, prop + " is a prop of " + name);
+            }
+            delete expected[prop];
+        }
+    }
+    for(prop in expected) {
+        todo_wine_if(expected[prop] & 2).
+        ok(!(expected[prop] & 1), prop + " not a prop of " + name);
+    }
+}
+
 sync_test("prototypes", function() {
     var v = document.documentMode;
     if(v < 9)
@@ -3566,4 +3644,53 @@ sync_test("prototypes", function() {
     check(Attr.prototype, Node.prototype, "attr prototype");
     check(document.createDocumentFragment(), DocumentFragment.prototype, "fragment");
     check(DocumentFragment.prototype, Node.prototype, "fragment prototype");
+});
+
+sync_test("prototype props", function() {
+    var v = document.documentMode;
+    if(v < 9)
+        return;
+
+    function check(constr, props, todos, flaky) {
+        var name = Object.prototype.toString.call(constr).slice(8, -1) + ".prototype";
+        ok(constr.prototype.constructor === constr, name + "'s constructor not original constructor");
+
+        props.push("constructor");
+        test_own_props(constr.prototype, name, props, todos, flaky);
+    }
+
+    check(CSSStyleRule, [ "readOnly", "selectorText", "style" ]);
+    check(CustomEvent, [ "detail", "initCustomEvent" ]);
+    check(DocumentType, [ "entities", "internalSubset", "name", "notations", "publicId", "systemId" ]);
+    check(Event, [
+        "AT_TARGET", "BUBBLING_PHASE", "CAPTURING_PHASE", "bubbles", "cancelBubble", "cancelable", "currentTarget",
+        "defaultPrevented", "eventPhase", "initEvent", "isTrusted", "preventDefault", "srcElement",
+        "stopImmediatePropagation", "stopPropagation", "target", "timeStamp", "type"
+    ], [ "AT_TARGET", "BUBBLING_PHASE", "CAPTURING_PHASE" ]);
+    check(HTMLUnknownElement, [ "namedRecordset", "recordset" ]);
+    check(MessageEvent, [ "data", "initMessageEvent", "origin", ["ports",10], "source" ], [ ["ports",10] ]);
+    check(MouseEvent, [
+        "altKey", "button", "buttons", "clientX", "clientY", "ctrlKey", "fromElement", "getModifierState",
+        "initMouseEvent", "layerX", "layerY", "metaKey", "offsetX", "offsetY", "pageX", "pageY", "relatedTarget",
+        "screenX", "screenY", "shiftKey", "toElement", "which", "x", "y"
+    ]);
+    check(Node, [
+        "ATTRIBUTE_NODE", "CDATA_SECTION_NODE", "COMMENT_NODE", "DOCUMENT_FRAGMENT_NODE",  "DOCUMENT_NODE",
+        "DOCUMENT_POSITION_CONTAINED_BY", "DOCUMENT_POSITION_CONTAINS", "DOCUMENT_POSITION_DISCONNECTED",
+        "DOCUMENT_POSITION_FOLLOWING", "DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC", "DOCUMENT_POSITION_PRECEDING",
+        "DOCUMENT_TYPE_NODE", "ELEMENT_NODE", "ENTITY_NODE", "ENTITY_REFERENCE_NODE", "NOTATION_NODE",
+        "PROCESSING_INSTRUCTION_NODE", "TEXT_NODE", "addEventListener", "appendChild", "attributes", "childNodes", "cloneNode",
+        "compareDocumentPosition", "dispatchEvent", "firstChild", "hasAttributes", "hasChildNodes", "insertBefore",
+        "isDefaultNamespace", "isEqualNode", "isSameNode", "isSupported", "lastChild", "localName", "lookupNamespaceURI",
+        "lookupPrefix", "namespaceURI", "nextSibling", "nodeName", "nodeType", "nodeValue", "normalize", "ownerDocument",
+        "parentNode", "prefix", "previousSibling", "removeChild", "removeEventListener", "replaceChild", "textContent"
+    ], [
+        "ATTRIBUTE_NODE", "CDATA_SECTION_NODE", "COMMENT_NODE", "DOCUMENT_FRAGMENT_NODE",  "DOCUMENT_NODE",
+        "DOCUMENT_POSITION_CONTAINED_BY", "DOCUMENT_POSITION_CONTAINS", "DOCUMENT_POSITION_DISCONNECTED",
+        "DOCUMENT_POSITION_FOLLOWING", "DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC", "DOCUMENT_POSITION_PRECEDING",
+        "DOCUMENT_TYPE_NODE", "ELEMENT_NODE", "ENTITY_NODE", "ENTITY_REFERENCE_NODE", "NOTATION_NODE",
+        "PROCESSING_INSTRUCTION_NODE", "TEXT_NODE", "hasAttributes", "normalize"
+    ]);
+    check(StorageEvent, [ "initStorageEvent", "key", "newValue", "oldValue", "storageArea", "url" ]);
+    check(UIEvent, [ "detail", "initUIEvent", "view" ], null, [ "deviceSessionId" ]);
 });

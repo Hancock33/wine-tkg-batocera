@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at 8b3f47c1 Rebase against 044527c671d87b917e01f39fcf33b596cc2e7878.
-HEAD is now at 044527c671d setupapi: Implement SetupDiGetDevicePropertyKeys.
+HEAD is now at e7a74d70 Rebase against f350a8782b29b3890320e48e915d026612657454.
+HEAD is now at f350a8782b2 mshtml: Don't expose swapNode from NodePrototype.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
@@ -435,10 +435,10 @@ Hunk #8 succeeded at 328 with fuzz 1 (offset 24 lines).
 Hunk #9 succeeded at 387 with fuzz 1 (offset 52 lines).
 Hunk #10 succeeded at 447 (offset 73 lines).
 Hunk #11 succeeded at 610 (offset 13 lines).
-Hunk #12 succeeded at 948 (offset 159 lines).
-Hunk #13 succeeded at 988 with fuzz 2 (offset 160 lines).
-Hunk #14 succeeded at 1606 (offset 36 lines).
-Hunk #15 succeeded at 1697 (offset 23 lines).
+Hunk #12 succeeded at 960 (offset 171 lines).
+Hunk #13 succeeded at 1000 with fuzz 2 (offset 172 lines).
+Hunk #14 succeeded at 1618 (offset 48 lines).
+Hunk #15 succeeded at 1709 (offset 35 lines).
 patching file server/debugger.c
 Hunk #1 succeeded at 87 (offset 13 lines).
 Hunk #2 succeeded at 117 (offset 13 lines).
@@ -521,9 +521,9 @@ Hunk #2 succeeded at 98 (offset 27 lines).
 Hunk #3 succeeded at 110 (offset 27 lines).
 Hunk #4 succeeded at 163 (offset 27 lines).
 Hunk #5 succeeded at 226 (offset 42 lines).
-Hunk #6 succeeded at 696 with fuzz 2 (offset 144 lines).
-Hunk #7 succeeded at 747 with fuzz 2 (offset 138 lines).
-Hunk #8 succeeded at 826 (offset 132 lines).
+Hunk #6 succeeded at 697 with fuzz 2 (offset 145 lines).
+Hunk #7 succeeded at 748 with fuzz 2 (offset 139 lines).
+Hunk #8 succeeded at 827 (offset 133 lines).
 patching file server/process.h
 Hunk #1 succeeded at 87 with fuzz 2 (offset -12 lines).
 patching file server/protocol.def
@@ -662,7 +662,7 @@ patching file dlls/ntdll/unixlib.h
 
 josh-flat-theme.patch -- ( Add Josh's better-theme )
 patching file dlls/win32u/sysparams.c
-Hunk #1 succeeded at 5168 (offset 3715 lines).
+Hunk #1 succeeded at 5169 (offset 3716 lines).
 patching file dlls/comctl32/tab.c
 Hunk #2 succeeded at 2124 (offset 7 lines).
 Hunk #3 succeeded at 2161 (offset 7 lines).

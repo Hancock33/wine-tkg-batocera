@@ -503,7 +503,7 @@ static void dump_luid( const char *prefix, const struct luid *luid )
     fprintf( stderr, "%s%d.%u", prefix, luid->high_part, luid->low_part );
 }
 
-static void dump_generic_map( const char *prefix, const generic_map_t *map )
+static void dump_generic_map( const char *prefix, const struct generic_map *map )
 {
     fprintf( stderr, "%s{r=%08x,w=%08x,x=%08x,a=%08x}",
              prefix, map->read, map->write, map->exec, map->all );
@@ -991,7 +991,7 @@ static data_size_t dump_inline_unicode_string( const char *prefix, data_size_t p
 
 static void dump_varargs_startup_info( const char *prefix, data_size_t size )
 {
-    startup_info_t info;
+    struct startup_info_data info;
     data_size_t pos = sizeof(info);
 
     memset( &info, 0, sizeof(info) );
@@ -1033,7 +1033,7 @@ static void dump_varargs_rectangles( const char *prefix, data_size_t size )
 
 static void dump_varargs_cursor_positions( const char *prefix, data_size_t size )
 {
-    const cursor_pos_t *pos = cur_data;
+    const struct cursor_pos *pos = cur_data;
     data_size_t len = size / sizeof(*pos);
 
     fprintf( stderr, "%s{", prefix );
@@ -1057,7 +1057,7 @@ static void dump_varargs_message_data( const char *prefix, data_size_t size )
 
 static void dump_varargs_properties( const char *prefix, data_size_t size )
 {
-    const property_data_t *prop = cur_data;
+    const struct property_data *prop = cur_data;
     data_size_t len = size / sizeof(*prop);
 
     fprintf( stderr,"%s{", prefix );
@@ -1362,7 +1362,7 @@ static void dump_varargs_filesystem_event( const char *prefix, data_size_t size 
 
 static void dump_varargs_pe_image_info( const char *prefix, data_size_t size )
 {
-    pe_image_info_t info;
+    struct pe_image_info info;
 
     if (!size)
     {

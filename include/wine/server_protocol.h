@@ -206,7 +206,7 @@ typedef __int64 timeout_t;
 typedef __int64 abstime_t;
 
 
-typedef struct
+struct startup_info_data
 {
     unsigned int debug_flags;
     unsigned int console_flags;
@@ -240,15 +240,15 @@ typedef struct
 
 
 
-} startup_info_t;
+};
 
 
-typedef struct
+struct property_data
 {
     atom_t         atom;
     int            string;
     lparam_t       data;
-} property_data_t;
+};
 
 
 typedef struct
@@ -389,13 +389,13 @@ struct sid
     unsigned int  sub_auth[15];
 };
 
-typedef struct
+struct generic_map
 {
     unsigned int read;
     unsigned int write;
     unsigned int exec;
     unsigned int all;
-} generic_map_t;
+};
 
 #define MAX_ACL_LEN 65535
 
@@ -431,7 +431,7 @@ struct object_type_info
     unsigned int  obj_max;
     unsigned int  handle_max;
     unsigned int  valid_access;
-    generic_map_t mapping;
+    struct generic_map mapping;
 
 };
 
@@ -819,7 +819,7 @@ union irp_params
 };
 
 
-typedef struct
+struct pe_image_info
 {
     client_ptr_t   base;
     client_ptr_t   map_addr;
@@ -848,7 +848,7 @@ typedef struct
     unsigned int   checksum;
     unsigned int   dbg_offset;
     unsigned int   dbg_size;
-} pe_image_info_t;
+};
 #define IMAGE_FLAGS_ComPlusNativeReady        0x01
 #define IMAGE_FLAGS_ComPlusILOnly             0x02
 #define IMAGE_FLAGS_ImageDynamicallyRelocated 0x04
@@ -863,14 +863,14 @@ struct rawinput_device
     user_handle_t  target;
 };
 
-typedef struct
+struct cursor_pos
 {
     int x;
     int y;
     unsigned int time;
     int __pad;
     lparam_t info;
-} cursor_pos_t;
+};
 
 struct directory_entry
 {
@@ -4770,7 +4770,7 @@ struct access_check_request
     struct request_header __header;
     obj_handle_t    handle;
     unsigned int    desired_access;
-    generic_map_t   mapping;
+    struct generic_map mapping;
     /* VARARG(sd,security_descriptor); */
     char __pad_36[4];
 };
