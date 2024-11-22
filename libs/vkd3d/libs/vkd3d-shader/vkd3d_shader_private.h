@@ -1431,6 +1431,7 @@ struct vsir_program
     uint8_t diffuse_written_mask;
     enum vsir_control_flow_type cf_type;
     enum vsir_normalisation_level normalisation_level;
+    enum vkd3d_tessellator_domain tess_domain;
 
     const char **block_names;
     size_t block_name_count;
@@ -1658,7 +1659,8 @@ int spirv_compile(struct vsir_program *program, uint64_t config_flags,
 
 int msl_compile(struct vsir_program *program, uint64_t config_flags,
         const struct vkd3d_shader_scan_descriptor_info1 *descriptor_info,
-        const struct vkd3d_shader_compile_info *compile_info, struct vkd3d_shader_message_context *message_context);
+        const struct vkd3d_shader_compile_info *compile_info, struct vkd3d_shader_code *out,
+        struct vkd3d_shader_message_context *message_context);
 
 enum vkd3d_md5_variant
 {

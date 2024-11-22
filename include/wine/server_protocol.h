@@ -3505,6 +3505,25 @@ struct get_window_parents_reply
 
 
 
+struct get_window_list_request
+{
+    struct request_header __header;
+    obj_handle_t   desktop;
+    user_handle_t  handle;
+    thread_id_t    tid;
+    int            children;
+    char __pad_28[4];
+};
+struct get_window_list_reply
+{
+    struct reply_header __header;
+    int            count;
+    /* VARARG(windows,user_handles); */
+    char __pad_12[4];
+};
+
+
+
 struct get_window_children_request
 {
     struct request_header __header;
@@ -6198,6 +6217,7 @@ enum request
     REQ_set_window_info,
     REQ_set_parent,
     REQ_get_window_parents,
+    REQ_get_window_list,
     REQ_get_window_children,
     REQ_get_window_children_from_point,
     REQ_get_window_tree,
@@ -6506,6 +6526,7 @@ union generic_request
     struct set_window_info_request set_window_info_request;
     struct set_parent_request set_parent_request;
     struct get_window_parents_request get_window_parents_request;
+    struct get_window_list_request get_window_list_request;
     struct get_window_children_request get_window_children_request;
     struct get_window_children_from_point_request get_window_children_from_point_request;
     struct get_window_tree_request get_window_tree_request;
@@ -6812,6 +6833,7 @@ union generic_reply
     struct set_window_info_reply set_window_info_reply;
     struct set_parent_reply set_parent_reply;
     struct get_window_parents_reply get_window_parents_reply;
+    struct get_window_list_reply get_window_list_reply;
     struct get_window_children_reply get_window_children_reply;
     struct get_window_children_from_point_reply get_window_children_from_point_reply;
     struct get_window_tree_reply get_window_tree_reply;
@@ -6965,6 +6987,6 @@ union generic_reply
     struct get_fsync_apc_idx_reply get_fsync_apc_idx_reply;
 };
 
-#define SERVER_PROTOCOL_VERSION 851
+#define SERVER_PROTOCOL_VERSION 852
 
 #endif /* __WINE_WINE_SERVER_PROTOCOL_H */

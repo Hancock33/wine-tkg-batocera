@@ -762,6 +762,7 @@ static uint32_t write_fx_4_type(const struct hlsl_type *type, struct fx_write_co
         case HLSL_CLASS_TECHNIQUE:
         case HLSL_CLASS_CONSTANT_BUFFER:
         case HLSL_CLASS_NULL:
+        case HLSL_CLASS_STREAM_OUTPUT:
             vkd3d_unreachable();
 
         case HLSL_CLASS_VOID:
@@ -1298,6 +1299,7 @@ static bool is_type_supported_fx_2(struct hlsl_ctx *ctx, const struct hlsl_type 
         case HLSL_CLASS_TECHNIQUE:
         case HLSL_CLASS_CONSTANT_BUFFER:
         case HLSL_CLASS_NULL:
+        case HLSL_CLASS_STREAM_OUTPUT:
             /* This cannot appear as an extern variable. */
             break;
     }
@@ -3235,7 +3237,7 @@ static void fx_4_parse_shader_initializer(struct fx_parser *parser, unsigned int
 
     static const struct vkd3d_shader_compile_option options[] =
     {
-        {VKD3D_SHADER_COMPILE_OPTION_API_VERSION, VKD3D_SHADER_API_VERSION_1_13},
+        {VKD3D_SHADER_COMPILE_OPTION_API_VERSION, VKD3D_SHADER_API_VERSION_1_14},
     };
 
     switch (object_type)
