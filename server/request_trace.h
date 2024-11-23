@@ -13,8 +13,8 @@ static void dump_hw_input( const char *prefix, const union hw_input *val );
 static void dump_ioctl_code( const char *prefix, const ioctl_code_t *val );
 static void dump_irp_params( const char *prefix, const union irp_params *val );
 static void dump_luid( const char *prefix, const struct luid *val );
-static void dump_obj_locator( const char *prefix, const obj_locator_t *val );
-static void dump_rectangle( const char *prefix, const rectangle_t *val );
+static void dump_obj_locator( const char *prefix, const struct obj_locator *val );
+static void dump_rectangle( const char *prefix, const struct rectangle *val );
 static void dump_timeout( const char *prefix, const timeout_t *val );
 static void dump_uint64( const char *prefix, const unsigned __int64 *val );
 static void dump_varargs_acl( const char *prefix, data_size_t size );
@@ -1795,16 +1795,15 @@ static void dump_get_window_list_reply( const struct get_window_list_reply *req 
     dump_varargs_user_handles( ", windows=", cur_size );
 }
 
-static void dump_get_window_children_request( const struct get_window_children_request *req )
+static void dump_get_class_windows_request( const struct get_class_windows_request *req )
 {
-    fprintf( stderr, " desktop=%04x", req->desktop );
-    fprintf( stderr, ", parent=%08x", req->parent );
+    fprintf( stderr, " parent=%08x", req->parent );
+    fprintf( stderr, ", child=%08x", req->child );
     fprintf( stderr, ", atom=%04x", req->atom );
-    fprintf( stderr, ", tid=%04x", req->tid );
     dump_varargs_unicode_str( ", class=", cur_size );
 }
 
-static void dump_get_window_children_reply( const struct get_window_children_reply *req )
+static void dump_get_class_windows_reply( const struct get_class_windows_reply *req )
 {
     fprintf( stderr, " count=%d", req->count );
     dump_varargs_user_handles( ", children=", cur_size );
@@ -3618,7 +3617,7 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] =
     (dump_func)dump_set_parent_request,
     (dump_func)dump_get_window_parents_request,
     (dump_func)dump_get_window_list_request,
-    (dump_func)dump_get_window_children_request,
+    (dump_func)dump_get_class_windows_request,
     (dump_func)dump_get_window_children_from_point_request,
     (dump_func)dump_get_window_tree_request,
     (dump_func)dump_set_window_pos_request,
@@ -3924,7 +3923,7 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] =
     (dump_func)dump_set_parent_reply,
     (dump_func)dump_get_window_parents_reply,
     (dump_func)dump_get_window_list_reply,
-    (dump_func)dump_get_window_children_reply,
+    (dump_func)dump_get_class_windows_reply,
     (dump_func)dump_get_window_children_from_point_reply,
     (dump_func)dump_get_window_tree_reply,
     (dump_func)dump_set_window_pos_reply,
@@ -4230,7 +4229,7 @@ static const char * const req_names[REQ_NB_REQUESTS] =
     "set_parent",
     "get_window_parents",
     "get_window_list",
-    "get_window_children",
+    "get_class_windows",
     "get_window_children_from_point",
     "get_window_tree",
     "set_window_pos",

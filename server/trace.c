@@ -150,7 +150,7 @@ static void dump_uints64( const char *prefix, const unsigned __int64 *ptr, int l
     fputc( '}', stderr );
 }
 
-static void dump_rectangle( const char *prefix, const rectangle_t *rect )
+static void dump_rectangle( const char *prefix, const struct rectangle *rect )
 {
     fprintf( stderr, "%s{%d,%d;%d,%d}", prefix,
              rect->left, rect->top, rect->right, rect->bottom );
@@ -490,7 +490,7 @@ static void dump_hw_input( const char *prefix, const union hw_input *input )
     }
 }
 
-static void dump_obj_locator( const char *prefix, const obj_locator_t *locator )
+static void dump_obj_locator( const char *prefix, const struct obj_locator *locator )
 {
     fprintf( stderr, "%s{", prefix );
     dump_uint64( "id=", &locator->id );
@@ -690,8 +690,8 @@ static void dump_varargs_unicode_strings( const char *prefix, data_size_t size )
 
 static void dump_varargs_context( const char *prefix, data_size_t size )
 {
-    const context_t *context = cur_data;
-    context_t ctx;
+    const struct context_data *context = cur_data;
+    struct context_data ctx;
     unsigned int i;
 
     if (!size)
@@ -1018,7 +1018,7 @@ static void dump_varargs_startup_info( const char *prefix, data_size_t size )
 
 static void dump_varargs_rectangles( const char *prefix, data_size_t size )
 {
-    const rectangle_t *rect = cur_data;
+    const struct rectangle *rect = cur_data;
     data_size_t len = size / sizeof(*rect);
 
     fprintf( stderr,"%s{", prefix );
@@ -1438,7 +1438,7 @@ static void dump_varargs_tcp_connections( const char *prefix, data_size_t size )
         "TIME_WAIT",
         "DELETE_TCB"
     };
-    const tcp_connection *conn;
+    const union tcp_connection *conn;
 
     fprintf( stderr, "%s{", prefix );
     while (size >= sizeof(*conn))
@@ -1477,7 +1477,7 @@ static void dump_varargs_tcp_connections( const char *prefix, data_size_t size )
 
 static void dump_varargs_udp_endpoints( const char *prefix, data_size_t size )
 {
-    const udp_endpoint *endpt;
+    const union udp_endpoint *endpt;
 
     fprintf( stderr, "%s{", prefix );
     while (size >= sizeof(*endpt))

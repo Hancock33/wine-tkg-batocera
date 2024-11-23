@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at 4cd3d8eb Rebase against 157105cb6d306f9794f0f3ebaa55d9c891e3be8f.
-HEAD is now at 157105cb6d3 mshtml: Set the name of the non-function constructors to the same as the object.
+HEAD is now at 7ba8823e Release v9.22
+HEAD is now at 51ccd95c49c Release 9.22.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
@@ -520,7 +520,7 @@ Hunk #8 succeeded at 827 (offset 133 lines).
 patching file server/process.h
 Hunk #1 succeeded at 87 with fuzz 2 (offset -12 lines).
 patching file server/protocol.def
-Hunk #1 succeeded at 4141 (offset 375 lines).
+Hunk #1 succeeded at 4140 (offset 374 lines).
 patching file server/queue.c
 Hunk #1 succeeded at 45 (offset 1 line).
 Hunk #2 succeeded at 138 (offset -10 lines).
@@ -736,12 +736,12 @@ Applying hotfix wine-tkg-patches/hotfixes/shm_esync_fsync/HACK-user32-Always-cal
 patching file dlls/win32u/input.c
 Hunk #1 succeeded at 799 (offset -5 lines).
 patching file dlls/win32u/message.c
-Hunk #1 succeeded at 2708 (offset 14 lines).
-Hunk #2 succeeded at 2748 (offset 14 lines).
-Hunk #3 succeeded at 2949 (offset 14 lines).
-Hunk #4 succeeded at 3014 (offset 14 lines).
-Hunk #5 succeeded at 3248 (offset 14 lines).
-Hunk #6 succeeded at 3299 (offset 14 lines).
+Hunk #1 succeeded at 2726 (offset 32 lines).
+Hunk #2 succeeded at 2766 (offset 32 lines).
+Hunk #3 succeeded at 2967 (offset 32 lines).
+Hunk #4 succeeded at 3032 (offset 32 lines).
+Hunk #5 succeeded at 3266 (offset 32 lines).
+Hunk #6 succeeded at 3317 (offset 32 lines).
 patching file dlls/win32u/ntuser_private.h
 Hunk #1 succeeded at 217 (offset -18 lines).
 

@@ -608,47 +608,26 @@ empty:
  *           list_window_children
  *
  * Build an array of the children of a given window. The array must be
- * freed with HeapFree. Returns NULL when no windows are found.
+ * freed with free(). Returns NULL when no windows are found.
  */
-HWND *list_window_children( HDESK desktop, HWND hwnd, UNICODE_STRING *class, DWORD tid )
+HWND *list_window_children( HWND hwnd )
 {
     HWND *list;
-    int i, size = 128;
-    ATOM atom = class ? get_int_atom_value( class ) : 0;
+    ULONG size = 128;
+    NTSTATUS status;
 
-    /* empty class is not the same as NULL class */
-    if (!atom && class && !class->Length) return NULL;
+    if (hwnd && !(hwnd = get_window_relative( hwnd, GW_CHILD ))) return NULL;
 
     for (;;)
     {
-        int count = 0;
-
-        if (!(list = malloc( size * sizeof(HWND) ))) break;
-
-        SERVER_START_REQ( get_window_children )
-        {
-            req->desktop = wine_server_obj_handle( desktop );
-            req->parent = wine_server_user_handle( hwnd );
-            req->tid = tid;
-            req->atom = atom;
-            if (!atom && class) wine_server_add_data( req, class->Buffer, class->Length );
-            wine_server_set_reply( req, list, (size-1) * sizeof(user_handle_t) );
-            if (!wine_server_call( req )) count = reply->count;
-        }
-        SERVER_END_REQ;
-        if (count && count < size)
-        {
-            /* start from the end since HWND is potentially larger than user_handle_t */
-            for (i = count - 1; i >= 0; i--)
-                list[i] = wine_server_ptr_handle( ((user_handle_t *)list)[i] );
-            list[count] = 0;
-            return list;
-        }
+        if (!(list = malloc( size * sizeof(HWND) ))) return NULL;
+        status = NtUserBuildHwndList( 0, hwnd, FALSE, TRUE, 0, size, list, &size );
+        if (!status && size) break;
         free( list );
-        if (!count) break;
-        size = count + 1;  /* restart with a large enough buffer */
+        if (status != STATUS_BUFFER_TOO_SMALL) return NULL;
     }
-    return NULL;
+    list[size - 1] = 0;
+    return list;
 }
 
 /*****************************************************************
@@ -2045,7 +2024,7 @@ static void update_children_window_state( HWND hwnd )
     HWND *children;
     int i;
 
-    if (!(children = list_window_children( 0, hwnd, NULL, 0 ))) return;
+    if (!(children = list_window_children( hwnd ))) return;
 
     for (i = 0; children[i]; i++)
     {
@@ -2660,7 +2639,7 @@ HWND WINAPI NtUserChildWindowFromPointEx( HWND parent, LONG x, LONG y, UINT flag
 
     if (!get_client_rect( parent, &rect, get_thread_dpi() )) return 0;
     if (!PtInRect( &rect, pt )) return 0;
-    if (!(list = list_window_children( 0, parent, NULL, 0 ))) return parent;
+    if (!(list = list_window_children( parent ))) return parent;
 
     for (i = 0; list[i]; i++)
     {
@@ -3017,46 +2996,59 @@ NTSTATUS WINAPI NtUserBuildHwndList( HDESK desktop, HWND hwnd, BOOL children, BO
 HWND WINAPI NtUserFindWindowEx( HWND parent, HWND child, UNICODE_STRING *class, UNICODE_STRING *title,
                                 ULONG unk )
 {
-    HWND *list;
+    user_handle_t *list;
     HWND retvalue = 0;
-    int i = 0, len = 0, title_len;
-    WCHAR *buffer = NULL;
+    int i = 0, size = 128, title_len;
+    ATOM atom = class ? get_int_atom_value( class ) : 0;
+    NTSTATUS status;
 
-    if (!parent && child) parent = get_desktop_window();
-    else if (parent == HWND_MESSAGE) parent = get_hwnd_message_parent();
+    /* empty class is not the same as NULL class */
+    if (!atom && class && !class->Length) return 0;
 
-    if (title)
+    if (parent == HWND_MESSAGE) parent = get_hwnd_message_parent();
+
+    for (;;)
     {
-        len = title->Length / sizeof(WCHAR) + 1;  /* one extra char to check for chars beyond the end */
-        if (!(buffer = malloc( (len + 1) * sizeof(WCHAR) ))) return 0;
-    }
+        if (!(list = malloc( size * sizeof(*list) ))) return 0;
 
-    if (!(list = list_window_children( 0, parent, class, 0 ))) goto done;
-
-    if (child)
-    {
-        child = get_full_window_handle( child );
-        while (list[i] && list[i] != child) i++;
-        if (!list[i]) goto done;
-        i++;  /* start from next window */
-    }
-
-    if (title)
-    {
-        while (list[i])
+        SERVER_START_REQ( get_class_windows )
         {
-            title_len = NtUserInternalGetWindowText( list[i], buffer, len + 1 );
+            req->parent = wine_server_user_handle( parent );
+            req->child  = wine_server_user_handle( child );
+            req->atom   = atom;
+            if (!atom && class) wine_server_add_data( req, class->Buffer, class->Length );
+            wine_server_set_reply( req, list, size * sizeof(user_handle_t) );
+            status = wine_server_call( req );
+            size = reply->count;
+        }
+        SERVER_END_REQ;
+
+        if (!status && size) break;
+        free( list );
+        if (status != STATUS_BUFFER_TOO_SMALL) return 0;
+    }
+
+    if (title)
+    {
+        int len = title->Length / sizeof(WCHAR) + 1;  /* one extra char to check for chars beyond the end */
+        WCHAR *buffer = malloc( (len + 1) * sizeof(WCHAR) );
+
+        if (!buffer) goto done;
+        while (i < size)
+        {
+            title_len = NtUserInternalGetWindowText( wine_server_ptr_handle(list[i]), buffer, len + 1 );
             if (title_len * sizeof(WCHAR) == title->Length &&
                 (!title_len || !wcsnicmp( buffer, title->Buffer, title_len )))
                 break;
             i++;
         }
+        free( buffer );
     }
-    retvalue = list[i];
+
+    if (i < size) retvalue = wine_server_ptr_handle(list[i]);
 
  done:
     free( list );
-    free( buffer );
     return retvalue;
 }
 
@@ -3684,7 +3676,7 @@ static HWND swp_owner_popups( HWND hwnd, HWND after )
 
         if (after != HWND_TOPMOST)
         {
-            if (!(list = list_window_children( 0, get_desktop_window(), NULL, 0 ))) return after;
+            if (!(list = list_window_children( 0 ))) return after;
 
             for (i = 0; list[i]; i++)
             {
@@ -3707,7 +3699,7 @@ static HWND swp_owner_popups( HWND hwnd, HWND after )
     }
 
     if (after == HWND_BOTTOM) goto done;
-    if (!list && !(list = list_window_children( 0, get_desktop_window(), NULL, 0 ))) goto done;
+    if (!list && !(list = list_window_children( 0 ))) goto done;
 
     i = 0;
     if (after == HWND_TOP || after == HWND_NOTOPMOST)
@@ -4840,7 +4832,7 @@ BOOL WINAPI NtUserShowWindow( HWND hwnd, INT cmd )
 BOOL show_owned_popups( HWND owner, BOOL show )
 {
     int count = 0;
-    HWND *win_array = list_window_children( 0, get_desktop_window(), NULL, 0 );
+    HWND *win_array = list_window_children( 0 );
 
     if (!win_array) return TRUE;
 
@@ -5042,7 +5034,7 @@ static void send_destroy_message( HWND hwnd, BOOL winevent )
         HWND *children;
         int i;
 
-        if (!(children = list_window_children( 0, hwnd, NULL, 0 ))) return;
+        if (!(children = list_window_children( hwnd ))) return;
 
         for (i = 0; children[i]; i++)
         {
@@ -5097,7 +5089,7 @@ LRESULT destroy_window( HWND hwnd )
     unregister_imm_window( hwnd );
 
     /* free child windows */
-    if ((children = list_window_children( 0, hwnd, NULL, 0 )))
+    if ((children = list_window_children( hwnd )))
     {
         int i;
         for (i = 0; children[i]; i++)
@@ -5209,7 +5201,7 @@ static BOOL user_destroy_window( HWND hwnd, BOOL winevent )
             HWND *children;
             unsigned int i;
 
-            if (!(children = list_window_children( 0, get_desktop_window(), NULL, 0 ))) break;
+            if (!(children = list_window_children( 0 ))) break;
 
             for (i = 0; children[i]; i++)
             {

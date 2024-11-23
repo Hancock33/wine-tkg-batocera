@@ -158,7 +158,7 @@ DECL_HANDLER(set_window_info);
 DECL_HANDLER(set_parent);
 DECL_HANDLER(get_window_parents);
 DECL_HANDLER(get_window_list);
-DECL_HANDLER(get_window_children);
+DECL_HANDLER(get_class_windows);
 DECL_HANDLER(get_window_children_from_point);
 DECL_HANDLER(get_window_tree);
 DECL_HANDLER(set_window_pos);
@@ -464,7 +464,7 @@ static const req_handler req_handlers[REQ_NB_REQUESTS] =
     (req_handler)req_set_parent,
     (req_handler)req_get_window_parents,
     (req_handler)req_get_window_list,
-    (req_handler)req_get_window_children,
+    (req_handler)req_get_class_windows,
     (req_handler)req_get_window_children_from_point,
     (req_handler)req_get_window_tree,
     (req_handler)req_set_window_pos,
@@ -623,7 +623,6 @@ C_ASSERT( sizeof(apc_param_t) == 8 );
 C_ASSERT( sizeof(atom_t) == 4 );
 C_ASSERT( sizeof(char) == 1 );
 C_ASSERT( sizeof(client_ptr_t) == 8 );
-C_ASSERT( sizeof(context_t) == 1728 );
 C_ASSERT( sizeof(data_size_t) == 4 );
 C_ASSERT( sizeof(file_pos_t) == 8 );
 C_ASSERT( sizeof(int) == 4 );
@@ -632,31 +631,30 @@ C_ASSERT( sizeof(lparam_t) == 8 );
 C_ASSERT( sizeof(mem_size_t) == 8 );
 C_ASSERT( sizeof(mod_handle_t) == 8 );
 C_ASSERT( sizeof(obj_handle_t) == 4 );
-C_ASSERT( sizeof(obj_locator_t) == 16 );
 C_ASSERT( sizeof(object_id_t) == 8 );
 C_ASSERT( sizeof(process_id_t) == 4 );
-C_ASSERT( sizeof(rectangle_t) == 16 );
 C_ASSERT( sizeof(short int) == 2 );
 C_ASSERT( sizeof(struct async_data) == 40 );
+C_ASSERT( sizeof(struct context_data) == 1728 );
 C_ASSERT( sizeof(struct cursor_pos) == 24 );
 C_ASSERT( sizeof(struct filesystem_event) == 12 );
 C_ASSERT( sizeof(struct generic_map) == 16 );
 C_ASSERT( sizeof(struct handle_info) == 20 );
 C_ASSERT( sizeof(struct luid) == 8 );
 C_ASSERT( sizeof(struct luid_attr) == 12 );
+C_ASSERT( sizeof(struct obj_locator) == 16 );
 C_ASSERT( sizeof(struct object_attributes) == 16 );
 C_ASSERT( sizeof(struct object_type_info) == 44 );
 C_ASSERT( sizeof(struct pe_image_info) == 88 );
 C_ASSERT( sizeof(struct process_info) == 40 );
 C_ASSERT( sizeof(struct property_data) == 16 );
 C_ASSERT( sizeof(struct rawinput_device) == 12 );
+C_ASSERT( sizeof(struct rectangle) == 16 );
 C_ASSERT( sizeof(struct startup_info_data) == 96 );
 C_ASSERT( sizeof(struct thread_info) == 40 );
 C_ASSERT( sizeof(struct user_apc) == 40 );
-C_ASSERT( sizeof(tcp_connection) == 60 );
 C_ASSERT( sizeof(thread_id_t) == 4 );
 C_ASSERT( sizeof(timeout_t) == 8 );
-C_ASSERT( sizeof(udp_endpoint) == 32 );
 C_ASSERT( sizeof(union apc_call) == 64 );
 C_ASSERT( sizeof(union apc_result) == 40 );
 C_ASSERT( sizeof(union debug_event_data) == 160 );
@@ -664,6 +662,8 @@ C_ASSERT( sizeof(union hw_input) == 40 );
 C_ASSERT( sizeof(union irp_params) == 32 );
 C_ASSERT( sizeof(union message_data) == 48 );
 C_ASSERT( sizeof(union select_op) == 264 );
+C_ASSERT( sizeof(union tcp_connection) == 60 );
+C_ASSERT( sizeof(union udp_endpoint) == 32 );
 C_ASSERT( sizeof(unsigned __int64) == 8 );
 C_ASSERT( sizeof(unsigned char) == 1 );
 C_ASSERT( sizeof(unsigned int) == 4 );
@@ -1533,13 +1533,12 @@ C_ASSERT( offsetof(struct get_window_list_request, children) == 24 );
 C_ASSERT( sizeof(struct get_window_list_request) == 32 );
 C_ASSERT( offsetof(struct get_window_list_reply, count) == 8 );
 C_ASSERT( sizeof(struct get_window_list_reply) == 16 );
-C_ASSERT( offsetof(struct get_window_children_request, desktop) == 12 );
-C_ASSERT( offsetof(struct get_window_children_request, parent) == 16 );
-C_ASSERT( offsetof(struct get_window_children_request, atom) == 20 );
-C_ASSERT( offsetof(struct get_window_children_request, tid) == 24 );
-C_ASSERT( sizeof(struct get_window_children_request) == 32 );
-C_ASSERT( offsetof(struct get_window_children_reply, count) == 8 );
-C_ASSERT( sizeof(struct get_window_children_reply) == 16 );
+C_ASSERT( offsetof(struct get_class_windows_request, parent) == 12 );
+C_ASSERT( offsetof(struct get_class_windows_request, child) == 16 );
+C_ASSERT( offsetof(struct get_class_windows_request, atom) == 20 );
+C_ASSERT( sizeof(struct get_class_windows_request) == 24 );
+C_ASSERT( offsetof(struct get_class_windows_reply, count) == 8 );
+C_ASSERT( sizeof(struct get_class_windows_reply) == 16 );
 C_ASSERT( offsetof(struct get_window_children_from_point_request, parent) == 12 );
 C_ASSERT( offsetof(struct get_window_children_from_point_request, x) == 16 );
 C_ASSERT( offsetof(struct get_window_children_from_point_request, y) == 20 );
