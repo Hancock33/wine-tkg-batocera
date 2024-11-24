@@ -1,4 +1,4 @@
-# Last wine-tkg-staging-fsync-git configuration - Sat 23 Nov 06:55:52 GMT 2024 :
+# Last wine-tkg-staging-ntsync-git configuration - Sun 24 Nov 21:26:53 GMT 2024 :
 
 Local cfg files used
 
@@ -15,11 +15,11 @@ CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 
 Staging overrides, if any: 
 
-fsync-unix-staging.patch -- ( Applied fsync patches (unix, staging) )
-fsync_futex_waitv.patch -- ( Applied patches for fsync to support futex_waitv )
 
 LAA-unix-staging.patch -- ( Applied large address aware override support (legacy) )
 
+ntsync-config.h.in-org.patch -- ( Using original config.h.in patchset for ntsync5 )
+ntsync5-staging.patch -- ( Using ntsync patchset )
 josh-flat-theme.patch -- ( Add Josh's better-theme )
 proton_battleye.patch -- ( Add support for Proton's Battleye runtime )
 proton-eac_bridge.patch -- ( Add support for Proton's EAC bridge )
@@ -28,7 +28,6 @@ Applied hotfix Return_nt_filename_and_resolve_DOS_drive_path.mypatch
 Applied hotfix a608ef1.mypatch
 Applied hotfix opencl-fixup.mypatch
 Applied hotfix nostale_mouse_fix.mypatch
-Applied hotfix HACK-user32-Always-call-get_message-request-after-waiting.mypatch
 
 wine-tkg-staging.patch -- ( Please don't report bugs about this wine build on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead. )
 

@@ -364,270 +364,6 @@ server/request_handlers.h updated
 autoreconf -f
 ./tools/make_requests
 
-fsync-unix-staging.patch -- ( Applied fsync patches (unix, staging) )
-patching file dlls/ntdll/Makefile.in
-Hunk #1 succeeded at 50 with fuzz 2 (offset 2 lines).
-patching file dlls/ntdll/unix/esync.c
-Hunk #1 succeeded at 51 (offset -6 lines).
-Hunk #2 succeeded at 61 (offset -6 lines).
-Hunk #3 succeeded at 862 (offset -6 lines).
-Hunk #4 succeeded at 891 (offset -6 lines).
-patching file dlls/ntdll/unix/fsync.c
-patching file dlls/ntdll/unix/fsync.h
-patching file dlls/ntdll/unix/loader.c
-Hunk #1 succeeded at 91 with fuzz 2 (offset 4 lines).
-Hunk #2 succeeded at 1860 with fuzz 1 (offset 294 lines).
-patching file dlls/ntdll/unix/server.c
-Hunk #1 succeeded at 84 (offset -11 lines).
-Hunk #2 succeeded at 1900 with fuzz 2 (offset 201 lines).
-patching file dlls/ntdll/unix/sync.c
-Hunk #1 succeeded at 67 (offset -6 lines).
-Hunk #2 succeeded at 317 (offset 54 lines).
-Hunk #3 succeeded at 348 (offset 47 lines).
-Hunk #4 succeeded at 390 (offset 56 lines).
-Hunk #5 succeeded at 418 (offset 41 lines).
-Hunk #6 succeeded at 451 (offset 44 lines).
-Hunk #7 succeeded at 485 (offset 41 lines).
-Hunk #8 succeeded at 514 (offset 37 lines).
-Hunk #9 succeeded at 540 (offset 38 lines).
-Hunk #10 succeeded at 576 (offset 39 lines).
-Hunk #11 succeeded at 613 (offset 48 lines).
-Hunk #12 succeeded at 646 (offset 37 lines).
-Hunk #13 succeeded at 679 with fuzz 1 (offset 34 lines).
-Hunk #14 succeeded at 707 (offset 29 lines).
-Hunk #15 succeeded at 743 (offset 38 lines).
-Hunk #16 succeeded at 1669 (offset 340 lines).
-Hunk #17 succeeded at 1708 with fuzz 1 (offset 335 lines).
-Hunk #18 succeeded at 1754 (offset 353 lines).
-patching file dlls/ntdll/unix/unix_private.h
-Hunk #1 succeeded at 104 with fuzz 2 (offset 45 lines).
-patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 3691 with fuzz 2 (offset 1008 lines).
-patching file server/Makefile.in
-patching file server/async.c
-Hunk #1 succeeded at 79 (offset 8 lines).
-Hunk #2 succeeded at 701 (offset 214 lines).
-patching file server/atom.c
-Hunk #1 succeeded at 80 (offset -1 lines).
-patching file server/change.c
-Hunk #1 succeeded at 113 (offset -3 lines).
-patching file server/clipboard.c
-Hunk #1 succeeded at 77 (offset -1 lines).
-patching file server/completion.c
-Hunk #1 succeeded at 93 (offset 1 line).
-Hunk #2 succeeded at 169 (offset 2 lines).
-patching file server/console.c
-Hunk #1 succeeded at 42 (offset -1 lines).
-Hunk #2 succeeded at 84 with fuzz 2 (offset 1 line).
-Hunk #3 succeeded at 144 (offset 6 lines).
-Hunk #4 succeeded at 151 with fuzz 2 (offset 2 lines).
-Hunk #5 succeeded at 167 (offset 7 lines).
-Hunk #6 succeeded at 238 (offset 9 lines).
-Hunk #7 succeeded at 289 (offset 11 lines).
-Hunk #8 succeeded at 328 with fuzz 1 (offset 24 lines).
-Hunk #9 succeeded at 387 with fuzz 1 (offset 52 lines).
-Hunk #10 succeeded at 447 (offset 73 lines).
-Hunk #11 succeeded at 610 (offset 13 lines).
-Hunk #12 succeeded at 960 (offset 171 lines).
-Hunk #13 succeeded at 1000 with fuzz 2 (offset 172 lines).
-Hunk #14 succeeded at 1618 (offset 48 lines).
-Hunk #15 succeeded at 1709 (offset 35 lines).
-patching file server/debugger.c
-Hunk #1 succeeded at 87 (offset 13 lines).
-Hunk #2 succeeded at 117 (offset 13 lines).
-patching file server/device.c
-Hunk #1 succeeded at 39 (offset -1 lines).
-Hunk #2 succeeded at 69 (offset -2 lines).
-Hunk #3 succeeded at 97 (offset -2 lines).
-Hunk #4 succeeded at 115 (offset -2 lines).
-Hunk #5 succeeded at 174 (offset 11 lines).
-Hunk #6 succeeded at 228 (offset 12 lines).
-Hunk #7 succeeded at 762 (offset 1 line).
-Hunk #8 succeeded at 810 (offset 1 line).
-Hunk #9 succeeded at 867 (offset 1 line).
-Hunk #10 succeeded at 1062 (offset 25 lines).
-patching file server/directory.c
-Hunk #1 succeeded at 70 (offset 11 lines).
-Hunk #2 succeeded at 122 (offset 22 lines).
-patching file server/esync.c
-Hunk #1 succeeded at 42 (offset -2 lines).
-Hunk #2 succeeded at 50 (offset -2 lines).
-Hunk #3 succeeded at 129 (offset -2 lines).
-patching file server/event.c
-Hunk #2 succeeded at 59 (offset 14 lines).
-Hunk #3 succeeded at 66 (offset 13 lines).
-Hunk #4 succeeded at 80 (offset 12 lines).
-Hunk #5 succeeded at 129 (offset 24 lines).
-Hunk #6 succeeded at 162 (offset 24 lines).
-Hunk #7 succeeded at 175 (offset 24 lines).
-Hunk #8 succeeded at 191 (offset 24 lines).
-Hunk #9 succeeded at 217 (offset 24 lines).
-Hunk #10 succeeded at 230 (offset 24 lines).
-Hunk #11 succeeded at 259 (offset 18 lines).
-patching file server/fd.c
-Hunk #1 succeeded at 96 (offset -7 lines).
-Hunk #2 succeeded at 162 (offset -44 lines).
-Hunk #3 succeeded at 177 (offset -44 lines).
-Hunk #4 succeeded at 220 (offset -44 lines).
-Hunk #5 succeeded at 262 (offset -44 lines).
-Hunk #6 succeeded at 306 (offset -44 lines).
-Hunk #7 succeeded at 1777 (offset 57 lines).
-Hunk #8 succeeded at 1787 (offset 57 lines).
-Hunk #9 succeeded at 1826 (offset 60 lines).
-Hunk #10 succeeded at 2290 (offset 85 lines).
-Hunk #11 succeeded at 2329 (offset 79 lines).
-patching file server/file.c
-Hunk #1 succeeded at 124 (offset 12 lines).
-patching file server/file.h
-Hunk #1 succeeded at 110 with fuzz 1 (offset 7 lines).
-patching file server/fsync.c
-patching file server/fsync.h
-patching file server/handle.c
-Hunk #1 succeeded at 127 (offset 3 lines).
-patching file server/hook.c
-patching file server/mailslot.c
-Hunk #1 succeeded at 82 (offset 3 lines).
-Hunk #2 succeeded at 145 (offset 6 lines).
-Hunk #3 succeeded at 212 (offset 8 lines).
-Hunk #4 succeeded at 244 (offset 8 lines).
-patching file server/main.c
-Hunk #1 succeeded at 35 with fuzz 2 (offset -2 lines).
-Hunk #2 succeeded at 231 (offset 89 lines).
-patching file server/mapping.c
-Hunk #1 succeeded at 68 (offset -1 lines).
-Hunk #2 succeeded at 106 (offset -1 lines).
-Hunk #3 succeeded at 181 (offset 14 lines).
-patching file server/mutex.c
-Hunk #1 succeeded at 74 (offset 12 lines).
-patching file server/named_pipe.c
-Hunk #1 succeeded at 120 (offset 1 line).
-Hunk #2 succeeded at 170 (offset 5 lines).
-Hunk #3 succeeded at 216 (offset 6 lines).
-Hunk #4 succeeded at 265 (offset 6 lines).
-Hunk #5 succeeded at 298 (offset 6 lines).
-Hunk #6 succeeded at 350 (offset 1 line).
-patching file server/object.h
-Hunk #1 succeeded at 80 (offset 10 lines).
-patching file server/process.c
-Hunk #1 succeeded at 64 (offset 14 lines).
-Hunk #2 succeeded at 98 (offset 27 lines).
-Hunk #3 succeeded at 110 (offset 27 lines).
-Hunk #4 succeeded at 163 (offset 27 lines).
-Hunk #5 succeeded at 226 (offset 42 lines).
-Hunk #6 succeeded at 697 with fuzz 2 (offset 145 lines).
-Hunk #7 succeeded at 748 with fuzz 2 (offset 139 lines).
-Hunk #8 succeeded at 827 (offset 133 lines).
-patching file server/process.h
-Hunk #1 succeeded at 87 with fuzz 2 (offset -12 lines).
-patching file server/protocol.def
-Hunk #1 succeeded at 4140 (offset 374 lines).
-patching file server/queue.c
-Hunk #1 succeeded at 45 (offset 1 line).
-Hunk #2 succeeded at 138 (offset -10 lines).
-Hunk #3 succeeded at 157 (offset -10 lines).
-Hunk #4 succeeded at 174 (offset -10 lines).
-Hunk #5 succeeded at 213 (offset -10 lines).
-Hunk #6 succeeded at 328 (offset 1 line).
-Hunk #7 succeeded at 773 (offset 253 lines).
-Hunk #8 succeeded at 1267 (offset 283 lines).
-Hunk #9 succeeded at 1334 (offset 282 lines).
-Hunk #10 succeeded at 3208 (offset 164 lines).
-Hunk #11 succeeded at 4284 (offset 721 lines).
-patching file server/registry.c
-Hunk #1 succeeded at 181 (offset 13 lines).
-patching file server/request.c
-Hunk #1 succeeded at 90 (offset -7 lines).
-patching file server/semaphore.c
-Hunk #1 succeeded at 71 (offset 12 lines).
-patching file server/serial.c
-Hunk #1 succeeded at 92 (offset -1 lines).
-patching file server/signal.c
-Hunk #1 succeeded at 63 (offset -5 lines).
-patching file server/sock.c
-Hunk #1 succeeded at 472 (offset 299 lines).
-Hunk #2 succeeded at 3602 (offset 2426 lines).
-Hunk #3 succeeded at 3825 (offset 2427 lines).
-patching file server/symlink.c
-Hunk #1 succeeded at 72 (offset 11 lines).
-patching file server/thread.c
-Hunk #1 succeeded at 51 with fuzz 1 (offset -1 lines).
-Hunk #2 succeeded at 99 (offset -14 lines).
-Hunk #3 succeeded at 143 (offset -9 lines).
-Hunk #4 succeeded at 181 (offset 5 lines).
-Hunk #5 succeeded at 196 (offset 5 lines).
-Hunk #6 succeeded at 238 (offset 5 lines).
-Hunk #7 succeeded at 387 with fuzz 1 (offset 17 lines).
-Hunk #8 succeeded at 507 (offset 11 lines).
-Hunk #9 succeeded at 566 (offset 14 lines).
-Hunk #10 succeeded at 1113 (offset 25 lines).
-Hunk #11 succeeded at 1206 (offset 25 lines).
-Hunk #12 succeeded at 1259 (offset 25 lines).
-Hunk #13 succeeded at 1380 (offset 24 lines).
-patching file server/thread.h
-Hunk #1 succeeded at 58 (offset 2 lines).
-patching file server/timer.c
-Hunk #1 succeeded at 36 (offset -1 lines).
-Hunk #2 succeeded at 64 (offset 13 lines).
-Hunk #3 succeeded at 83 (offset 11 lines).
-Hunk #4 succeeded at 120 (offset 11 lines).
-Hunk #5 succeeded at 197 (offset 9 lines).
-Hunk #6 succeeded at 236 (offset 3 lines).
-patching file server/token.c
-Hunk #1 succeeded at 146 (offset -2 lines).
-patching file server/winstation.c
-Hunk #1 succeeded at 77 (offset 12 lines).
-Hunk #2 succeeded at 119 (offset 27 lines).
-patching file server/window.c
-Hunk #1 succeeded at 108 (offset -5 lines).
-patching file dlls/ntdll/unix/fsync.c
-Hunk #1 succeeded at 505 (offset -71 lines).
-patching file dlls/ntdll/unix/esync.c
-Hunk #1 succeeded at 529 (offset 3 lines).
-patching file server/queue.c
-Hunk #1 succeeded at 3185 (offset 185 lines).
-Hunk #2 succeeded at 3485 (offset 197 lines).
-patching file server/object.c
-Hunk #1 succeeded at 109 (offset -11 lines).
-Hunk #2 succeeded at 135 (offset -10 lines).
-
-fsync_futex_waitv.patch -- ( Applied patches for fsync to support futex_waitv )
-patching file configure
-Hunk #1 succeeded at 7599 (offset -383 lines).
-patching file configure.ac
-Hunk #1 succeeded at 378 (offset -63 lines).
-patching file dlls/ntdll/unix/esync.c
-Hunk #1 succeeded at 954 (offset 1 line).
-Hunk #2 succeeded at 971 (offset 1 line).
-Hunk #3 succeeded at 1005 (offset 1 line).
-patching file dlls/ntdll/unix/file.c
-Hunk #1 succeeded at 6603 (offset 1240 lines).
-Hunk #2 succeeded at 6868 (offset 1240 lines).
-Hunk #3 succeeded at 7708 (offset 654 lines).
-Hunk #4 succeeded at 7736 (offset 654 lines).
-patching file dlls/ntdll/unix/fsync.c
-Hunk #3 succeeded at 57 (offset -1 lines).
-Hunk #4 succeeded at 141 (offset -1 lines).
-Hunk #5 succeeded at 693 (offset -1 lines).
-Hunk #6 succeeded at 732 (offset -1 lines).
-Hunk #7 succeeded at 846 (offset -1 lines).
-Hunk #8 succeeded at 866 (offset -1 lines).
-Hunk #9 succeeded at 892 (offset -1 lines).
-Hunk #10 succeeded at 911 (offset -1 lines).
-Hunk #11 succeeded at 932 (offset -1 lines).
-Hunk #12 succeeded at 955 (offset -1 lines).
-Hunk #13 succeeded at 967 (offset -1 lines).
-Hunk #14 succeeded at 1072 (offset -1 lines).
-Hunk #15 succeeded at 1092 (offset -1 lines).
-Hunk #16 succeeded at 1137 (offset -1 lines).
-patching file dlls/ntdll/unix/loader.c
-Hunk #1 succeeded at 1039 with fuzz 2 (offset -989 lines).
-Hunk #2 succeeded at 1888 (offset -181 lines).
-patching file dlls/ntdll/unix/unix_private.h
-Hunk #1 succeeded at 190 with fuzz 1 (offset 44 lines).
-patching file include/config.h.in
-Hunk #1 succeeded at 165 (offset -23 lines).
-patching file server/fsync.c
-
 LAA-unix-staging.patch -- ( Applied large address aware override support (legacy) )
 patching file dlls/kernel32/heap.c
 Hunk #1 succeeded at 41 with fuzz 2 (offset -3 lines).
@@ -636,9 +372,9 @@ Hunk #3 succeeded at 469 (offset -121 lines).
 patching file dlls/ntdll/ntdll.spec
 Hunk #1 succeeded at 1748 (offset 123 lines).
 patching file dlls/ntdll/unix/server.c
-Hunk #1 succeeded at 1710 (offset 239 lines).
+Hunk #1 succeeded at 1709 (offset 238 lines).
 patching file dlls/ntdll/unix/unix_private.h
-Hunk #1 succeeded at 580 with fuzz 2 (offset 110 lines).
+Hunk #1 succeeded at 576 with fuzz 2 (offset 106 lines).
 patching file dlls/ntdll/unix/virtual.c
 Hunk #1 succeeded at 3438 with fuzz 1 (offset 18 lines).
 patching file dlls/ntdll/loader.c
@@ -646,12 +382,270 @@ Hunk #1 succeeded at 3490 (offset 15 lines).
 patching file dlls/ntdll/ntdll.spec
 Hunk #1 succeeded at 1749 (offset 35 lines).
 patching file dlls/ntdll/unix/loader.c
-Hunk #1 succeeded at 1013 (offset -1091 lines).
+Hunk #1 succeeded at 1012 (offset -1092 lines).
 patching file dlls/ntdll/unix/unix_private.h
-Hunk #1 succeeded at 370 with fuzz 1 (offset 48 lines).
+Hunk #1 succeeded at 366 with fuzz 1 (offset 44 lines).
 patching file dlls/ntdll/unix/virtual.c
 Hunk #1 succeeded at 3498 with fuzz 1 (offset -10 lines).
 patching file dlls/ntdll/unixlib.h
+
+ntsync-config.h.in-org.patch -- ( Using original config.h.in patchset for ntsync5 )
+patching file include/config.h.in
+Hunk #1 succeeded at 324 (offset 9 lines).
+Hunk #2 succeeded at 387 (offset 6 lines).
+
+ntsync5-staging.patch -- ( Using ntsync patchset )
+patching file README.esync
+patching file configure
+Hunk #1 succeeded at 7629 (offset -481 lines).
+patching file configure.ac
+Hunk #1 succeeded at 383 (offset -20 lines).
+Hunk #2 succeeded at 413 (offset -21 lines).
+Hunk #3 succeeded at 2082 with fuzz 2 (offset -12 lines).
+Hunk #4 succeeded at 2102 with fuzz 2 (offset -17 lines).
+patching file dlls/kernel32/tests/sync.c
+Hunk #1 succeeded at 58 (offset 1 line).
+Hunk #2 succeeded at 228 (offset 1 line).
+Hunk #3 succeeded at 269 (offset 1 line).
+Hunk #4 succeeded at 300 (offset 1 line).
+Hunk #5 succeeded at 338 (offset 1 line).
+Hunk #6 succeeded at 513 (offset 1 line).
+Hunk #7 succeeded at 622 (offset 1 line).
+Hunk #8 succeeded at 668 (offset 1 line).
+Hunk #9 succeeded at 1222 (offset 1 line).
+Hunk #10 succeeded at 1311 (offset 1 line).
+Hunk #11 succeeded at 3008 (offset 33 lines).
+patching file dlls/ntdll/Makefile.in
+patching file dlls/ntdll/unix/esync.c
+patching file dlls/ntdll/unix/esync.h
+patching file dlls/ntdll/unix/file.c
+Hunk #1 succeeded at 7586 (offset 79 lines).
+patching file dlls/ntdll/unix/loader.c
+Hunk #1 succeeded at 90 (offset 2 lines).
+Hunk #2 succeeded at 1859 (offset 7 lines).
+patching file dlls/ntdll/unix/process.c
+Hunk #1 succeeded at 920 (offset -1 lines).
+patching file dlls/ntdll/unix/server.c
+Hunk #2 succeeded at 809 (offset -4 lines).
+Hunk #3 succeeded at 885 (offset -4 lines).
+Hunk #4 succeeded at 952 (offset -9 lines).
+Hunk #5 succeeded at 1837 (offset -3 lines).
+Hunk #6 succeeded at 1913 (offset -3 lines).
+patching file dlls/ntdll/unix/sync.c
+Hunk #2 succeeded at 50 (offset 3 lines).
+Hunk #3 succeeded at 60 (offset 3 lines).
+Hunk #4 succeeded at 72 (offset 3 lines).
+Hunk #5 succeeded at 80 (offset 3 lines).
+Hunk #6 succeeded at 309 (offset 63 lines).
+Hunk #7 succeeded at 1215 (offset 63 lines).
+Hunk #8 succeeded at 1245 (offset 63 lines).
+Hunk #9 succeeded at 1284 (offset 63 lines).
+Hunk #10 succeeded at 1312 (offset 63 lines).
+Hunk #11 succeeded at 1341 (offset 63 lines).
+Hunk #12 succeeded at 1371 (offset 63 lines).
+Hunk #13 succeeded at 1396 (offset 63 lines).
+Hunk #14 succeeded at 1420 (offset 63 lines).
+Hunk #15 succeeded at 1456 (offset 63 lines).
+Hunk #16 succeeded at 1492 (offset 63 lines).
+Hunk #17 succeeded at 1523 (offset 63 lines).
+Hunk #18 succeeded at 1551 (offset 63 lines).
+Hunk #19 succeeded at 1578 (offset 63 lines).
+Hunk #20 succeeded at 1613 (offset 63 lines).
+Hunk #21 succeeded at 2388 (offset 125 lines).
+Hunk #22 succeeded at 2418 (offset 125 lines).
+Hunk #23 succeeded at 2473 (offset 125 lines).
+Hunk #24 succeeded at 2543 (offset 125 lines).
+Hunk #25 succeeded at 2586 (offset 125 lines).
+Hunk #26 succeeded at 2827 (offset 135 lines).
+Hunk #27 succeeded at 2854 (offset 135 lines).
+Hunk #28 succeeded at 2882 (offset 135 lines).
+Hunk #29 succeeded at 2903 (offset 135 lines).
+Hunk #30 succeeded at 3048 (offset 88 lines).
+Hunk #31 succeeded at 3110 (offset 88 lines).
+patching file dlls/ntdll/unix/thread.c
+Hunk #1 succeeded at 1798 (offset 22 lines).
+patching file dlls/ntdll/unix/unix_private.h
+Hunk #1 succeeded at 103 (offset 10 lines).
+Hunk #2 succeeded at 112 (offset 11 lines).
+Hunk #3 succeeded at 207 (offset 11 lines).
+Hunk #4 succeeded at 216 with fuzz 2 (offset 11 lines).
+Hunk #5 succeeded at 384 (offset 28 lines).
+Hunk #6 succeeded at 394 (offset 28 lines).
+Hunk #7 succeeded at 460 (offset 35 lines).
+patching file dlls/ntdll/unix/virtual.c
+Hunk #1 succeeded at 3708 (offset -4 lines).
+patching file dlls/rpcrt4/rpc_server.c
+patching file dlls/webservices/tests/channel.c
+patching file include/config.h.in
+Hunk #1 succeeded at 189 (offset 12 lines).
+Hunk #2 succeeded at 519 (offset -6 lines).
+patching file include/wine/server_protocol.h
+Hunk #1 succeeded at 5977 (offset 343 lines).
+Hunk #2 succeeded at 6352 (offset 349 lines).
+Hunk #3 succeeded at 6656 (offset 361 lines).
+Hunk #4 succeeded at 6958 with fuzz 1 (offset 373 lines).
+patching file server/Makefile.in
+patching file server/async.c
+Hunk #1 succeeded at 78 (offset 1 line).
+Hunk #2 succeeded at 90 (offset 1 line).
+Hunk #3 succeeded at 699 (offset 12 lines).
+Hunk #4 succeeded at 711 (offset 12 lines).
+patching file server/atom.c
+patching file server/change.c
+patching file server/clipboard.c
+patching file server/completion.c
+Hunk #1 succeeded at 77 (offset 16 lines).
+Hunk #3 succeeded at 151 (offset 75 lines).
+Hunk #4 succeeded at 185 (offset 92 lines).
+Hunk #5 succeeded at 199 (offset 83 lines).
+Hunk #6 succeeded at 270 with fuzz 1 (offset 136 lines).
+Hunk #7 succeeded at 293 with fuzz 2 (offset 137 lines).
+Hunk #8 succeeded at 328 (offset 144 lines).
+Hunk #9 succeeded at 425 (offset 174 lines).
+patching file server/console.c
+Hunk #27 succeeded at 836 (offset 6 lines).
+Hunk #28 succeeded at 895 (offset 6 lines).
+Hunk #29 succeeded at 918 (offset 6 lines).
+Hunk #30 succeeded at 966 (offset 12 lines).
+Hunk #31 succeeded at 979 (offset 12 lines).
+Hunk #32 succeeded at 1001 (offset 12 lines).
+Hunk #33 succeeded at 1009 (offset 12 lines).
+Hunk #34 succeeded at 1467 (offset 12 lines).
+Hunk #35 succeeded at 1549 (offset 12 lines).
+Hunk #36 succeeded at 1616 (offset 12 lines).
+Hunk #37 succeeded at 1647 (offset 12 lines).
+Hunk #38 succeeded at 1734 (offset 12 lines).
+patching file server/debugger.c
+patching file server/device.c
+Hunk #11 succeeded at 424 (offset 1 line).
+Hunk #12 succeeded at 759 (offset 1 line).
+Hunk #13 succeeded at 797 (offset 1 line).
+Hunk #14 succeeded at 842 (offset 1 line).
+Hunk #15 succeeded at 852 (offset 1 line).
+Hunk #16 succeeded at 1042 (offset 1 line).
+patching file server/directory.c
+patching file server/esync.c
+patching file server/esync.h
+patching file server/event.c
+patching file server/fast_sync.c
+patching file server/fd.c
+Hunk #1 succeeded at 95 (offset -2 lines).
+Hunk #2 succeeded at 159 (offset -2 lines).
+Hunk #3 succeeded at 173 (offset -2 lines).
+Hunk #4 succeeded at 185 (offset -2 lines).
+Hunk #5 succeeded at 215 (offset -2 lines).
+Hunk #6 succeeded at 227 (offset -2 lines).
+Hunk #7 succeeded at 256 (offset -2 lines).
+Hunk #8 succeeded at 268 (offset -2 lines).
+Hunk #9 succeeded at 299 (offset -2 lines).
+Hunk #10 succeeded at 311 (offset -2 lines).
+Hunk #11 succeeded at 1648 (offset -2 lines).
+Hunk #12 succeeded at 1767 (offset -2 lines).
+Hunk #13 succeeded at 1808 (offset -2 lines).
+Hunk #14 succeeded at 2264 (offset -9 lines).
+Hunk #15 succeeded at 2298 (offset -9 lines).
+patching file server/file.c
+patching file server/file.h
+Hunk #1 succeeded at 109 (offset 1 line).
+patching file server/handle.c
+patching file server/hook.c
+Hunk #1 succeeded at 81 (offset 1 line).
+Hunk #2 succeeded at 93 (offset 1 line).
+patching file server/mailslot.c
+Hunk #1 succeeded at 81 (offset 7 lines).
+Hunk #2 succeeded at 93 (offset 7 lines).
+Hunk #3 succeeded at 143 (offset 9 lines).
+Hunk #4 succeeded at 155 (offset 9 lines).
+Hunk #5 succeeded at 209 (offset 11 lines).
+Hunk #6 succeeded at 221 (offset 11 lines).
+Hunk #7 succeeded at 240 (offset 11 lines).
+Hunk #8 succeeded at 252 (offset 11 lines).
+patching file server/main.c
+patching file server/mapping.c
+patching file server/mutex.c
+patching file server/named_pipe.c
+patching file server/object.c
+Hunk #1 succeeded at 108 (offset -12 lines).
+Hunk #2 succeeded at 133 (offset -11 lines).
+Hunk #3 succeeded at 641 (offset 103 lines).
+patching file server/object.h
+Hunk #4 succeeded at 234 (offset 9 lines).
+patching file server/process.c
+Hunk #14 succeeded at 704 (offset 1 line).
+Hunk #15 succeeded at 757 with fuzz 2 (offset -5 lines).
+Hunk #16 succeeded at 805 (offset -5 lines).
+Hunk #17 succeeded at 824 (offset -5 lines).
+Hunk #18 succeeded at 840 (offset -3 lines).
+Hunk #19 succeeded at 1014 (offset -3 lines).
+patching file server/process.h
+patching file server/protocol.def
+Hunk #1 succeeded at 4069 (offset 182 lines).
+Hunk #2 succeeded at 4081 (offset 182 lines).
+patching file server/queue.c
+Hunk #1 succeeded at 44 (offset 1 line).
+Hunk #2 succeeded at 134 with fuzz 2 (offset -12 lines).
+Hunk #3 succeeded at 152 (offset -12 lines).
+Hunk #4 succeeded at 168 (offset -12 lines).
+Hunk #5 succeeded at 180 (offset -12 lines).
+Hunk #6 succeeded at 206 (offset -12 lines).
+Hunk #7 succeeded at 218 (offset -12 lines).
+Hunk #8 succeeded at 319 with fuzz 2 (offset -1 lines).
+Hunk #9 succeeded at 737 (offset 134 lines).
+Hunk #10 succeeded at 761 (offset 141 lines).
+Hunk #11 succeeded at 1252 (offset 141 lines).
+Hunk #12 succeeded at 1309 (offset 142 lines).
+Hunk #13 succeeded at 1378 (offset 152 lines).
+Hunk #14 succeeded at 1389 (offset 152 lines).
+Hunk #15 succeeded at 3164 with fuzz 1 (offset 176 lines).
+Hunk #16 succeeded at 3193 with fuzz 1 (offset 317 lines).
+Hunk #17 succeeded at 3394 with fuzz 2 (offset 336 lines).
+Hunk #18 succeeded at 3466 (offset 335 lines).
+Hunk #19 succeeded at 4250 (offset 221 lines).
+patching file server/registry.c
+patching file server/request.c
+Hunk #1 succeeded at 89 (offset -1 lines).
+Hunk #2 succeeded at 101 (offset -1 lines).
+patching file server/request_handlers.h
+Hunk #3 succeeded at 2278 (offset 2 lines).
+patching file server/semaphore.c
+patching file server/serial.c
+Hunk #1 succeeded at 91 (offset 6 lines).
+Hunk #2 succeeded at 103 (offset 6 lines).
+patching file server/signal.c
+patching file server/sock.c
+Hunk #1 succeeded at 471 (offset 18 lines).
+Hunk #2 succeeded at 483 (offset 18 lines).
+Hunk #3 succeeded at 3600 (offset 45 lines).
+Hunk #4 succeeded at 3612 (offset 45 lines).
+Hunk #5 succeeded at 3822 (offset 45 lines).
+Hunk #6 succeeded at 3834 (offset 45 lines).
+patching file server/symlink.c
+patching file server/thread.c
+Hunk #10 succeeded at 250 with fuzz 1.
+Hunk #11 succeeded at 379 (offset 1 line).
+Hunk #12 succeeded at 403 (offset 1 line).
+Hunk #13 succeeded at 469 (offset 2 lines).
+Hunk #14 succeeded at 488 (offset 2 lines).
+Hunk #15 succeeded at 1086 (offset 6 lines).
+Hunk #16 succeeded at 1173 (offset 6 lines).
+Hunk #17 succeeded at 1207 (offset 6 lines).
+Hunk #18 succeeded at 1223 (offset 6 lines).
+Hunk #19 succeeded at 1303 (offset 7 lines).
+Hunk #20 succeeded at 1322 (offset 6 lines).
+Hunk #21 succeeded at 2067 (offset 7 lines).
+patching file server/thread.h
+Hunk #1 succeeded at 56 (offset 1 line).
+Hunk #2 succeeded at 94 (offset 2 lines).
+patching file server/timer.c
+patching file server/token.c
+Hunk #1 succeeded at 145 (offset 2 lines).
+Hunk #2 succeeded at 157 (offset 2 lines).
+patching file server/request_trace.h
+Hunk #1 succeeded at 3341 with fuzz 1 (offset -1278 lines).
+patching file server/window.c
+Hunk #1 succeeded at 107 (offset -1 lines).
+Hunk #2 succeeded at 119 (offset -1 lines).
+patching file server/winstation.c
 
 josh-flat-theme.patch -- ( Add Josh's better-theme )
 patching file dlls/win32u/sysparams.c
@@ -679,7 +673,7 @@ patching file dlls/kernelbase/process.c
 Hunk #2 succeeded at 503 (offset -3 lines).
 Hunk #3 succeeded at 735 (offset -60 lines).
 patching file configure.ac
-Hunk #1 succeeded at 3444 (offset -18 lines).
+Hunk #1 succeeded at 3436 (offset -26 lines).
 patching file dlls/kernelbase/process.c
 Hunk #1 succeeded at 505 (offset -3 lines).
 Hunk #2 succeeded at 554 (offset -3 lines).
@@ -687,8 +681,8 @@ Hunk #3 succeeded at 570 (offset -3 lines).
 patching file programs/belauncher/Makefile.in
 patching file programs/belauncher/main.c
 patching file dlls/ntdll/unix/loader.c
-Hunk #1 succeeded at 373 (offset 33 lines).
-Hunk #2 succeeded at 393 (offset 33 lines).
+Hunk #1 succeeded at 371 (offset 31 lines).
+Hunk #2 succeeded at 391 (offset 31 lines).
 patching file programs/belauncher/Makefile.in
 patching file programs/belauncher/main.c
 patching file programs/belauncher/main.c
@@ -702,9 +696,9 @@ Hunk #4 succeeded at 1129 (offset 2 lines).
 
 proton-eac_bridge.patch -- ( Add support for Proton's EAC bridge )
 patching file dlls/ntdll/unix/loader.c
-Hunk #1 succeeded at 373 (offset 33 lines).
-Hunk #2 succeeded at 381 (offset 33 lines).
-Hunk #3 succeeded at 414 (offset 33 lines).
+Hunk #1 succeeded at 371 (offset 31 lines).
+Hunk #2 succeeded at 379 (offset 31 lines).
+Hunk #3 succeeded at 412 (offset 31 lines).
 patching file dlls/ntdll/unix/loadorder.c
 patching file dlls/kernelbase/process.c
 Hunk #1 succeeded at 503 (offset -3 lines).
@@ -716,7 +710,7 @@ patching file dlls/ntdll/unix/loadorder.c
 Applying hotfix wine-tkg-patches/hotfixes/GetMappedFileName/Return_nt_filename_and_resolve_DOS_drive_path.mypatch
 patching file dlls/ntdll/unix/virtual.c
 Hunk #1 succeeded at 114 with fuzz 2 (offset -19 lines).
-Hunk #2 succeeded at 5463 (offset 1188 lines).
+Hunk #2 succeeded at 5461 (offset 1186 lines).
 
 Applying hotfix wine-tkg-patches/hotfixes/08cccb5/a608ef1.mypatch
 patching file dlls/dxgi/dxgi_main.c
@@ -726,24 +720,11 @@ Applying hotfix wine-tkg-patches/hotfixes/autoconf-opencl-hotfix/opencl-fixup.my
 patching file configure.ac
 Hunk #1 succeeded at 45 with fuzz 2 (offset -5 lines).
 Hunk #2 succeeded at 367 with fuzz 1 (offset -63 lines).
-Hunk #3 succeeded at 445 (offset -69 lines).
-Hunk #4 succeeded at 670 with fuzz 2 (offset -85 lines).
+Hunk #3 succeeded at 444 (offset -70 lines).
+Hunk #4 succeeded at 669 with fuzz 2 (offset -86 lines).
 
 Applying hotfix wine-tkg-patches/hotfixes/NosTale/nostale_mouse_fix.mypatch
 patching file dlls/user32/Makefile.in
-
-Applying hotfix wine-tkg-patches/hotfixes/shm_esync_fsync/HACK-user32-Always-call-get_message-request-after-waiting.mypatch
-patching file dlls/win32u/input.c
-Hunk #1 succeeded at 799 (offset -5 lines).
-patching file dlls/win32u/message.c
-Hunk #1 succeeded at 2726 (offset 32 lines).
-Hunk #2 succeeded at 2766 (offset 32 lines).
-Hunk #3 succeeded at 2967 (offset 32 lines).
-Hunk #4 succeeded at 3032 (offset 32 lines).
-Hunk #5 succeeded at 3266 (offset 32 lines).
-Hunk #6 succeeded at 3317 (offset 32 lines).
-patching file dlls/win32u/ntuser_private.h
-Hunk #1 succeeded at 217 (offset -18 lines).
 
 wine-tkg-staging.patch -- ( Please don't report bugs about this wine build on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead. )
 patching file dlls/ntdll/loader.c
