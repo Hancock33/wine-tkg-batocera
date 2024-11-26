@@ -535,6 +535,25 @@ sync_test("elem_props", function() {
     test_exposed("msSetPointerCapture", v >= 10);
     if (v >= 9) test_exposed("spellcheck", v >= 10);
 
+    elem = document.createComment("");
+    test_exposed("atomic", v < 9);
+    test_exposed("data", true);
+    test_exposed("length", true);
+    test_exposed("text", true);
+    test_exposed("appendData", true);
+    test_exposed("deleteData", true);
+    test_exposed("insertData", true);
+    test_exposed("replaceData", true);
+    test_exposed("substringData", true);
+    test_exposed("attachEvent", v < 9);
+    test_exposed("doScroll", v < 9);
+    test_exposed("readyState", v < 9);
+    test_exposed("clientTop", v < 9);
+    test_exposed("title", v < 9);
+    test_exposed("removeNode", v < 9);
+    test_exposed("querySelectorAll", v === 8);
+    test_exposed("hasAttribute", v === 8, v === 8);
+
     elem = document.createElement("style");
     test_exposed("media", true);
     test_exposed("type", true);
@@ -614,6 +633,7 @@ sync_test("textnode_props", function() {
     test_exposed("removeNode", true);
     test_exposed("replaceNode", true);
     test_exposed("swapNode", true);
+    test_exposed("toString", true);
     test_exposed("compareDocumentPosition", v >= 9);
     test_exposed("isEqualNode", v >= 9);
     test_exposed("prefix", v >= 9);
@@ -653,6 +673,8 @@ sync_test("window_props", function() {
     test_exposed("console", v >= 10);
     test_exposed("matchMedia", v >= 10);
     test_exposed("MutationObserver", v >= 11);
+    test_exposed("PageTransitionEvent", v >= 11);
+    test_exposed("ProgressEvent", v >= 10);
 });
 
 sync_test("domimpl_props", function() {
@@ -3665,6 +3687,8 @@ sync_test("prototype props", function() {
         test_own_props(constr.prototype, name, props, todos, flaky);
     }
 
+    check(CharacterData, [ "appendData", "data", "deleteData", "insertData", "length", "replaceData", "substringData" ]);
+    check(Comment, [ "text" ]);
     check(CSSStyleRule, [ "readOnly", "selectorText", "style" ]);
     check(CustomEvent, [ "detail", "initCustomEvent" ]);
     check(DocumentType, [ "entities", "internalSubset", "name", "notations", "publicId", "systemId" ]);
@@ -3674,6 +3698,15 @@ sync_test("prototype props", function() {
         "stopImmediatePropagation", "stopPropagation", "target", "timeStamp", "type"
     ], [ "AT_TARGET", "BUBBLING_PHASE", "CAPTURING_PHASE" ]);
     check(HTMLUnknownElement, [ "namedRecordset", "recordset" ]);
+    check(KeyboardEvent, [
+        "DOM_KEY_LOCATION_JOYSTICK", "DOM_KEY_LOCATION_LEFT", "DOM_KEY_LOCATION_MOBILE",
+        "DOM_KEY_LOCATION_NUMPAD", "DOM_KEY_LOCATION_RIGHT", "DOM_KEY_LOCATION_STANDARD",
+        "altKey", "char", "charCode", "ctrlKey", "getModifierState", "initKeyboardEvent",
+        "key", "keyCode", "locale", "location", "metaKey", "repeat", "shiftKey", "which"
+    ], [
+        "DOM_KEY_LOCATION_JOYSTICK", "DOM_KEY_LOCATION_LEFT", "DOM_KEY_LOCATION_MOBILE",
+        "DOM_KEY_LOCATION_NUMPAD", "DOM_KEY_LOCATION_RIGHT", "DOM_KEY_LOCATION_STANDARD"
+    ]);
     check(MessageEvent, [ "data", "initMessageEvent", "origin", ["ports",10], "source" ], [ ["ports",10] ]);
     check(MouseEvent, [
         "altKey", "button", "buttons", "clientX", "clientY", "ctrlKey", "fromElement", "getModifierState",
@@ -3697,6 +3730,11 @@ sync_test("prototype props", function() {
         "DOCUMENT_TYPE_NODE", "ELEMENT_NODE", "ENTITY_NODE", "ENTITY_REFERENCE_NODE", "NOTATION_NODE",
         "PROCESSING_INSTRUCTION_NODE", "TEXT_NODE", "hasAttributes", "normalize"
     ]);
+    if(v >= 11)
+        check(PageTransitionEvent, [ "persisted" ]);
+    if(v >= 10)
+        check(ProgressEvent, [ "initProgressEvent", "lengthComputable", "loaded", "total" ]);
     check(StorageEvent, [ "initStorageEvent", "key", "newValue", "oldValue", "storageArea", "url" ]);
+    check(Text, [ "removeNode", "replaceNode", "replaceWholeText", "splitText", "swapNode", "wholeText" ], [ "replaceWholeText", "wholeText" ]);
     check(UIEvent, [ "detail", "initUIEvent", "view" ], null, [ "deviceSessionId" ]);
 });

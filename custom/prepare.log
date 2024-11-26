@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
 HEAD is now at 7ba8823e Release v9.22
-HEAD is now at 51ccd95c49c Release 9.22.
+HEAD is now at 61615f45219 mshtml: Make ProgressEvent constructor only available in IE10+ modes.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
@@ -370,9 +370,9 @@ Hunk #1 succeeded at 41 with fuzz 2 (offset -3 lines).
 Hunk #2 succeeded at 427 (offset -119 lines).
 Hunk #3 succeeded at 469 (offset -121 lines).
 patching file dlls/ntdll/ntdll.spec
-Hunk #1 succeeded at 1748 (offset 123 lines).
+Hunk #1 succeeded at 1750 (offset 125 lines).
 patching file dlls/ntdll/unix/server.c
-Hunk #1 succeeded at 1709 (offset 238 lines).
+Hunk #1 succeeded at 1724 (offset 253 lines).
 patching file dlls/ntdll/unix/unix_private.h
 Hunk #1 succeeded at 576 with fuzz 2 (offset 106 lines).
 patching file dlls/ntdll/unix/virtual.c
@@ -380,7 +380,7 @@ Hunk #1 succeeded at 3438 with fuzz 1 (offset 18 lines).
 patching file dlls/ntdll/loader.c
 Hunk #1 succeeded at 3490 (offset 15 lines).
 patching file dlls/ntdll/ntdll.spec
-Hunk #1 succeeded at 1749 (offset 35 lines).
+Hunk #1 succeeded at 1751 (offset 37 lines).
 patching file dlls/ntdll/unix/loader.c
 Hunk #1 succeeded at 1012 (offset -1092 lines).
 patching file dlls/ntdll/unix/unix_private.h
@@ -427,10 +427,10 @@ patching file dlls/ntdll/unix/process.c
 Hunk #1 succeeded at 920 (offset -1 lines).
 patching file dlls/ntdll/unix/server.c
 Hunk #2 succeeded at 809 (offset -4 lines).
-Hunk #3 succeeded at 885 (offset -4 lines).
-Hunk #4 succeeded at 952 (offset -9 lines).
-Hunk #5 succeeded at 1837 (offset -3 lines).
-Hunk #6 succeeded at 1913 (offset -3 lines).
+Hunk #3 succeeded at 900 (offset 11 lines).
+Hunk #4 succeeded at 967 (offset 6 lines).
+Hunk #5 succeeded at 1852 (offset 12 lines).
+Hunk #6 succeeded at 1928 (offset 12 lines).
 patching file dlls/ntdll/unix/sync.c
 Hunk #2 succeeded at 50 (offset 3 lines).
 Hunk #3 succeeded at 60 (offset 3 lines).
@@ -668,6 +668,7 @@ proton_battleye.patch -- ( Add support for Proton's Battleye runtime )
 patching file dlls/kernel32/kernel32.spec
 Hunk #1 succeeded at 622 (offset 2 lines).
 patching file dlls/kernelbase/console.c
+Hunk #1 succeeded at 1068 (offset 3 lines).
 patching file dlls/kernelbase/kernelbase.spec
 patching file dlls/kernelbase/process.c
 Hunk #2 succeeded at 503 (offset -3 lines).
