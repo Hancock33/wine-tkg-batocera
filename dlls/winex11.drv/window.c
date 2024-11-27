@@ -104,6 +104,11 @@ static XContext host_window_context = 0;
 static Time last_user_time;
 static Window user_time_window;
 
+/* list of _NET_SUPPORTED atoms */
+static Atom *net_supported;
+static int net_supported_count;
+static UINT net_wm_state_mask;
+
 static const WCHAR whole_window_prop[] =
     {'_','_','w','i','n','e','_','x','1','1','_','w','h','o','l','e','_','w','i','n','d','o','w',0};
 static const WCHAR clip_window_prop[] =
@@ -1229,6 +1234,7 @@ static void window_set_net_wm_state( struct x11drv_win_data *data, UINT new_stat
 {
     UINT i, count, old_state = data->pending_state.net_wm_state;
 
+    new_state &= net_wm_state_mask;
     data->desired_state.net_wm_state = new_state;
     if (!data->whole_window) return; /* no window, nothing to update */
     if (data->wm_state_serial) return; /* another WM_STATE update is pending, wait for it to complete */
@@ -3330,26 +3336,9 @@ LRESULT X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
 /***********************************************************************
  *              is_netwm_supported
  */
-static BOOL is_netwm_supported( Display *display, Atom atom )
+static BOOL is_netwm_supported( Atom atom )
 {
-    static Atom *net_supported;
-    static int net_supported_count = -1;
     int i;
-
-    if (net_supported_count == -1)
-    {
-        Atom type;
-        int format;
-        unsigned long count, remaining;
-
-        if (!XGetWindowProperty( display, DefaultRootWindow(display), x11drv_atom(_NET_SUPPORTED), 0,
-                                 ~0UL, False, XA_ATOM, &type, &format, &count,
-                                 &remaining, (unsigned char **)&net_supported ))
-            net_supported_count = get_property_size( format, count ) / sizeof(Atom);
-        else
-            net_supported_count = 0;
-    }
-
     for (i = 0; i < net_supported_count; i++)
         if (net_supported[i] == atom) return TRUE;
     return FALSE;
@@ -3434,7 +3423,7 @@ LRESULT X11DRV_SysCommand( HWND hwnd, WPARAM wparam, LPARAM lparam, const POINT 
 
     if (NtUserGetWindowLongW( hwnd, GWL_STYLE ) & WS_MAXIMIZE) goto failed;
 
-    if (!is_netwm_supported( data->display, x11drv_atom(_NET_WM_MOVERESIZE) ))
+    if (!is_netwm_supported( x11drv_atom(_NET_WM_MOVERESIZE) ))
     {
         TRACE( "_NET_WM_MOVERESIZE not supported\n" );
         goto failed;
@@ -3480,6 +3469,20 @@ void X11DRV_FlashWindowEx( FLASHWINFO *pfinfo )
 
 void init_win_context(void)
 {
+    unsigned long count, remaining;
+    int format, i;
+    Atom type;
+
+    if (!XGetWindowProperty( gdi_display, DefaultRootWindow( gdi_display ), x11drv_atom(_NET_SUPPORTED), 0, 65536 / sizeof(CARD32),
+                             False, XA_ATOM, &type, &format, &count, &remaining, (unsigned char **)&net_supported ))
+        net_supported_count = get_property_size( format, count ) / sizeof(Atom);
+
+    for (i = 0; i < NB_NET_WM_STATES; i++)
+    {
+        Atom atom = X11DRV_Atoms[net_wm_state_atoms[i] - FIRST_XATOM];
+        if (is_netwm_supported( atom )) net_wm_state_mask |= (1 << i);
+    }
+
     init_recursive_mutex( &win_data_mutex );
 
     winContext = XUniqueContext();
