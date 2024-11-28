@@ -20,8 +20,74 @@
 #ifndef __WINE_VULKAN_DRIVER_H
 #define __WINE_VULKAN_DRIVER_H
 
+#include <stdarg.h>
+#include <stddef.h>
+
+#include <windef.h>
+#include <winbase.h>
+
+/* Base 'class' for our Vulkan dispatchable objects such as VkDevice and VkInstance.
+ * This structure MUST be the first element of a dispatchable object as the ICD
+ * loader depends on it. For now only contains loader_magic, but over time more common
+ * functionality is expected.
+ */
+struct vulkan_client_object
+{
+    /* Special section in each dispatchable object for use by the ICD loader for
+     * storing dispatch tables. The start contains a magical value '0x01CDC0DE'.
+     */
+    UINT64 loader_magic;
+    UINT64 unix_handle;
+};
+
+#ifdef WINE_UNIX_LIB
+
+#define WINE_VK_HOST
+#include "wine/vulkan.h"
+
 /* Wine internal vulkan driver version, needs to be bumped upon vulkan_funcs changes. */
 #define WINE_VULKAN_DRIVER_VERSION 35
+
+struct vulkan_object
+{
+    UINT64 host_handle;
+    UINT64 client_handle;
+};
+
+#define VULKAN_OBJECT_HEADER( type, name ) \
+    union { \
+        struct vulkan_object obj; \
+        struct { \
+            union { type name; UINT64 handle; } host; \
+            union { type name; UINT64 handle; } client; \
+        }; \
+    }
+
+struct vulkan_instance
+{
+    VULKAN_OBJECT_HEADER( VkInstance, instance );
+#define USE_VK_FUNC(x) PFN_ ## x p_ ## x;
+    ALL_VK_INSTANCE_FUNCS
+#undef USE_VK_FUNC
+};
+
+static inline struct vulkan_instance *vulkan_instance_from_handle( VkInstance handle )
+{
+    struct vulkan_client_object *client = (struct vulkan_client_object *)handle;
+    return (struct vulkan_instance *)(UINT_PTR)client->unix_handle;
+}
+
+struct vulkan_physical_device
+{
+    VULKAN_OBJECT_HEADER( VkPhysicalDevice, physical_device );
+    struct vulkan_instance *instance;
+};
+
+static inline struct vulkan_physical_device *vulkan_physical_device_from_handle( VkPhysicalDevice handle )
+{
+    struct vulkan_client_object *client = (struct vulkan_client_object *)handle;
+    return (struct vulkan_physical_device *)(UINT_PTR)client->unix_handle;
+}
 
 struct vulkan_funcs
 {
@@ -29,11 +95,11 @@ struct vulkan_funcs
      * needs to provide. Other function calls will be provided indirectly by dispatch
      * tables part of dispatchable Vulkan objects such as VkInstance or vkDevice.
      */
-    VkResult (*p_vkCreateWin32SurfaceKHR)(VkInstance, const VkWin32SurfaceCreateInfoKHR *, const VkAllocationCallbacks *, VkSurfaceKHR *);
-    void (*p_vkDestroySurfaceKHR)(VkInstance, VkSurfaceKHR, const VkAllocationCallbacks *);
-    void * (*p_vkGetDeviceProcAddr)(VkDevice, const char *);
-    void * (*p_vkGetInstanceProcAddr)(VkInstance, const char *);
-    VkBool32 (*p_vkGetPhysicalDeviceWin32PresentationSupportKHR)(VkPhysicalDevice, uint32_t);
+    PFN_vkCreateWin32SurfaceKHR p_vkCreateWin32SurfaceKHR;
+    PFN_vkDestroySurfaceKHR p_vkDestroySurfaceKHR;
+    PFN_vkGetDeviceProcAddr p_vkGetDeviceProcAddr;
+    PFN_vkGetInstanceProcAddr p_vkGetInstanceProcAddr;
+    PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR p_vkGetPhysicalDeviceWin32PresentationSupportKHR;
     VkResult (*p_vkQueuePresentKHR)(VkQueue, const VkPresentInfoKHR *, VkSurfaceKHR *surfaces);
 
     /* winevulkan specific functions */
@@ -54,5 +120,7 @@ struct vulkan_driver_funcs
     VkBool32 (*p_vkGetPhysicalDeviceWin32PresentationSupportKHR)(VkPhysicalDevice, uint32_t);
     const char *(*p_get_host_surface_extension)(void);
 };
+
+#endif /* WINE_UNIX_LIB */
 
 #endif /* __WINE_VULKAN_DRIVER_H */
