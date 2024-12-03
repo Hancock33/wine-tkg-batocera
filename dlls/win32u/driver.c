@@ -1319,16 +1319,8 @@ void __wine_set_user_driver( const struct user_driver_funcs *funcs, UINT version
         return;
     }
 
-    if (!funcs)
-    {
-        prev = InterlockedExchangePointer( (void **)&user_driver, (void *)&lazy_load_driver );
-        if (prev != &lazy_load_driver)
-            free( prev );
-        return;
-    }
-
     driver = malloc( sizeof(*driver) );
-    *driver = *funcs;
+    *driver = funcs ? *funcs : null_user_driver;
 
 #define SET_USER_FUNC(name) \
     do { if (!driver->p##name) driver->p##name = nulldrv_##name; } while(0)

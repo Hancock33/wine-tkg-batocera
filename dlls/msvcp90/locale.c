@@ -51,6 +51,7 @@ wchar_t* __cdecl _W_Getdays(void);
 char* __cdecl _Getmonths(void);
 wchar_t* __cdecl _W_Getmonths(void);
 void* __cdecl _Gettnames(void);
+unsigned int __cdecl ___lc_codepage_func(void);
 int __cdecl ___lc_collate_cp_func(void);
 const locale_facet* __thiscall locale__Getfacet(const locale*, size_t);
 const locale* __cdecl locale_classic(void);
@@ -12802,27 +12803,18 @@ size_t __cdecl wcsrtombs(char *dst, const wchar_t **pstr, size_t n, mbstate_t *s
     char buffer[MB_LEN_MAX];
     size_t ret = 0;
 
-    if (state) *state = 0;
     src = *pstr;
 
     while (!dst || n > ret)
     {
         int len = _Wcrtomb( buffer, *src, state, NULL );
         if (len <= 0) return -1;
-        if (dst)
-        {
-            if (n < ret + len) break;
-            memcpy( dst + ret, buffer, len );
-        }
-        if (!buffer[0])
-        {
-            src = NULL;
-            break;
-        }
+        if (n < ret + len) break;
+        memcpy( dst + ret, buffer, len );
         ret += len;
+        if (!buffer[0]) break;
         src++;
     }
-    if (dst) *pstr = src;
     return ret;
 }
 #endif

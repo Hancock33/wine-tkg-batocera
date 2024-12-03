@@ -344,11 +344,7 @@ DECL_HANDLER(create_completion)
 
     if ((completion = create_completion( root, &name, objattr->attributes, req->concurrent, sd )))
     {
-        if (get_error() == STATUS_OBJECT_NAME_EXISTS)
-            reply->handle = alloc_handle( current->process, completion, req->access, objattr->attributes );
-        else
-            reply->handle = alloc_handle_no_access_check( current->process, completion,
-                                                          req->access, objattr->attributes );
+        reply->handle = alloc_handle( current->process, completion, req->access, objattr->attributes );
         release_object( completion );
     }
 

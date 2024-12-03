@@ -72,10 +72,7 @@ struct ctrl_handler
 static BOOL WINAPI default_ctrl_handler( DWORD type )
 {
     FIXME( "Terminating process %lx on event %lx\n", GetCurrentProcessId(), type );
-    if (type == CTRL_C_EVENT || type == CTRL_BREAK_EVENT)
-        RtlExitUserProcess( STATUS_CONTROL_C_EXIT );
-    else
-        RtlExitUserProcess( 0 );
+    RtlExitUserProcess( 0 );
     return TRUE;
 }
 

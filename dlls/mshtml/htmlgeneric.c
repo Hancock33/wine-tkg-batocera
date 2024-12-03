@@ -109,6 +109,7 @@ static const event_target_vtbl_t HTMLGenericElement_event_target_vtbl = {
 };
 
 static const tid_t HTMLUnknownElement_iface_tids[] = {
+    HTMLELEMENT_TIDS,
     IHTMLGenericElement_tid,
     0
 };

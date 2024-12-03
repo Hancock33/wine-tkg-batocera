@@ -888,6 +888,7 @@ static const event_target_vtbl_t HTMLBodyElement_event_target_vtbl = {
 static const tid_t HTMLBodyElement_iface_tids[] = {
     IHTMLBodyElement_tid,
     IHTMLBodyElement2_tid,
+    HTMLELEMENT_TIDS,
     IHTMLTextContainer_tid,
     0
 };

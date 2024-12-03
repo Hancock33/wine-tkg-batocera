@@ -527,11 +527,7 @@ DECL_HANDLER(create_directory)
 
     if ((dir = create_directory( root, &name, objattr->attributes, HASH_SIZE, sd )))
     {
-        if (get_error() == STATUS_OBJECT_NAME_EXISTS)
-            reply->handle = alloc_handle( current->process, dir, req->access, objattr->attributes );
-        else
-            reply->handle = alloc_handle_no_access_check( current->process, dir,
-                                                          req->access, objattr->attributes );
+        reply->handle = alloc_handle( current->process, dir, req->access, objattr->attributes );
         release_object( dir );
     }
 

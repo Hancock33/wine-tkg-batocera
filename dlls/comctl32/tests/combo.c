@@ -1277,8 +1277,6 @@ static void test_combo_dropdown_size(DWORD style)
         {33, 50, -1},
         {35, 100, 40},
         {15, 50, 3},
-        {1, 650, 40},
-        {7, 650, 3},
     };
 
     for (test = 0; test < ARRAY_SIZE(info_height); test++)

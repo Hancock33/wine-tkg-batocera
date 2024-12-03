@@ -489,39 +489,24 @@ NTSTATUS WINAPI wow64_NtClose( UINT *args )
 
 
 /**********************************************************************
- *           wow64_NtContinueEx
+ *           wow64_NtContinue
  */
-NTSTATUS WINAPI wow64_NtContinueEx( UINT *args )
+NTSTATUS WINAPI wow64_NtContinue( UINT *args )
 {
     void *context = get_ptr( &args );
-    KCONTINUE_ARGUMENT *cont_args = get_ptr( &args );
+    BOOLEAN alertable = get_ulong( &args );
 
     NTSTATUS status = get_context_return_value( context );
     struct user_apc_frame *frame = NtCurrentTeb()->TlsSlots[WOW64_TLS_APCLIST];
-    BOOL alertable;
 
     pBTCpuSetContext( GetCurrentThread(), GetCurrentProcess(), NULL, context );
 
     while (frame && frame->wow_context != context) frame = frame->prev_frame;
     NtCurrentTeb()->TlsSlots[WOW64_TLS_APCLIST] = frame ? frame->prev_frame : NULL;
-    if (frame) NtContinueEx( frame->context, cont_args );
-
-    if ((UINT_PTR)cont_args > 0xff)
-        alertable = cont_args->ContinueFlags & KCONTINUE_FLAG_TEST_ALERT;
-    else
-        alertable = !!cont_args;
+    if (frame) NtContinue( frame->context, alertable );
 
     if (alertable) NtTestAlert();
     return status;
-}
-
-
-/**********************************************************************
- *           wow64_NtContinue
- */
-NTSTATUS WINAPI wow64_NtContinue( UINT *args )
-{
-    return wow64_NtContinueEx( args );
 }
 
 

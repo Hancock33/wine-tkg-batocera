@@ -921,6 +921,7 @@ static const event_target_vtbl_t HTMLFrameElement_event_target_vtbl = {
 };
 
 static const tid_t HTMLFrameElement_iface_tids[] = {
+    HTMLELEMENT_TIDS,
     IHTMLFrameBase_tid,
     IHTMLFrameBase2_tid,
     IHTMLFrameElement3_tid,
@@ -1356,6 +1357,7 @@ static const event_target_vtbl_t HTMLIFrameElement_event_target_vtbl = {
 };
 
 static const tid_t HTMLIFrameElement_iface_tids[] = {
+    HTMLELEMENT_TIDS,
     IHTMLFrameBase_tid,
     IHTMLFrameBase2_tid,
     IHTMLIFrameElement_tid,

@@ -299,8 +299,6 @@ typedef struct ScriptHost ScriptHost;
 
 #define PRIVATE_TID_LIST \
     XIID(IWineDOMTokenList) \
-    XIID(IWineHTMLCharacterData) \
-    XIID(IWineHTMLDOMNodePrivate) \
     XIID(IWineHTMLElementPrivate) \
     XIID(IWineHTMLWindowPrivate) \
     XIID(IWineHTMLWindowCompatPrivate) \
@@ -351,7 +349,6 @@ typedef struct dispex_dynamic_data_t dispex_dynamic_data_t;
 
 typedef struct DispatchEx DispatchEx;
 typedef struct nsCycleCollectionTraversalCallback nsCycleCollectionTraversalCallback;
-typedef struct dispex_static_data_t dispex_static_data_t;
 
 typedef struct {
     UINT_PTR x;
@@ -403,7 +400,7 @@ typedef struct {
     HRESULT (*disp_invoke)(DispatchEx*,DISPID,LCID,WORD,DISPPARAMS*,VARIANT*,EXCEPINFO*,IServiceProvider*);
 
     /* Used by objects that want to delay their compat mode initialization until actually needed */
-    HTMLInnerWindow *(*get_script_global)(DispatchEx*,dispex_static_data_t**);
+    HTMLInnerWindow *(*get_script_global)(DispatchEx*);
 
     /* Used by objects that want to populate some dynamic props on initialization */
     HRESULT (*populate_props)(DispatchEx*);
@@ -511,7 +508,7 @@ typedef enum {
     PROT_LAST,
 } prototype_id_t;
 
-struct dispex_static_data_t {
+typedef struct {
     const char *name;
     const dispex_static_data_vtbl_t *vtbl;
     const tid_t disp_tid;
@@ -528,7 +525,7 @@ struct dispex_static_data_t {
     compat_mode_t min_compat_mode;
     compat_mode_t max_compat_mode;
     char prototype_name[64];
-};
+} dispex_static_data_t;
 
 #define X(name) extern dispex_static_data_t name ## _dispex;
 ALL_PROTOTYPES
@@ -627,7 +624,6 @@ void release_typelib(void);
 HRESULT get_class_typeinfo(const CLSID*,ITypeInfo**);
 const void *dispex_get_vtbl(DispatchEx*);
 void dispex_info_add_interface(dispex_data_t*,tid_t,const dispex_hook_t*);
-void dispex_info_add_dispids(dispex_data_t*,tid_t,const DISPID*);
 compat_mode_t dispex_compat_mode(DispatchEx*);
 HRESULT dispex_to_string(DispatchEx*,BSTR*);
 HRESULT dispex_call_builtin(DispatchEx *dispex, DISPID id, DISPPARAMS *dp,
@@ -1015,7 +1011,6 @@ struct HTMLDOMNode {
     IHTMLDOMNode  IHTMLDOMNode_iface;
     IHTMLDOMNode2 IHTMLDOMNode2_iface;
     IHTMLDOMNode3 IHTMLDOMNode3_iface;
-    IWineHTMLDOMNodePrivate IWineHTMLDOMNodePrivate_iface;
     const NodeImplVtbl *vtbl;
 
     nsIDOMNode *nsnode;
@@ -1059,6 +1054,15 @@ typedef struct {
     unsigned unique_id;
 } HTMLElement;
 
+#define HTMLELEMENT_TIDS    \
+    IHTMLDOMNode_tid,       \
+    IHTMLDOMNode2_tid,      \
+    IHTMLElement_tid,       \
+    IHTMLElement3_tid,      \
+    IHTMLElement4_tid,      \
+    IHTMLUniqueName_tid
+
+extern const tid_t HTMLElement_iface_tids[];
 extern cp_static_data_t HTMLElementEvents2_data;
 #define HTMLELEMENT_CPC {&DIID_HTMLElementEvents2, &HTMLElementEvents2_data}
 extern const cpc_entry_t HTMLElement_cpc[];

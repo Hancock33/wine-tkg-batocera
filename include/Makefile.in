@@ -58,7 +58,6 @@ SOURCES = \
 	bits5_0.idl \
 	bitsmsg.h \
 	bluetoothapis.h \
-	bthdef.h \
 	bthsdpdef.h \
 	cderr.h \
 	cdosys.idl \

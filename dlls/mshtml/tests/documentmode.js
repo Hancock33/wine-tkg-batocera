@@ -252,13 +252,11 @@ sync_test("builtin_toString", function() {
 
     e = document.createElement("a");
     ok(e.toString() === "", "tag 'a' (without href) toString returned " + e.toString());
-    ok(e + "" === "", "tag 'a' (without href) value = " + e);
     e.href = "https://www.winehq.org/";
     test("tag 'a'", e, "HTMLAnchorElement", "https://www.winehq.org/");
 
     e = document.createElement("area");
     ok(e.toString() === "", "tag 'area' (without href) toString returned " + e.toString());
-    ok(e + "" === "", "tag 'area' (without href) value = " + e);
     e.href = "https://www.winehq.org/";
     test("tag 'area'", e, "HTMLAreaElement", "https://www.winehq.org/");
 
@@ -300,7 +298,7 @@ sync_test("builtin_toString", function() {
     if(clientRects) test("clientRect", clientRects[0], "ClientRect");
     if(clientRects) test("clientRects", clientRects, "ClientRectList");
     if(currentStyle) test("currentStyle", currentStyle, "MSCurrentStyleCSSProperties");
-    test("document", document, v < 11 ? "Document" : "HTMLDocument");
+    if(v >= 11 /* todo_wine */) test("document", document, v < 11 ? "Document" : "HTMLDocument");
     test("elements", document.getElementsByTagName("body"), "HTMLCollection");
     test("history", window.history, "History");
     test("implementation", document.implementation, "DOMImplementation");
@@ -519,7 +517,6 @@ sync_test("elem_props", function() {
     test_exposed("doScroll", v < 11);
     test_exposed("readyState", v < 11);
     test_exposed("clientTop", true);
-    test_exposed("ownerDocument", true);
     test_exposed("title", true);
     test_exposed("removeNode", true);
     test_exposed("replaceNode", true);
@@ -537,25 +534,6 @@ sync_test("elem_props", function() {
     test_exposed("dispatchEvent", v >= 9);
     test_exposed("msSetPointerCapture", v >= 10);
     if (v >= 9) test_exposed("spellcheck", v >= 10);
-
-    elem = document.createComment("");
-    test_exposed("atomic", v < 9);
-    test_exposed("data", true);
-    test_exposed("length", true);
-    test_exposed("text", true);
-    test_exposed("appendData", true);
-    test_exposed("deleteData", true);
-    test_exposed("insertData", true);
-    test_exposed("replaceData", true);
-    test_exposed("substringData", true);
-    test_exposed("attachEvent", v < 9);
-    test_exposed("doScroll", v < 9);
-    test_exposed("readyState", v < 9);
-    test_exposed("clientTop", v < 9);
-    test_exposed("title", v < 9);
-    test_exposed("removeNode", v < 9);
-    test_exposed("querySelectorAll", v === 8);
-    test_exposed("hasAttribute", v === 8, v === 8);
 
     elem = document.createElement("style");
     test_exposed("media", true);
@@ -607,32 +585,13 @@ sync_test("docfrag_props", function() {
 
     function test_exposed(prop, expect) {
         if(expect)
-            ok(prop in docfrag, prop + " not found in document fragment.");
+            ok(prop in docfrag, prop + " not found in document fragent.");
         else
-            ok(!(prop in docfrag), prop + " found in document fragment.");
+            ok(!(prop in docfrag), prop + " found in document fragent.");
     }
 
     var v = document.documentMode;
 
-    test_exposed("attachEvent", v < 11);
-    test_exposed("detachEvent", v < 11);
-    test_exposed("createStyleSheet", v < 9);
-    test_exposed("fileSize", v < 9);
-    test_exposed("selection", v < 9);
-    test_exposed("doctype", v < 9);
-    test_exposed("onstorage", v < 9);
-    test_exposed("textContent", v >= 9);
-    test_exposed("prefix", v >= 9);
-    test_exposed("ownerDocument", true);
-    test_exposed("removeNode", true);
-    test_exposed("replaceNode", true);
-    test_exposed("swapNode", true);
-    test_exposed("defaultView", false);
-    test_exposed("head", false);
-    test_exposed("addEventListener", v >= 9);
-    test_exposed("removeEventListener", v >= 9);
-    test_exposed("dispatchEvent", v >= 9);
-    test_exposed("createEvent", false);
     test_exposed("compareDocumentPosition", v >= 9);
 });
 
@@ -655,7 +614,6 @@ sync_test("textnode_props", function() {
     test_exposed("removeNode", true);
     test_exposed("replaceNode", true);
     test_exposed("swapNode", true);
-    test_exposed("toString", true);
     test_exposed("compareDocumentPosition", v >= 9);
     test_exposed("isEqualNode", v >= 9);
     test_exposed("prefix", v >= 9);
@@ -694,11 +652,7 @@ sync_test("window_props", function() {
     test_exposed("performance", true);
     test_exposed("console", v >= 10);
     test_exposed("matchMedia", v >= 10);
-    test_exposed("Document", v >= 9);
-    test_exposed("HTMLDocument", v === 8 || v >= 11, v === 8);
     test_exposed("MutationObserver", v >= 11);
-    test_exposed("PageTransitionEvent", v >= 11);
-    test_exposed("ProgressEvent", v >= 10);
 });
 
 sync_test("domimpl_props", function() {
@@ -3502,13 +3456,11 @@ sync_test("prototypes", function() {
     check(Node.prototype, Object.prototype, "node prototype");
     check(sessionStorage, Storage.prototype, "storage");
     check(Storage.prototype, Object.prototype, "storage prototype");
-    if(v < 11)
-        check(document, Document.prototype, "html document");
-    else {
+    if(v >= 11) {
         check(document, HTMLDocument.prototype, "html document");
         check(HTMLDocument.prototype, Document.prototype, "html document prototype");
+        check(Document.prototype, Node.prototype, "document prototype");
     }
-    check(Document.prototype, Node.prototype, "document prototype");
     check(window, Window.prototype, "window");
     check(Window.prototype, Object.prototype, "window prototype");
     check(new XMLHttpRequest(), XMLHttpRequest.prototype, "xhr");
@@ -3713,124 +3665,15 @@ sync_test("prototype props", function() {
         test_own_props(constr.prototype, name, props, todos, flaky);
     }
 
-    check(CharacterData, [ "appendData", "data", "deleteData", "insertData", "length", "replaceData", "substringData" ]);
-    check(Comment, [ "text" ]);
     check(CSSStyleRule, [ "readOnly", "selectorText", "style" ]);
     check(CustomEvent, [ "detail", "initCustomEvent" ]);
-    check(Document, [
-        "Script", "URL", "URLUnencoded", "activeElement", "adoptNode", "alinkColor", "all", "anchors", "applets", ["attachEvent",9,10],
-        "bgColor", "body", ["captureEvents",11], "characterSet", "charset", ["clear",10], "close", "compatMode", "compatible", "cookie",
-        "createAttribute", "createAttributeNS", "createCDATASection", "createComment", "createDocumentFragment", "createElement",
-        "createElementNS", "createEvent", ["createEventObject",9,10], "createNodeIterator", "createProcessingInstruction", "createRange",
-        ["createStyleSheet",9,10], "createTextNode", "createTreeWalker", "defaultCharset", "defaultView", "designMode",
-        ["detachEvent",9,10], "dir", "doctype", "documentElement", "documentMode", "domain", "elementFromPoint", "embeds", "execCommand",
-        "execCommandShowHelp", "fgColor", "fileCreatedDate", "fileModifiedDate", ["fileSize",9,10], "fileUpdatedDate", ["fireEvent",9,10],
-        "focus", "forms", "frames", "getElementById", "getElementsByClassName", "getElementsByName", "getElementsByTagName",
-        "getElementsByTagNameNS", "getSelection", "hasFocus", "head", ["hidden",10], "images", "implementation", "importNode",
-        "inputEncoding", "lastModified", "linkColor", "links", "location", "media", "mimeType", ["msCSSOMElementFloatMetrics",10],
-        "msCapsLockWarningOff", ["msElementsFromPoint",10], ["msElementsFromRect",10], ["msExitFullscreen",11], ["msFullscreenElement",11],
-        ["msFullscreenEnabled",11], ["msHidden",10], ["msVisibilityState",10], "nameProp", ["namespaces",9,9], "onabort", "onactivate",
-        ["onafterupdate",9,10], "onbeforeactivate", "onbeforedeactivate", ["onbeforeeditfocus",9,10], ["onbeforeupdate",9,10], "onblur",
-        "oncanplay", "oncanplaythrough", ["oncellchange",9,10], "onchange", "onclick", "oncontextmenu", ["oncontrolselect",9,10],
-        ["ondataavailable",9,10], ["ondatasetchanged",9,10], ["ondatasetcomplete",9,10], "ondblclick", "ondeactivate", "ondrag", "ondragend",
-        "ondragenter", "ondragleave", "ondragover", "ondragstart", "ondrop", "ondurationchange", "onemptied", "onended", "onerror",
-        ["onerrorupdate",9,10], "onfocus", "onfocusin", "onfocusout", "onhelp", "oninput", "onkeydown", "onkeypress", "onkeyup", "onload",
-        "onloadeddata", "onloadedmetadata", "onloadstart", "onmousedown", "onmousemove", "onmouseout", "onmouseover", "onmouseup",
-        "onmousewheel", ["onmscontentzoom",10], ["onmsfullscreenchange",11], ["onmsfullscreenerror",11], ["onmsgesturechange",10],
-        ["onmsgesturedoubletap",10], ["onmsgestureend",10], ["onmsgesturehold",10], ["onmsgesturestart",10], ["onmsgesturetap",10],
-        ["onmsinertiastart",10], ["onmsmanipulationstatechanged",10], ["onmspointercancel",10], ["onmspointerdown",10],
-        ["onmspointerenter",11], ["onmspointerhover",10,10,v == 10], ["onmspointerleave",11], ["onmspointermove",10], ["onmspointerout",10],
-        ["onmspointerover",10], ["onmspointerup",10], "onmssitemodejumplistitemremoved", "onmsthumbnailclick", "onpause", "onplay",
-        "onplaying", ["onpointercancel",11], ["onpointerdown",11], ["onpointerenter",11], ["onpointerleave",11], ["onpointermove",11],
-        ["onpointerout",11], ["onpointerover",11], ["onpointerup",11], "onprogress", ["onpropertychange",9,10], "onratechange",
-        "onreadystatechange", "onreset", ["onrowenter",9,10], ["onrowexit",9,10], ["onrowsdelete",9,10], ["onrowsinserted",9,10], "onscroll",
-        "onseeked", "onseeking", "onselect", "onselectionchange", "onselectstart", "onstalled", "onstop", "onstoragecommit", "onsubmit",
-        "onsuspend", "ontimeupdate", "onvolumechange", "onwaiting", "open", "parentWindow", "plugins", "protocol", "queryCommandEnabled",
-        "queryCommandIndeterm", "queryCommandState", "queryCommandSupported", "queryCommandText", "queryCommandValue", "querySelector",
-        "querySelectorAll", "readyState", "referrer", "releaseCapture", ["releaseEvents",11], "removeNode", "replaceNode", "rootElement",
-        "scripts", "security", ["selection",9,10], "styleSheets", "swapNode", "title", "uniqueID", "updateSettings", ["visibilityState",10],
-        "vlinkColor", "write", "writeln", "xmlEncoding", "xmlStandalone", "xmlVersion"
-    ], [
-        ["captureEvents",11], "createNodeIterator", "createRange", "createTreeWalker", ["hidden",10], "msCapsLockWarningOff",
-        ["msCSSOMElementFloatMetrics",10], ["msElementsFromPoint",10], ["msElementsFromRect",10], ["msExitFullscreen",11],
-        ["msFullscreenElement",11], ["msFullscreenEnabled",11], ["msHidden",10], ["msVisibilityState",10], ["onmscontentzoom",10],
-        ["onmsfullscreenchange",11], ["onmsfullscreenerror",11], ["onmsgesturechange",10], ["onmsgesturedoubletap",10], ["onmsgestureend",10],
-        ["onmsgesturehold",10], ["onmsgesturestart",10], ["onmsgesturetap",10], ["onmsinertiastart",10], ["onmsmanipulationstatechanged",10],
-        ["onmspointercancel",10], ["onmspointerdown",10], ["onmspointerenter",11], ["onmspointerhover",10,10], ["onmspointerleave",11],
-        ["onmspointermove",10], ["onmspointerout",10], ["onmspointerover",10], ["onmspointerup",10], ["onpointercancel",11], ["onpointerdown",11],
-        ["onpointerenter",11], ["onpointerleave",11], ["onpointermove",11], ["onpointerout",11], ["onpointerover",11], ["onpointerup",11],
-        ["releaseEvents",11], "rootElement", ["visibilityState",10]
-    ]);
-    check(DocumentFragment, [ ["attachEvent",9,10], ["detachEvent",9,10], "querySelector", "querySelectorAll", "removeNode", "replaceNode", "swapNode" ]);
     check(DocumentType, [ "entities", "internalSubset", "name", "notations", "publicId", "systemId" ]);
-    check(Element, [
-        "childElementCount", "clientHeight", "clientLeft", "clientTop", "clientWidth", ["fireEvent",9,10], "firstElementChild",
-        "getAttribute", "getAttributeNS", "getAttributeNode", "getAttributeNodeNS", "getBoundingClientRect", "getClientRects",
-        "getElementsByTagName", "getElementsByTagNameNS", "hasAttribute", "hasAttributeNS", "lastElementChild",
-        ["msContentZoomFactor",10], ["msGetRegionContent",10], ["msGetUntransformedBounds",11], "msMatchesSelector",
-        ["msRegionOverflow",10], ["msReleasePointerCapture",10], ["msRequestFullscreen",11], ["msSetPointerCapture",10],
-        ["msZoomTo",11], "nextElementSibling", ["ongotpointercapture",11], ["onlostpointercapture",11], ["onmsgesturechange",10],
-        ["onmsgesturedoubletap",10], ["onmsgestureend",10], ["onmsgesturehold",10], ["onmsgesturestart",10], ["onmsgesturetap",10],
-        ["onmsgotpointercapture",10], ["onmsinertiastart",10], ["onmslostpointercapture",10], ["onmspointercancel",10],
-        ["onmspointerdown",10], ["onmspointerenter",11], ["onmspointerhover",10,10], ["onmspointerleave",11], ["onmspointermove",10],
-        ["onmspointerout",10], ["onmspointerover",10], ["onmspointerup",10], ["onpointercancel",11], ["onpointerdown",11],
-        ["onpointerenter",11], ["onpointerleave",11], ["onpointermove",11], ["onpointerout",11], ["onpointerover",11],
-        ["onpointerup",11], "previousElementSibling", "querySelector", "querySelectorAll", ["releasePointerCapture",11],
-        "removeAttribute", "removeAttributeNS", "removeAttributeNode", "scrollHeight", "scrollLeft", "scrollTop", "scrollWidth",
-        "setAttribute", "setAttributeNS", "setAttributeNode", "setAttributeNodeNS", ["setPointerCapture",11], "tagName"
-    ], [
-        ["msContentZoomFactor",10], ["msGetRegionContent",10], ["msGetUntransformedBounds",11], ["msRegionOverflow",10],
-        ["msRequestFullscreen",11], ["msZoomTo",11], ["ongotpointercapture",11], ["onlostpointercapture",11],
-        ["onmspointerenter",11], ["onmspointerleave",11], ["onpointercancel",11], ["onpointerdown",11], ["onpointerenter",11],
-        ["onpointerleave",11], ["onpointermove",11], ["onpointerout",11], ["onpointerover",11], ["onpointerup",11],
-        ["releasePointerCapture",11], ["setPointerCapture",11]
-    ]);
     check(Event, [
         "AT_TARGET", "BUBBLING_PHASE", "CAPTURING_PHASE", "bubbles", "cancelBubble", "cancelable", "currentTarget",
         "defaultPrevented", "eventPhase", "initEvent", "isTrusted", "preventDefault", "srcElement",
         "stopImmediatePropagation", "stopPropagation", "target", "timeStamp", "type"
     ], [ "AT_TARGET", "BUBBLING_PHASE", "CAPTURING_PHASE" ]);
-    if(v >= 11)
-        check(HTMLDocument, []);
-    check(HTMLElement, [
-        "accessKey", ["addBehavior",9,10], ["addFilter",9,9], ["all",9,10], "applyElement", ["attachEvent",9,10], ["behaviorUrns",9,10], "blur",
-        "canHaveChildren", "canHaveHTML", "children", ["classList",10], "className", "clearAttributes", "click", "componentFromPoint", "contains",
-        "contentEditable", "createControlRange", "currentStyle", ["dataset",11], ["detachEvent",9,10], "dir", "disabled", ["doScroll",9,10],
-        ["document",9,9], "dragDrop", ["draggable",10], ["filters",9,9], "focus", "getAdjacentText", "getElementsByClassName", ["hidden",11],
-        "hideFocus", "id", "innerHTML", "innerText", "insertAdjacentElement", "insertAdjacentHTML", "insertAdjacentText", "isContentEditable",
-        "isDisabled", "isMultiLine", "isTextEdit", "lang", "language", "mergeAttributes", ["msGetInputContext",11], "offsetHeight", "offsetLeft",
-        "offsetParent", "offsetTop", "offsetWidth", "onabort", "onactivate", ["onafterupdate",9,10], "onbeforeactivate", "onbeforecopy",
-        "onbeforecut", "onbeforedeactivate", ["onbeforeeditfocus",9,10], "onbeforepaste", ["onbeforeupdate",9,10], "onblur", "oncanplay",
-        "oncanplaythrough", ["oncellchange",9,10], "onchange", "onclick", "oncontextmenu", ["oncontrolselect",9,10], "oncopy", ["oncuechange",10],
-        "oncut", ["ondataavailable",9,10], ["ondatasetchanged",9,10], ["ondatasetcomplete",9,10], "ondblclick", "ondeactivate", "ondrag",
-        "ondragend", "ondragenter", "ondragleave", "ondragover", "ondragstart", "ondrop", "ondurationchange", "onemptied", "onended", "onerror",
-        ["onerrorupdate",9,10], ["onfilterchange",9,10], "onfocus", "onfocusin", "onfocusout", "onhelp", "oninput", "onkeydown", "onkeypress",
-        "onkeyup", ["onlayoutcomplete",9,10], "onload", "onloadeddata", "onloadedmetadata", "onloadstart", ["onlosecapture",9,10],
-        "onmousedown", "onmouseenter", "onmouseleave", "onmousemove", "onmouseout", "onmouseover", "onmouseup", "onmousewheel", ["onmove",9,10],
-        ["onmoveend",9,10], ["onmovestart",9,10], ["onmscontentzoom",10], ["onmsmanipulationstatechanged",10], "onpaste", "onpause", "onplay",
-        "onplaying", "onprogress", ["onpropertychange",9,10], "onratechange", ["onreadystatechange",9,10], "onreset", ["onresize",9,10],
-        ["onresizeend",9,10], ["onresizestart",9,10], ["onrowenter",9,10], ["onrowexit",9,10], ["onrowsdelete",9,10], ["onrowsinserted",9,10],
-        "onscroll", "onseeked", "onseeking", "onselect", "onselectstart", "onstalled", "onsubmit", "onsuspend", "ontimeupdate", "onvolumechange",
-        "onwaiting", "outerHTML", "outerText", "parentElement", "parentTextEdit", ["readyState",9,10], "recordNumber", "releaseCapture",
-        ["removeBehavior",9,10], ["removeFilter",9,9], "removeNode", "replaceAdjacentText", "replaceNode", "runtimeStyle", ["scopeName",9,9],
-        "scrollIntoView", "setActive", "setCapture", "sourceIndex", ["spellcheck",10], "style", "swapNode", "tabIndex", ["tagUrn",9,9], "title",
-        "uniqueID", "uniqueNumber"
-    ], [ ["dataset",11], ["draggable",10], ["hidden",11], ["msGetInputContext",11], ["onmscontentzoom",10] ]);
-    check(HTMLTableCellElement, [
-        "abbr", "align", "axis", "background", "bgColor", "borderColor", "borderColorDark", "borderColorLight",
-        "cellIndex", "ch", "chOff", "colSpan", "headers", "height", "noWrap", "rowSpan", "scope", "vAlign", "width"
-    ], [ "abbr", "axis", "ch", "chOff", "headers", "scope" ]);
-    check(HTMLTableDataCellElement, []);
     check(HTMLUnknownElement, [ "namedRecordset", "recordset" ]);
-    check(KeyboardEvent, [
-        "DOM_KEY_LOCATION_JOYSTICK", "DOM_KEY_LOCATION_LEFT", "DOM_KEY_LOCATION_MOBILE",
-        "DOM_KEY_LOCATION_NUMPAD", "DOM_KEY_LOCATION_RIGHT", "DOM_KEY_LOCATION_STANDARD",
-        "altKey", "char", "charCode", "ctrlKey", "getModifierState", "initKeyboardEvent",
-        "key", "keyCode", "locale", "location", "metaKey", "repeat", "shiftKey", "which"
-    ], [
-        "DOM_KEY_LOCATION_JOYSTICK", "DOM_KEY_LOCATION_LEFT", "DOM_KEY_LOCATION_MOBILE",
-        "DOM_KEY_LOCATION_NUMPAD", "DOM_KEY_LOCATION_RIGHT", "DOM_KEY_LOCATION_STANDARD"
-    ]);
     check(MessageEvent, [ "data", "initMessageEvent", "origin", ["ports",10], "source" ], [ ["ports",10] ]);
     check(MouseEvent, [
         "altKey", "button", "buttons", "clientX", "clientY", "ctrlKey", "fromElement", "getModifierState",
@@ -3852,13 +3695,8 @@ sync_test("prototype props", function() {
         "DOCUMENT_POSITION_CONTAINED_BY", "DOCUMENT_POSITION_CONTAINS", "DOCUMENT_POSITION_DISCONNECTED",
         "DOCUMENT_POSITION_FOLLOWING", "DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC", "DOCUMENT_POSITION_PRECEDING",
         "DOCUMENT_TYPE_NODE", "ELEMENT_NODE", "ENTITY_NODE", "ENTITY_REFERENCE_NODE", "NOTATION_NODE",
-        "PROCESSING_INSTRUCTION_NODE", "TEXT_NODE"
+        "PROCESSING_INSTRUCTION_NODE", "TEXT_NODE", "hasAttributes", "normalize"
     ]);
-    if(v >= 11)
-        check(PageTransitionEvent, [ "persisted" ]);
-    if(v >= 10)
-        check(ProgressEvent, [ "initProgressEvent", "lengthComputable", "loaded", "total" ]);
     check(StorageEvent, [ "initStorageEvent", "key", "newValue", "oldValue", "storageArea", "url" ]);
-    check(Text, [ "removeNode", "replaceNode", "replaceWholeText", "splitText", "swapNode", "wholeText" ], [ "replaceWholeText", "wholeText" ]);
     check(UIEvent, [ "detail", "initUIEvent", "view" ], null, [ "deviceSessionId" ]);
 });

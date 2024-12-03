@@ -4058,11 +4058,10 @@ HRESULT HTMLWindow_get_prop_desc(DispatchEx *dispex, DISPID id, struct property_
     return hres;
 }
 
-static HTMLInnerWindow *HTMLWindow_get_script_global(DispatchEx *dispex, dispex_static_data_t **dispex_data)
+static HTMLInnerWindow *HTMLWindow_get_script_global(DispatchEx *dispex)
 {
     HTMLInnerWindow *This = impl_from_DispatchEx(dispex);
     lock_document_mode(This->doc);
-    *dispex_data = &Window_dispex;
     return This;
 }
 
