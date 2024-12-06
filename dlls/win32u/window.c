@@ -3586,11 +3586,8 @@ static BOOL fixup_swp_flags( WINDOWPOS *winpos, const RECT *old_window_rect, int
     if (winpos->cy < 0) winpos->cy = 0;
     else if (winpos->cy > 32767) winpos->cy = 32767;
 
-    if (win->dwStyle & WS_CHILD)
-    {
-        parent = NtUserGetAncestor( winpos->hwnd, GA_PARENT );
-        if (!is_window_visible( parent )) winpos->flags |= SWP_NOREDRAW;
-    }
+    parent = NtUserGetAncestor( winpos->hwnd, GA_PARENT );
+    if (!is_window_visible( parent )) winpos->flags |= SWP_NOREDRAW;
 
     if (win->dwStyle & WS_VISIBLE) winpos->flags &= ~SWP_SHOWWINDOW;
     else
@@ -3754,10 +3751,12 @@ BOOL set_window_pos( WINDOWPOS *winpos, int parent_x, int parent_y )
         if (winpos->hwndInsertAfter == (HWND)0xffff) winpos->hwndInsertAfter = HWND_TOPMOST;
         else if (winpos->hwndInsertAfter == (HWND)0xfffe) winpos->hwndInsertAfter = HWND_NOTOPMOST;
 
-        if (!(winpos->hwndInsertAfter == HWND_TOP ||
-              winpos->hwndInsertAfter == HWND_BOTTOM ||
-              winpos->hwndInsertAfter == HWND_TOPMOST ||
-              winpos->hwndInsertAfter == HWND_NOTOPMOST))
+        if (winpos->hwndInsertAfter == HWND_TOPMOST || winpos->hwndInsertAfter == HWND_NOTOPMOST)
+        {
+            HWND parent = NtUserGetAncestor( NtUserGetAncestor( winpos->hwnd, GA_ROOT ), GA_PARENT );
+            if (parent == get_hwnd_message_parent()) return TRUE;
+        }
+        else if (winpos->hwndInsertAfter != HWND_TOP && winpos->hwndInsertAfter != HWND_BOTTOM)
         {
             HWND parent = NtUserGetAncestor( winpos->hwnd, GA_PARENT );
             HWND insertafter_parent = NtUserGetAncestor( winpos->hwndInsertAfter, GA_PARENT );
@@ -4700,8 +4699,8 @@ static BOOL show_window( HWND hwnd, INT cmd )
     }
     swp = new_swp;
 
-        if ((style & WS_CHILD) && (parent = NtUserGetAncestor( hwnd, GA_PARENT )) &&
-        !is_window_visible( parent ) && !(swp & SWP_STATECHANGED))
+    parent = NtUserGetAncestor( hwnd, GA_PARENT );
+    if (parent && !is_window_visible( parent ) && !(swp & SWP_STATECHANGED))
     {
         /* if parent is not visible simply toggle WS_VISIBLE and return */
         if (show_flag) set_window_style( hwnd, WS_VISIBLE, 0 );
@@ -4913,7 +4912,8 @@ BOOL WINAPI NtUserFlashWindowEx( FLASHWINFO *info )
         if (!win || win == WND_OTHER_PROCESS || win == WND_DESKTOP) return FALSE;
         hwnd = win->obj.handle;  /* make it a full handle */
 
-        wparam = (win->flags & WIN_NCACTIVATED) != 0;
+        if (info->dwFlags) wparam = !(win->flags & WIN_NCACTIVATED);
+        else wparam = (hwnd == NtUserGetForegroundWindow());
 
         release_win_ptr( win );
 
@@ -4921,7 +4921,7 @@ BOOL WINAPI NtUserFlashWindowEx( FLASHWINFO *info )
             send_message( hwnd, WM_NCACTIVATE, wparam, 0 );
 
         user_driver->pFlashWindowEx( info );
-        return (info->dwFlags & FLASHW_CAPTION) ? TRUE : wparam;
+        return wparam;
     }
 }
 

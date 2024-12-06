@@ -1575,7 +1575,6 @@ enum server_fd_type
 {
     FD_TYPE_INVALID,  /* invalid file (no associated fd) */
     FD_TYPE_FILE,     /* regular file */
-    FD_TYPE_SYMLINK,  /* symbolic link */
     FD_TYPE_DIR,      /* directory */
     FD_TYPE_SOCKET,   /* socket */
     FD_TYPE_SERIAL,   /* serial port */
@@ -1996,18 +1995,6 @@ struct process_info
 /* Flush a registry key */
 @REQ(flush_key)
     obj_handle_t hkey;         /* handle to the key */
-@REPLY
-    abstime_t   timestamp_counter; /* branch last change timestamp counter */
-    data_size_t total;             /* total length needed for data */
-    int         branch_count;      /* number of registry branches to flush */
-    VARARG(data,bytes);            /* registry data */
-@END
-
-
-/* Clear KEY_DIRTY after key flush */
-@REQ(flush_key_done)
-    abstime_t    timestamp_counter; /* timestamp counter returned from flush_key */
-    int          branch;            /* saved registry branch id */
 @END
 
 
@@ -2088,19 +2075,11 @@ struct process_info
 @END
 
 
-/* Return full registry branch non-volatile data for saving */
+/* Save a registry branch to a file */
 @REQ(save_registry)
-    obj_handle_t hkey;  /* key to save */
-@REPLY
-    data_size_t  total; /* total length needed for data */
-    VARARG(data,bytes); /* registry data */
+    obj_handle_t hkey;         /* key to save */
+    obj_handle_t file;         /* file to save to */
 @END
-enum prefix_type
-{
-    PREFIX_UNKNOWN,
-    PREFIX_32BIT,
-    PREFIX_64BIT,
-};
 
 
 /* Add a registry key change notification */
@@ -2319,7 +2298,7 @@ enum message_type
 @REQ(send_hardware_message)
     user_handle_t   win;       /* window handle */
     union hw_input  input;     /* input data */
-    unsigned int    flags;     /* flags (see ntuser.h) */
+    unsigned int    flags;     /* flags (see below) */
     VARARG(report,bytes);      /* HID report data */
 @REPLY
     int             wait;      /* do we need to wait for a reply? */
@@ -2328,6 +2307,7 @@ enum message_type
     int             new_x;     /* new cursor position */
     int             new_y;
 @END
+#define SEND_HWMSG_INJECTED    0x01
 
 
 /* Get a message from the current queue */
@@ -3775,6 +3755,12 @@ struct handle_info
 @END
 
 
+/* Grant the given process an admin token with Default elevation */
+@REQ(grant_process_admin_token)
+    obj_handle_t handle;          /* handle to the process */
+@END
+
+
 /* Get detailed fixed-size information about a token */
 @REQ(get_token_info)
     obj_handle_t   handle;        /* handle to the object */
@@ -4123,6 +4109,7 @@ enum fast_sync_type
     int          signaled;        /* was the queue signaled? */
 @END
 
+
 /* Setup keyboard auto-repeat */
 @REQ(set_keyboard_repeat)
     int enable;                /* whether to enable auto-repeat */
@@ -4131,7 +4118,6 @@ enum fast_sync_type
 @REPLY
     int enable;                /* previous state of auto-repeat enable */
 @END
-
 
 /* Get an event handle to be used for thread alerts with fast synchronization */
 @REQ(get_fast_alert_event)

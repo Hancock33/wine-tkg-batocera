@@ -97,7 +97,6 @@ DECL_HANDLER(create_key);
 DECL_HANDLER(open_key);
 DECL_HANDLER(delete_key);
 DECL_HANDLER(flush_key);
-DECL_HANDLER(flush_key_done);
 DECL_HANDLER(enum_key);
 DECL_HANDLER(set_key_value);
 DECL_HANDLER(get_key_value);
@@ -265,6 +264,7 @@ DECL_HANDLER(grab_kernel_object);
 DECL_HANDLER(release_kernel_object);
 DECL_HANDLER(get_kernel_object_handle);
 DECL_HANDLER(make_process_system);
+DECL_HANDLER(grant_process_admin_token);
 DECL_HANDLER(get_token_info);
 DECL_HANDLER(create_linked_token);
 DECL_HANDLER(create_completion);
@@ -398,7 +398,6 @@ static const req_handler req_handlers[REQ_NB_REQUESTS] =
     (req_handler)req_open_key,
     (req_handler)req_delete_key,
     (req_handler)req_flush_key,
-    (req_handler)req_flush_key_done,
     (req_handler)req_enum_key,
     (req_handler)req_set_key_value,
     (req_handler)req_get_key_value,
@@ -566,6 +565,7 @@ static const req_handler req_handlers[REQ_NB_REQUESTS] =
     (req_handler)req_release_kernel_object,
     (req_handler)req_get_kernel_object_handle,
     (req_handler)req_make_process_system,
+    (req_handler)req_grant_process_admin_token,
     (req_handler)req_get_token_info,
     (req_handler)req_create_linked_token,
     (req_handler)req_create_completion,
@@ -1172,13 +1172,6 @@ C_ASSERT( offsetof(struct delete_key_request, hkey) == 12 );
 C_ASSERT( sizeof(struct delete_key_request) == 16 );
 C_ASSERT( offsetof(struct flush_key_request, hkey) == 12 );
 C_ASSERT( sizeof(struct flush_key_request) == 16 );
-C_ASSERT( offsetof(struct flush_key_reply, timestamp_counter) == 8 );
-C_ASSERT( offsetof(struct flush_key_reply, total) == 16 );
-C_ASSERT( offsetof(struct flush_key_reply, branch_count) == 20 );
-C_ASSERT( sizeof(struct flush_key_reply) == 24 );
-C_ASSERT( offsetof(struct flush_key_done_request, timestamp_counter) == 16 );
-C_ASSERT( offsetof(struct flush_key_done_request, branch) == 24 );
-C_ASSERT( sizeof(struct flush_key_done_request) == 32 );
 C_ASSERT( offsetof(struct enum_key_request, hkey) == 12 );
 C_ASSERT( offsetof(struct enum_key_request, index) == 16 );
 C_ASSERT( offsetof(struct enum_key_request, info_class) == 20 );
@@ -1218,9 +1211,8 @@ C_ASSERT( offsetof(struct unload_registry_request, parent) == 12 );
 C_ASSERT( offsetof(struct unload_registry_request, attributes) == 16 );
 C_ASSERT( sizeof(struct unload_registry_request) == 24 );
 C_ASSERT( offsetof(struct save_registry_request, hkey) == 12 );
-C_ASSERT( sizeof(struct save_registry_request) == 16 );
-C_ASSERT( offsetof(struct save_registry_reply, total) == 8 );
-C_ASSERT( sizeof(struct save_registry_reply) == 16 );
+C_ASSERT( offsetof(struct save_registry_request, file) == 16 );
+C_ASSERT( sizeof(struct save_registry_request) == 24 );
 C_ASSERT( offsetof(struct set_registry_notification_request, hkey) == 12 );
 C_ASSERT( offsetof(struct set_registry_notification_request, event) == 16 );
 C_ASSERT( offsetof(struct set_registry_notification_request, subtree) == 20 );
@@ -2116,6 +2108,8 @@ C_ASSERT( offsetof(struct make_process_system_request, handle) == 12 );
 C_ASSERT( sizeof(struct make_process_system_request) == 16 );
 C_ASSERT( offsetof(struct make_process_system_reply, event) == 8 );
 C_ASSERT( sizeof(struct make_process_system_reply) == 16 );
+C_ASSERT( offsetof(struct grant_process_admin_token_request, handle) == 12 );
+C_ASSERT( sizeof(struct grant_process_admin_token_request) == 16 );
 C_ASSERT( offsetof(struct get_token_info_request, handle) == 12 );
 C_ASSERT( sizeof(struct get_token_info_request) == 16 );
 C_ASSERT( offsetof(struct get_token_info_reply, token_id) == 8 );

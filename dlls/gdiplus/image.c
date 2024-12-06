@@ -59,12 +59,7 @@ static const struct
     { &GUID_WICPixelFormat24bppBGR, PixelFormat24bppRGB, 0 },
     { &GUID_WICPixelFormat32bppBGR, PixelFormat32bppRGB, 0 },
     { &GUID_WICPixelFormat32bppBGRA, PixelFormat32bppARGB, 0 },
-    { &GUID_WICPixelFormat32bppCMYK, PixelFormat32bppCMYK, 0 },
-    { &GUID_WICPixelFormat32bppGrayFloat, PixelFormat32bppARGB, 0 },
     { &GUID_WICPixelFormat32bppPBGRA, PixelFormat32bppPARGB, 0 },
-    { &GUID_WICPixelFormat48bppRGB, PixelFormat48bppRGB, 0 },
-    { &GUID_WICPixelFormat64bppCMYK, PixelFormat48bppRGB, 0 },
-    { &GUID_WICPixelFormat64bppRGBA, PixelFormat48bppRGB, 0 },
     { NULL }
 };
 
@@ -1342,6 +1337,7 @@ GpStatus WINGDIPAPI GdipCloneBitmapArea(REAL x, REAL y, REAL width, REAL height,
     stat = GdipCreateBitmapFromScan0(area.Width, area.Height, 0, format, NULL, dstBitmap);
     if (stat == Ok)
     {
+        memcpy(&(*dstBitmap)->image.format, &srcBitmap->image.format, sizeof(GUID));
         stat = convert_pixels(area.Width, area.Height, (*dstBitmap)->stride, (*dstBitmap)->bits, (*dstBitmap)->format,
                               (*dstBitmap)->image.palette, srcBitmap->stride,
                               srcBitmap->bits + srcBitmap->stride * area.Y + PIXELFORMATBPP(srcBitmap->format) * area.X / 8,

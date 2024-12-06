@@ -49,6 +49,11 @@ F:	dlls/x3daudio*/
 F:	dlls/xapofx*/
 F:	dlls/xaudio*/
 
+Bluetooth support
+M:      Vibhav Pant <vibhavp@gmail.com>
+F:      dlls/winebth.sys/
+F:      dlls/bluetoothapis/sdp.c
+
 Common Controls Library
 P:	Nikolay Sivov <nsivov@codeweavers.com>
 P:	Zhiyi Zhang <zzhang@codeweavers.com>
@@ -182,7 +187,6 @@ F:	dlls/user32/input.c
 F:	dlls/win32u/input.c
 F:	dlls/win32u/rawinput.c
 F:	server/queue.c
-F:	programs/winecfg/input.c
 
 Input methods
 M:	Rémi Bernon <rbernon@codeweavers.com>

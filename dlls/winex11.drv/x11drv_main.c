@@ -44,9 +44,6 @@
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
 
-#define VK_NO_PROTOTYPES
-#define WINE_VK_HOST
-
 #include "x11drv.h"
 #include "winreg.h"
 #include "xcomposite.h"
@@ -75,8 +72,6 @@ BOOL use_take_focus = TRUE;
 BOOL use_primary_selection = FALSE;
 BOOL use_system_cursors = TRUE;
 BOOL grab_fullscreen = FALSE;
-int keyboard_layout = -1;
-BOOL keyboard_scancode_detect = FALSE;
 BOOL managed_mode = TRUE;
 BOOL private_color_map = FALSE;
 int primary_monitor = 0;
@@ -131,7 +126,6 @@ static const char * const atom_names[NB_XATOMS - FIRST_XATOM] =
     "_ICC_PROFILE",
     "_KDE_NET_WM_STATE_SKIP_SWITCHER",
     "_MOTIF_WM_HINTS",
-    "_NET_ACTIVE_WINDOW",
     "_NET_STARTUP_INFO_BEGIN",
     "_NET_STARTUP_INFO",
     "_NET_SUPPORTED",
@@ -332,61 +326,11 @@ HKEY reg_open_key( HKEY root, const WCHAR *name, ULONG name_len )
     return NtOpenKeyEx( &ret, MAXIMUM_ALLOWED, &attr, 0 ) ? 0 : ret;
 }
 
-/* wrapper for NtCreateKey that creates the key recursively if necessary */
-static HKEY reg_create_key( HKEY root, const WCHAR *name, ULONG name_len,
-                            DWORD options, DWORD *disposition )
-{
-    UNICODE_STRING nameW = { name_len, name_len, (WCHAR *)name };
-    OBJECT_ATTRIBUTES attr;
-    NTSTATUS status;
-    HANDLE ret;
 
-    attr.Length = sizeof(attr);
-    attr.RootDirectory = root;
-    attr.ObjectName = &nameW;
-    attr.Attributes = 0;
-    attr.SecurityDescriptor = NULL;
-    attr.SecurityQualityOfService = NULL;
-
-    status = NtCreateKey( &ret, MAXIMUM_ALLOWED, &attr, 0, NULL, options, disposition );
-    if (status == STATUS_OBJECT_NAME_NOT_FOUND)
-    {
-        static const WCHAR registry_rootW[] = { '\\','R','e','g','i','s','t','r','y','\\' };
-        DWORD pos = 0, i = 0, len = name_len / sizeof(WCHAR);
-
-        /* don't try to create registry root */
-        if (!root && len > ARRAY_SIZE(registry_rootW) &&
-            !memcmp( name, registry_rootW, sizeof(registry_rootW) ))
-            i += ARRAY_SIZE(registry_rootW);
-
-        while (i < len && name[i] != '\\') i++;
-        if (i == len) return 0;
-        for (;;)
-        {
-            unsigned int subkey_options = options;
-            if (i < len) subkey_options &= ~(REG_OPTION_CREATE_LINK | REG_OPTION_OPEN_LINK);
-            nameW.Buffer = (WCHAR *)name + pos;
-            nameW.Length = (i - pos) * sizeof(WCHAR);
-            status = NtCreateKey( &ret, MAXIMUM_ALLOWED, &attr, 0, NULL, subkey_options, disposition );
-
-            if (attr.RootDirectory != root) NtClose( attr.RootDirectory );
-            if (!NT_SUCCESS(status)) return 0;
-            if (i == len) break;
-            attr.RootDirectory = ret;
-            while (i < len && name[i] == '\\') i++;
-            pos = i;
-            while (i < len && name[i] != '\\') i++;
-        }
-    }
-    return ret;
-}
-
-static HKEY reg_open_hkcu_key( const char *name, BOOL create )
+HKEY open_hkcu_key( const char *name )
 {
     WCHAR bufferW[256];
     static HKEY hkcu;
-    DWORD disp;
-    HKEY key;
 
     if (!hkcu)
     {
@@ -411,33 +355,9 @@ static HKEY reg_open_hkcu_key( const char *name, BOOL create )
         hkcu = reg_open_key( NULL, bufferW, len * sizeof(WCHAR) );
     }
 
-    if ((key = reg_open_key( hkcu, bufferW, asciiz_to_unicode( bufferW, name ) - sizeof(WCHAR) )) || !create) return key;
-    return reg_create_key( hkcu, bufferW, asciiz_to_unicode( bufferW, name ) - sizeof(WCHAR), 0, &disp );
+    return reg_open_key( hkcu, bufferW, asciiz_to_unicode( bufferW, name ) - sizeof(WCHAR) );
 }
 
-HKEY open_hkcu_key( const char *name )
-{
-    return reg_open_hkcu_key( name, FALSE );
-}
-
-static HKEY create_hkcu_key( const char *name )
-{
-    return reg_open_hkcu_key( name, TRUE );
-}
-
-static BOOL set_reg_value( HKEY hkey, const WCHAR *name, UINT type, const void *value, DWORD count )
-{
-    unsigned int name_size = name ? lstrlenW( name ) * sizeof(WCHAR) : 0;
-    UNICODE_STRING nameW = { name_size, name_size, (WCHAR *)name };
-    return !NtSetValueKey( hkey, &nameW, 0, type, value, count );
-}
-
-static void set_reg_string_value( HKEY hkey, const char *name, const WCHAR *value, DWORD count )
-{
-    WCHAR nameW[64];
-    asciiz_to_unicode( nameW, name );
-    set_reg_value( hkey, nameW, REG_MULTI_SZ, value, count );
-}
 
 ULONG query_reg_value( HKEY hkey, const WCHAR *name, KEY_VALUE_PARTIAL_INFORMATION *info, ULONG size )
 {
@@ -499,7 +419,7 @@ static void setup_options(void)
     DWORD len;
 
     /* @@ Wine registry key: HKCU\Software\Wine\X11 Driver */
-    hkey = create_hkcu_key( "Software\\Wine\\X11 Driver" );
+    hkey = open_hkcu_key( "Software\\Wine\\X11 Driver" );
 
     /* open the app-specific key */
 
@@ -546,16 +466,6 @@ static void setup_options(void)
 
     if (!get_config_key( hkey, appkey, "GrabFullscreen", buffer, sizeof(buffer) ))
         grab_fullscreen = IS_OPTION_TRUE( buffer[0] );
-
-    if (!get_config_key( hkey, appkey, "KeyboardLayout", buffer, sizeof(buffer) ))
-        keyboard_layout = x11drv_find_keyboard_layout( buffer );
-
-    p = x11drv_get_keyboard_layout_list( &len );
-    if (p) set_reg_string_value( hkey, "KeyboardLayoutList", p, len * sizeof(WCHAR) );
-    free( p );
-
-    if (!get_config_key( hkey, appkey, "KeyboardScancodeDetect", buffer, sizeof(buffer) ))
-        keyboard_scancode_detect = IS_OPTION_TRUE( buffer[0] );
 
     if (!get_config_key( hkey, appkey, "ScreenDepth", buffer, sizeof(buffer) ))
         default_visual.depth = wcstol( buffer, NULL, 0 );
@@ -758,7 +668,6 @@ static NTSTATUS x11drv_init( void *arg )
 
     XkbUseExtension( gdi_display, NULL, NULL );
     X11DRV_InitKeyboard( gdi_display );
-    X11DRV_InitMouse( gdi_display );
     if (use_xim) use_xim = xim_init( input_style );
 
     init_user_driver();
@@ -777,6 +686,7 @@ void X11DRV_ThreadDetach(void)
     {
         if (data->xim) XCloseIM( data->xim );
         if (data->font_set) XFreeFontSet( data->display, data->font_set );
+        if (data->net_supported) XFree( data->net_supported );
         XSync( gdi_display, False ); /* make sure XReparentWindow requests have completed before closing the thread display */
         XCloseDisplay( data->display );
         free( data );
@@ -841,8 +751,10 @@ struct x11drv_thread_data *x11drv_init_thread_data(void)
     set_queue_display_fd( data->display );
     NtUserGetThreadInfo()->driver_data = (UINT_PTR)data;
 
+    XSelectInput( data->display, DefaultRootWindow( data->display ), PropertyChangeMask );
     if (use_xim) xim_thread_attach( data );
     x11drv_xinput2_init( data );
+    net_supported_init( data );
 
     return data;
 }

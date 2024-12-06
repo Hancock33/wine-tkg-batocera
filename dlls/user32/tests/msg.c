@@ -5230,39 +5230,6 @@ static void test_showwindow(void)
     flush_sequence();
 }
 
-static void test_recursive_activation(void)
-{
-    static const struct message seq[] =
-    {
-        { HCBT_ACTIVATE, hook },
-        { WM_NCACTIVATE, sent|wparam, TRUE },
-        { WM_ACTIVATE, sent|wparam, WA_ACTIVE },
-        { HCBT_ACTIVATE, hook },
-        { WM_NCACTIVATE, sent|wparam, FALSE },
-        { WM_ACTIVATE, sent|wparam, WA_INACTIVE },
-        { WM_SETFOCUS, sent|optional },
-        { 0 }
-    };
-    HWND hwnd, recursive;
-
-    hwnd = CreateWindowExA(0, "SimpleWindowClass", NULL, WS_OVERLAPPED|WS_VISIBLE,
-                              100, 100, 200, 200, 0, 0, 0, NULL);
-    ok(hwnd != 0, "Failed to create simple window\n");
-
-    recursive = CreateWindowExA(0, "RecursiveActivationClass", NULL, WS_OVERLAPPED|WS_VISIBLE,
-                                10, 10, 50, 50, hwnd, 0, 0, NULL);
-    ok(recursive != 0, "Failed to create recursive activation window\n");
-    SetActiveWindow(hwnd);
-
-    flush_sequence();
-    SetActiveWindow(recursive);
-    ok_sequence(seq, "Recursive Activation", FALSE);
-
-    DestroyWindow(recursive);
-    DestroyWindow(hwnd);
-    flush_sequence();
-}
-
 static void test_sys_menu(void)
 {
     HWND hwnd;
@@ -11202,48 +11169,6 @@ static LRESULT WINAPI ShowWindowProcA(HWND hwnd, UINT message, WPARAM wParam, LP
     return ret;
 }
 
-static LRESULT WINAPI recursive_activation_wndprocA(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    static LONG defwndproc_counter = 0;
-    struct recvd_message msg;
-    LRESULT ret;
-
-    switch (message)
-    {
-    /* log only specific messages we are interested in */
-    case WM_NCACTIVATE:
-    case WM_ACTIVATE:
-    case WM_SETFOCUS:
-    case WM_KILLFOCUS:
-        break;
-    default:
-        return DefWindowProcA(hwnd, message, wParam, lParam);
-    }
-
-    msg.hwnd = hwnd;
-    msg.message = message;
-    msg.flags = sent|wparam|lparam;
-    if (defwndproc_counter) msg.flags |= defwinproc;
-    msg.wParam = wParam;
-    msg.lParam = lParam;
-    msg.descr = "recursive_activation";
-    add_message(&msg);
-
-    /* recursively activate ourselves by first losing activation and changing it back */
-    if (message == WM_ACTIVATE && LOWORD(wParam) != WA_INACTIVE)
-    {
-        SetActiveWindow((HWND)lParam);
-        SetActiveWindow(hwnd);
-        return 0;
-    }
-
-    defwndproc_counter++;
-    ret = DefWindowProcA(hwnd, message, wParam, lParam);
-    defwndproc_counter--;
-
-    return ret;
-}
-
 static LRESULT WINAPI PaintLoopProcA(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
@@ -11341,10 +11266,6 @@ static void register_classes(void)
     cls.lpszClassName = "ShowWindowClass";
     register_class(&cls);
 
-    cls.lpfnWndProc = recursive_activation_wndprocA;
-    cls.lpszClassName = "RecursiveActivationClass";
-    register_class(&cls);
-
     cls.lpfnWndProc = PopupMsgCheckProcA;
     cls.lpszClassName = "TestPopupClass";
     register_class(&cls);
@@ -11403,7 +11324,6 @@ static BOOL is_our_logged_class(HWND hwnd)
     {
 	if (!lstrcmpiA(buf, "TestWindowClass") ||
 	    !lstrcmpiA(buf, "ShowWindowClass") ||
-	    !lstrcmpiA(buf, "RecursiveActivationClass") ||
 	    !lstrcmpiA(buf, "TestParentClass") ||
 	    !lstrcmpiA(buf, "TestPopupClass") ||
 	    !lstrcmpiA(buf, "SimpleWindowClass") ||
@@ -14497,10 +14417,13 @@ static void test_PeekMessage3(void)
     ok(msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     PostMessageA(hwnd, WM_USER, 0, 0);
     ret = PeekMessageA(&msg, hwnd, 0, 0, PM_NOREMOVE);
+    todo_wine
     ok(ret && msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     ret = GetMessageA(&msg, hwnd, 0, 0);
+    todo_wine
     ok(ret && msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     ret = GetMessageA(&msg, hwnd, 0, 0);
+    todo_wine
     ok(ret && msg.message == WM_USER, "msg.message = %u instead of WM_USER\n", msg.message);
     ret = PeekMessageA(&msg, hwnd, 0, 0, 0);
     ok(!ret, "expected PeekMessage to return FALSE, got %u\n", ret);
@@ -14510,8 +14433,10 @@ static void test_PeekMessage3(void)
     ok(msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     PostMessageA(hwnd, WM_USER, 0, 0);
     ret = PeekMessageA(&msg, hwnd, 0, 0, PM_REMOVE);
+    todo_wine
     ok(ret && msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     ret = PeekMessageA(&msg, hwnd, 0, 0, PM_REMOVE);
+    todo_wine
     ok(ret && msg.message == WM_USER, "msg.message = %u instead of WM_USER\n", msg.message);
     ret = PeekMessageA(&msg, hwnd, 0, 0, 0);
     ok(!ret, "expected PeekMessage to return FALSE, got %u\n", ret);
@@ -14523,11 +14448,10 @@ static void test_PeekMessage3(void)
     ok(msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     PostMessageA(hwnd, WM_USER, 0, 0);
     ret = GetMessageA(&msg, hwnd, 0, 0);
+    todo_wine
     ok(ret && msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     ret = GetMessageA(&msg, hwnd, 0, 0);
-    ret = GetMessageA(&msg, NULL, 0, 0);
-    ok(ret && msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
-    ret = GetMessageA(&msg, NULL, 0, 0);
+    todo_wine
     ok(ret && msg.message == WM_USER, "msg.message = %u instead of WM_USER\n", msg.message);
     ret = PeekMessageA(&msg, hwnd, 0, 0, 0);
     ok(!ret, "expected PeekMessage to return FALSE, got %u\n", ret);
@@ -14555,30 +14479,12 @@ static void test_PeekMessage3(void)
     ret = GetMessageA(&msg, hwnd, 0, 0);
     ok(ret && msg.message == WM_USER, "msg.message = %u instead of WM_USER\n", msg.message);
     ret = GetMessageA(&msg, hwnd, 0, 0);
+    todo_wine
     ok(ret && msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     ret = GetMessageA(&msg, hwnd, 0, 0);
+    todo_wine
     ok(ret && msg.message == WM_USER + 1, "msg.message = %u instead of WM_USER + 1\n", msg.message);
     ret = PeekMessageA(&msg, hwnd, 0, 0, 0);
-    ok(!ret, "expected PeekMessage to return FALSE, got %u\n", ret);
-
-    /* Newer messages are still returned when specifying a message range. */
-
-    SetTimer(hwnd, 1, 0, NULL);
-    while (!PeekMessageA(&msg, NULL, WM_TIMER, WM_TIMER, PM_NOREMOVE));
-    ok(msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
-    PostMessageA(hwnd, WM_USER + 1, 0, 0);
-    PostMessageA(hwnd, WM_USER, 0, 0);
-    ret = PeekMessageA(&msg, NULL, WM_USER, WM_USER, PM_NOREMOVE);
-    ok(ret && msg.message == WM_USER, "msg.message = %u instead of WM_USER\n", msg.message);
-    ret = PeekMessageA(&msg, NULL, WM_USER, WM_USER + 1, PM_NOREMOVE);
-    ok(ret && msg.message == WM_USER + 1, "msg.message = %u instead of WM_USER + 1\n", msg.message);
-    ret = PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE);
-    ok(ret && msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
-    ret = PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE);
-    ok(ret && msg.message == WM_USER + 1, "msg.message = %u instead of WM_USER + 1\n", msg.message);
-    ret = PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE);
-    ok(ret && msg.message == WM_USER, "msg.message = %u instead of WM_USER\n", msg.message);
-    ret = PeekMessageA(&msg, NULL, 0, 0, 0);
     ok(!ret, "expected PeekMessage to return FALSE, got %u\n", ret);
 
     /* Also works for posted messages, but the situation is a bit different,
@@ -18886,7 +18792,6 @@ static const struct message WmSetParentSeq_2[] = {
     { HCBT_ACTIVATE, hook|optional },
     { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|optional, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE },
-    { WM_QUERYNEWPALETTE, sent|optional },
     { WM_NCACTIVATE, sent|wparam|optional, 1 },
     { WM_ACTIVATE, sent|wparam|optional, 1 },
     { HCBT_SETFOCUS, hook|optional },
@@ -18957,7 +18862,7 @@ static void test_SetParent(void)
 
     SetParent(popup, child);
     flush_events();
-    ok_sequence(WmSetParentSeq_2, "SetParent() visible WS_POPUP", FALSE);
+    ok_sequence(WmSetParentSeq_2, "SetParent() visible WS_POPUP", TRUE);
 
     ok(GetWindowLongA(popup, GWL_STYLE) & WS_VISIBLE, "WS_VISIBLE should be set\n");
     ok(!IsWindowVisible(popup), "IsWindowVisible() should return FALSE\n");
@@ -20633,6 +20538,113 @@ static void test_hook_changing_window_proc(void)
     DestroyWindow( hwnd );
 }
 
+static void test_radiobutton_focus(void)
+{
+    HWND hwnd, button;
+    DWORD style;
+    int i;
+    DWORD types[] = { BS_RADIOBUTTON, BS_AUTORADIOBUTTON };
+
+    static const struct message set_focus_default_seq[] =
+    {
+        { WM_COMMAND, sent|parent|wparam, MAKEWPARAM(ID_BUTTON, BN_SETFOCUS) },
+        { WM_COMMAND, sent|parent|wparam, MAKEWPARAM(ID_BUTTON, BN_CLICKED) },
+        { 0 }
+    };
+
+    static const struct message set_focus_checked_seq[] =
+    {
+        { WM_COMMAND, sent|parent|wparam, MAKEWPARAM(ID_BUTTON, BN_SETFOCUS) },
+        { 0 }
+    };
+
+    static const struct message WM_LBUTTONDOWN_seq[] =
+    {
+        { WM_KILLFOCUS, sent|parent },
+        { WM_IME_SETCONTEXT, sent|optional|parent },
+        { WM_IME_SETCONTEXT, sent|optional|defwinproc },
+        { WM_COMMAND, sent|parent },
+        { 0 }
+    };
+
+    static const struct message set_focus_without_notify_seq[] =
+    {
+        { WM_COMMAND, sent|parent|wparam, ID_BUTTON },
+        { 0 }
+    };
+
+    hwnd = CreateWindowExA(0, "TestParentClass", "Test parent", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                           100, 100, 200, 200, 0, 0, 0, NULL);
+    ok(hwnd != 0, "Failed to create parent window\n");
+
+    for (i = 0; i < ARRAY_SIZE(types); i++)
+    {
+        /* Test default button */
+        style = types[i] | WS_CHILD | WS_VISIBLE | BS_NOTIFY;
+        button = CreateWindowExA(0, WC_BUTTONA, "test", style, 0, 0, 50, 14, hwnd, (HMENU)ID_BUTTON, 0, NULL);
+        ok(button != NULL, "failed to create a button, 0x%08lx, %p\n", style, hwnd);
+        flush_events();
+        flush_sequence();
+        SendMessageA(button, WM_SETFOCUS, 0, 0);
+        flush_events();
+        ok_sequence(set_focus_default_seq, "WM_SETFOCUS on default radiobutton", FALSE);
+        DestroyWindow(button);
+
+        /* Test already checked button */
+        button = CreateWindowExA(0, WC_BUTTONA, "test", style, 0, 0, 50, 14, hwnd, (HMENU)ID_BUTTON, 0, NULL);
+        SendMessageA(button, BM_SETCHECK, BST_CHECKED, 0);
+        flush_events();
+        flush_sequence();
+        SendMessageA(button, WM_SETFOCUS, 0, 0);
+        flush_events();
+        ok_sequence(set_focus_checked_seq, "WM_SETFOCUS on checked radiobutton", FALSE);
+        DestroyWindow(button);
+
+        /* Test already focused button */
+        button = CreateWindowExA(0, WC_BUTTONA, "test", style, 0, 0, 50, 14, hwnd, (HMENU)ID_BUTTON, 0, NULL);
+        SendMessageA(button, WM_SETFOCUS, 0, 0);
+        SendMessageA(button, BM_SETCHECK, BST_UNCHECKED, 0);
+        flush_events();
+        flush_sequence();
+        SendMessageA(button, WM_SETFOCUS, 0, 0);
+        flush_events();
+        ok_sequence(set_focus_default_seq, "WM_SETFOCUS on focused radiobutton", FALSE);
+        DestroyWindow(button);
+
+        /* Test WM_LBUTTONDOWN */
+        button = CreateWindowExA(0, WC_BUTTONA, "test", style, 0, 0, 50, 14, hwnd, (HMENU)ID_BUTTON, 0, NULL);
+        flush_events();
+        flush_sequence();
+        SendMessageA(button, WM_LBUTTONDOWN, 0, MAKELPARAM(7, 7));
+        flush_events();
+        ok_sequence(WM_LBUTTONDOWN_seq, "WM_LBUTTONDOWN on radiobutton", FALSE);
+        DestroyWindow(button);
+
+        /* Test without BS_NOTIFY */
+        style = types[i] | WS_CHILD | WS_VISIBLE;
+        button = CreateWindowExA(0, WC_BUTTONA, "test", style, 0, 0, 50, 14, hwnd, (HMENU)ID_BUTTON, 0, NULL);
+        flush_events();
+        flush_sequence();
+        SendMessageA(button, WM_SETFOCUS, 0, 0);
+        flush_events();
+        ok_sequence(set_focus_without_notify_seq, "WM_SETFOCUS on radiobutton without BS_NOTIFY", FALSE);
+        DestroyWindow(button);
+
+        /* Test disabled button */
+        style = types[i] | WS_CHILD | WS_VISIBLE | BS_NOTIFY;
+        button = CreateWindowExA(0, WC_BUTTONA, "test", style, 0, 0, 50, 14, hwnd, (HMENU)ID_BUTTON, 0, NULL);
+        EnableWindow(button, FALSE);
+        flush_events();
+        flush_sequence();
+        SendMessageA(button, WM_SETFOCUS, 0, 0);
+        flush_events();
+        ok_sequence(set_focus_default_seq, "WM_SETFOCUS on disabled radiobutton", FALSE);
+        DestroyWindow(button);
+    }
+
+    DestroyWindow(hwnd);
+}
+
 START_TEST(msg)
 {
     char **test_argv;
@@ -20680,6 +20692,7 @@ START_TEST(msg)
     test_setparent_status();
     test_InSendMessage();
     test_SetFocus();
+    test_radiobutton_focus();
     test_SetParent();
     test_PostMessage();
     test_broadcast();
@@ -20692,7 +20705,6 @@ START_TEST(msg)
     test_messages();
     test_setwindowpos();
     test_showwindow();
-    test_recursive_activation();
     invisible_parent_tests();
     test_mdi_messages();
     test_button_messages();

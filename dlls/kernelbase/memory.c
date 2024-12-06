@@ -547,9 +547,7 @@ BOOL WINAPI DECLSPEC_HOTPATCH  VirtualLock( void *addr, SIZE_T size )
  */
 BOOL WINAPI DECLSPEC_HOTPATCH VirtualProtect( void *addr, SIZE_T size, DWORD new_prot, DWORD *old_prot )
 {
-    BOOL ret = VirtualProtectEx( GetCurrentProcess(), addr, size, new_prot, old_prot );
-    if (old_prot && *old_prot == PAGE_WRITECOPY) *old_prot = PAGE_READWRITE;
-    return ret;
+    return VirtualProtectEx( GetCurrentProcess(), addr, size, new_prot, old_prot );
 }
 
 
@@ -1792,6 +1790,7 @@ static UINT get_firmware_table( DWORD provider, SYSTEM_FIRMWARE_TABLE_ACTION act
 {
     SYSTEM_FIRMWARE_TABLE_INFORMATION *info;
     ULONG buffer_size = offsetof( SYSTEM_FIRMWARE_TABLE_INFORMATION, TableBuffer ) + size;
+    NTSTATUS status;
 
     if (!(info = RtlAllocateHeap( GetProcessHeap(), 0, buffer_size )))
     {
@@ -1803,13 +1802,13 @@ static UINT get_firmware_table( DWORD provider, SYSTEM_FIRMWARE_TABLE_ACTION act
     info->Action = action;
     info->TableID = id;
 
-    set_ntstatus( NtQuerySystemInformation( SystemFirmwareTableInformation,
-                                            info, buffer_size, &buffer_size ));
+    status = NtQuerySystemInformation( SystemFirmwareTableInformation, info, buffer_size, &buffer_size );
+    set_ntstatus(status);
     buffer_size -= offsetof( SYSTEM_FIRMWARE_TABLE_INFORMATION, TableBuffer );
     if (buffer_size <= size) memcpy( buffer, info->TableBuffer, buffer_size );
 
     HeapFree( GetProcessHeap(), 0, info );
-    return buffer_size;
+    return NT_SUCCESS(status) || status == STATUS_BUFFER_TOO_SMALL ? buffer_size : 0;
 }
 
 /***********************************************************************

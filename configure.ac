@@ -384,7 +384,6 @@ AC_CHECK_HEADERS(\
 	linux/major.h \
 	linux/ntsync.h \
 	linux/param.h \
-	linux/seccomp.h \
 	linux/serial.h \
 	linux/types.h \
 	linux/ucdrom.h \
@@ -1007,16 +1006,19 @@ This is an error since --enable-archs=$wine_arch was requested.])])
     if test "x$ac_debug_format_seen" = x
     then
       case $wine_crossdebug in
-        *dwarf)  WINE_TRY_PE_CFLAGS([-gdwarf-4]) ;;
+        *dwarf)  dnl clang emits a warning without -Wl,-debug:dwarf, so ensure linker option is present
+                 WINE_TRY_PE_CFLAGS([-Wl,-debug:dwarf],[AS_VAR_APPEND([${wine_arch}_LDFLAGS],[" -Wl,-debug:dwarf"])
+                                                        CFLAGS="$CFLAGS -Wl,-debug:dwarf"])
+                 WINE_TRY_PE_CFLAGS([-gdwarf-4]) ;;
         pdb)     WINE_TRY_PE_CFLAGS([-gcodeview]) ;;
       esac
     fi
     AS_VAR_SET([${wine_arch}_DEBUG],[$wine_crossdebug])
 
     test "x$enable_werror" != xyes || WINE_TRY_PE_CFLAGS([-Werror])
-    test "x$enable_build_id" != xyes || WINE_TRY_PE_CFLAGS([-Wl,--build-id],
-                                         [AS_VAR_APPEND([${wine_arch}_CFLAGS],[" -Wl,--build-id"])
-                                          AS_VAR_APPEND([${wine_arch}_LDFLAGS],[" -Wl,--build-id"])])
+    dnl clang for PE target wants -build-id (and not --build-id as gcc/mingw or clang in unix target)
+    dnl don't bother testing flags, compilation will fail afterwards
+    test "x$enable_build_id" != xyes || AS_VAR_APPEND([${wine_arch}_LDFLAGS],[" -Wl,--build-id"])
 
 done
 
@@ -1210,7 +1212,6 @@ then
 
     dnl *** All of the following tests require X11/Xlib.h
     AC_CHECK_HEADERS([X11/extensions/shape.h \
-                      X11/extensions/XInput.h \
                       X11/extensions/XInput2.h \
                       X11/extensions/XShm.h \
                       X11/extensions/Xfixes.h \
@@ -1998,11 +1999,8 @@ int a(int b, ...) { __builtin_ms_va_list list; __builtin_ms_va_start(list,b); }]
   then
       WINE_TRY_CFLAGS([-Werror])
   fi
-  if test "x$enable_build_id" = "xyes"
-  then
-      WINE_TRY_CFLAGS([-Wl,--build-id], [CFLAGS="$CFLAGS -Wl,--build-id"
-                      LDFLAGS="$LDFLAGS -Wl,--build-id"])
-  fi
+
+  AS_VAR_IF([enable_build_id],[yes],[WINE_TRY_CFLAGS([-Wl,--build-id],[LDFLAGS="$LDFLAGS -Wl,--build-id"])])
 fi
 
 dnl **** Disable Fortify, it has too many false positives
@@ -2084,9 +2082,8 @@ AC_CHECK_FUNCS(\
 	posix_fadvise \
 	posix_fallocate \
 	prctl \
+	sched_getcpu \
 	sched_yield \
-	renameat \
-	renameat2 \
 	setproctitle \
 	setprogname \
 	sigprocmask \
@@ -2475,7 +2472,6 @@ WINE_CONFIG_MAKEFILE(dlls/crypt32/tests)
 WINE_CONFIG_MAKEFILE(dlls/cryptdlg)
 WINE_CONFIG_MAKEFILE(dlls/cryptdll)
 WINE_CONFIG_MAKEFILE(dlls/cryptext)
-WINE_CONFIG_MAKEFILE(dlls/cryptext/tests)
 WINE_CONFIG_MAKEFILE(dlls/cryptnet)
 WINE_CONFIG_MAKEFILE(dlls/cryptnet/tests)
 WINE_CONFIG_MAKEFILE(dlls/cryptowinrt)
@@ -2571,6 +2567,7 @@ WINE_CONFIG_MAKEFILE(dlls/d3dx9_40)
 WINE_CONFIG_MAKEFILE(dlls/d3dx9_41)
 WINE_CONFIG_MAKEFILE(dlls/d3dx9_42)
 WINE_CONFIG_MAKEFILE(dlls/d3dx9_43)
+WINE_CONFIG_MAKEFILE(dlls/d3dx9_43/tests)
 WINE_CONFIG_MAKEFILE(dlls/d3dxof)
 WINE_CONFIG_MAKEFILE(dlls/d3dxof/tests)
 WINE_CONFIG_MAKEFILE(dlls/dataexchange)
@@ -2657,8 +2654,6 @@ WINE_CONFIG_MAKEFILE(dlls/dxdiagn)
 WINE_CONFIG_MAKEFILE(dlls/dxdiagn/tests)
 WINE_CONFIG_MAKEFILE(dlls/dxgi)
 WINE_CONFIG_MAKEFILE(dlls/dxgi/tests)
-WINE_CONFIG_MAKEFILE(dlls/dxgkrnl.sys)
-WINE_CONFIG_MAKEFILE(dlls/dxgmms1.sys)
 WINE_CONFIG_MAKEFILE(dlls/dxtrans)
 WINE_CONFIG_MAKEFILE(dlls/dxva2)
 WINE_CONFIG_MAKEFILE(dlls/dxva2/tests)
@@ -3212,7 +3207,6 @@ WINE_CONFIG_MAKEFILE(dlls/wevtsvc)
 WINE_CONFIG_MAKEFILE(dlls/wiaservc)
 WINE_CONFIG_MAKEFILE(dlls/wiaservc/tests)
 WINE_CONFIG_MAKEFILE(dlls/wimgapi)
-WINE_CONFIG_MAKEFILE(dlls/win32k.sys)
 WINE_CONFIG_MAKEFILE(dlls/win32s16.dll16,enable_win16)
 WINE_CONFIG_MAKEFILE(dlls/win32u)
 WINE_CONFIG_MAKEFILE(dlls/win32u/tests)
@@ -3242,6 +3236,7 @@ WINE_CONFIG_MAKEFILE(dlls/windows.media.speech/tests)
 WINE_CONFIG_MAKEFILE(dlls/windows.media)
 WINE_CONFIG_MAKEFILE(dlls/windows.media/tests)
 WINE_CONFIG_MAKEFILE(dlls/windows.networking.connectivity)
+WINE_CONFIG_MAKEFILE(dlls/windows.networking.connectivity/tests)
 WINE_CONFIG_MAKEFILE(dlls/windows.networking.hostname)
 WINE_CONFIG_MAKEFILE(dlls/windows.networking.hostname/tests)
 WINE_CONFIG_MAKEFILE(dlls/windows.networking)
@@ -3265,6 +3260,7 @@ WINE_CONFIG_MAKEFILE(dlls/windowscodecsext)
 WINE_CONFIG_MAKEFILE(dlls/windowscodecsext/tests)
 WINE_CONFIG_MAKEFILE(dlls/winealsa.drv)
 WINE_CONFIG_MAKEFILE(dlls/wineandroid.drv)
+WINE_CONFIG_MAKEFILE(dlls/winebth.sys)
 WINE_CONFIG_MAKEFILE(dlls/winebus.sys)
 WINE_CONFIG_MAKEFILE(dlls/winecoreaudio.drv)
 WINE_CONFIG_MAKEFILE(dlls/winecrt0)
@@ -3708,7 +3704,7 @@ dnl Rules for generated source files
 
 WINE_APPEND_RULE(
 [dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-9.22.r0.g7ba8823e\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
+	@version=\`(echo \"wine-10.0rc1.r0.g4161e62e478\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Plain NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$[@]) || echo \$\$build >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.nfo:

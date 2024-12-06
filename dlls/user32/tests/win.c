@@ -5191,65 +5191,15 @@ static void test_window_styles(void)
     }
 }
 
-static HWND root_dialog(HWND hwnd)
-{
-    while ((GetWindowLongA(hwnd, GWL_EXSTYLE) & WS_EX_CONTROLPARENT) &&
-           (GetWindowLongA(hwnd, GWL_STYLE) & (WS_CHILD|WS_POPUP)) == WS_CHILD)
-    {
-        HWND parent = GetParent(hwnd);
-
-        /* simple detector for a window being a dialog */
-        if (!DefDlgProcA(parent, DM_GETDEFID, 0, 0))
-            break;
-
-        hwnd = parent;
-
-        if (!(GetWindowLongA(hwnd, GWL_STYLE) & DS_CONTROL))
-            break;
-    }
-
-    return hwnd;
-}
-
 static INT_PTR WINAPI empty_dlg_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
     return 0;
 }
 
-static LRESULT expected_id;
-
 static INT_PTR WINAPI empty_dlg_proc3(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
     if (msg == WM_INITDIALOG)
-    {
-        HWND parent = GetParent(hwnd);
-        LRESULT id, ret;
-
-        id = DefDlgProcA(parent, DM_GETDEFID, 0, 0);
-        if (!id || root_dialog(hwnd) == hwnd)
-            parent = 0;
-
-        id = DefDlgProcA(hwnd, DM_GETDEFID, 0, 0);
-        if (!parent)
-            ok(id == MAKELONG(IDOK,DC_HASDEFID), "expected (IDOK,DC_HASDEFID), got %08lx\n", id);
-        else
-            ok(id == expected_id, "expected %08lx, got %08lx\n", expected_id, id);
-
-        ret = DefDlgProcA(hwnd, DM_SETDEFID, 0x3333, 0);
-        ok(ret, "DefDlgProc(DM_SETDEFID) failed\n");
-        id = DefDlgProcA(hwnd, DM_GETDEFID, 0, 0);
-        ok(id == MAKELONG(0x3333,DC_HASDEFID), "expected (0x3333,DC_HASDEFID), got %08lx\n", id);
-
-        if (parent)
-        {
-            id = DefDlgProcA(parent, DM_GETDEFID, 0, 0);
-            ok(id == MAKELONG(0x3333,DC_HASDEFID), "expected (0x3333,DC_HASDEFID), got %08lx\n", id);
-
-            expected_id = MAKELONG(0x3333,DC_HASDEFID);
-        }
-
         EndDialog(hwnd, 0);
-    }
 
     return 0;
 }
@@ -5268,16 +5218,6 @@ static INT_PTR WINAPI empty_dlg_proc2(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
         struct dialog_param *param = (struct dialog_param *)lparam;
         BOOL parent_is_child;
         HWND disabled_hwnd;
-        LRESULT id, ret;
-
-        id = DefDlgProcA(hwnd, DM_GETDEFID, 0, 0);
-        ok(id == MAKELONG(IDOK,DC_HASDEFID), "expected (IDOK,DC_HASDEFID), got %08lx\n", id);
-        ret = DefDlgProcA(hwnd, DM_SETDEFID, 0x2222, 0);
-        ok(ret, "DefDlgProc(DM_SETDEFID) failed\n");
-        id = DefDlgProcA(hwnd, DM_GETDEFID, 0, 0);
-        ok(id == MAKELONG(0x2222,DC_HASDEFID), "expected (0x2222,DC_HASDEFID), got %08lx\n", id);
-
-        expected_id = MAKELONG(0x2222,DC_HASDEFID);
 
         parent_is_child = (GetWindowLongA(param->parent, GWL_STYLE) & (WS_POPUP | WS_CHILD)) == WS_CHILD;
 
@@ -5319,25 +5259,6 @@ static INT_PTR WINAPI empty_dlg_proc2(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
         DialogBoxIndirectParamA(GetModuleHandleA(NULL), param->dlg_data, hwnd, empty_dlg_proc3, 0);
         ok(IsWindowEnabled(hwnd), "wrong state for %p (%08lx)\n", hwnd, style);
 
-        param->dlg_data->style |= DS_CONTROL;
-        DialogBoxIndirectParamA(GetModuleHandleA(NULL), param->dlg_data, hwnd, empty_dlg_proc3, 0);
-        ok(IsWindowEnabled(hwnd), "wrong state for %p (%08x)\n", hwnd, style);
-
-        param->dlg_data->dwExtendedStyle |= WS_EX_CONTROLPARENT;
-        SetWindowLongA(hwnd, GWL_EXSTYLE, GetWindowLongA(hwnd, GWL_EXSTYLE) | WS_EX_CONTROLPARENT);
-        SetWindowLongA(hwnd, GWL_STYLE, style & ~DS_CONTROL);
-        param->dlg_data->style &= ~DS_CONTROL;
-        DialogBoxIndirectParamA(GetModuleHandleA(NULL), param->dlg_data, hwnd, empty_dlg_proc3, 0);
-        ok(IsWindowEnabled(hwnd), "wrong state for %p (%08x)\n", hwnd, style);
-
-        SetWindowLongA(hwnd, GWL_STYLE, style | DS_CONTROL);
-        DialogBoxIndirectParamA(GetModuleHandleA(NULL), param->dlg_data, hwnd, empty_dlg_proc3, 0);
-        ok(IsWindowEnabled(hwnd), "wrong state for %p (%08x)\n", hwnd, style);
-
-        param->dlg_data->style |= DS_CONTROL;
-        DialogBoxIndirectParamA(GetModuleHandleA(NULL), param->dlg_data, hwnd, empty_dlg_proc3, 0);
-        ok(IsWindowEnabled(hwnd), "wrong state for %p (%08x)\n", hwnd, style);
-
         EndDialog(hwnd, 0);
     }
     return 0;
@@ -5356,7 +5277,6 @@ static void check_dialog_style(DWORD style_in, DWORD ex_style_in, DWORD style_ou
     DWORD style, ex_style;
     HWND hwnd, grand_parent = 0, parent = 0;
     struct dialog_param param;
-    LRESULT id, ret;
 
     if (style_in & WS_CHILD)
     {
@@ -5383,13 +5303,6 @@ static void check_dialog_style(DWORD style_in, DWORD ex_style_in, DWORD style_ou
 
     hwnd = CreateDialogIndirectParamA(GetModuleHandleA(NULL), &dlg_data.dt, parent, empty_dlg_proc, 0);
     ok(hwnd != 0, "dialog creation failed, style %#lx, exstyle %#lx\n", style_in, ex_style_in);
-
-    id = DefDlgProcA(hwnd, DM_GETDEFID, 0, 0);
-    ok(id == MAKELONG(IDOK,DC_HASDEFID), "expected (IDOK,DC_HASDEFID), got %08lx\n", id);
-    ret = DefDlgProcA(hwnd, DM_SETDEFID, 0x1111, 0);
-    ok(ret, "DefDlgProc(DM_SETDEFID) failed\n");
-    id = DefDlgProcA(hwnd, DM_GETDEFID, 0, 0);
-    ok(id == MAKELONG(0x1111,DC_HASDEFID), "expected (0x1111,DC_HASDEFID), got %08lx\n", id);
 
     flush_events( TRUE );
 
@@ -9006,6 +8919,130 @@ static void test_hwnd_message(void)
     DestroyWindow(hwnd);
 }
 
+static HWND message_window_topmost_hwnd_msg = NULL;
+static BOOL message_window_topmost_received_killfocus;
+
+static LRESULT WINAPI message_window_topmost_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+{
+    ok(hwnd != message_window_topmost_hwnd_msg, "Received message %u for message-only window %p\n", msg, hwnd);
+    if (msg == WM_KILLFOCUS) message_window_topmost_received_killfocus = TRUE;
+    return DefWindowProcW(hwnd, msg, wparam, lparam);
+}
+
+
+static void test_message_window_topmost(void)
+{
+    /* All SWP_* flags except SWP_NOZORDER, which has a different effect. */
+    const UINT swp_flags = SWP_ASYNCWINDOWPOS | SWP_DEFERERASE | SWP_DRAWFRAME | SWP_FRAMECHANGED
+            | SWP_HIDEWINDOW | SWP_NOACTIVATE | SWP_NOCOPYBITS | SWP_NOMOVE | SWP_NOOWNERZORDER
+            | SWP_NOREDRAW | SWP_NOSENDCHANGING | SWP_NOSIZE | SWP_SHOWWINDOW;
+    /* Same as above, except the flags that cause
+     * ERROR_INVALID_PARAMETER to be returned by DeferWindowPos(). */
+    const UINT dwp_flags = SWP_DRAWFRAME | SWP_FRAMECHANGED
+            | SWP_HIDEWINDOW | SWP_NOACTIVATE | SWP_NOCOPYBITS | SWP_NOMOVE | SWP_NOOWNERZORDER
+            | SWP_NOREDRAW | SWP_NOSIZE | SWP_SHOWWINDOW;
+    HWND hwnd, hwnd_msg;
+    HDWP hdwp;
+    RECT rect;
+    BOOL ret;
+    MSG msg;
+
+    hwnd = CreateWindowW(L"static", L"main window", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+            210, 211, 212, 213, NULL, NULL, GetModuleHandleW(NULL), NULL);
+    ok(!!hwnd, "Cannot create main window\n");
+    flush_events(TRUE);
+    SetWindowLongPtrW(hwnd, GWLP_WNDPROC, (LONG_PTR)message_window_topmost_proc);
+
+    hwnd_msg = CreateWindowW(L"static", L"message window", 0,
+            220, 221, 222, 223, HWND_MESSAGE, NULL, GetModuleHandleW(NULL), NULL);
+    ok(!!hwnd_msg, "Cannot create message window\n");
+    flush_events(TRUE);
+    SetWindowLongPtrW(hwnd_msg, GWLP_WNDPROC, (LONG_PTR)message_window_topmost_proc);
+
+    ret = GetWindowRect(hwnd_msg, &rect);
+    ok(ret, "Unexpected failure when calling GetWindowRect()\n");
+    ok(rect.left == 220 && rect.top == 221 && rect.right == 220 + 222 && rect.bottom == 221 + 223,
+            "Unexpected rectangle %s\n", wine_dbgstr_rect(&rect));
+
+    while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE))
+    {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+
+    message_window_topmost_hwnd_msg = hwnd_msg;
+
+    SetLastError(0xdeadbeef);
+
+    ret = SetWindowPos(hwnd_msg, HWND_TOPMOST, 230, 231, 232, 233, 0);
+    ok(ret, "Unexpected failure when calling SetWindowPos()\n");
+
+    ret = SetWindowPos(hwnd_msg, HWND_TOPMOST, 234, 235, 236, 237, swp_flags);
+    ok(ret, "Unexpected failure when calling SetWindowPos()\n");
+
+    ret = SetWindowPos(hwnd_msg, HWND_NOTOPMOST, 240, 241, 242, 243, 0);
+    ok(ret, "Unexpected failure when calling SetWindowPos()\n");
+
+    ret = SetWindowPos(hwnd_msg, HWND_NOTOPMOST, 244, 245, 246, 247, swp_flags);
+    ok(ret, "Unexpected failure when calling SetWindowPos()\n");
+
+    hdwp = BeginDeferWindowPos(4);
+    ok(!!hdwp, "Unexpected failure when calling BeginDeferWindowPos()\n");
+
+    hdwp = DeferWindowPos(hdwp, hwnd_msg, HWND_TOPMOST, 250, 251, 252, 253, 0);
+    ok(!!hdwp, "Unexpected failure when calling DeferWindowPos()\n");
+
+    hdwp = DeferWindowPos(hdwp, hwnd_msg, HWND_TOPMOST, 254, 255, 256, 257, dwp_flags);
+    ok(!!hdwp, "Unexpected failure when calling DeferWindowPos()\n");
+
+    hdwp = DeferWindowPos(hdwp, hwnd_msg, HWND_NOTOPMOST, 260, 261, 262, 263, 0);
+    ok(!!hdwp, "Unexpected failure when calling DeferWindowPos()\n");
+
+    hdwp = DeferWindowPos(hdwp, hwnd_msg, HWND_NOTOPMOST, 264, 265, 266, 267, dwp_flags);
+    ok(!!hdwp, "Unexpected failure when calling DeferWindowPos()\n");
+
+    ret = EndDeferWindowPos(hdwp);
+    ok(ret, "Unexpected failure when calling EndDeferWindowPos()\n");
+
+    ok(GetLastError() == 0xdeadbeef, "Last error unexpectedly set to %#lx\n", GetLastError());
+
+    while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE))
+    {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+
+    message_window_topmost_hwnd_msg = NULL;
+
+    ret = GetWindowRect(hwnd_msg, &rect);
+    ok(ret, "Unexpected failure when calling GetWindowRect()\n");
+    ok(rect.left == 220 && rect.top == 221 && rect.right == 220 + 222 && rect.bottom == 221 + 223,
+            "Unexpected rectangle %s\n", wine_dbgstr_rect(&rect));
+
+    ok(!message_window_topmost_received_killfocus, "Received WM_KILLFOCUS\n");
+    message_window_topmost_received_killfocus = FALSE;
+
+    ret = SetWindowPos(hwnd_msg, HWND_TOPMOST, 230, 231, 232, 233, SWP_NOZORDER);
+    ok(ret, "Unexpected failure when calling SetWindowPos()\n");
+
+    while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE))
+    {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+
+    ok(message_window_topmost_received_killfocus, "Did not receive WM_KILLFOCUS\n");
+
+    ret = GetWindowRect(hwnd_msg, &rect);
+    ok(ret, "Unexpected failure when calling GetWindowRect()\n");
+    ok(rect.left == 230 && rect.top == 231 && rect.right == 230 + 232 && rect.bottom == 231 + 233,
+            "Unexpected rectangle %s\n", wine_dbgstr_rect(&rect));
+
+    ok(DestroyWindow(hwnd_msg), "Cannot destroy main window\n");
+    ok(DestroyWindow(hwnd), "Cannot destroy message window\n");
+}
+
+
 static void test_layered_window(void)
 {
     HWND hwnd, child;
@@ -9888,7 +9925,7 @@ static void test_FlashWindowEx(void)
 
     SetLastError(0xdeadbeef);
     ret = pFlashWindowEx(&finfo);
-    ok(!ret, "previous window state should not be active\n");
+    todo_wine ok(!ret, "previous window state should not be active\n");
 
     finfo.cbSize = sizeof(FLASHWINFO) - 1;
     SetLastError(0xdeadbeef);
@@ -9939,7 +9976,7 @@ static void test_FlashWindowEx(void)
     finfo.dwFlags = FLASHW_STOP;
     SetLastError(0xdeadbeef);
     ret = pFlashWindowEx(&finfo);
-    todo_wine ok(prev != ret, "previous window state should be different\n");
+    ok(prev != ret, "previous window state should be different\n");
 
     DestroyWindow( hwnd );
 }
@@ -13413,6 +13450,7 @@ START_TEST(win)
     test_thick_child_size(hwndMain);
     test_fullscreen();
     test_hwnd_message();
+    test_message_window_topmost();
     test_nonclient_area(hwndMain);
     test_params();
     test_GetWindowModuleFileName();

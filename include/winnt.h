@@ -2446,7 +2446,7 @@ NTSYSAPI struct _TEB * WINAPI NtCurrentTeb(void);
 static FORCEINLINE struct _TEB * WINAPI NtCurrentTeb(void)
 {
     struct _TEB *teb;
-    __asm__(".byte 0x64\n\tmovl (0x18),%0" : "=r" (teb));
+    __asm__("movl %%fs:0x18,%0" : "=r" (teb));
     return teb;
 }
 #elif defined(__i386__) && defined(_MSC_VER)
@@ -2471,7 +2471,7 @@ static FORCEINLINE struct _TEB * WINAPI NtCurrentTeb(void)
 static FORCEINLINE struct _TEB * WINAPI NtCurrentTeb(void)
 {
     struct _TEB *teb;
-    __asm__(".byte 0x65\n\tmovq (0x30),%0" : "=r" (teb));
+    __asm__("movq %%gs:0x30,%0" : "=r" (teb));
     return teb;
 }
 #elif defined(__x86_64__) && defined(_MSC_VER)
@@ -2553,7 +2553,6 @@ static FORCEINLINE struct _TEB * WINAPI NtCurrentTeb(void)
 #define IO_REPARSE_TAG_CLOUD_MASK       __MSABI_LONG(0x0000F000)
 #define IO_REPARSE_TAG_APPEXECLINK      __MSABI_LONG(0x8000001B)
 #define IO_REPARSE_TAG_GVFS             __MSABI_LONG(0x9000001C)
-#define IO_REPARSE_TAG_LX_SYMLINK       __MSABI_LONG(0xA000001D)
 #define IO_REPARSE_TAG_STORAGE_SYNC     __MSABI_LONG(0x8000001E)
 #define IO_REPARSE_TAG_WCI_TOMBSTONE    __MSABI_LONG(0xA000001F)
 #define IO_REPARSE_TAG_UNHANDLED        __MSABI_LONG(0x80000020)

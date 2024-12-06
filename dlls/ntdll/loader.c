@@ -88,9 +88,6 @@ const WCHAR system_dir[] = L"C:\\windows\\system32\\";
 /* system search path */
 static const WCHAR system_path[] = L"C:\\windows\\system32;C:\\windows\\system;C:\\windows";
 
-#define IS_OPTION_TRUE(ch) ((ch) == 'y' || (ch) == 'Y' || (ch) == 't' || (ch) == 'T' || (ch) == '1')
-
-
 static BOOL is_prefix_bootstrap;  /* are we bootstrapping the prefix? */
 static BOOL imports_fixup_done = FALSE;  /* set once the imports have been fixed up, before attaching them */
 static BOOL process_detaching = FALSE;  /* set on process detach to avoid deadlocks with thread detach */
@@ -109,8 +106,6 @@ struct dll_dir_entry
 };
 
 static struct list dll_dir_list = LIST_INIT( dll_dir_list );  /* extra dirs from LdrAddDllDirectory */
-
-static BOOL hide_wine_exports = FALSE;  /* try to hide ntdll wine exports from applications */
 
 struct ldr_notification
 {
@@ -202,12 +197,6 @@ static FARPROC find_ordinal_export( HMODULE module, const IMAGE_EXPORT_DIRECTORY
 static FARPROC find_named_export( HMODULE module, const IMAGE_EXPORT_DIRECTORY *exports,
                                   DWORD exp_size, const char *name, int hint, LPCWSTR load_path );
 
-/* convert PE image VirtualAddress to Real Address */
-static inline void *get_rva( HMODULE module, DWORD va )
-{
-    return (void *)((char *)module + va);
-}
-
 /* check whether the file name contains a path */
 static inline BOOL contains_path( LPCWSTR name )
 {
@@ -280,62 +269,6 @@ static RTL_BALANCED_NODE *rtl_rb_tree_get( RTL_RB_TREE *tree, const void *key,
     return NULL;
 }
 
-#ifdef __arm64ec__
-
-static void update_hybrid_pointer( void *module, const IMAGE_SECTION_HEADER *sec, UINT rva, void *ptr )
-{
-    if (!rva) return;
-
-    if (rva < sec->VirtualAddress || rva >= sec->VirtualAddress + sec->Misc.VirtualSize)
-        ERR( "rva %x outside of section %s (%lx-%lx)\n", rva,
-             sec->Name, sec->VirtualAddress, sec->VirtualAddress + sec->Misc.VirtualSize );
-    else
-        *(void **)get_rva( module, rva ) = ptr;
-}
-
-static void update_hybrid_metadata( void *module, IMAGE_NT_HEADERS *nt,
-                                    const IMAGE_ARM64EC_METADATA *metadata )
-{
-    DWORD i, protect_old;
-    const IMAGE_SECTION_HEADER *sec = IMAGE_FIRST_SECTION( nt );
-
-    /* assume that all pointers are in the same section */
-
-    for (i = 0; i < nt->FileHeader.NumberOfSections; i++, sec++)
-    {
-        if ((sec->VirtualAddress <= metadata->__os_arm64x_dispatch_call) &&
-            (sec->VirtualAddress + sec->Misc.VirtualSize > metadata->__os_arm64x_dispatch_call))
-        {
-            void *base = get_rva( module, sec->VirtualAddress );
-            SIZE_T size = sec->Misc.VirtualSize;
-
-            NtProtectVirtualMemory( NtCurrentProcess(), &base, &size, PAGE_READWRITE, &protect_old );
-
-#define SET_FUNC(func,val) update_hybrid_pointer( module, sec, metadata->func, val )
-            SET_FUNC( __os_arm64x_dispatch_call, __os_arm64x_check_call );
-            SET_FUNC( __os_arm64x_dispatch_call_no_redirect, __os_arm64x_dispatch_call_no_redirect );
-            SET_FUNC( __os_arm64x_dispatch_fptr, __os_arm64x_dispatch_fptr );
-            SET_FUNC( __os_arm64x_dispatch_icall, __os_arm64x_check_icall );
-            SET_FUNC( __os_arm64x_dispatch_icall_cfg, __os_arm64x_check_icall_cfg );
-            SET_FUNC( __os_arm64x_dispatch_ret, __os_arm64x_dispatch_ret );
-            SET_FUNC( __os_arm64x_helper3, __os_arm64x_helper3 );
-            SET_FUNC( __os_arm64x_helper4, __os_arm64x_helper4 );
-            SET_FUNC( __os_arm64x_helper5, __os_arm64x_helper5 );
-            SET_FUNC( __os_arm64x_helper6, __os_arm64x_helper6 );
-            SET_FUNC( __os_arm64x_helper7, __os_arm64x_helper7 );
-            SET_FUNC( __os_arm64x_helper8, __os_arm64x_helper8 );
-            SET_FUNC( GetX64InformationFunctionPointer, __os_arm64x_get_x64_information );
-            SET_FUNC( SetX64InformationFunctionPointer, __os_arm64x_set_x64_information );
-#undef SET_FUNC
-
-            NtProtectVirtualMemory( NtCurrentProcess(), &base, &size, protect_old, &protect_old );
-            return;
-        }
-    }
-    ERR( "module %p no section found for %lx\n", module, metadata->__os_arm64x_dispatch_call );
-}
-
-#endif
 
 /*********************************************************************
  *           RtlGetUnloadEventTrace [NTDLL.@]
@@ -2089,96 +2022,6 @@ NTSTATUS WINAPI LdrUnlockLoaderLock( ULONG flags, ULONG_PTR magic )
 }
 
 
-/***********************************************************************
- *           hidden_exports_init
- *
- * Initializes the hide_wine_exports options.
- */
-static void hidden_exports_init( const WCHAR *appname )
-{
-    static const WCHAR configW[] = {'S','o','f','t','w','a','r','e','\\','W','i','n','e',0};
-    static const WCHAR appdefaultsW[] = {'A','p','p','D','e','f','a','u','l','t','s','\\',0};
-    static const WCHAR hideWineExports[] = {'H','i','d','e','W','i','n','e','E','x','p','o','r','t','s',0};
-    OBJECT_ATTRIBUTES attr;
-    UNICODE_STRING nameW;
-    HANDLE root, config_key, hkey;
-    BOOL got_hide_wine_exports = FALSE;
-    char tmp[80];
-    DWORD dummy;
-
-    RtlOpenCurrentUser( KEY_ALL_ACCESS, &root );
-    attr.Length = sizeof(attr);
-    attr.RootDirectory = root;
-    attr.ObjectName = &nameW;
-    attr.Attributes = OBJ_CASE_INSENSITIVE;
-    attr.SecurityDescriptor = NULL;
-    attr.SecurityQualityOfService = NULL;
-    RtlInitUnicodeString( &nameW, configW );
-
-    /* @@ Wine registry key: HKCU\Software\Wine */
-    if (NtOpenKey( &config_key, KEY_QUERY_VALUE, &attr )) config_key = 0;
-    NtClose( root );
-    if (!config_key) return;
-
-    if (appname && *appname)
-    {
-        const WCHAR *p;
-        WCHAR appversion[MAX_PATH+20];
-
-        if ((p = wcsrchr( appname, '/' ))) appname = p + 1;
-        if ((p = wcsrchr( appname, '\\' ))) appname = p + 1;
-
-        wcscpy( appversion, appdefaultsW );
-        wcscat( appversion, appname );
-        RtlInitUnicodeString( &nameW, appversion );
-        attr.RootDirectory = config_key;
-
-        /* @@ Wine registry key: HKCU\Software\Wine\AppDefaults\app.exe */
-        if (!NtOpenKey( &hkey, KEY_QUERY_VALUE, &attr ))
-        {
-            TRACE( "getting HideWineExports from %s\n", debugstr_w(appversion) );
-
-            RtlInitUnicodeString( &nameW, hideWineExports );
-            if (!NtQueryValueKey( hkey, &nameW, KeyValuePartialInformation, tmp, sizeof(tmp), &dummy ))
-            {
-                WCHAR *str = (WCHAR *)((KEY_VALUE_PARTIAL_INFORMATION *)tmp)->Data;
-                hide_wine_exports = IS_OPTION_TRUE( str[0] );
-                got_hide_wine_exports = TRUE;
-            }
-
-            NtClose( hkey );
-        }
-    }
-
-    if (!got_hide_wine_exports)
-    {
-        TRACE( "getting default HideWineExports\n" );
-
-        RtlInitUnicodeString( &nameW, hideWineExports );
-        if (!NtQueryValueKey( config_key, &nameW, KeyValuePartialInformation, tmp, sizeof(tmp), &dummy ))
-        {
-            WCHAR *str = (WCHAR *)((KEY_VALUE_PARTIAL_INFORMATION *)tmp)->Data;
-            hide_wine_exports = IS_OPTION_TRUE( str[0] );
-        }
-    }
-
-    NtClose( config_key );
-}
-
-
-/***********************************************************************
- *           is_hidden_export
- *
- * Checks if a specific export should be hidden.
- */
-static BOOL is_hidden_export( void *proc )
-{
-    return hide_wine_exports && (proc == &wine_get_version ||
-                                 proc == &wine_get_build_id ||
-                                 proc == &wine_get_host_version);
-}
-
-
 /******************************************************************
  *		LdrGetProcedureAddress  (NTDLL.@)
  */
@@ -2199,7 +2042,7 @@ NTSTATUS WINAPI LdrGetProcedureAddress(HMODULE module, const ANSI_STRING *name,
     {
         void *proc = name ? find_named_export( module, exports, exp_size, name->Buffer, -1, NULL )
                           : find_ordinal_export( module, exports, exp_size, ord - exports->Base, NULL );
-        if (proc && !is_hidden_export( proc ))
+        if (proc)
         {
             *address = proc;
             ret = STATUS_SUCCESS;
@@ -2272,7 +2115,7 @@ static void update_load_config( void *module )
         cfg->CHPEMetadataPointer > (ULONG_PTR)module &&
         cfg->CHPEMetadataPointer < (ULONG_PTR)module + nt->OptionalHeader.SizeOfImage)
     {
-        update_hybrid_metadata( module, nt, (void *)cfg->CHPEMetadataPointer );
+        arm64ec_update_hybrid_metadata( module, nt, (void *)cfg->CHPEMetadataPointer );
     }
 #endif
 }
@@ -2461,8 +2304,6 @@ static void build_ntdll_module(void)
     wm->ldr.Flags &= ~LDR_DONT_RESOLVE_REFS;
     node_ntdll = wm->ldr.DdagNode;
     if (TRACE_ON(relay)) RELAY_SetupDLL( module );
-
-    hidden_exports_init( wm->ldr.FullDllName.Buffer );
 }
 
 
@@ -3587,6 +3428,7 @@ NTSTATUS WINAPI LdrGetDllFullName( HMODULE module, UNICODE_STRING *name )
     return status;
 }
 
+extern const char * CDECL wine_get_version(void);
 
 /******************************************************************
  *		LdrGetDllHandleEx (NTDLL.@)
@@ -3999,7 +3841,6 @@ void WINAPI LdrShutdownProcess(void)
     process_detach();
 }
 
-extern const char * CDECL wine_get_version(void);
 
 /******************************************************************
  *		RtlExitUserProcess (NTDLL.@)
@@ -4504,6 +4345,16 @@ void loader_init( CONTEXT *context, void **entry )
     ULONG_PTR cookie, port = 0;
     WINE_MODREF *wm;
 
+    RtlInitUnicodeString( &staging_event_string, L"\\__wine_staging_warn_event" );
+    InitializeObjectAttributes( &staging_event_attr, &staging_event_string, OBJ_OPENIF, NULL, NULL );
+    if (NtCreateEvent( &staging_event, EVENT_ALL_ACCESS, &staging_event_attr, NotificationEvent, FALSE ) == STATUS_SUCCESS)
+    {
+        FIXME_(winediag)("Wine TkG %s is a testing version containing experimental patches.\n", wine_get_version());
+        FIXME_(winediag)("Please don't report bugs about it on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead.\n");
+    }
+    else
+        WARN_(winediag)("Wine TkG %s is a testing version containing experimental patches.\n", wine_get_version());
+
     if (process_detaching) NtTerminateThread( GetCurrentThread(), 0 );
 
     RtlEnterCriticalSection( &loader_section );
@@ -4588,18 +4439,7 @@ void loader_init( CONTEXT *context, void **entry )
         arm64ec_thread_init();
 #endif
         wm = get_modref( NtCurrentTeb()->Peb->ImageBaseAddress );
-        /* This hunk occasionally applies in the wrong place;
-         * add a comment here to try to prevent that. */
     }
-    RtlInitUnicodeString( &staging_event_string, L"\\__wine_staging_warn_event" );
-    InitializeObjectAttributes( &staging_event_attr, &staging_event_string, OBJ_OPENIF, NULL, NULL );
-    if (NtCreateEvent( &staging_event, EVENT_ALL_ACCESS, &staging_event_attr, NotificationEvent, FALSE ) == STATUS_SUCCESS)
-    {
-        FIXME_(winediag)("Wine TkG (staging) %s is a testing version containing experimental patches.\n", wine_get_version());
-        FIXME_(winediag)("Please don't report bugs about it on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead.\n");
-    }
-    else
-        WARN_(winediag)("Wine TkG (staging) %s is a testing version containing experimental patches.\n", wine_get_version());
 
     NtCurrentTeb()->FlsSlots = fls_alloc_data();
 
