@@ -163,6 +163,7 @@ enum vkd3d_shader_error
     VKD3D_SHADER_ERROR_HLSL_INVALID_OUTPUT_PRIMITIVE    = 5037,
     VKD3D_SHADER_ERROR_HLSL_INVALID_PARTITIONING        = 5038,
     VKD3D_SHADER_ERROR_HLSL_MISPLACED_SAMPLER_STATE     = 5039,
+    VKD3D_SHADER_ERROR_HLSL_AMBIGUOUS_CALL              = 5040,
 
     VKD3D_SHADER_WARNING_HLSL_IMPLICIT_TRUNCATION       = 5300,
     VKD3D_SHADER_WARNING_HLSL_DIVISION_BY_ZERO          = 5301,
@@ -1428,9 +1429,12 @@ struct vsir_program
     bool use_vocp;
     bool has_point_size;
     bool has_point_coord;
+    bool has_fog;
     uint8_t diffuse_written_mask;
     enum vsir_control_flow_type cf_type;
     enum vsir_normalisation_level normalisation_level;
+    enum vkd3d_tessellator_domain tess_domain;
+    uint32_t io_dcls[VKD3D_BITMAP_SIZE(VKD3DSPR_COUNT)];
 
     const char **block_names;
     size_t block_name_count;

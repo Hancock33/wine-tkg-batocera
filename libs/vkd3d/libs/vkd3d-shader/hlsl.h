@@ -22,7 +22,6 @@
 
 #include "vkd3d_shader_private.h"
 #include "wine/rbtree.h"
-#include "d3dcommon.h"
 #include "d3dx9shader.h"
 
 /* The general IR structure is inspired by Mesa GLSL hir, even though the code
@@ -105,6 +104,7 @@ enum hlsl_type_class
     HLSL_CLASS_GEOMETRY_SHADER,
     HLSL_CLASS_CONSTANT_BUFFER,
     HLSL_CLASS_BLEND_STATE,
+    HLSL_CLASS_STREAM_OUTPUT,
     HLSL_CLASS_VOID,
     HLSL_CLASS_NULL,
     HLSL_CLASS_ERROR,
@@ -140,6 +140,13 @@ enum hlsl_sampler_dim
     HLSL_SAMPLER_DIM_RAW_BUFFER,
     HLSL_SAMPLER_DIM_MAX = HLSL_SAMPLER_DIM_RAW_BUFFER,
     /* NOTE: Remember to update object_methods[] in hlsl.y if this enum is modified. */
+};
+
+enum hlsl_so_object_type
+{
+    HLSL_STREAM_OUTPUT_POINT_STREAM,
+    HLSL_STREAM_OUTPUT_LINE_STREAM,
+    HLSL_STREAM_OUTPUT_TRIANGLE_STREAM,
 };
 
 enum hlsl_regset
@@ -220,6 +227,12 @@ struct hlsl_type
         } resource;
         /* Additional field to distinguish object types. Currently used only for technique types. */
         unsigned int version;
+        /* Additional information if type is HLSL_CLASS_STREAM_OUTPUT. */
+        struct
+        {
+            struct hlsl_type *type;
+            enum hlsl_so_object_type so_type;
+        } so;
     } e;
 
     /* Number of numeric register components used by one value of this type, for each regset.
@@ -330,8 +343,6 @@ enum hlsl_ir_node_type
     HLSL_IR_COMPILE,
     HLSL_IR_SAMPLER_STATE,
     HLSL_IR_STATEBLOCK_CONSTANT,
-
-    HLSL_IR_VSIR_INSTRUCTION_REF,
 };
 
 /* Common data for every type of IR instruction node. */
@@ -703,13 +714,11 @@ enum hlsl_ir_expr_op
     HLSL_OP1_LOG2,
     HLSL_OP1_LOGIC_NOT,
     HLSL_OP1_NEG,
-    HLSL_OP1_NRM,
     HLSL_OP1_RCP,
     HLSL_OP1_REINTERPRET,
     HLSL_OP1_ROUND,
     HLSL_OP1_RSQ,
     HLSL_OP1_SAT,
-    HLSL_OP1_SIGN,
     HLSL_OP1_SIN,
     HLSL_OP1_SIN_REDUCED,    /* Reduced range [-pi, pi], writes to .y */
     HLSL_OP1_SQRT,
@@ -719,7 +728,6 @@ enum hlsl_ir_expr_op
     HLSL_OP2_BIT_AND,
     HLSL_OP2_BIT_OR,
     HLSL_OP2_BIT_XOR,
-    HLSL_OP2_CRS,
     HLSL_OP2_DIV,
     HLSL_OP2_DOT,
     HLSL_OP2_EQUAL,
@@ -932,16 +940,6 @@ struct hlsl_ir_stateblock_constant
 {
     struct hlsl_ir_node node;
     char *name;
-};
-
-/* A vkd3d_shader_instruction that can be inserted in a hlsl_block.
- * Only used for the HLSL IR to vsir translation, might be removed once this translation is complete. */
-struct hlsl_ir_vsir_instruction_ref
-{
-    struct hlsl_ir_node node;
-
-    /* Index to a vkd3d_shader_instruction within a vkd3d_shader_instruction_array in a vsir_program. */
-    unsigned int vsir_instr_idx;
 };
 
 struct hlsl_scope
@@ -1259,12 +1257,6 @@ static inline struct hlsl_ir_stateblock_constant *hlsl_ir_stateblock_constant(co
     return CONTAINING_RECORD(node, struct hlsl_ir_stateblock_constant, node);
 }
 
-static inline struct hlsl_ir_vsir_instruction_ref *hlsl_ir_vsir_instruction_ref(const struct hlsl_ir_node *node)
-{
-    VKD3D_ASSERT(node->type == HLSL_IR_VSIR_INSTRUCTION_REF);
-    return CONTAINING_RECORD(node, struct hlsl_ir_vsir_instruction_ref, node);
-}
-
 static inline void hlsl_block_init(struct hlsl_block *block)
 {
     list_init(&block->instrs);
@@ -1442,6 +1434,8 @@ void hlsl_block_cleanup(struct hlsl_block *block);
 bool hlsl_clone_block(struct hlsl_ctx *ctx, struct hlsl_block *dst_block, const struct hlsl_block *src_block);
 
 void hlsl_dump_function(struct hlsl_ctx *ctx, const struct hlsl_ir_function_decl *func);
+void hlsl_dump_ir_function_decl(struct hlsl_ctx *ctx,
+        struct vkd3d_string_buffer *buffer, const struct hlsl_ir_function_decl *f);
 void hlsl_dump_var_default_values(const struct hlsl_ir_var *var);
 
 bool hlsl_state_block_add_entry(struct hlsl_state_block *state_block,
@@ -1519,6 +1513,8 @@ struct hlsl_ir_node *hlsl_new_if(struct hlsl_ctx *ctx, struct hlsl_ir_node *cond
 struct hlsl_ir_node *hlsl_new_int_constant(struct hlsl_ctx *ctx, int32_t n, const struct vkd3d_shader_location *loc);
 struct hlsl_ir_node *hlsl_new_jump(struct hlsl_ctx *ctx,
         enum hlsl_ir_jump_type type, struct hlsl_ir_node *condition, const struct vkd3d_shader_location *loc);
+struct hlsl_type *hlsl_new_stream_output_type(struct hlsl_ctx *ctx,
+        enum hlsl_so_object_type so_type, struct hlsl_type *type);
 struct hlsl_ir_node *hlsl_new_ternary_expr(struct hlsl_ctx *ctx, enum hlsl_ir_expr_op op,
         struct hlsl_ir_node *arg1, struct hlsl_ir_node *arg2, struct hlsl_ir_node *arg3);
 
@@ -1587,9 +1583,6 @@ struct hlsl_ir_switch_case *hlsl_new_switch_case(struct hlsl_ctx *ctx, unsigned 
         struct hlsl_block *body, const struct vkd3d_shader_location *loc);
 struct hlsl_ir_node *hlsl_new_switch(struct hlsl_ctx *ctx, struct hlsl_ir_node *selector,
         struct list *cases, const struct vkd3d_shader_location *loc);
-
-struct hlsl_ir_node *hlsl_new_vsir_instruction_ref(struct hlsl_ctx *ctx, unsigned int vsir_instr_idx,
-        struct hlsl_type *type, const struct hlsl_reg *reg, const struct vkd3d_shader_location *loc);
 
 void hlsl_error(struct hlsl_ctx *ctx, const struct vkd3d_shader_location *loc,
         enum vkd3d_shader_error error, const char *fmt, ...) VKD3D_PRINTF_FUNC(4, 5);

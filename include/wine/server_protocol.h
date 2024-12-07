@@ -1856,6 +1856,7 @@ enum server_fd_type
 {
     FD_TYPE_INVALID,
     FD_TYPE_FILE,
+    FD_TYPE_SYMLINK,
     FD_TYPE_DIR,
     FD_TYPE_SOCKET,
     FD_TYPE_SERIAL,
@@ -2536,6 +2537,25 @@ struct flush_key_request
 struct flush_key_reply
 {
     struct reply_header __header;
+    abstime_t   timestamp_counter;
+    data_size_t total;
+    int         branch_count;
+    /* VARARG(data,bytes); */
+};
+
+
+
+struct flush_key_done_request
+{
+    struct request_header __header;
+    char __pad_12[4];
+    abstime_t    timestamp_counter;
+    int          branch;
+    char __pad_28[4];
+};
+struct flush_key_done_reply
+{
+    struct reply_header __header;
 };
 
 
@@ -2662,12 +2682,19 @@ struct save_registry_request
 {
     struct request_header __header;
     obj_handle_t hkey;
-    obj_handle_t file;
-    char __pad_20[4];
 };
 struct save_registry_reply
 {
     struct reply_header __header;
+    data_size_t  total;
+    /* VARARG(data,bytes); */
+    char __pad_12[4];
+};
+enum prefix_type
+{
+    PREFIX_UNKNOWN,
+    PREFIX_32BIT,
+    PREFIX_64BIT,
 };
 
 
@@ -3041,7 +3068,6 @@ struct send_hardware_message_reply
     int             new_y;
     char __pad_28[4];
 };
-#define SEND_HWMSG_INJECTED    0x01
 
 
 
@@ -5933,7 +5959,6 @@ struct fast_unselect_queue_reply
 };
 
 
-
 struct set_keyboard_repeat_request
 {
     struct request_header __header;
@@ -5947,6 +5972,7 @@ struct set_keyboard_repeat_reply
     int enable;
     char __pad_12[4];
 };
+
 
 
 struct get_fast_alert_event_request
@@ -6054,6 +6080,7 @@ enum request
     REQ_open_key,
     REQ_delete_key,
     REQ_flush_key,
+    REQ_flush_key_done,
     REQ_enum_key,
     REQ_set_key_value,
     REQ_get_key_value,
@@ -6358,6 +6385,7 @@ union generic_request
     struct open_key_request open_key_request;
     struct delete_key_request delete_key_request;
     struct flush_key_request flush_key_request;
+    struct flush_key_done_request flush_key_done_request;
     struct enum_key_request enum_key_request;
     struct set_key_value_request set_key_value_request;
     struct get_key_value_request get_key_value_request;
@@ -6660,6 +6688,7 @@ union generic_reply
     struct open_key_reply open_key_reply;
     struct delete_key_reply delete_key_reply;
     struct flush_key_reply flush_key_reply;
+    struct flush_key_done_reply flush_key_done_reply;
     struct enum_key_reply enum_key_reply;
     struct set_key_value_reply set_key_value_reply;
     struct get_key_value_reply get_key_value_reply;
@@ -6869,6 +6898,6 @@ union generic_reply
     struct get_fast_alert_event_reply get_fast_alert_event_reply;
 };
 
-#define SERVER_PROTOCOL_VERSION 854
+#define SERVER_PROTOCOL_VERSION 855
 
 #endif /* __WINE_WINE_SERVER_PROTOCOL_H */
