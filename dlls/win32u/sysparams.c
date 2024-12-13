@@ -156,6 +156,7 @@ static struct list gpus = LIST_INIT(gpus);
 static struct list sources = LIST_INIT(sources);
 static struct list monitors = LIST_INIT(monitors);
 static INT64 last_query_display_time;
+static UINT64 monitor_update_serial;
 static pthread_mutex_t display_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static BOOL emulate_modeset;
@@ -1609,8 +1610,13 @@ static DEVMODEW *get_virtual_modes( const DEVMODEW *current, const DEVMODEW *ini
         {2560, 1600}
     };
     UINT depths[] = {8, 16, initial->dmBitsPerPel}, i, j, count;
-    BOOL vertical = initial->dmDisplayOrientation & 1;
+    BOOL vertical;
     DEVMODEW *modes;
+
+    /* Check the ratio of dmPelsWidth to dmPelsHeight to determine whether the initial display mode
+     * is in horizontal or vertical orientation. DMDO_DEFAULT is the natural orientation of the
+     * device, which isn't necessarily a horizontal mode */
+    vertical = initial->dmPelsHeight > initial->dmPelsWidth;
 
     modes = malloc( ARRAY_SIZE(depths) * (ARRAY_SIZE(screen_sizes) + 2) * sizeof(*modes) );
 
@@ -1850,7 +1856,7 @@ static void monitor_get_info( struct monitor *monitor, MONITORINFO *info, UINT d
 }
 
 /* display_lock must be held */
-static void set_winstation_monitors(void)
+static void set_winstation_monitors( BOOL increment )
 {
     struct monitor_info *infos, *info;
     struct monitor *monitor;
@@ -1872,8 +1878,9 @@ static void set_winstation_monitors(void)
 
     SERVER_START_REQ( set_winstation_monitors )
     {
+        req->increment = increment;
         wine_server_add_data( req, infos, count * sizeof(*infos) );
-        wine_server_call( req );
+        if (!wine_server_call( req )) monitor_update_serial = reply->serial;
     }
     SERVER_END_REQ;
 
@@ -1965,7 +1972,7 @@ static struct monitor *find_monitor_from_path( const char *path )
     return NULL;
 }
 
-static BOOL update_display_cache_from_registry(void)
+static BOOL update_display_cache_from_registry( UINT64 serial )
 {
     char path[MAX_PATH];
     DWORD source_id, monitor_id, monitor_count = 0, size;
@@ -1989,7 +1996,11 @@ static BOOL update_display_cache_from_registry(void)
     if (status && status != STATUS_BUFFER_OVERFLOW)
         return FALSE;
 
-    if (key.LastWriteTime.QuadPart <= last_query_display_time) return TRUE;
+    if (key.LastWriteTime.QuadPart <= last_query_display_time)
+    {
+        monitor_update_serial = serial;
+        return TRUE;
+    }
 
     mutex = get_display_device_init_mutex();
 
@@ -2046,7 +2057,7 @@ static BOOL update_display_cache_from_registry(void)
     if ((ret = !list_empty( &sources ) && !list_empty( &monitors )))
         last_query_display_time = key.LastWriteTime.QuadPart;
 
-    set_winstation_monitors();
+    set_winstation_monitors( FALSE );
     release_display_device_init_mutex( mutex );
     return ret;
 }
@@ -2230,35 +2241,57 @@ static void commit_display_devices( struct device_manager_ctx *ctx )
         add_gpu( gpu->name, &gpu->pci_id, &gpu->uuid, ctx );
     }
 
-    set_winstation_monitors();
+    set_winstation_monitors( TRUE );
+}
+
+static UINT64 get_monitor_update_serial(void)
+{
+    struct object_lock lock = OBJECT_LOCK_INIT;
+    const desktop_shm_t *desktop_shm;
+    UINT64 serial = 0;
+    NTSTATUS status;
+
+    while ((status = get_shared_desktop( &lock, &desktop_shm )) == STATUS_PENDING)
+        serial = desktop_shm->monitor_serial;
+
+    return status ? 0 : serial;
+}
+
+void reset_monitor_update_serial(void)
+{
+    pthread_mutex_lock( &display_lock );
+    monitor_update_serial = 0;
+    pthread_mutex_unlock( &display_lock );
 }
 
 static BOOL lock_display_devices( BOOL force )
 {
     static const WCHAR wine_service_station_name[] =
         {'_','_','w','i','n','e','s','e','r','v','i','c','e','_','w','i','n','s','t','a','t','i','o','n',0};
-    HWINSTA winstation = NtUserGetProcessWindowStation();
     struct device_manager_ctx ctx = {.vulkan_gpus = LIST_INIT(ctx.vulkan_gpus)};
+    UINT64 serial;
     UINT status;
     WCHAR name[MAX_PATH];
     BOOL ret = TRUE;
 
-    /* services do not have any adapters, only a virtual monitor */
-    if (NtUserGetObjectInformation( winstation, UOI_NAME, name, sizeof(name), NULL )
-        && !wcscmp( name, wine_service_station_name ))
-    {
-        pthread_mutex_lock( &display_lock );
-        clear_display_devices();
-        list_add_tail( &monitors, &virtual_monitor.entry );
-        set_winstation_monitors();
-        return TRUE;
-    }
-
-    if (!force) get_display_driver(); /* make sure at least to load the user driver */
+    init_display_driver(); /* make sure to load the driver before anything else */
 
     pthread_mutex_lock( &display_lock );
 
-    if (!force && !update_display_cache_from_registry()) force = TRUE;
+    serial = get_monitor_update_serial();
+    if (!force && monitor_update_serial >= serial) return TRUE;
+
+    /* services do not have any adapters, only a virtual monitor */
+    if (NtUserGetObjectInformation( NtUserGetProcessWindowStation(), UOI_NAME, name, sizeof(name), NULL )
+        && !wcscmp( name, wine_service_station_name ))
+    {
+        clear_display_devices();
+        list_add_tail( &monitors, &virtual_monitor.entry );
+        set_winstation_monitors( TRUE );
+        return TRUE;
+    }
+
+    if (!force && !update_display_cache_from_registry( serial )) force = TRUE;
     if (force)
     {
         if (!get_vulkan_gpus( &ctx.vulkan_gpus )) WARN( "Failed to find any vulkan GPU\n" );
@@ -2266,7 +2299,7 @@ static BOOL lock_display_devices( BOOL force )
         else WARN( "Failed to update display devices, status %#x\n", status );
         release_display_manager_ctx( &ctx );
 
-        ret = update_display_cache_from_registry();
+        ret = update_display_cache_from_registry( serial );
     }
 
     if (!ret)

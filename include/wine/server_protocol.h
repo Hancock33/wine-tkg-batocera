@@ -963,6 +963,7 @@ typedef volatile struct
     unsigned int         flags;
     struct shared_cursor cursor;
     unsigned char        keystate[256];
+    unsigned __int64     monitor_serial;
 } desktop_shm_t;
 
 typedef volatile struct
@@ -3955,12 +3956,13 @@ struct close_winstation_reply
 struct set_winstation_monitors_request
 {
     struct request_header __header;
+    int              increment;
     /* VARARG(infos,monitor_infos); */
-    char __pad_12[4];
 };
 struct set_winstation_monitors_reply
 {
     struct reply_header __header;
+    unsigned __int64 serial;
 };
 
 
@@ -6898,6 +6900,6 @@ union generic_reply
     struct get_fast_alert_event_reply get_fast_alert_event_reply;
 };
 
-#define SERVER_PROTOCOL_VERSION 855
+#define SERVER_PROTOCOL_VERSION 856
 
 #endif /* __WINE_WINE_SERVER_PROTOCOL_H */

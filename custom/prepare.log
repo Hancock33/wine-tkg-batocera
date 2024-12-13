@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at 4f96088b Release v10.0-rc1
-HEAD is now at 4161e62e478 Release 10.0-rc1.
+HEAD is now at c8d46d4c Rebase against 448fcbc0c60d7228ed52f1f5d90f62be0a58289a.
+HEAD is now at 5bfbeb677f4 Release 10.0-rc2.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
@@ -477,10 +477,10 @@ patching file include/config.h.in
 Hunk #1 succeeded at 189 (offset 12 lines).
 Hunk #2 succeeded at 522 (offset -3 lines).
 patching file include/wine/server_protocol.h
-Hunk #1 succeeded at 5989 (offset 355 lines).
-Hunk #2 succeeded at 6365 (offset 362 lines).
-Hunk #3 succeeded at 6670 (offset 375 lines).
-Hunk #4 succeeded at 6973 with fuzz 1 (offset 388 lines).
+Hunk #1 succeeded at 5991 (offset 357 lines).
+Hunk #2 succeeded at 6367 (offset 364 lines).
+Hunk #3 succeeded at 6672 (offset 377 lines).
+Hunk #4 succeeded at 6975 with fuzz 1 (offset 390 lines).
 patching file server/Makefile.in
 patching file server/async.c
 Hunk #1 succeeded at 78 (offset 1 line).
@@ -576,8 +576,8 @@ Hunk #18 succeeded at 840 (offset -3 lines).
 Hunk #19 succeeded at 1014 (offset -3 lines).
 patching file server/process.h
 patching file server/protocol.def
-Hunk #1 succeeded at 4075 (offset 188 lines).
-Hunk #2 succeeded at 4087 (offset 188 lines).
+Hunk #1 succeeded at 4079 (offset 192 lines).
+Hunk #2 succeeded at 4091 (offset 192 lines).
 patching file server/queue.c
 Hunk #1 succeeded at 44 (offset 1 line).
 Hunk #2 succeeded at 134 with fuzz 2 (offset -12 lines).
@@ -589,15 +589,15 @@ Hunk #7 succeeded at 218 (offset -12 lines).
 Hunk #8 succeeded at 319 with fuzz 2 (offset -1 lines).
 Hunk #9 succeeded at 737 (offset 134 lines).
 Hunk #10 succeeded at 761 (offset 141 lines).
-Hunk #11 succeeded at 1252 (offset 141 lines).
-Hunk #12 succeeded at 1309 (offset 142 lines).
-Hunk #13 succeeded at 1378 (offset 152 lines).
-Hunk #14 succeeded at 1389 (offset 152 lines).
-Hunk #15 succeeded at 3164 with fuzz 1 (offset 176 lines).
-Hunk #16 succeeded at 3193 with fuzz 1 (offset 317 lines).
-Hunk #17 succeeded at 3394 with fuzz 2 (offset 336 lines).
-Hunk #18 succeeded at 3466 (offset 335 lines).
-Hunk #19 succeeded at 4250 (offset 221 lines).
+Hunk #11 succeeded at 1253 (offset 142 lines).
+Hunk #12 succeeded at 1310 (offset 143 lines).
+Hunk #13 succeeded at 1379 (offset 153 lines).
+Hunk #14 succeeded at 1390 (offset 153 lines).
+Hunk #15 succeeded at 3165 with fuzz 1 (offset 177 lines).
+Hunk #16 succeeded at 3194 with fuzz 1 (offset 318 lines).
+Hunk #17 succeeded at 3395 with fuzz 2 (offset 337 lines).
+Hunk #18 succeeded at 3467 (offset 336 lines).
+Hunk #19 succeeded at 4251 (offset 222 lines).
 patching file server/registry.c
 patching file server/request.c
 Hunk #1 succeeded at 89 (offset -1 lines).
@@ -605,7 +605,7 @@ Hunk #2 succeeded at 101 (offset -1 lines).
 patching file server/request_handlers.h
 Hunk #1 succeeded at 299 (offset 1 line).
 Hunk #2 succeeded at 601 (offset 2 lines).
-Hunk #3 succeeded at 2282 (offset 6 lines).
+Hunk #3 succeeded at 2285 (offset 9 lines).
 patching file server/semaphore.c
 patching file server/serial.c
 Hunk #1 succeeded at 91 (offset 6 lines).
@@ -640,7 +640,7 @@ patching file server/token.c
 Hunk #1 succeeded at 145 (offset 2 lines).
 Hunk #2 succeeded at 157 (offset 2 lines).
 patching file server/request_trace.h
-Hunk #1 succeeded at 3346 with fuzz 1 (offset -1273 lines).
+Hunk #1 succeeded at 3352 with fuzz 1 (offset -1267 lines).
 patching file server/window.c
 Hunk #1 succeeded at 107 (offset -1 lines).
 Hunk #2 succeeded at 119 (offset -1 lines).
@@ -648,7 +648,7 @@ patching file server/winstation.c
 
 josh-flat-theme.patch -- ( Add Josh's better-theme )
 patching file dlls/win32u/sysparams.c
-Hunk #1 succeeded at 5167 (offset 3714 lines).
+Hunk #1 succeeded at 5200 (offset 3747 lines).
 patching file dlls/comctl32/tab.c
 Hunk #2 succeeded at 2124 (offset 7 lines).
 Hunk #3 succeeded at 2161 (offset 7 lines).

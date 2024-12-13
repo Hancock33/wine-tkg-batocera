@@ -208,6 +208,9 @@ static void host_window_reparent( struct host_window **win, Window parent, Windo
         old->children_count--;
     }
 
+    TRACE( "parent %lx, window %lx, rect %s, old %p/%lx -> new %p/%lx\n", parent, window,
+           wine_dbgstr_rect(&rect), old, old ? old->window : 0, new, new ? new->window : 0 );
+
     if (new && (index = find_host_window_child( new, window )) == new->children_count)
     {
         if (!(tmp = realloc( new->children, (index + 1) * sizeof(*new->children) ))) return;
@@ -226,6 +229,9 @@ static void host_window_reparent( struct host_window **win, Window parent, Windo
 RECT host_window_configure_child( struct host_window *win, Window window, RECT rect, BOOL root_coords )
 {
     unsigned int index;
+
+    TRACE( "host win %p/%lx, window %lx, rect %s, root_coords %u\n", win, win->window,
+           window, wine_dbgstr_rect(&rect), root_coords );
 
     if (root_coords)
     {
@@ -1301,7 +1307,7 @@ static void window_set_config( struct x11drv_win_data *data, const RECT *new_rec
 
     data->desired_state.rect = *new_rect;
     if (!data->whole_window) return; /* no window, nothing to update */
-    if (EqualRect( old_rect, new_rect )) return; /* rects are the same, nothing to update */
+    if (EqualRect( old_rect, new_rect ) && !above) return; /* rects are the same, no need to be raised, nothing to update */
 
     if (data->pending_state.wm_state == NormalState && data->net_wm_state_serial &&
         !(data->pending_state.net_wm_state & fullscreen_mask) &&
@@ -1316,7 +1322,9 @@ static void window_set_config( struct x11drv_win_data *data, const RECT *new_rec
     }
 
     /* resizing a managed maximized window is not allowed */
-    if (!(style & WS_MAXIMIZE) || !data->managed)
+    if ((old_rect->right - old_rect->left != new_rect->right - new_rect->left ||
+         old_rect->bottom - old_rect->top != new_rect->bottom - new_rect->top) &&
+        (!(style & WS_MAXIMIZE) || !data->managed))
     {
         changes.width = new_rect->right - new_rect->left;
         changes.height = new_rect->bottom - new_rect->top;
@@ -1328,7 +1336,8 @@ static void window_set_config( struct x11drv_win_data *data, const RECT *new_rec
     }
 
     /* only the size is allowed to change for the desktop window or systray docked windows */
-    if (data->whole_window != root_window && !data->embedded)
+    if ((old_rect->left != new_rect->left || old_rect->top != new_rect->top) &&
+        (data->whole_window != root_window && !data->embedded))
     {
         POINT pt = virtual_screen_to_root( new_rect->left, new_rect->top );
         changes.x = pt.x;
@@ -2496,7 +2505,7 @@ void set_window_parent( struct x11drv_win_data *data, Window parent )
     {
         RECT rect = data->rects.visible;
         OffsetRect( &rect, -rect.left, -rect.top );
-        host_window_configure_child( data->parent, data->whole_window, rect, TRUE );
+        host_window_configure_child( data->parent, data->whole_window, rect, FALSE );
     }
     data->parent_invalid = 0;
 }
@@ -3009,10 +3018,7 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
     XFlush( gdi_display );  /* make sure painting is done before we move the window */
 
     sync_client_position( data, &old_rects );
-
-    if (data->rects.client.right - data->rects.client.left != old_rects.client.right - old_rects.client.left ||
-        data->rects.client.bottom - data->rects.client.top != old_rects.client.bottom - old_rects.client.top)
-        sync_gl_drawable( hwnd, FALSE );
+    sync_gl_drawable( hwnd, FALSE );
 
     if (!data->whole_window)
     {
