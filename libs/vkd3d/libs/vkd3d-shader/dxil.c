@@ -9745,6 +9745,8 @@ static void sm6_parser_emit_dcl_tessellator_partitioning(struct sm6_parser *sm6,
 
     ins = sm6_parser_add_instruction(sm6, VKD3DSIH_DCL_TESSELLATOR_PARTITIONING);
     ins->declaration.tessellator_partitioning = tessellator_partitioning;
+
+    sm6->p.program->tess_partitioning = tessellator_partitioning;
 }
 
 static void sm6_parser_emit_dcl_tessellator_output_primitive(struct sm6_parser *sm6,
@@ -9761,6 +9763,8 @@ static void sm6_parser_emit_dcl_tessellator_output_primitive(struct sm6_parser *
 
     ins = sm6_parser_add_instruction(sm6, VKD3DSIH_DCL_TESSELLATOR_OUTPUT_PRIMITIVE);
     ins->declaration.tessellator_output_primitive = primitive;
+
+    sm6->p.program->tess_output_primitive = primitive;
 }
 
 static void sm6_parser_emit_dcl_max_tessellation_factor(struct sm6_parser *sm6, struct sm6_metadata_value *m)
@@ -10352,7 +10356,7 @@ static enum vkd3d_result sm6_parser_init(struct sm6_parser *sm6, struct vsir_pro
     /* Estimate instruction count to avoid reallocation in most shaders. */
     count = max(token_count, 400) - 400;
     if (!vsir_program_init(program, compile_info, &version,
-            (count + (count >> 2)) / 2u + 10, VSIR_CF_BLOCKS, VSIR_FULLY_NORMALISED_IO))
+            (count + (count >> 2)) / 2u + 10, VSIR_CF_BLOCKS, VSIR_NORMALISED_SM6))
         return VKD3D_ERROR_OUT_OF_MEMORY;
     vkd3d_shader_parser_init(&sm6->p, program, message_context, compile_info->source_name);
     sm6->ptr = &sm6->start[1];
@@ -10379,6 +10383,7 @@ static enum vkd3d_result sm6_parser_init(struct sm6_parser *sm6, struct vsir_pro
     *input_signature = dxbc_desc->input_signature;
     *output_signature = dxbc_desc->output_signature;
     *patch_constant_signature = dxbc_desc->patch_constant_signature;
+    program->features = dxbc_desc->features;
     memset(dxbc_desc, 0, sizeof(*dxbc_desc));
 
     block = &sm6->root_block;

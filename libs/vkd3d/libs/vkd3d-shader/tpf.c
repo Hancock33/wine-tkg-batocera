@@ -166,21 +166,6 @@ STATIC_ASSERT(SM4_MAX_SRC_COUNT <= SPIRV_MAX_SRC_COUNT);
 /* The shift that corresponds to the D3D_SIF_TEXTURE_COMPONENTS mask. */
 #define VKD3D_SM4_SIF_TEXTURE_COMPONENTS_SHIFT 2
 
-#define VKD3D_SM4_REQUIRES_DOUBLES                              0x00000001
-#define VKD3D_SM4_REQUIRES_EARLY_DEPTH_STENCIL                  0x00000002
-#define VKD3D_SM4_REQUIRES_UAVS_AT_EVERY_STAGE                  0x00000004
-#define VKD3D_SM4_REQUIRES_64_UAVS                              0x00000008
-#define VKD3D_SM4_REQUIRES_MINIMUM_PRECISION                    0x00000010
-#define VKD3D_SM4_REQUIRES_11_1_DOUBLE_EXTENSIONS               0x00000020
-#define VKD3D_SM4_REQUIRES_11_1_SHADER_EXTENSIONS               0x00000040
-#define VKD3D_SM4_REQUIRES_LEVEL_9_COMPARISON_FILTERING         0x00000080
-#define VKD3D_SM4_REQUIRES_TILED_RESOURCES                      0x00000100
-#define VKD3D_SM4_REQUIRES_STENCIL_REF                          0x00000200
-#define VKD3D_SM4_REQUIRES_INNER_COVERAGE                       0x00000400
-#define VKD3D_SM4_REQUIRES_TYPED_UAV_LOAD_ADDITIONAL_FORMATS    0x00000800
-#define VKD3D_SM4_REQUIRES_ROVS                                 0x00001000
-#define VKD3D_SM4_REQUIRES_VIEWPORT_AND_RT_ARRAY_INDEX_FROM_ANY_SHADER_FEEDING_RASTERIZER 0x00002000
-
 enum vkd3d_sm4_opcode
 {
     VKD3D_SM4_OP_ADD                              = 0x00,
@@ -1277,6 +1262,7 @@ static void shader_sm5_read_dcl_tessellator_partitioning(struct vkd3d_shader_ins
 {
     ins->declaration.tessellator_partitioning = (opcode_token & VKD3D_SM5_TESSELLATOR_MASK)
             >> VKD3D_SM5_TESSELLATOR_SHIFT;
+    priv->p.program->tess_partitioning = ins->declaration.tessellator_partitioning;
 }
 
 static void shader_sm5_read_dcl_tessellator_output_primitive(struct vkd3d_shader_instruction *ins, uint32_t opcode,
@@ -1284,6 +1270,7 @@ static void shader_sm5_read_dcl_tessellator_output_primitive(struct vkd3d_shader
 {
     ins->declaration.tessellator_output_primitive = (opcode_token & VKD3D_SM5_TESSELLATOR_MASK)
             >> VKD3D_SM5_TESSELLATOR_SHIFT;
+    priv->p.program->tess_output_primitive = ins->declaration.tessellator_output_primitive;
 }
 
 static void shader_sm5_read_dcl_hs_max_tessfactor(struct vkd3d_shader_instruction *ins, uint32_t opcode,
@@ -1409,8 +1396,6 @@ struct sm4_stat
 
 struct tpf_compiler
 {
-    /* OBJECTIVE: We want to get rid of this HLSL IR specific field. */
-    struct hlsl_ctx *ctx;
     struct vsir_program *program;
     struct vkd3d_sm4_lookup_tables lookup;
     struct sm4_stat *stat;
@@ -2808,7 +2793,7 @@ static bool shader_sm4_init(struct vkd3d_shader_sm4_parser *sm4, struct vsir_pro
 
     /* Estimate instruction count to avoid reallocation in most shaders. */
     if (!vsir_program_init(program, compile_info,
-            &version, token_count / 7u + 20, VSIR_CF_STRUCTURED, VSIR_NOT_NORMALISED))
+            &version, token_count / 7u + 20, VSIR_CF_STRUCTURED, VSIR_NORMALISED_SM4))
         return false;
     vkd3d_shader_parser_init(&sm4->p, program, message_context, compile_info->source_name);
     sm4->ptr = sm4->start;
@@ -2917,6 +2902,7 @@ int tpf_parse(const struct vkd3d_shader_compile_info *compile_info, uint64_t con
     program->input_signature = dxbc_desc.input_signature;
     program->output_signature = dxbc_desc.output_signature;
     program->patch_constant_signature = dxbc_desc.patch_constant_signature;
+    program->features = dxbc_desc.features;
     memset(&dxbc_desc, 0, sizeof(dxbc_desc));
 
     /* DXBC stores used masks inverted for output signatures, for some reason.
@@ -3207,18 +3193,17 @@ bool sm4_sysval_semantic_from_semantic_name(enum vkd3d_shader_sysval_semantic *s
     return true;
 }
 
-static void add_section(struct hlsl_ctx *ctx, struct dxbc_writer *dxbc,
-        uint32_t tag, struct vkd3d_bytecode_buffer *buffer)
+static void add_section(struct tpf_compiler *tpf, uint32_t tag, struct vkd3d_bytecode_buffer *buffer)
 {
     /* Native D3DDisassemble() expects at least the sizes of the ISGN and OSGN
      * sections to be aligned. Without this, the sections themselves will be
      * aligned, but their reported sizes won't. */
     size_t size = bytecode_align(buffer);
 
-    dxbc_writer_add_section(dxbc, tag, buffer->data, size);
+    dxbc_writer_add_section(&tpf->dxbc, tag, buffer->data, size);
 
     if (buffer->status < 0)
-        ctx->result = buffer->status;
+        tpf->result = buffer->status;
 }
 
 static int signature_element_pointer_compare(const void *x, const void *y)
@@ -3279,7 +3264,7 @@ static void tpf_write_signature(struct tpf_compiler *tpf, const struct shader_si
         set_u32(&buffer, (2 + i * 6) * sizeof(uint32_t), string_offset);
     }
 
-    add_section(tpf->ctx, &tpf->dxbc, tag, &buffer);
+    add_section(tpf, tag, &buffer);
     vkd3d_free(sorted_elements);
 }
 
@@ -3498,28 +3483,6 @@ static D3D_SRV_DIMENSION sm4_rdef_resource_dimension(const struct hlsl_type *typ
     }
 }
 
-struct extern_resource
-{
-    /* var is only not NULL if this resource is a whole variable, so it may be responsible for more
-     * than one component. */
-    const struct hlsl_ir_var *var;
-    const struct hlsl_buffer *buffer;
-
-    char *name;
-    bool is_user_packed;
-
-    /* The data type of a single component of the resource.
-     * This might be different from the data type of the resource itself in 4.0
-     * profiles, where an array (or multi-dimensional array) is handled as a
-     * single resource, unlike in 5.0. */
-    struct hlsl_type *component_type;
-
-    enum hlsl_regset regset;
-    unsigned int id, space, index, bind_count;
-
-    struct vkd3d_shader_location loc;
-};
-
 static int sm4_compare_extern_resources(const void *a, const void *b)
 {
     const struct extern_resource *aa = (const struct extern_resource *)a;
@@ -3535,7 +3498,7 @@ static int sm4_compare_extern_resources(const void *a, const void *b)
     return vkd3d_u32_compare(aa->index, bb->index);
 }
 
-static void sm4_free_extern_resources(struct extern_resource *extern_resources, unsigned int count)
+void sm4_free_extern_resources(struct extern_resource *extern_resources, unsigned int count)
 {
     unsigned int i;
 
@@ -3551,7 +3514,7 @@ static const char *string_skip_tag(const char *string)
     return string;
 }
 
-static struct extern_resource *sm4_get_extern_resources(struct hlsl_ctx *ctx, unsigned int *count)
+struct extern_resource *sm4_get_extern_resources(struct hlsl_ctx *ctx, unsigned int *count)
 {
     bool separate_components = ctx->profile->major_version == 5 && ctx->profile->minor_version == 0;
     struct extern_resource *extern_resources = NULL;
@@ -3761,7 +3724,7 @@ static unsigned int get_component_index_from_default_initializer_index(struct hl
     vkd3d_unreachable();
 }
 
-static void write_sm4_rdef(struct hlsl_ctx *ctx, struct dxbc_writer *dxbc)
+void sm4_generate_rdef(struct hlsl_ctx *ctx, struct vkd3d_shader_code *rdef)
 {
     uint32_t binding_desc_size = (hlsl_version_ge(ctx, 5, 1) ? 10 : 8) * sizeof(uint32_t);
     size_t cbuffers_offset, resources_offset, creator_offset, string_offset;
@@ -3991,36 +3954,41 @@ static void write_sm4_rdef(struct hlsl_ctx *ctx, struct dxbc_writer *dxbc)
     creator_offset = put_string(&buffer, vkd3d_shader_get_version(NULL, NULL));
     set_u32(&buffer, creator_position, creator_offset);
 
-    add_section(ctx, dxbc, TAG_RDEF, &buffer);
-
     sm4_free_extern_resources(extern_resources, extern_resources_count);
+
+    if (buffer.status)
+    {
+        vkd3d_free(buffer.data);
+        ctx->result = buffer.status;
+        return;
+    }
+    rdef->code = buffer.data;
+    rdef->size = buffer.size;
 }
 
-static enum vkd3d_sm4_resource_type sm4_resource_dimension(const struct hlsl_type *type)
+static enum vkd3d_sm4_resource_type sm4_resource_dimension(enum vkd3d_shader_resource_type resource_type)
 {
-    switch (type->sampler_dim)
+    switch (resource_type)
     {
-        case HLSL_SAMPLER_DIM_1D:
+        case VKD3D_SHADER_RESOURCE_TEXTURE_1D:
             return VKD3D_SM4_RESOURCE_TEXTURE_1D;
-        case HLSL_SAMPLER_DIM_2D:
+        case VKD3D_SHADER_RESOURCE_TEXTURE_2D:
             return VKD3D_SM4_RESOURCE_TEXTURE_2D;
-        case HLSL_SAMPLER_DIM_3D:
+        case VKD3D_SHADER_RESOURCE_TEXTURE_3D:
             return VKD3D_SM4_RESOURCE_TEXTURE_3D;
-        case HLSL_SAMPLER_DIM_CUBE:
+        case VKD3D_SHADER_RESOURCE_TEXTURE_CUBE:
             return VKD3D_SM4_RESOURCE_TEXTURE_CUBE;
-        case HLSL_SAMPLER_DIM_1DARRAY:
+        case VKD3D_SHADER_RESOURCE_TEXTURE_1DARRAY:
             return VKD3D_SM4_RESOURCE_TEXTURE_1DARRAY;
-        case HLSL_SAMPLER_DIM_2DARRAY:
+        case VKD3D_SHADER_RESOURCE_TEXTURE_2DARRAY:
             return VKD3D_SM4_RESOURCE_TEXTURE_2DARRAY;
-        case HLSL_SAMPLER_DIM_2DMS:
+        case VKD3D_SHADER_RESOURCE_TEXTURE_2DMS:
             return VKD3D_SM4_RESOURCE_TEXTURE_2DMS;
-        case HLSL_SAMPLER_DIM_2DMSARRAY:
+        case VKD3D_SHADER_RESOURCE_TEXTURE_2DMSARRAY:
             return VKD3D_SM4_RESOURCE_TEXTURE_2DMSARRAY;
-        case HLSL_SAMPLER_DIM_CUBEARRAY:
+        case VKD3D_SHADER_RESOURCE_TEXTURE_CUBEARRAY:
             return VKD3D_SM4_RESOURCE_TEXTURE_CUBEARRAY;
-        case HLSL_SAMPLER_DIM_BUFFER:
-        case HLSL_SAMPLER_DIM_RAW_BUFFER:
-        case HLSL_SAMPLER_DIM_STRUCTURED_BUFFER:
+        case VKD3D_SHADER_RESOURCE_BUFFER:
             return VKD3D_SM4_RESOURCE_BUFFER;
         default:
             vkd3d_unreachable();
@@ -4350,177 +4318,41 @@ static void write_sm4_instruction(const struct tpf_compiler *tpf, const struct s
     sm4_update_stat_counters(tpf, instr);
 }
 
-static void write_sm4_dcl_constant_buffer(const struct tpf_compiler *tpf, const struct hlsl_buffer *cbuffer)
+static void tpf_dcl_constant_buffer(const struct tpf_compiler *tpf, const struct vkd3d_shader_instruction *ins)
 {
-    size_t size = (cbuffer->used_size + 3) / 4;
+    const struct vkd3d_shader_constant_buffer *cb = &ins->declaration.cb;
+    size_t size = (cb->size + 3) / 4;
 
     struct sm4_instruction instr =
     {
         .opcode = VKD3D_SM4_OP_DCL_CONSTANT_BUFFER,
 
-        .srcs[0].reg.dimension = VSIR_DIMENSION_VEC4,
-        .srcs[0].reg.type = VKD3DSPR_CONSTBUFFER,
-        .srcs[0].swizzle = VKD3D_SHADER_NO_SWIZZLE,
+        .srcs[0] = cb->src,
         .src_count = 1,
     };
 
-    if (hlsl_version_ge(tpf->ctx, 5, 1))
+    if (vkd3d_shader_ver_ge(&tpf->program->shader_version, 5, 1))
     {
-        instr.srcs[0].reg.idx[0].offset = cbuffer->reg.id;
-        instr.srcs[0].reg.idx[1].offset = cbuffer->reg.index;
-        instr.srcs[0].reg.idx[2].offset = cbuffer->reg.index; /* FIXME: array end */
+        instr.srcs[0].reg.idx[0].offset = cb->src.reg.idx[0].offset;
+        instr.srcs[0].reg.idx[1].offset = cb->range.first;
+        instr.srcs[0].reg.idx[2].offset = cb->range.last;
         instr.srcs[0].reg.idx_count = 3;
 
         instr.idx[0] = size;
-        instr.idx[1] = cbuffer->reg.space;
+        instr.idx[1] = cb->range.space;
         instr.idx_count = 2;
     }
     else
     {
-        instr.srcs[0].reg.idx[0].offset = cbuffer->reg.index;
+        instr.srcs[0].reg.idx[0].offset = cb->range.first;
         instr.srcs[0].reg.idx[1].offset = size;
         instr.srcs[0].reg.idx_count = 2;
     }
 
+    if (ins->flags & VKD3DSI_INDEXED_DYNAMIC)
+        instr.extra_bits |= VKD3D_SM4_INDEX_TYPE_MASK;
+
     write_sm4_instruction(tpf, &instr);
-}
-
-static void write_sm4_dcl_samplers(const struct tpf_compiler *tpf, const struct extern_resource *resource)
-{
-    unsigned int i;
-    struct sm4_instruction instr =
-    {
-        .opcode = VKD3D_SM4_OP_DCL_SAMPLER,
-
-        .dsts[0].reg.type = VKD3DSPR_SAMPLER,
-        .dst_count = 1,
-    };
-
-    VKD3D_ASSERT(resource->regset == HLSL_REGSET_SAMPLERS);
-
-    if (resource->component_type->sampler_dim == HLSL_SAMPLER_DIM_COMPARISON)
-        instr.extra_bits |= VKD3D_SM4_SAMPLER_COMPARISON << VKD3D_SM4_SAMPLER_MODE_SHIFT;
-
-    for (i = 0; i < resource->bind_count; ++i)
-    {
-        if (resource->var && !resource->var->objects_usage[HLSL_REGSET_SAMPLERS][i].used)
-            continue;
-
-        if (hlsl_version_ge(tpf->ctx, 5, 1))
-        {
-            VKD3D_ASSERT(!i);
-            instr.dsts[0].reg.idx[0].offset = resource->id;
-            instr.dsts[0].reg.idx[1].offset = resource->index;
-            instr.dsts[0].reg.idx[2].offset = resource->index; /* FIXME: array end */
-            instr.dsts[0].reg.idx_count = 3;
-
-            instr.idx[0] = resource->space;
-            instr.idx_count = 1;
-        }
-        else
-        {
-            instr.dsts[0].reg.idx[0].offset = resource->index + i;
-            instr.dsts[0].reg.idx_count = 1;
-        }
-        write_sm4_instruction(tpf, &instr);
-    }
-}
-
-static void write_sm4_dcl_textures(const struct tpf_compiler *tpf, const struct extern_resource *resource,
-        bool uav)
-{
-    const struct vkd3d_shader_version *version = &tpf->program->shader_version;
-    enum hlsl_regset regset = uav ? HLSL_REGSET_UAVS : HLSL_REGSET_TEXTURES;
-    struct hlsl_type *component_type;
-    struct sm4_instruction instr;
-    bool multisampled;
-    unsigned int i;
-
-    VKD3D_ASSERT(resource->regset == regset);
-
-    component_type = resource->component_type;
-
-    for (i = 0; i < resource->bind_count; ++i)
-    {
-        if (resource->var && !resource->var->objects_usage[regset][i].used)
-            continue;
-
-        instr = (struct sm4_instruction)
-        {
-            .dsts[0].reg.type = uav ? VKD3DSPR_UAV : VKD3DSPR_RESOURCE,
-            .dsts[0].reg.idx[0].offset = resource->id + i,
-            .dsts[0].reg.idx_count = 1,
-            .dst_count = 1,
-
-            .idx[0] = sm4_data_type(component_type) * 0x1111,
-            .idx_count = 1,
-        };
-
-        multisampled = component_type->sampler_dim == HLSL_SAMPLER_DIM_2DMS
-                || component_type->sampler_dim == HLSL_SAMPLER_DIM_2DMSARRAY;
-
-        if (!vkd3d_shader_ver_ge(version, 4, 1) && multisampled && !component_type->sample_count)
-        {
-            hlsl_error(tpf->ctx, &resource->loc, VKD3D_SHADER_ERROR_HLSL_INVALID_TYPE,
-                    "Multisampled texture object declaration needs sample count for profile %u.%u.",
-                    version->major, version->minor);
-        }
-
-        if (vkd3d_shader_ver_ge(version, 5, 1))
-        {
-            VKD3D_ASSERT(!i);
-            instr.dsts[0].reg.idx[0].offset = resource->id;
-            instr.dsts[0].reg.idx[1].offset = resource->index;
-            instr.dsts[0].reg.idx[2].offset = resource->index; /* FIXME: array end */
-            instr.dsts[0].reg.idx_count = 3;
-
-            instr.idx[1] = resource->space;
-            instr.idx_count = 2;
-        }
-        else
-        {
-            instr.dsts[0].reg.idx[0].offset = resource->index + i;
-            instr.dsts[0].reg.idx_count = 1;
-        }
-
-        if (uav)
-        {
-            switch (component_type->sampler_dim)
-            {
-                case HLSL_SAMPLER_DIM_STRUCTURED_BUFFER:
-                    instr.opcode = VKD3D_SM5_OP_DCL_UAV_STRUCTURED;
-                    instr.byte_stride = component_type->e.resource.format->reg_size[HLSL_REGSET_NUMERIC] * 4;
-                    break;
-                case HLSL_SAMPLER_DIM_RAW_BUFFER:
-                    instr.opcode = VKD3D_SM5_OP_DCL_UAV_RAW;
-                    break;
-                default:
-                    instr.opcode = VKD3D_SM5_OP_DCL_UAV_TYPED;
-                    break;
-            }
-
-            if (component_type->e.resource.rasteriser_ordered)
-                instr.opcode |= VKD3DSUF_RASTERISER_ORDERED_VIEW << VKD3D_SM5_UAV_FLAGS_SHIFT;
-        }
-        else
-        {
-            switch (component_type->sampler_dim)
-            {
-                case HLSL_SAMPLER_DIM_RAW_BUFFER:
-                    instr.opcode = VKD3D_SM5_OP_DCL_RESOURCE_RAW;
-                    break;
-                default:
-                    instr.opcode = VKD3D_SM4_OP_DCL_RESOURCE;
-                    break;
-            }
-        }
-        instr.extra_bits |= (sm4_resource_dimension(component_type) << VKD3D_SM4_RESOURCE_TYPE_SHIFT);
-
-        if (multisampled)
-            instr.extra_bits |= component_type->sample_count << VKD3D_SM4_RESOURCE_SAMPLE_COUNT_SHIFT;
-
-        write_sm4_instruction(tpf, &instr);
-    }
 }
 
 static void tpf_dcl_temps(const struct tpf_compiler *tpf, unsigned int count)
@@ -4593,6 +4425,100 @@ static void tpf_dcl_thread_group(const struct tpf_compiler *tpf, const struct vs
         .idx = {group_size->x, group_size->y, group_size->z},
         .idx_count = 3,
     };
+
+    write_sm4_instruction(tpf, &instr);
+}
+
+static void tpf_dcl_sampler(const struct tpf_compiler *tpf, const struct vkd3d_shader_instruction *ins)
+{
+    const struct vkd3d_shader_sampler *sampler = &ins->declaration.sampler;
+    struct sm4_instruction instr =
+    {
+        .opcode = VKD3D_SM4_OP_DCL_SAMPLER,
+        .extra_bits = ins->flags << VKD3D_SM4_SAMPLER_MODE_SHIFT,
+
+        .dsts[0].reg.type = VKD3DSPR_SAMPLER,
+        .dst_count = 1,
+    };
+
+    if (vkd3d_shader_ver_ge(&tpf->program->shader_version, 5, 1))
+    {
+        instr.dsts[0].reg.idx[0].offset = sampler->src.reg.idx[0].offset;
+        instr.dsts[0].reg.idx[1].offset = sampler->range.first;
+        instr.dsts[0].reg.idx[2].offset = sampler->range.last;
+        instr.dsts[0].reg.idx_count = 3;
+
+        instr.idx[0] = ins->declaration.sampler.range.space;
+        instr.idx_count = 1;
+    }
+    else
+    {
+        instr.dsts[0].reg.idx[0].offset = sampler->range.first;
+        instr.dsts[0].reg.idx_count = 1;
+    }
+
+    write_sm4_instruction(tpf, &instr);
+}
+
+static void tpf_dcl_texture(const struct tpf_compiler *tpf, const struct vkd3d_shader_instruction *ins)
+{
+    const struct vkd3d_shader_structured_resource *structured_resource = &ins->declaration.structured_resource;
+    const struct vkd3d_shader_semantic *semantic = &ins->declaration.semantic;
+    const struct vkd3d_shader_version *version = &tpf->program->shader_version;
+    const struct vkd3d_sm4_opcode_info *info;
+    struct sm4_instruction instr = {0};
+    unsigned int i, k;
+    bool uav;
+
+    info = get_info_from_vsir_opcode(&tpf->lookup, ins->opcode);
+    VKD3D_ASSERT(info);
+
+    uav = ins->opcode == VKD3DSIH_DCL_UAV_TYPED
+            || ins->opcode == VKD3DSIH_DCL_UAV_RAW
+            || ins->opcode == VKD3DSIH_DCL_UAV_STRUCTURED;
+
+    instr.opcode = info->opcode;
+
+    instr.dsts[0] = semantic->resource.reg;
+    instr.dst_count = 1;
+
+    for (k = 0; k < 4; ++k)
+    {
+        for (i = ARRAY_SIZE(data_type_table) - 1; i < ARRAY_SIZE(data_type_table); --i)
+        {
+            if (semantic->resource_data_type[k] == data_type_table[i])
+            {
+                instr.idx[0] |= i << (4 * k);
+                break;
+            }
+        }
+    }
+    instr.idx_count = 1;
+
+    if (vkd3d_shader_ver_ge(version, 5, 1))
+    {
+        instr.dsts[0].reg.idx[0].offset = semantic->resource.reg.reg.idx[0].offset;
+        instr.dsts[0].reg.idx[1].offset = semantic->resource.range.first;
+        instr.dsts[0].reg.idx[2].offset = semantic->resource.range.last;
+        instr.dsts[0].reg.idx_count = 3;
+
+        instr.idx[1] = semantic->resource.range.space;
+        instr.idx_count = 2;
+    }
+    else
+    {
+        instr.dsts[0].reg.idx[0].offset = semantic->resource.range.first;
+        instr.dsts[0].reg.idx_count = 1;
+    }
+
+    if (uav)
+        instr.extra_bits |= ins->flags << VKD3D_SM5_UAV_FLAGS_SHIFT;
+
+    instr.extra_bits |= (sm4_resource_dimension(ins->resource_type) << VKD3D_SM4_RESOURCE_TYPE_SHIFT);
+    instr.extra_bits |= semantic->sample_count << VKD3D_SM4_RESOURCE_SAMPLE_COUNT_SHIFT;
+
+    if (ins->structured)
+        instr.byte_stride = structured_resource->byte_stride;
 
     write_sm4_instruction(tpf, &instr);
 }
@@ -4746,6 +4672,10 @@ static void tpf_handle_instruction(struct tpf_compiler *tpf, const struct vkd3d_
 {
     switch (ins->opcode)
     {
+        case VKD3DSIH_DCL_CONSTANT_BUFFER:
+            tpf_dcl_constant_buffer(tpf, ins);
+            break;
+
         case VKD3DSIH_DCL_TEMPS:
             tpf_dcl_temps(tpf, ins->declaration.count);
             break;
@@ -4784,6 +4714,18 @@ static void tpf_handle_instruction(struct tpf_compiler *tpf, const struct vkd3d_
 
         case VKD3DSIH_DCL_OUTPUT_SIV:
             tpf_dcl_siv_semantic(tpf, VKD3D_SM4_OP_DCL_OUTPUT_SIV, &ins->declaration.register_semantic, 0);
+            break;
+
+        case VKD3DSIH_DCL_SAMPLER:
+            tpf_dcl_sampler(tpf, ins);
+            break;
+
+        case VKD3DSIH_DCL:
+        case VKD3DSIH_DCL_RESOURCE_RAW:
+        case VKD3DSIH_DCL_UAV_RAW:
+        case VKD3DSIH_DCL_UAV_STRUCTURED:
+        case VKD3DSIH_DCL_UAV_TYPED:
+            tpf_dcl_texture(tpf, ins);
             break;
 
         case VKD3DSIH_ADD:
@@ -4897,16 +4839,12 @@ static void tpf_write_program(struct tpf_compiler *tpf, const struct vsir_progra
         tpf_handle_instruction(tpf, &program->instructions.elements[i]);
 }
 
-static void tpf_write_shdr(struct tpf_compiler *tpf, struct hlsl_ir_function_decl *entry_func)
+static void tpf_write_shdr(struct tpf_compiler *tpf)
 {
-    const struct vkd3d_shader_version *version = &tpf->program->shader_version;
+    const struct vsir_program *program = tpf->program;
+    const struct vkd3d_shader_version *version;
     struct vkd3d_bytecode_buffer buffer = {0};
-    struct extern_resource *extern_resources;
-    unsigned int extern_resources_count, i;
-    const struct hlsl_buffer *cbuffer;
-    struct hlsl_ctx *ctx = tpf->ctx;
     size_t token_count_position;
-    uint32_t global_flags = 0;
 
     static const uint16_t shader_types[VKD3D_SHADER_TYPE_COUNT] =
     {
@@ -4923,92 +4861,45 @@ static void tpf_write_shdr(struct tpf_compiler *tpf, struct hlsl_ir_function_dec
 
     tpf->buffer = &buffer;
 
-    extern_resources = sm4_get_extern_resources(ctx, &extern_resources_count);
-
+    version = &program->shader_version;
     put_u32(&buffer, vkd3d_make_u32((version->major << 4) | version->minor, shader_types[version->type]));
     token_count_position = put_u32(&buffer, 0);
 
-    if (version->major == 4)
-    {
-        for (i = 0; i < extern_resources_count; ++i)
-        {
-            const struct extern_resource *resource = &extern_resources[i];
-            const struct hlsl_type *type = resource->component_type;
-
-            if (type && type->class == HLSL_CLASS_TEXTURE && type->sampler_dim == HLSL_SAMPLER_DIM_RAW_BUFFER)
-            {
-                global_flags |= VKD3DSGF_ENABLE_RAW_AND_STRUCTURED_BUFFERS;
-                break;
-            }
-        }
-    }
-
-    if (entry_func->early_depth_test && vkd3d_shader_ver_ge(version, 5, 0))
-        global_flags |= VKD3DSGF_FORCE_EARLY_DEPTH_STENCIL;
-
-    if (global_flags)
-        write_sm4_dcl_global_flags(tpf, global_flags);
+    if (program->global_flags)
+        write_sm4_dcl_global_flags(tpf, program->global_flags);
 
     if (version->type == VKD3D_SHADER_TYPE_HULL)
     {
         tpf_write_hs_decls(tpf);
 
-        tpf_write_dcl_input_control_point_count(tpf, 1); /* TODO: Obtain from InputPatch */
-        tpf_write_dcl_output_control_point_count(tpf, ctx->output_control_point_count);
-        tpf_write_dcl_tessellator_domain(tpf, ctx->domain);
-        tpf_write_dcl_tessellator_partitioning(tpf, ctx->partitioning);
-        tpf_write_dcl_tessellator_output_primitive(tpf, ctx->output_primitive);
+        tpf_write_dcl_input_control_point_count(tpf, program->input_control_point_count);
+        tpf_write_dcl_output_control_point_count(tpf, program->output_control_point_count);
+        tpf_write_dcl_tessellator_domain(tpf, program->tess_domain);
+        tpf_write_dcl_tessellator_partitioning(tpf, program->tess_partitioning);
+        tpf_write_dcl_tessellator_output_primitive(tpf, program->tess_output_primitive);
     }
     else if (version->type == VKD3D_SHADER_TYPE_DOMAIN)
     {
-        tpf_write_dcl_input_control_point_count(tpf, 0); /* TODO: Obtain from OutputPatch */
-        tpf_write_dcl_tessellator_domain(tpf, ctx->domain);
+        tpf_write_dcl_input_control_point_count(tpf, program->input_control_point_count);
+        tpf_write_dcl_tessellator_domain(tpf, program->tess_domain);
     }
 
-    LIST_FOR_EACH_ENTRY(cbuffer, &ctx->buffers, struct hlsl_buffer, entry)
-    {
-        if (cbuffer->reg.allocated)
-            write_sm4_dcl_constant_buffer(tpf, cbuffer);
-    }
-
-    for (i = 0; i < extern_resources_count; ++i)
-    {
-        const struct extern_resource *resource = &extern_resources[i];
-
-        if (resource->regset == HLSL_REGSET_SAMPLERS)
-            write_sm4_dcl_samplers(tpf, resource);
-        else if (resource->regset == HLSL_REGSET_TEXTURES)
-            write_sm4_dcl_textures(tpf, resource, false);
-        else if (resource->regset == HLSL_REGSET_UAVS)
-            write_sm4_dcl_textures(tpf, resource, true);
-    }
-
-    tpf_write_program(tpf, tpf->program);
+    tpf_write_program(tpf, program);
 
     set_u32(&buffer, token_count_position, bytecode_get_size(&buffer) / sizeof(uint32_t));
 
-    add_section(ctx, &tpf->dxbc, TAG_SHDR, &buffer);
+    add_section(tpf, TAG_SHDR, &buffer);
     tpf->buffer = NULL;
-
-    sm4_free_extern_resources(extern_resources, extern_resources_count);
 }
 
 static void tpf_write_sfi0(struct tpf_compiler *tpf)
 {
-    struct extern_resource *extern_resources;
-    unsigned int extern_resources_count;
-    struct hlsl_ctx *ctx = tpf->ctx;
     uint64_t *flags;
 
     flags = vkd3d_calloc(1, sizeof(*flags));
 
-    extern_resources = sm4_get_extern_resources(ctx, &extern_resources_count);
-    for (unsigned int i = 0; i < extern_resources_count; ++i)
-    {
-        if (extern_resources[i].component_type && extern_resources[i].component_type->e.resource.rasteriser_ordered)
-            *flags |= VKD3D_SM4_REQUIRES_ROVS;
-    }
-    sm4_free_extern_resources(extern_resources, extern_resources_count);
+    if (tpf->program->features.rovs)
+        *flags |= DXBC_SFI0_REQUIRES_ROVS;
 
     /* FIXME: We also emit code that should require UAVS_AT_EVERY_STAGE,
      * STENCIL_REF, and TYPED_UAV_LOAD_ADDITIONAL_FORMATS. */
@@ -5023,7 +4914,6 @@ static void tpf_write_stat(struct tpf_compiler *tpf)
 {
     struct vkd3d_bytecode_buffer buffer = {0};
     const struct sm4_stat *stat = tpf->stat;
-    struct hlsl_ctx *ctx = tpf->ctx;
 
     put_u32(&buffer, stat->fields[VKD3D_STAT_INSTR_COUNT]);
     put_u32(&buffer, stat->fields[VKD3D_STAT_TEMPS]);
@@ -5055,7 +4945,7 @@ static void tpf_write_stat(struct tpf_compiler *tpf)
     put_u32(&buffer, stat->fields[VKD3D_STAT_LOD]);
     put_u32(&buffer, 0); /* Sample frequency */
 
-    if (hlsl_version_ge(ctx, 5, 0))
+    if (vkd3d_shader_ver_ge(&tpf->program->shader_version, 5, 0))
     {
         put_u32(&buffer, stat->fields[VKD3D_STAT_DCL_GS_INSTANCES]);
         put_u32(&buffer, stat->fields[VKD3D_STAT_TESS_CONTROL_POINT_COUNT]);
@@ -5067,15 +4957,19 @@ static void tpf_write_stat(struct tpf_compiler *tpf)
         put_u32(&buffer, stat->fields[VKD3D_STAT_STORE]);
     }
 
-    add_section(ctx, &tpf->dxbc, TAG_STAT, &buffer);
+    add_section(tpf, TAG_STAT, &buffer);
 }
 
-/* OBJECTIVE: Stop relying on ctx and entry_func on this function, receiving
- * data from the other parameters instead, so they can be removed from the
- * arguments and this function can be independent of HLSL structs.  */
-int tpf_compile(struct vsir_program *program, uint64_t config_flags,
-        struct vkd3d_shader_code *out, struct vkd3d_shader_message_context *message_context,
-        struct hlsl_ctx *ctx, struct hlsl_ir_function_decl *entry_func)
+static void tpf_write_section(struct tpf_compiler *tpf, uint32_t tag, const struct vkd3d_shader_code *code)
+{
+    struct vkd3d_bytecode_buffer buffer = {0};
+
+    bytecode_put_bytes(&buffer, code->code, code->size);
+    add_section(tpf, tag, &buffer);
+}
+
+int tpf_compile(struct vsir_program *program, uint64_t config_flags, const struct vkd3d_shader_code *rdef,
+        struct vkd3d_shader_code *out, struct vkd3d_shader_message_context *message_context)
 {
     enum vkd3d_shader_type shader_type = program->shader_version.type;
     struct tpf_compiler tpf = {0};
@@ -5083,7 +4977,6 @@ int tpf_compile(struct vsir_program *program, uint64_t config_flags,
     size_t i;
     int ret;
 
-    tpf.ctx = ctx;
     tpf.program = program;
     tpf.buffer = NULL;
     tpf.stat = &stat;
@@ -5094,14 +4987,12 @@ int tpf_compile(struct vsir_program *program, uint64_t config_flags,
     tpf_write_signature(&tpf, &program->output_signature, TAG_OSGN);
     if (shader_type == VKD3D_SHADER_TYPE_HULL || shader_type == VKD3D_SHADER_TYPE_DOMAIN)
         tpf_write_signature(&tpf, &program->patch_constant_signature, TAG_PCSG);
-    write_sm4_rdef(ctx, &tpf.dxbc);
-    tpf_write_shdr(&tpf, entry_func);
+    tpf_write_section(&tpf, TAG_RDEF, rdef);
+    tpf_write_shdr(&tpf);
     tpf_write_sfi0(&tpf);
     tpf_write_stat(&tpf);
 
     ret = VKD3D_OK;
-    if (ctx->result)
-        ret = ctx->result;
     if (tpf.result)
         ret = tpf.result;
 

@@ -555,13 +555,6 @@ static bool append_conditional_break(struct hlsl_ctx *ctx, struct hlsl_block *co
     return true;
 }
 
-enum loop_type
-{
-    LOOP_FOR,
-    LOOP_WHILE,
-    LOOP_DO_WHILE
-};
-
 static void check_attribute_list_for_duplicates(struct hlsl_ctx *ctx, const struct parse_attribute_list *attrs)
 {
     unsigned int i, j;
@@ -577,8 +570,8 @@ static void check_attribute_list_for_duplicates(struct hlsl_ctx *ctx, const stru
     }
 }
 
-static void resolve_loop_continue(struct hlsl_ctx *ctx, struct hlsl_block *block, enum loop_type type,
-        struct hlsl_block *cond, struct hlsl_block *iter)
+static void resolve_loop_continue(struct hlsl_ctx *ctx, struct hlsl_block *block,
+        enum hlsl_loop_type type, struct hlsl_block *cond)
 {
     struct hlsl_ir_node *instr, *next;
 
@@ -588,8 +581,8 @@ static void resolve_loop_continue(struct hlsl_ctx *ctx, struct hlsl_block *block
         {
             struct hlsl_ir_if *iff = hlsl_ir_if(instr);
 
-            resolve_loop_continue(ctx, &iff->then_block, type, cond, iter);
-            resolve_loop_continue(ctx, &iff->else_block, type, cond, iter);
+            resolve_loop_continue(ctx, &iff->then_block, type, cond);
+            resolve_loop_continue(ctx, &iff->else_block, type, cond);
         }
         else if (instr->type == HLSL_IR_JUMP)
         {
@@ -599,7 +592,7 @@ static void resolve_loop_continue(struct hlsl_ctx *ctx, struct hlsl_block *block
             if (jump->type != HLSL_IR_JUMP_UNRESOLVED_CONTINUE)
                 continue;
 
-            if (type == LOOP_DO_WHILE)
+            if (type == HLSL_LOOP_DO_WHILE)
             {
                 if (!hlsl_clone_block(ctx, &cond_block, cond))
                     return;
@@ -610,13 +603,6 @@ static void resolve_loop_continue(struct hlsl_ctx *ctx, struct hlsl_block *block
                 }
                 list_move_before(&instr->entry, &cond_block.instrs);
             }
-            else if (type == LOOP_FOR)
-            {
-                if (!hlsl_clone_block(ctx, &cond_block, iter))
-                    return;
-                list_move_before(&instr->entry, &cond_block.instrs);
-            }
-            jump->type = HLSL_IR_JUMP_CONTINUE;
         }
     }
 }
@@ -740,11 +726,11 @@ static unsigned int evaluate_static_expression_as_uint(struct hlsl_ctx *ctx, str
     return res.number.u;
 }
 
-static struct hlsl_block *create_loop(struct hlsl_ctx *ctx, enum loop_type type,
+static struct hlsl_block *create_loop(struct hlsl_ctx *ctx, enum hlsl_loop_type type,
         const struct parse_attribute_list *attributes, struct hlsl_block *init, struct hlsl_block *cond,
         struct hlsl_block *iter, struct hlsl_block *body, const struct vkd3d_shader_location *loc)
 {
-    enum hlsl_ir_loop_unroll_type unroll_type = HLSL_IR_LOOP_UNROLL;
+    enum hlsl_loop_unroll_type unroll_type = HLSL_LOOP_UNROLL;
     unsigned int i, unroll_limit = 0;
     struct hlsl_ir_node *loop;
 
@@ -775,11 +761,11 @@ static struct hlsl_block *create_loop(struct hlsl_ctx *ctx, enum loop_type type,
                 hlsl_block_cleanup(&expr);
             }
 
-            unroll_type = HLSL_IR_LOOP_FORCE_UNROLL;
+            unroll_type = HLSL_LOOP_FORCE_UNROLL;
         }
         else if (!strcmp(attr->name, "loop"))
         {
-            unroll_type = HLSL_IR_LOOP_FORCE_LOOP;
+            unroll_type = HLSL_LOOP_FORCE_LOOP;
         }
         else if (!strcmp(attr->name, "fastopt")
                 || !strcmp(attr->name, "allow_uav_condition"))
@@ -792,7 +778,7 @@ static struct hlsl_block *create_loop(struct hlsl_ctx *ctx, enum loop_type type,
         }
     }
 
-    resolve_loop_continue(ctx, body, type, cond, iter);
+    resolve_loop_continue(ctx, body, type, cond);
 
     if (!init && !(init = make_empty_block(ctx)))
         goto oom;
@@ -800,15 +786,12 @@ static struct hlsl_block *create_loop(struct hlsl_ctx *ctx, enum loop_type type,
     if (!append_conditional_break(ctx, cond))
         goto oom;
 
-    if (iter)
-        hlsl_block_add_block(body, iter);
-
-    if (type == LOOP_DO_WHILE)
+    if (type == HLSL_LOOP_DO_WHILE)
         list_move_tail(&body->instrs, &cond->instrs);
     else
         list_move_head(&body->instrs, &cond->instrs);
 
-    if (!(loop = hlsl_new_loop(ctx, body, unroll_type, unroll_limit, loc)))
+    if (!(loop = hlsl_new_loop(ctx, iter, body, unroll_type, unroll_limit, loc)))
         goto oom;
     hlsl_block_add_instr(init, loop);
 
@@ -862,6 +845,7 @@ static struct hlsl_ir_node *get_swizzle(struct hlsl_ctx *ctx, struct hlsl_ir_nod
     if (value->data_type->class == HLSL_CLASS_MATRIX)
     {
         /* Matrix swizzle */
+        struct hlsl_matrix_swizzle s;
         bool m_swizzle;
         unsigned int inc, x, y;
 
@@ -892,10 +876,11 @@ static struct hlsl_ir_node *get_swizzle(struct hlsl_ctx *ctx, struct hlsl_ir_nod
 
             if (x >= value->data_type->dimx || y >= value->data_type->dimy)
                 return NULL;
-            swiz |= (y << 4 | x) << component * 8;
+            s.components[component].x = x;
+            s.components[component].y = y;
             component++;
         }
-        return hlsl_new_swizzle(ctx, swiz, component, value, loc);
+        return hlsl_new_matrix_swizzle(ctx, s, component, value, loc);
     }
 
     /* Vector swizzle */
@@ -924,8 +909,7 @@ static struct hlsl_ir_node *get_swizzle(struct hlsl_ctx *ctx, struct hlsl_ir_nod
 
             if (s >= value->data_type->dimx)
                 return NULL;
-            swiz |= s << component * 2;
-            component++;
+            hlsl_swizzle_set_component(&swiz, component++, s);
         }
         if (valid)
             return hlsl_new_swizzle(ctx, swiz, component, value, loc);
@@ -2102,8 +2086,8 @@ static bool invert_swizzle(uint32_t *swizzle, unsigned int *writemask, unsigned 
     {
         if (*writemask & (1 << i))
         {
-            unsigned int s = (*swizzle >> (i * 2)) & 3;
-            new_swizzle |= s << (bit++ * 2);
+            unsigned int s = hlsl_swizzle_get_component(*swizzle, i);
+            hlsl_swizzle_set_component(&new_swizzle, bit++, s);
             if (new_writemask & (1 << s))
                 return false;
             new_writemask |= 1 << s;
@@ -2117,9 +2101,9 @@ static bool invert_swizzle(uint32_t *swizzle, unsigned int *writemask, unsigned 
     {
         for (j = 0; j < width; ++j)
         {
-            unsigned int s = (new_swizzle >> (j * 2)) & 3;
+            unsigned int s = hlsl_swizzle_get_component(new_swizzle, j);
             if (s == i)
-                inverted |= j << (bit++ * 2);
+                hlsl_swizzle_set_component(&inverted, bit++, j);
         }
     }
 
@@ -2129,22 +2113,22 @@ static bool invert_swizzle(uint32_t *swizzle, unsigned int *writemask, unsigned 
     return true;
 }
 
-static bool invert_swizzle_matrix(uint32_t *swizzle, unsigned int *writemask, unsigned int *ret_width)
+static bool invert_swizzle_matrix(const struct hlsl_matrix_swizzle *swizzle,
+        uint32_t *ret_inverted, unsigned int *writemask, unsigned int *ret_width)
 {
-    /* swizzle is 8 bits per component, each component is (from LSB) 4 bits X, then 4 bits Y.
-     * components are indexed by their sources. i.e. the first component comes from the first
-     * component of the rhs. */
-    unsigned int i, j, bit = 0, inverted = 0, width, new_writemask = 0, new_swizzle = 0;
+    unsigned int i, j, bit = 0, inverted = 0, width, new_writemask = 0;
+    struct hlsl_matrix_swizzle new_swizzle = {0};
 
     /* First, we filter the swizzle to remove components that aren't enabled by writemask. */
     for (i = 0; i < 4; ++i)
     {
         if (*writemask & (1 << i))
         {
-            unsigned int s = (*swizzle >> (i * 8)) & 0xff;
-            unsigned int x = s & 0xf, y = (s >> 4) & 0xf;
+            unsigned int x = swizzle->components[i].x;
+            unsigned int y = swizzle->components[i].y;
             unsigned int idx = x + y * 4;
-            new_swizzle |= s << (bit++ * 8);
+
+            new_swizzle.components[bit++] = swizzle->components[i];
             if (new_writemask & (1 << idx))
                 return false;
             new_writemask |= 1 << idx;
@@ -2152,22 +2136,22 @@ static bool invert_swizzle_matrix(uint32_t *swizzle, unsigned int *writemask, un
     }
     width = bit;
 
-    /* Then we invert the swizzle. The resulting swizzle has 2 bits per component, because it's for the
-     * incoming vector. */
+    /* Then we invert the swizzle. The resulting swizzle uses a uint32_t
+     * vector format, because it's for the incoming vector. */
     bit = 0;
     for (i = 0; i < 16; ++i)
     {
         for (j = 0; j < width; ++j)
         {
-            unsigned int s = (new_swizzle >> (j * 8)) & 0xff;
-            unsigned int x = s & 0xf, y = (s >> 4) & 0xf;
+            unsigned int x = new_swizzle.components[j].x;
+            unsigned int y = new_swizzle.components[j].y;
             unsigned int idx = x + y * 4;
             if (idx == i)
-                inverted |= j << (bit++ * 2);
+                hlsl_swizzle_set_component(&inverted, bit++, j);
         }
     }
 
-    *swizzle = inverted;
+    *ret_inverted = inverted;
     *writemask = new_writemask;
     *ret_width = width;
     return true;
@@ -2221,28 +2205,34 @@ static bool add_assignment(struct hlsl_ctx *ctx, struct hlsl_block *block, struc
         {
             struct hlsl_ir_swizzle *swizzle = hlsl_ir_swizzle(lhs);
             struct hlsl_ir_node *new_swizzle;
-            uint32_t s = swizzle->swizzle;
+            uint32_t s;
 
             VKD3D_ASSERT(!matrix_writemask);
 
             if (swizzle->val.node->data_type->class == HLSL_CLASS_MATRIX)
             {
+                struct hlsl_matrix_swizzle ms = swizzle->u.matrix;
+
                 if (swizzle->val.node->type != HLSL_IR_LOAD && swizzle->val.node->type != HLSL_IR_INDEX)
                 {
                     hlsl_fixme(ctx, &lhs->loc, "Unhandled source of matrix swizzle.");
                     return false;
                 }
-                if (!invert_swizzle_matrix(&s, &writemask, &width))
+                if (!invert_swizzle_matrix(&ms, &s, &writemask, &width))
                 {
                     hlsl_error(ctx, &lhs->loc, VKD3D_SHADER_ERROR_HLSL_INVALID_WRITEMASK, "Invalid writemask for matrix.");
                     return false;
                 }
                 matrix_writemask = true;
             }
-            else if (!invert_swizzle(&s, &writemask, &width))
+            else
             {
-                hlsl_error(ctx, &lhs->loc, VKD3D_SHADER_ERROR_HLSL_INVALID_WRITEMASK, "Invalid writemask.");
-                return false;
+                s = swizzle->u.vector;
+                if (!invert_swizzle(&s, &writemask, &width))
+                {
+                    hlsl_error(ctx, &lhs->loc, VKD3D_SHADER_ERROR_HLSL_INVALID_WRITEMASK, "Invalid writemask.");
+                    return false;
+                }
             }
 
             if (!(new_swizzle = hlsl_new_swizzle(ctx, s, width, rhs, &swizzle->node.loc)))
@@ -8831,25 +8821,25 @@ if_body:
 loop_statement:
       attribute_list_optional loop_scope_start KW_WHILE '(' expr ')' statement
         {
-            $$ = create_loop(ctx, LOOP_WHILE, &$1, NULL, $5, NULL, $7, &@3);
+            $$ = create_loop(ctx, HLSL_LOOP_WHILE, &$1, NULL, $5, NULL, $7, &@3);
             hlsl_pop_scope(ctx);
             cleanup_parse_attribute_list(&$1);
         }
     | attribute_list_optional loop_scope_start KW_DO statement KW_WHILE '(' expr ')' ';'
         {
-            $$ = create_loop(ctx, LOOP_DO_WHILE, &$1, NULL, $7, NULL, $4, &@3);
+            $$ = create_loop(ctx, HLSL_LOOP_DO_WHILE, &$1, NULL, $7, NULL, $4, &@3);
             hlsl_pop_scope(ctx);
             cleanup_parse_attribute_list(&$1);
         }
     | attribute_list_optional loop_scope_start KW_FOR '(' expr_statement expr_statement expr_optional ')' statement
         {
-            $$ = create_loop(ctx, LOOP_FOR, &$1, $5, $6, $7, $9, &@3);
+            $$ = create_loop(ctx, HLSL_LOOP_FOR, &$1, $5, $6, $7, $9, &@3);
             hlsl_pop_scope(ctx);
             cleanup_parse_attribute_list(&$1);
         }
     | attribute_list_optional loop_scope_start KW_FOR '(' declaration expr_statement expr_optional ')' statement
         {
-            $$ = create_loop(ctx, LOOP_FOR, &$1, $5, $6, $7, $9, &@3);
+            $$ = create_loop(ctx, HLSL_LOOP_FOR, &$1, $5, $6, $7, $9, &@3);
             hlsl_pop_scope(ctx);
             cleanup_parse_attribute_list(&$1);
         }

@@ -1582,7 +1582,7 @@ static enum vkd3d_result instruction_array_normalise_hull_shader_control_point_i
     enum vkd3d_result ret;
     unsigned int i, j;
 
-    VKD3D_ASSERT(program->normalisation_level == VSIR_NOT_NORMALISED);
+    VKD3D_ASSERT(program->normalisation_level == VSIR_NORMALISED_SM4);
 
     if (program->shader_version.type != VKD3D_SHADER_TYPE_HULL)
     {
@@ -2340,7 +2340,7 @@ static enum vkd3d_result vsir_program_normalise_io_registers(struct vsir_program
 
     program->instructions = normaliser.instructions;
     program->use_vocp = normaliser.use_vocp;
-    program->normalisation_level = VSIR_FULLY_NORMALISED_IO;
+    program->normalisation_level = VSIR_NORMALISED_SM6;
     return VKD3D_OK;
 }
 
@@ -7150,6 +7150,20 @@ struct validation_context
 
     unsigned int outer_tess_idxs[4];
     unsigned int inner_tess_idxs[2];
+
+    struct validation_context_signature_data
+    {
+        struct validation_context_signature_stream_data
+        {
+            struct validation_context_signature_register_data
+            {
+                struct validation_context_signature_component_data
+                {
+                    const struct signature_element *element;
+                } components[VKD3D_VEC4_SIZE];
+            } registers[MAX_REG_OUTPUT];
+        } streams[VKD3D_MAX_STREAM_COUNT];
+    } input_signature_data, output_signature_data, patch_constant_signature_data;
 };
 
 static void VKD3D_PRINTF_FUNC(3, 4) validator_error(struct validation_context *ctx,
@@ -7192,76 +7206,77 @@ static void vsir_validate_register_without_indices(struct validation_context *ct
                 reg->idx_count, reg->type);
 }
 
-static void vsir_validate_io_register(struct validation_context *ctx,
-        const struct vkd3d_shader_register *reg)
+static const struct shader_signature *vsir_signature_from_register_type(struct validation_context *ctx,
+        enum vkd3d_shader_register_type register_type, bool *has_control_point, unsigned int *control_point_count)
 {
-    unsigned int control_point_count = 0, control_point_index;
-    const struct shader_signature *signature;
-    bool has_control_point = false;
+    *has_control_point = false;
+    *control_point_count = 0;
 
-    switch (reg->type)
+    switch (register_type)
     {
         case VKD3DSPR_INPUT:
-            signature = &ctx->program->input_signature;
-
             switch (ctx->program->shader_version.type)
             {
                 case VKD3D_SHADER_TYPE_GEOMETRY:
                 case VKD3D_SHADER_TYPE_HULL:
                 case VKD3D_SHADER_TYPE_DOMAIN:
-                    has_control_point = true;
-                    control_point_count = ctx->program->input_control_point_count;
+                    *has_control_point = true;
+                    *control_point_count = ctx->program->input_control_point_count;
                     break;
 
                 default:
                     break;
             }
-            break;
+            return &ctx->program->input_signature;
 
         case VKD3DSPR_OUTPUT:
             switch (ctx->program->shader_version.type)
             {
                 case VKD3D_SHADER_TYPE_HULL:
                     if (ctx->phase == VKD3DSIH_HS_CONTROL_POINT_PHASE
-                            || ctx->program->normalisation_level >= VSIR_FULLY_NORMALISED_IO)
+                            || ctx->program->normalisation_level >= VSIR_NORMALISED_SM6)
                     {
-                        signature = &ctx->program->output_signature;
-                        has_control_point = ctx->program->normalisation_level >= VSIR_NORMALISED_HULL_CONTROL_POINT_IO;
-                        control_point_count = ctx->program->output_control_point_count;
+                        *has_control_point = ctx->program->normalisation_level >= VSIR_NORMALISED_HULL_CONTROL_POINT_IO;
+                        *control_point_count = ctx->program->output_control_point_count;
+                        return &ctx->program->output_signature;
                     }
                     else
                     {
-                        signature = &ctx->program->patch_constant_signature;
+                        return &ctx->program->patch_constant_signature;
                     }
-                    break;
 
                 default:
-                    signature = &ctx->program->output_signature;
-                    break;
+                    return &ctx->program->output_signature;
             }
-            break;
 
         case VKD3DSPR_INCONTROLPOINT:
-            signature = &ctx->program->input_signature;
-            has_control_point = true;
-            control_point_count = ctx->program->input_control_point_count;
-            break;
+            *has_control_point = true;
+            *control_point_count = ctx->program->input_control_point_count;
+            return &ctx->program->input_signature;
 
         case VKD3DSPR_OUTCONTROLPOINT:
-            signature = &ctx->program->output_signature;
-            has_control_point = true;
-            control_point_count = ctx->program->output_control_point_count;
-            break;
+            *has_control_point = true;
+            *control_point_count = ctx->program->output_control_point_count;
+            return &ctx->program->output_signature;
 
         case VKD3DSPR_PATCHCONST:
-            signature = &ctx->program->patch_constant_signature;
-            break;
+            return &ctx->program->patch_constant_signature;
 
         default:
-            vkd3d_unreachable();
+            return NULL;
     }
+}
 
-    if (ctx->program->normalisation_level < VSIR_FULLY_NORMALISED_IO)
+static void vsir_validate_io_register(struct validation_context *ctx, const struct vkd3d_shader_register *reg)
+{
+    unsigned int control_point_index, control_point_count;
+    const struct shader_signature *signature;
+    bool has_control_point;
+
+    signature = vsir_signature_from_register_type(ctx, reg->type, &has_control_point, &control_point_count);
+    VKD3D_ASSERT(signature);
+
+    if (ctx->program->normalisation_level < VSIR_NORMALISED_SM6)
     {
         /* Indices are [register] or [control point, register]. Both are
          * allowed to have a relative address. */
@@ -7330,6 +7345,11 @@ static void vsir_validate_io_register(struct validation_context *ctx,
                     reg->idx_count, reg->type);
             return;
         }
+
+        if (is_array && !reg->idx[0].rel_addr && reg->idx[0].offset >= element->register_count)
+            validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_INDEX,
+                    "Array index %u exceeds the signature element register count %u in a register of type %#x.",
+                    reg->idx[0].offset, element->register_count, reg->type);
     }
 
     if (has_control_point && !reg->idx[control_point_index].rel_addr
@@ -7642,8 +7662,26 @@ static void vsir_validate_register(struct validation_context *ctx,
     for (i = 0; i < min(reg->idx_count, ARRAY_SIZE(reg->idx)); ++i)
     {
         const struct vkd3d_shader_src_param *param = reg->idx[i].rel_addr;
-        if (reg->idx[i].rel_addr)
+        if (param)
+        {
             vsir_validate_src_param(ctx, param);
+
+            switch (param->reg.type)
+            {
+                case VKD3DSPR_TEMP:
+                case VKD3DSPR_SSA:
+                case VKD3DSPR_ADDR:
+                case VKD3DSPR_LOOP:
+                case VKD3DSPR_OUTPOINTID:
+                    break;
+
+                default:
+                    validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_REGISTER_TYPE,
+                            "Invalid register type %#x for a relative address parameter.",
+                            param->reg.type);
+                    break;
+            }
+        }
     }
 
     switch (reg->type)
@@ -8025,18 +8063,31 @@ sysval_validation_data[] =
 };
 
 static void vsir_validate_signature_element(struct validation_context *ctx,
-        const struct shader_signature *signature, enum vsir_signature_type signature_type,
-        unsigned int idx)
+        const struct shader_signature *signature, struct validation_context_signature_data *signature_data,
+        enum vsir_signature_type signature_type, unsigned int idx)
 {
     enum vkd3d_tessellator_domain expected_tess_domain = VKD3D_TESSELLATOR_DOMAIN_INVALID;
+    bool integer_type = false, is_outer = false, is_gs_output, require_index = true;
     const char *signature_type_name = signature_type_names[signature_type];
     const struct signature_element *element = &signature->elements[idx];
-    bool integer_type = false, is_outer = false;
-    unsigned int semantic_index_max = 0;
+    unsigned int semantic_index_max = 0, i, j;
 
     if (element->register_count == 0)
         validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_SIGNATURE,
                 "element %u of %s signature: Invalid zero register count.", idx, signature_type_name);
+
+    if (element->register_index != UINT_MAX && (element->register_index >= MAX_REG_OUTPUT
+            || MAX_REG_OUTPUT - element->register_index < element->register_count))
+        validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_SIGNATURE,
+                "element %u of %s signature: Invalid register index %u and count %u.",
+                idx, signature_type_name, element->register_index, element->register_count);
+
+    is_gs_output = ctx->program->shader_version.type == VKD3D_SHADER_TYPE_GEOMETRY
+            && signature_type == SIGNATURE_TYPE_OUTPUT;
+    if (element->stream_index >= VKD3D_MAX_STREAM_COUNT || (element->stream_index != 0 && !is_gs_output))
+        validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_SIGNATURE,
+                "element %u of %s signature: Invalid stream index %u.",
+                idx, signature_type_name, element->stream_index);
 
     if (element->mask == 0 || (element->mask & ~0xf))
         validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_SIGNATURE,
@@ -8047,33 +8098,27 @@ static void vsir_validate_signature_element(struct validation_context *ctx,
                 "element %u of %s signature: Non-contiguous mask %#x.",
                 idx, signature_type_name, element->mask);
 
-    /* Here we'd likely want to validate that the usage mask is a subset of the
-     * signature mask. Unfortunately the D3DBC parser sometimes violates this.
-     * For example I've seen a shader like this:
-     *   ps_3_0
-     *   [...]
-     *   dcl_texcoord0 v0
-     *   [...]
-     *   texld r2.xyzw, v0.xyzw, s1.xyzw
-     *   [...]
-     *
-     * The dcl_textcoord0 instruction secretly has a .xy mask, which is used to
-     * compute the signature mask, but the texld instruction apparently uses all
-     * the components. Of course the last two components are ignored, but
-     * formally they seem to be used. So we end up with a signature element with
-     * mask .xy and usage mask .xyzw.
-     *
-     * The correct fix would probably be to make the D3DBC parser aware of which
-     * components are really used for each instruction, but that would take some
-     * time. */
-    if (element->used_mask & ~0xf)
-        validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_SIGNATURE,
-                "element %u of %s signature: Invalid usage mask %#x.",
-                idx, signature_type_name, element->used_mask);
+    if (ctx->program->normalisation_level >= VSIR_NORMALISED_SM4)
+    {
+        if ((element->used_mask & element->mask) != element->used_mask)
+            validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_SIGNATURE,
+                    "element %u of %s signature: Invalid usage mask %#x with mask %#x.",
+                    idx, signature_type_name, element->used_mask, element->mask);
+    }
+    else
+    {
+        if (element->used_mask & ~0xf)
+            validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_SIGNATURE,
+                    "element %u of %s signature: Invalid usage mask %#x.",
+                    idx, signature_type_name, element->used_mask);
+    }
 
     switch (element->sysval_semantic)
     {
         case VKD3D_SHADER_SV_NONE:
+        case VKD3D_SHADER_SV_TARGET:
+            break;
+
         case VKD3D_SHADER_SV_POSITION:
         case VKD3D_SHADER_SV_CLIP_DISTANCE:
         case VKD3D_SHADER_SV_CULL_DISTANCE:
@@ -8084,12 +8129,12 @@ static void vsir_validate_signature_element(struct validation_context *ctx,
         case VKD3D_SHADER_SV_INSTANCE_ID:
         case VKD3D_SHADER_SV_IS_FRONT_FACE:
         case VKD3D_SHADER_SV_SAMPLE_INDEX:
-        case VKD3D_SHADER_SV_TARGET:
         case VKD3D_SHADER_SV_DEPTH:
         case VKD3D_SHADER_SV_COVERAGE:
         case VKD3D_SHADER_SV_DEPTH_GREATER_EQUAL:
         case VKD3D_SHADER_SV_DEPTH_LESS_EQUAL:
         case VKD3D_SHADER_SV_STENCIL_REF:
+            require_index = false;
             break;
 
         case VKD3D_SHADER_SV_TESS_FACTOR_QUADEDGE:
@@ -8129,6 +8174,11 @@ static void vsir_validate_signature_element(struct validation_context *ctx,
                     idx, signature_type_name, element->sysval_semantic);
             break;
     }
+
+    if (require_index && element->register_index == UINT_MAX)
+        validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_SIGNATURE,
+                "element %u of %s signature: System value semantic %#x requires a register index.",
+                idx, signature_type_name, element->sysval_semantic);
 
     if (expected_tess_domain != VKD3D_TESSELLATOR_DOMAIN_INVALID)
     {
@@ -8240,6 +8290,31 @@ static void vsir_validate_signature_element(struct validation_context *ctx,
         validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_SIGNATURE,
                 "element %u of %s signature: Invalid interpolation mode %#x for integer component type.",
                 idx, signature_type_name, element->interpolation_mode);
+
+    if (element->stream_index >= VKD3D_MAX_STREAM_COUNT || !require_index)
+        return;
+
+    for (i = element->register_index; i < MAX_REG_OUTPUT
+            && i - element->register_index < element->register_count; ++i)
+    {
+        struct validation_context_signature_stream_data *stream_data = &signature_data->streams[element->stream_index];
+        struct validation_context_signature_register_data *register_data = &stream_data->registers[i];
+
+        for (j = 0; j < VKD3D_VEC4_SIZE; ++j)
+        {
+            struct validation_context_signature_component_data *component_data = &register_data->components[j];
+
+            if (!(element->mask & (1u << j)))
+                continue;
+
+            if (!component_data->element)
+                component_data->element = element;
+            else
+                validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_SIGNATURE,
+                        "element %u of %s signature: Conflict with element %zu.",
+                        idx, signature_type_name, component_data->element - signature->elements);
+        }
+    }
 }
 
 static const unsigned int allowed_signature_phases[] =
@@ -8249,8 +8324,8 @@ static const unsigned int allowed_signature_phases[] =
     [SIGNATURE_TYPE_PATCH_CONSTANT] = HS_BIT | DS_BIT,
 };
 
-static void vsir_validate_signature(struct validation_context *ctx,
-        const struct shader_signature *signature, enum vsir_signature_type signature_type)
+static void vsir_validate_signature(struct validation_context *ctx, const struct shader_signature *signature,
+        struct validation_context_signature_data *signature_data, enum vsir_signature_type signature_type)
 {
     unsigned int i;
 
@@ -8260,7 +8335,7 @@ static void vsir_validate_signature(struct validation_context *ctx,
                 "Unexpected %s signature.", signature_type_names[signature_type]);
 
     for (i = 0; i < signature->element_count; ++i)
-        vsir_validate_signature_element(ctx, signature, signature_type, i);
+        vsir_validate_signature_element(ctx, signature, signature_data, signature_type, i);
 
     if (signature_type == SIGNATURE_TYPE_PATCH_CONSTANT)
     {
@@ -8290,7 +8365,7 @@ static void vsir_validate_signature(struct validation_context *ctx,
         }
 
         /* After I/O normalisation tessellation factors are merged in a single array. */
-        if (ctx->program->normalisation_level >= VSIR_FULLY_NORMALISED_IO)
+        if (ctx->program->normalisation_level >= VSIR_NORMALISED_SM6)
         {
             expected_outer_count = min(1, expected_outer_count);
             expected_inner_count = min(1, expected_inner_count);
@@ -8473,6 +8548,169 @@ static void vsir_validate_dcl_hs_max_tessfactor(struct validation_context *ctx,
         validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_TESSELLATION,
                 "Max tessellation factor %f is invalid.",
                 instruction->declaration.max_tessellation_factor);
+}
+
+static void vsir_validate_dcl_index_range(struct validation_context *ctx,
+        const struct vkd3d_shader_instruction *instruction)
+{
+    unsigned int i, j, base_register_idx, effective_write_mask = 0, control_point_count, first_component = UINT_MAX;
+    const struct vkd3d_shader_index_range *range = &instruction->declaration.index_range;
+    enum vkd3d_shader_sysval_semantic sysval = ~0u;
+    const struct shader_signature *signature;
+    bool has_control_point;
+
+    if (ctx->program->normalisation_level >= VSIR_NORMALISED_SM6)
+    {
+        validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_HANDLER,
+                "DCL_INDEX_RANGE is not allowed with fully normalised input/output.");
+        return;
+    }
+
+    if (range->dst.modifiers != VKD3DSPDM_NONE)
+        validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_MODIFIERS,
+                "Invalid modifier %#x on a DCL_INDEX_RANGE destination parameter.", range->dst.modifiers);
+
+    if (range->dst.shift != 0)
+        validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_SHIFT,
+                "Invalid shift %u on a DCL_INDEX_RANGE destination parameter.", range->dst.shift);
+
+    signature = vsir_signature_from_register_type(ctx, range->dst.reg.type, &has_control_point, &control_point_count);
+    if (!signature)
+    {
+        validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_REGISTER_TYPE,
+                "Invalid register type %#x in DCL_INDEX_RANGE instruction.",
+                range->dst.reg.type);
+        return;
+    }
+
+    if (range->dst.reg.idx_count != 1 + !!has_control_point)
+    {
+        validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_INDEX_COUNT,
+                "Invalid index count %u in DCL_INDEX_RANGE instruction.",
+                range->dst.reg.idx_count);
+        return;
+    }
+
+    if (range->dst.reg.idx[0].rel_addr || (has_control_point && range->dst.reg.idx[1].rel_addr))
+        validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_INDEX,
+                "Invalid relative address in DCL_INDEX_RANGE instruction.");
+
+    if (has_control_point)
+    {
+        if (range->dst.reg.idx[0].offset != control_point_count)
+        {
+            validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_INDEX,
+                    "Invalid control point index %u in DCL_INDEX_RANGE instruction, expected %u.",
+                    range->dst.reg.idx[0].offset, control_point_count);
+        }
+
+        base_register_idx = range->dst.reg.idx[1].offset;
+    }
+    else
+    {
+        base_register_idx = range->dst.reg.idx[0].offset;
+    }
+
+    if (range->register_count < 2)
+    {
+        validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_RANGE,
+                "Invalid register count %u in DCL_INDEX_RANGE instruction, expected at least 2.",
+                range->register_count);
+        return;
+    }
+
+    /* Check that for each register in the range the write mask intersects at
+     * most one (and possibly zero) signature elements. Keep track of the union
+     * of all signature element masks. */
+    for (i = 0; i < range->register_count; ++i)
+    {
+        bool found = false;
+
+        for (j = 0; j < signature->element_count; ++j)
+        {
+            const struct signature_element *element = &signature->elements[j];
+
+            if (base_register_idx + i != element->register_index || !(range->dst.write_mask & element->mask))
+                continue;
+
+            if (found)
+                validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_WRITE_MASK,
+                        "Invalid write mask %#x on a DCL_INDEX_RANGE destination parameter.",
+                        range->dst.write_mask);
+
+            found = true;
+
+            if (first_component == UINT_MAX)
+                first_component = vsir_write_mask_get_component_idx(element->mask);
+            else if (first_component != vsir_write_mask_get_component_idx(element->mask))
+                validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_WRITE_MASK,
+                        "Signature masks are not left-aligned within a DCL_INDEX_RANGE.");
+
+            effective_write_mask |= element->mask;
+        }
+    }
+
+    /* Check again to have at most one intersection for each register, but this
+     * time using the effective write mask. Also check that we have stabilized,
+     * i.e., the effective write mask now contains all the signature element
+     * masks. This important for being able to merge all the signature elements
+     * in a single one without conflicts (there is no hard reason why we
+     * couldn't support an effective write mask that stabilizes after more
+     * iterations, but the code would be more complicated, and we avoid that if
+     * we can). */
+    for (i = 0; i < range->register_count; ++i)
+    {
+        bool found = false;
+
+        for (j = 0; j < signature->element_count; ++j)
+        {
+            const struct signature_element *element = &signature->elements[j];
+
+            if (base_register_idx + i != element->register_index || !(effective_write_mask & element->mask))
+                continue;
+
+            if (element->sysval_semantic != VKD3D_SHADER_SV_NONE
+                    && !vsir_sysval_semantic_is_tess_factor(element->sysval_semantic))
+                validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_SIGNATURE,
+                        "Invalid sysval semantic %#x on a signature element touched by DCL_INDEX_RANGE.",
+                        element->sysval_semantic);
+
+            if (sysval == ~0u)
+            {
+                sysval = element->sysval_semantic;
+                /* Line density and line detail can be arrayed together. */
+                if (sysval == VKD3D_SHADER_SV_TESS_FACTOR_LINEDEN)
+                    sysval = VKD3D_SHADER_SV_TESS_FACTOR_LINEDET;
+            }
+            else
+            {
+                if (sysval != element->sysval_semantic)
+                    validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_SIGNATURE,
+                            "Inconsistent sysval semantic %#x on a signature element touched by DCL_INDEX_RANGE, "
+                            "%#x was already seen.",
+                            element->sysval_semantic, sysval);
+            }
+
+            if (found)
+                validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_WRITE_MASK,
+                        "Invalid write mask %#x on a DCL_INDEX_RANGE destination parameter.",
+                        range->dst.write_mask);
+
+            found = true;
+
+            if (~effective_write_mask & element->mask)
+                validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_WRITE_MASK,
+                        "Invalid write mask %#x on a signature element touched by a "
+                        "DCL_INDEX_RANGE instruction with effective write mask %#x.",
+                        element->mask, effective_write_mask);
+
+            if (first_component != vsir_write_mask_get_component_idx(element->mask))
+                validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_WRITE_MASK,
+                        "Signature element masks are not left-aligned within a DCL_INDEX_RANGE.");
+        }
+    }
+
+    VKD3D_ASSERT(sysval != ~0u);
 }
 
 static void vsir_validate_dcl_input(struct validation_context *ctx,
@@ -8937,6 +9175,7 @@ static const struct vsir_validator_instruction_desc vsir_validator_instructions[
     [VKD3DSIH_HS_JOIN_PHASE] =                    {0,   0, vsir_validate_hull_shader_phase},
     [VKD3DSIH_DCL_GS_INSTANCES] =                 {0,   0, vsir_validate_dcl_gs_instances},
     [VKD3DSIH_DCL_HS_MAX_TESSFACTOR] =            {0,   0, vsir_validate_dcl_hs_max_tessfactor},
+    [VKD3DSIH_DCL_INDEX_RANGE] =                  {0,   0, vsir_validate_dcl_index_range},
     [VKD3DSIH_DCL_INPUT] =                        {0,   0, vsir_validate_dcl_input},
     [VKD3DSIH_DCL_INPUT_PRIMITIVE] =              {0,   0, vsir_validate_dcl_input_primitive},
     [VKD3DSIH_DCL_INPUT_PS] =                     {0,   0, vsir_validate_dcl_input_ps},
@@ -9122,9 +9361,12 @@ enum vkd3d_result vsir_program_validate(struct vsir_program *program, uint64_t c
                         program->output_control_point_count);
     }
 
-    vsir_validate_signature(&ctx, &program->input_signature, SIGNATURE_TYPE_INPUT);
-    vsir_validate_signature(&ctx, &program->output_signature, SIGNATURE_TYPE_OUTPUT);
-    vsir_validate_signature(&ctx, &program->patch_constant_signature, SIGNATURE_TYPE_PATCH_CONSTANT);
+    vsir_validate_signature(&ctx, &program->input_signature,
+            &ctx.input_signature_data, SIGNATURE_TYPE_INPUT);
+    vsir_validate_signature(&ctx, &program->output_signature,
+            &ctx.output_signature_data, SIGNATURE_TYPE_OUTPUT);
+    vsir_validate_signature(&ctx, &program->patch_constant_signature,
+            &ctx.patch_constant_signature_data, SIGNATURE_TYPE_PATCH_CONSTANT);
 
     for (i = 0; i < sizeof(program->io_dcls) * CHAR_BIT; ++i)
     {

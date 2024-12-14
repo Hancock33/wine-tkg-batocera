@@ -34,6 +34,32 @@
 # include "vulkan/GLSL.std.450.h"
 #endif  /* HAVE_SPIRV_UNIFIED1_GLSL_STD_450_H */
 
+#define VKD3D_SPIRV_VERSION_1_0 0x00010000
+#define VKD3D_SPIRV_VERSION_1_3 0x00010300
+#define VKD3D_SPIRV_GENERATOR_ID 18
+#define VKD3D_SPIRV_GENERATOR_VERSION 14
+#define VKD3D_SPIRV_GENERATOR_MAGIC vkd3d_make_u32(VKD3D_SPIRV_GENERATOR_VERSION, VKD3D_SPIRV_GENERATOR_ID)
+#ifndef VKD3D_SHADER_UNSUPPORTED_SPIRV_PARSER
+# define VKD3D_SHADER_UNSUPPORTED_SPIRV_PARSER 0
+#endif
+
+#define VKD3D_SPIRV_HEADER_SIZE 5
+
+#define VKD3D_SPIRV_VERSION_MAJOR_SHIFT             16u
+#define VKD3D_SPIRV_VERSION_MAJOR_MASK              (0xffu << VKD3D_SPIRV_VERSION_MAJOR_SHIFT)
+#define VKD3D_SPIRV_VERSION_MINOR_SHIFT             8u
+#define VKD3D_SPIRV_VERSION_MINOR_MASK              (0xffu << VKD3D_SPIRV_VERSION_MINOR_SHIFT)
+
+#define VKD3D_SPIRV_GENERATOR_ID_SHIFT              16u
+#define VKD3D_SPIRV_GENERATOR_ID_MASK               (0xffffu << VKD3D_SPIRV_GENERATOR_ID_SHIFT)
+#define VKD3D_SPIRV_GENERATOR_VERSION_SHIFT         0u
+#define VKD3D_SPIRV_GENERATOR_VERSION_MASK          (0xffffu << VKD3D_SPIRV_GENERATOR_VERSION_SHIFT)
+
+#define VKD3D_SPIRV_INSTRUCTION_WORD_COUNT_SHIFT    16u
+#define VKD3D_SPIRV_INSTRUCTION_WORD_COUNT_MASK     (0xffffu << VKD3D_SPIRV_INSTRUCTION_WORD_COUNT_SHIFT)
+#define VKD3D_SPIRV_INSTRUCTION_OP_SHIFT            0u
+#define VKD3D_SPIRV_INSTRUCTION_OP_MASK             (0xffffu << VKD3D_SPIRV_INSTRUCTION_OP_SHIFT)
+
 #ifdef HAVE_SPIRV_TOOLS
 # include "spirv-tools/libspirv.h"
 
@@ -82,7 +108,7 @@ static uint32_t get_binary_to_text_options(enum vkd3d_shader_compile_option_form
     return out;
 }
 
-static enum vkd3d_result vkd3d_spirv_binary_to_text(const struct vkd3d_shader_code *spirv,
+static enum vkd3d_result spirv_tools_binary_to_text(const struct vkd3d_shader_code *spirv,
         enum vkd3d_shader_spirv_environment environment,
         enum vkd3d_shader_compile_option_formatting_flags formatting, struct vkd3d_shader_code *out)
 {
@@ -143,20 +169,6 @@ static enum vkd3d_result vkd3d_spirv_binary_to_text(const struct vkd3d_shader_co
     return result;
 }
 
-static void vkd3d_spirv_dump(const struct vkd3d_shader_code *spirv,
-        enum vkd3d_shader_spirv_environment environment)
-{
-    static const enum vkd3d_shader_compile_option_formatting_flags formatting
-            = VKD3D_SHADER_COMPILE_OPTION_FORMATTING_INDENT | VKD3D_SHADER_COMPILE_OPTION_FORMATTING_HEADER;
-    struct vkd3d_shader_code text;
-
-    if (!vkd3d_spirv_binary_to_text(spirv, environment, formatting, &text))
-    {
-        vkd3d_shader_trace_text(text.code, text.size);
-        vkd3d_shader_free_shader_code(&text);
-    }
-}
-
 static bool vkd3d_spirv_validate(struct vkd3d_string_buffer *buffer, const struct vkd3d_shader_code *spirv,
         enum vkd3d_shader_spirv_environment environment)
 {
@@ -180,14 +192,13 @@ static bool vkd3d_spirv_validate(struct vkd3d_string_buffer *buffer, const struc
 
 #else
 
-static enum vkd3d_result vkd3d_spirv_binary_to_text(const struct vkd3d_shader_code *spirv,
+static enum vkd3d_result spirv_tools_binary_to_text(const struct vkd3d_shader_code *spirv,
         enum vkd3d_shader_spirv_environment environment,
         enum vkd3d_shader_compile_option_formatting_flags formatting, struct vkd3d_shader_code *out)
 {
     return VKD3D_ERROR;
 }
-static void vkd3d_spirv_dump(const struct vkd3d_shader_code *spirv,
-        enum vkd3d_shader_spirv_environment environment) {}
+
 static bool vkd3d_spirv_validate(struct vkd3d_string_buffer *buffer, const struct vkd3d_shader_code *spirv,
         enum vkd3d_shader_spirv_environment environment)
 {
@@ -195,6 +206,312 @@ static bool vkd3d_spirv_validate(struct vkd3d_string_buffer *buffer, const struc
 }
 
 #endif  /* HAVE_SPIRV_TOOLS */
+
+struct spirv_colours
+{
+    const char *reset;
+    const char *comment;
+};
+
+struct spirv_parser
+{
+    struct vkd3d_string_buffer_cache string_buffers;
+    struct vkd3d_shader_location location;
+    struct vkd3d_shader_message_context *message_context;
+    enum vkd3d_shader_compile_option_formatting_flags formatting;
+    struct spirv_colours colours;
+    bool failed;
+
+    const uint32_t *code;
+    size_t pos;
+    size_t size;
+
+    struct vkd3d_string_buffer *text;
+};
+
+static void VKD3D_PRINTF_FUNC(3, 4) spirv_parser_error(struct spirv_parser *parser,
+        enum vkd3d_shader_error error, const char *format, ...)
+{
+    va_list args;
+
+    va_start(args, format);
+    vkd3d_shader_verror(parser->message_context, &parser->location, error, format, args);
+    va_end(args);
+    parser->failed = true;
+}
+
+static uint32_t spirv_parser_read_u32(struct spirv_parser *parser)
+{
+    if (parser->pos >= parser->size)
+    {
+        parser->failed = true;
+        return 0;
+    }
+
+    return parser->code[parser->pos++];
+}
+
+static void VKD3D_PRINTF_FUNC(2, 3) spirv_parser_print_comment(struct spirv_parser *parser, const char *format, ...)
+{
+    va_list args;
+
+    if (!parser->text)
+        return;
+
+    va_start(args, format);
+    vkd3d_string_buffer_printf(parser->text, "%s; ", parser->colours.comment);
+    vkd3d_string_buffer_vprintf(parser->text, format, args);
+    vkd3d_string_buffer_printf(parser->text, "%s\n", parser->colours.reset);
+    va_end(args);
+}
+
+static void spirv_parser_print_generator(struct spirv_parser *parser, uint32_t magic)
+{
+    unsigned int id, version;
+    const char *name;
+
+    id = (magic & VKD3D_SPIRV_GENERATOR_ID_MASK) >> VKD3D_SPIRV_GENERATOR_ID_SHIFT;
+    version = (magic & VKD3D_SPIRV_GENERATOR_VERSION_MASK) >> VKD3D_SPIRV_GENERATOR_VERSION_SHIFT;
+
+    switch (id)
+    {
+        case VKD3D_SPIRV_GENERATOR_ID:
+            name = "Wine VKD3D Shader Compiler";
+            break;
+
+        default:
+            name = NULL;
+            break;
+    }
+
+    if (name)
+        spirv_parser_print_comment(parser, "Generator: %s; %u", name, version);
+    else
+        spirv_parser_print_comment(parser, "Generator: Unknown (%#x); %u", id, version);
+}
+
+static enum vkd3d_result spirv_parser_read_header(struct spirv_parser *parser)
+{
+    uint32_t magic, version, generator, bound, schema;
+    unsigned int major, minor;
+
+    if (parser->pos > parser->size || parser->size - parser->pos < VKD3D_SPIRV_HEADER_SIZE)
+    {
+        spirv_parser_error(parser, VKD3D_SHADER_ERROR_SPV_INVALID_SHADER,
+                "Unexpected end while reading the SPIR-V header.");
+        return VKD3D_ERROR_INVALID_SHADER;
+    }
+
+    magic = spirv_parser_read_u32(parser);
+    version = spirv_parser_read_u32(parser);
+    generator = spirv_parser_read_u32(parser);
+    bound = spirv_parser_read_u32(parser);
+    schema = spirv_parser_read_u32(parser);
+
+    if (magic != SpvMagicNumber)
+    {
+        spirv_parser_error(parser, VKD3D_SHADER_ERROR_SPV_INVALID_SHADER,
+                "Invalid magic number %#08x.", magic);
+        return VKD3D_ERROR_INVALID_SHADER;
+    }
+
+    if (version & ~(VKD3D_SPIRV_VERSION_MAJOR_MASK | VKD3D_SPIRV_VERSION_MINOR_MASK))
+    {
+        spirv_parser_error(parser, VKD3D_SHADER_ERROR_SPV_INVALID_SHADER,
+                "Invalid version token %#08x.", version);
+        return VKD3D_ERROR_INVALID_SHADER;
+    }
+
+    major = (version & VKD3D_SPIRV_VERSION_MAJOR_MASK) >> VKD3D_SPIRV_VERSION_MAJOR_SHIFT;
+    minor = (version & VKD3D_SPIRV_VERSION_MINOR_MASK) >> VKD3D_SPIRV_VERSION_MINOR_SHIFT;
+    if (major != 1 || minor > 0)
+    {
+        spirv_parser_error(parser, VKD3D_SHADER_ERROR_SPV_NOT_IMPLEMENTED,
+                "Unable to parse SPIR-V version %u.%u.", major, minor);
+        return VKD3D_ERROR_NOT_IMPLEMENTED;
+    }
+
+    if (!bound)
+    {
+        spirv_parser_error(parser, VKD3D_SHADER_ERROR_SPV_INVALID_SHADER,
+                "Invalid zero id bound.");
+        return VKD3D_ERROR_INVALID_SHADER;
+    }
+
+    if (schema)
+    {
+        spirv_parser_error(parser, VKD3D_SHADER_ERROR_SPV_NOT_IMPLEMENTED,
+                "Unable to handle instruction schema %#08x.", schema);
+        return VKD3D_ERROR_NOT_IMPLEMENTED;
+    }
+
+    if (parser->formatting & VKD3D_SHADER_COMPILE_OPTION_FORMATTING_HEADER)
+    {
+        spirv_parser_print_comment(parser, "SPIR-V");
+        spirv_parser_print_comment(parser, "Version: %u.%u", major, minor);
+        spirv_parser_print_generator(parser, generator);
+        spirv_parser_print_comment(parser, "Bound: %u", bound);
+        spirv_parser_print_comment(parser, "Schema: %u", schema);
+    }
+
+    return VKD3D_OK;
+}
+
+static enum vkd3d_result spirv_parser_parse_instruction(struct spirv_parser *parser)
+{
+    struct vkd3d_string_buffer *buffer;
+    uint16_t op, count;
+    unsigned int i;
+    uint32_t word;
+
+    word = spirv_parser_read_u32(parser);
+    count = (word & VKD3D_SPIRV_INSTRUCTION_WORD_COUNT_MASK) >> VKD3D_SPIRV_INSTRUCTION_WORD_COUNT_SHIFT;
+    op = (word & VKD3D_SPIRV_INSTRUCTION_OP_MASK) >> VKD3D_SPIRV_INSTRUCTION_OP_SHIFT;
+
+    if (!count)
+    {
+        spirv_parser_error(parser, VKD3D_SHADER_ERROR_SPV_INVALID_SHADER,
+                "Invalid word count %u.", count);
+        return VKD3D_ERROR_INVALID_SHADER;
+    }
+
+    --count;
+    buffer = vkd3d_string_buffer_get(&parser->string_buffers);
+    for (i = 0; i < count; ++i)
+    {
+        word = spirv_parser_read_u32(parser);
+        vkd3d_string_buffer_printf(buffer, " 0x%08x", word);
+    }
+    spirv_parser_print_comment(parser, "<unrecognised instruction %#x>%s", op, buffer->buffer);
+    vkd3d_string_buffer_release(&parser->string_buffers, buffer);
+
+    spirv_parser_error(parser, VKD3D_SHADER_ERROR_SPV_NOT_IMPLEMENTED,
+            "Unrecognised instruction %#x.", op);
+
+    return VKD3D_OK;
+}
+
+static enum vkd3d_result spirv_parser_parse(struct spirv_parser *parser, struct vkd3d_shader_code *text)
+{
+    enum vkd3d_result ret;
+
+    if (text)
+        parser->text = vkd3d_string_buffer_get(&parser->string_buffers);
+
+    if ((ret = spirv_parser_read_header(parser)) < 0)
+        goto fail;
+    while (parser->pos < parser->size)
+    {
+        ++parser->location.line;
+        if ((ret = spirv_parser_parse_instruction(parser)) < 0)
+            goto fail;
+    }
+
+    if (parser->failed)
+    {
+        ret = VKD3D_ERROR_INVALID_SHADER;
+        goto fail;
+    }
+
+    if (text)
+        vkd3d_shader_code_from_string_buffer(text, parser->text);
+
+    return VKD3D_OK;
+
+fail:
+    if (parser->text)
+    {
+        if (TRACE_ON())
+            vkd3d_string_buffer_trace(parser->text);
+        vkd3d_string_buffer_release(&parser->string_buffers, parser->text);
+    }
+    return ret;
+}
+
+static void spirv_parser_cleanup(struct spirv_parser *parser)
+{
+    vkd3d_string_buffer_cache_cleanup(&parser->string_buffers);
+}
+
+static enum vkd3d_result spirv_parser_init(struct spirv_parser *parser, const struct vkd3d_shader_code *source,
+        const char *source_name, enum vkd3d_shader_compile_option_formatting_flags formatting,
+        struct vkd3d_shader_message_context *message_context)
+{
+    static const struct spirv_colours no_colours =
+    {
+        .reset = "",
+        .comment = "",
+    };
+    static const struct spirv_colours colours =
+    {
+        .reset = "\x1b[m",
+        .comment = "\x1b[36m",
+    };
+
+    memset(parser, 0, sizeof(*parser));
+    parser->location.source_name = source_name;
+    parser->message_context = message_context;
+    vkd3d_string_buffer_cache_init(&parser->string_buffers);
+
+    if (source->size % 4)
+    {
+        vkd3d_string_buffer_cache_cleanup(&parser->string_buffers);
+        spirv_parser_error(parser, VKD3D_SHADER_ERROR_SPV_INVALID_SHADER,
+                "Shader size %zu is not a multiple of four.", source->size);
+        return VKD3D_ERROR_INVALID_SHADER;
+    }
+
+    parser->formatting = formatting;
+    if (formatting & VKD3D_SHADER_COMPILE_OPTION_FORMATTING_COLOUR)
+        parser->colours = colours;
+    else
+        parser->colours = no_colours;
+    parser->code = source->code;
+    parser->size = source->size / 4;
+
+    return VKD3D_OK;
+}
+
+static enum vkd3d_result vkd3d_spirv_binary_to_text(const struct vkd3d_shader_code *spirv,
+        const char *source_name, enum vkd3d_shader_spirv_environment environment,
+        enum vkd3d_shader_compile_option_formatting_flags formatting,
+        struct vkd3d_shader_code *out, struct vkd3d_shader_message_context *message_context)
+{
+    struct spirv_parser parser;
+    enum vkd3d_result ret;
+
+    if (!VKD3D_SHADER_UNSUPPORTED_SPIRV_PARSER)
+        return spirv_tools_binary_to_text(spirv, environment, formatting, out);
+
+    MESSAGE("Creating a SPIR-V parser. This is unsupported; you get to keep all the pieces if it breaks.\n");
+
+    if ((ret = spirv_parser_init(&parser, spirv, source_name, formatting, message_context)) < 0)
+        return ret;
+
+    ret = spirv_parser_parse(&parser, out);
+
+    spirv_parser_cleanup(&parser);
+
+    return ret;
+}
+
+static void vkd3d_spirv_dump(const struct vkd3d_shader_code *spirv, enum vkd3d_shader_spirv_environment environment)
+{
+    static const enum vkd3d_shader_compile_option_formatting_flags formatting
+            = VKD3D_SHADER_COMPILE_OPTION_FORMATTING_INDENT | VKD3D_SHADER_COMPILE_OPTION_FORMATTING_HEADER;
+    struct vkd3d_shader_message_context message_context;
+    struct vkd3d_shader_code text;
+
+    vkd3d_shader_message_context_init(&message_context, VKD3D_SHADER_LOG_INFO);
+
+    if (!vkd3d_spirv_binary_to_text(spirv, NULL, environment, formatting, &text, &message_context))
+    {
+        vkd3d_shader_trace_text(text.code, text.size);
+        vkd3d_shader_free_shader_code(&text);
+    }
+
+    vkd3d_shader_message_context_cleanup(&message_context);
+}
 
 enum vkd3d_shader_input_sysval_semantic vkd3d_siv_from_sysval_indexed(enum vkd3d_shader_sysval_semantic sysval,
         unsigned int index)
@@ -246,12 +563,6 @@ enum vkd3d_shader_input_sysval_semantic vkd3d_siv_from_sysval_indexed(enum vkd3d
             return VKD3D_SIV_NONE;
     }
 }
-
-#define VKD3D_SPIRV_VERSION_1_0 0x00010000
-#define VKD3D_SPIRV_VERSION_1_3 0x00010300
-#define VKD3D_SPIRV_GENERATOR_ID 18
-#define VKD3D_SPIRV_GENERATOR_VERSION 14
-#define VKD3D_SPIRV_GENERATOR_MAGIC vkd3d_make_u32(VKD3D_SPIRV_GENERATOR_VERSION, VKD3D_SPIRV_GENERATOR_ID)
 
 struct vkd3d_spirv_stream
 {
@@ -10515,7 +10826,7 @@ static int spirv_compiler_generate_spirv(struct spirv_compiler *compiler, struct
             compile_info, compiler->message_context)) < 0)
         return result;
 
-    VKD3D_ASSERT(program->normalisation_level == VSIR_FULLY_NORMALISED_IO);
+    VKD3D_ASSERT(program->normalisation_level == VSIR_NORMALISED_SM6);
 
     max_element_count = max(program->output_signature.element_count, program->patch_constant_signature.element_count);
     if (!(compiler->output_info = vkd3d_calloc(max_element_count, sizeof(*compiler->output_info))))
@@ -10664,7 +10975,8 @@ static int spirv_compiler_generate_spirv(struct spirv_compiler *compiler, struct
     if (compile_info->target_type == VKD3D_SHADER_TARGET_SPIRV_TEXT)
     {
         struct vkd3d_shader_code text;
-        if (vkd3d_spirv_binary_to_text(spirv, environment, compiler->formatting, &text) != VKD3D_OK)
+        if (vkd3d_spirv_binary_to_text(spirv, compile_info->source_name, environment,
+                compiler->formatting, &text, compiler->message_context) != VKD3D_OK)
             return VKD3D_ERROR;
         vkd3d_shader_free_shader_code(spirv);
         *spirv = text;
