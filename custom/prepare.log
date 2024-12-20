@@ -1,6 +1,6 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at 027c2abe1ce xmllite/tests: Avoid buffer overflow by using LONG_PTR (ASan).
+HEAD is now at d7a7cae2e2d Release 10.0-rc3.
 
 LAA-unix.patch -- ( Applied large address aware override support (legacy) )
 patching file dlls/kernel32/heap.c
