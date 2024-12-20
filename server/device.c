@@ -78,7 +78,7 @@ static const struct object_ops irp_call_ops =
     NULL,                             /* unlink_name */
     no_open_file,                     /* open_file */
     no_kernel_obj_list,               /* get_kernel_obj_list */
-    no_get_fast_sync,                 /* get_fast_sync */
+    no_get_inproc_sync,               /* get_inproc_sync */
     no_close_handle,                  /* close_handle */
     irp_call_destroy                  /* destroy */
 };
@@ -93,12 +93,12 @@ struct device_manager
     struct list            requests;       /* list of pending irps across all devices */
     struct irp_call       *current_call;   /* call currently executed on client side */
     struct wine_rb_tree    kernel_objects; /* map of objects that have client side pointer associated */
-    struct fast_sync      *fast_sync;      /* fast synchronization object */
+    struct inproc_sync    *inproc_sync;    /* in-process synchronization object */
 };
 
 static void device_manager_dump( struct object *obj, int verbose );
 static int device_manager_signaled( struct object *obj, struct wait_queue_entry *entry );
-static struct fast_sync *device_manager_get_fast_sync( struct object *obj );
+static struct inproc_sync *device_manager_get_inproc_sync( struct object *obj );
 static void device_manager_destroy( struct object *obj );
 
 static const struct object_ops device_manager_ops =
@@ -121,7 +121,7 @@ static const struct object_ops device_manager_ops =
     NULL,                             /* unlink_name */
     no_open_file,                     /* open_file */
     no_kernel_obj_list,               /* get_kernel_obj_list */
-    device_manager_get_fast_sync,     /* get_fast_sync */
+    device_manager_get_inproc_sync,   /* get_inproc_sync */
     no_close_handle,                  /* close_handle */
     device_manager_destroy            /* destroy */
 };
@@ -179,7 +179,7 @@ static const struct object_ops device_ops =
     default_unlink_name,              /* unlink_name */
     device_open_file,                 /* open_file */
     device_get_kernel_obj_list,       /* get_kernel_obj_list */
-    no_get_fast_sync,                 /* get_fast_sync */
+    no_get_inproc_sync,               /* get_inproc_sync */
     no_close_handle,                  /* close_handle */
     device_destroy                    /* destroy */
 };
@@ -232,7 +232,7 @@ static const struct object_ops device_file_ops =
     NULL,                             /* unlink_name */
     no_open_file,                     /* open_file */
     device_file_get_kernel_obj_list,  /* get_kernel_obj_list */
-    default_fd_get_fast_sync,         /* get_fast_sync */
+    default_fd_get_inproc_sync,       /* get_inproc_sync */
     device_file_close_handle,         /* close_handle */
     device_file_destroy               /* destroy */
 };
@@ -428,7 +428,7 @@ static void add_irp_to_queue( struct device_manager *manager, struct irp_call *i
     {
         /* first one */
         wake_up( &manager->obj, 0 );
-        fast_set_event( manager->fast_sync );
+        set_inproc_event( manager->inproc_sync );
     }
 }
 
@@ -764,7 +764,7 @@ static void delete_file( struct device_file *file )
     }
 
     if (list_empty( &file->device->manager->requests ))
-        fast_reset_event( file->device->manager->fast_sync );
+        reset_inproc_event( file->device->manager->inproc_sync );
 
     release_object( file );
 }
@@ -797,14 +797,14 @@ static int device_manager_signaled( struct object *obj, struct wait_queue_entry 
     return !list_empty( &manager->requests );
 }
 
-static struct fast_sync *device_manager_get_fast_sync( struct object *obj )
+static struct inproc_sync *device_manager_get_inproc_sync( struct object *obj )
 {
     struct device_manager *manager = (struct device_manager *)obj;
 
-    if (!manager->fast_sync)
-        manager->fast_sync = fast_create_event( FAST_SYNC_MANUAL_SERVER, !list_empty( &manager->requests ) );
-    if (manager->fast_sync) grab_object( manager->fast_sync );
-    return manager->fast_sync;
+    if (!manager->inproc_sync)
+        manager->inproc_sync = create_inproc_event( INPROC_SYNC_MANUAL_SERVER, !list_empty( &manager->requests ) );
+    if (manager->inproc_sync) grab_object( manager->inproc_sync );
+    return manager->inproc_sync;
 }
 
 static void device_manager_destroy( struct object *obj )
@@ -842,7 +842,7 @@ static void device_manager_destroy( struct object *obj )
         release_object( irp );
     }
 
-    if (manager->fast_sync) release_object( manager->fast_sync );
+    if (manager->inproc_sync) release_object( manager->inproc_sync );
 }
 
 static struct device_manager *create_device_manager(void)
@@ -852,7 +852,7 @@ static struct device_manager *create_device_manager(void)
     if ((manager = alloc_object( &device_manager_ops )))
     {
         manager->current_call = NULL;
-        manager->fast_sync = NULL;
+        manager->inproc_sync = NULL;
         list_init( &manager->devices );
         list_init( &manager->requests );
         wine_rb_init( &manager->kernel_objects, compare_kernel_object );
@@ -1044,7 +1044,7 @@ DECL_HANDLER(get_next_device_request)
                 list_init( &irp->mgr_entry );
 
                 if (list_empty( &manager->requests ))
-                    fast_reset_event( manager->fast_sync );
+                    reset_inproc_event( manager->inproc_sync );
 
                 /* we already own the object if it's only on manager queue */
                 if (irp->file) grab_object( irp );

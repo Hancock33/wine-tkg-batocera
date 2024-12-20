@@ -90,7 +90,7 @@ static const struct object_ops async_ops =
     NULL,                      /* unlink_name */
     no_open_file,              /* open_file */
     no_kernel_obj_list,        /* get_kernel_obj_list */
-    no_get_fast_sync,          /* get_fast_sync */
+    no_get_inproc_sync,        /* get_inproc_sync */
     no_close_handle,           /* close_handle */
     async_destroy              /* destroy */
 };
@@ -711,7 +711,7 @@ static const struct object_ops iosb_ops =
     NULL,                     /* unlink_name */
     no_open_file,             /* open_file */
     no_kernel_obj_list,       /* get_kernel_obj_list */
-    no_get_fast_sync,         /* get_fast_sync */
+    no_get_inproc_sync,       /* get_inproc_sync */
     no_close_handle,          /* close_handle */
     iosb_destroy              /* destroy */
 };

@@ -568,18 +568,6 @@ out:
     if (hbm) DeleteObject(hbm);
 }
 
-static GLuint64 create_dummy_bindless_handle(const struct wined3d_gl_info *gl_info, GLuint texture)
-{
-    GLuint64 handle;
-
-    if (!texture || !gl_info->supported[ARB_BINDLESS_TEXTURE])
-        return 0;
-
-    handle = GL_EXTCALL(glGetTextureHandleARB(texture));
-    GL_EXTCALL(glMakeTextureHandleResidentARB(handle));
-    return handle;
-}
-
 /* Context activation is done by the caller. */
 static void wined3d_device_gl_create_dummy_textures(struct wined3d_device_gl *device_gl,
         struct wined3d_context_gl *context_gl)
@@ -700,18 +688,6 @@ static void wined3d_device_gl_create_dummy_textures(struct wined3d_device_gl *de
             WARN("ARB_clear_texture is currently required to clear dummy multisample textures.\n");
         }
     }
-
-    textures->bindless.tex_1d = create_dummy_bindless_handle(gl_info, textures->tex_1d);
-    textures->bindless.tex_2d = create_dummy_bindless_handle(gl_info, textures->tex_2d);
-    textures->bindless.tex_rect = create_dummy_bindless_handle(gl_info, textures->tex_rect);
-    textures->bindless.tex_3d = create_dummy_bindless_handle(gl_info, textures->tex_3d);
-    textures->bindless.tex_cube = create_dummy_bindless_handle(gl_info, textures->tex_cube);
-    textures->bindless.tex_cube_array = create_dummy_bindless_handle(gl_info, textures->tex_cube_array);
-    textures->bindless.tex_1d_array = create_dummy_bindless_handle(gl_info, textures->tex_1d_array);
-    textures->bindless.tex_2d_array = create_dummy_bindless_handle(gl_info, textures->tex_2d_array);
-    textures->bindless.tex_buffer = create_dummy_bindless_handle(gl_info, textures->tex_buffer);
-    textures->bindless.tex_2d_ms = create_dummy_bindless_handle(gl_info, textures->tex_2d_ms);
-    textures->bindless.tex_2d_ms_array = create_dummy_bindless_handle(gl_info, textures->tex_2d_ms_array);
 
     checkGLcall("create dummy textures");
 
@@ -1782,29 +1758,6 @@ UINT CDECL wined3d_device_get_available_texture_mem(const struct wined3d_device 
     TRACE("device %p.\n", device);
 
     driver_info = &device->adapter->driver_info;
-
-    /* We can not acquire the context unless there is a swapchain. */
-    /*
-    if (device->swapchains && gl_info->supported[NVX_GPU_MEMORY_INFO] &&
-            !wined3d_settings.emulated_textureram)
-    {
-        GLint vram_free_kb;
-        UINT64 vram_free;
-
-        struct wined3d_context *context = context_acquire(device, NULL, 0);
-        gl_info->gl_ops.gl.p_glGetIntegerv(GL_GPU_MEMORY_INFO_CURRENT_AVAILABLE_VIDMEM_NVX, &vram_free_kb);
-        vram_free = (UINT64)vram_free_kb * 1024;
-        context_release(context);
-
-        TRACE("Total 0x%s bytes. emulation 0x%s left, driver 0x%s left.\n",
-                wine_dbgstr_longlong(device->adapter->vram_bytes),
-                wine_dbgstr_longlong(device->adapter->vram_bytes - device->adapter->vram_bytes_used),
-                wine_dbgstr_longlong(vram_free));
-
-        vram_free = min(vram_free, device->adapter->vram_bytes - device->adapter->vram_bytes_used);
-        return min(UINT_MAX, vram_free);
-    }
-    */
 
     TRACE("Emulating 0x%s bytes. 0x%s used, returning 0x%s left.\n",
             wine_dbgstr_longlong(driver_info->vram_bytes),

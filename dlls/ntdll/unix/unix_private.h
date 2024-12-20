@@ -112,7 +112,7 @@ struct ntdll_thread_data
     PRTL_THREAD_START_ROUTINE start;  /* thread entry point */
     void              *param;         /* thread entry point parameter */
     void              *jmp_buf;       /* setjmp buffer for exception handling */
-    int                fast_alert_obj; /* fd for the fast alert event */
+    int                linux_alert_obj; /* fd for the linux in-process alert event */
 };
 
 C_ASSERT( sizeof(struct ntdll_thread_data) <= sizeof(((TEB *)0)->GdiTebBatch) );
@@ -129,7 +129,6 @@ struct async_fileio
 {
     async_callback_t    *callback;
     struct async_fileio *next;
-    DWORD                size;
     HANDLE               handle;
 };
 
@@ -384,7 +383,7 @@ extern NTSTATUS wow64_wine_spawnvp( void *args );
 
 extern void dbg_init(void);
 
-extern void close_fast_sync_obj( HANDLE handle );
+extern void close_inproc_sync_obj( HANDLE handle );
 
 extern NTSTATUS call_user_apc_dispatcher( CONTEXT *context_ptr, ULONG_PTR arg1, ULONG_PTR arg2, ULONG_PTR arg3,
                                           PNTAPCFUNC func, NTSTATUS status );

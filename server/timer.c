@@ -52,22 +52,22 @@ struct type_descr timer_type =
 
 struct timer
 {
-    struct object        obj;       /* object header */
-    int                  manual;    /* manual reset */
-    int                  signaled;  /* current signaled state */
-    unsigned int         period;    /* timer period in ms */
-    abstime_t            when;      /* next expiration */
-    struct timeout_user *timeout;   /* timeout user */
-    struct thread       *thread;    /* thread that set the APC function */
-    client_ptr_t         callback;  /* callback APC function */
-    client_ptr_t         arg;       /* callback argument */
-    struct fast_sync    *fast_sync; /* fast synchronization object */
+    struct object        obj;           /* object header */
+    int                  manual;        /* manual reset */
+    int                  signaled;      /* current signaled state */
+    unsigned int         period;        /* timer period in ms */
+    abstime_t            when;          /* next expiration */
+    struct timeout_user *timeout;       /* timeout user */
+    struct thread       *thread;        /* thread that set the APC function */
+    client_ptr_t         callback;      /* callback APC function */
+    client_ptr_t         arg;           /* callback argument */
+    struct inproc_sync  *inproc_sync;   /* in-process synchronization object */
 };
 
 static void timer_dump( struct object *obj, int verbose );
 static int timer_signaled( struct object *obj, struct wait_queue_entry *entry );
 static void timer_satisfied( struct object *obj, struct wait_queue_entry *entry );
-static struct fast_sync *timer_get_fast_sync( struct object *obj );
+static struct inproc_sync *timer_get_inproc_sync( struct object *obj );
 static void timer_destroy( struct object *obj );
 
 static const struct object_ops timer_ops =
@@ -90,7 +90,7 @@ static const struct object_ops timer_ops =
     default_unlink_name,       /* unlink_name */
     no_open_file,              /* open_file */
     no_kernel_obj_list,        /* get_kernel_obj_list */
-    timer_get_fast_sync,       /* get_fast_sync */
+    timer_get_inproc_sync,     /* get_inproc_sync */
     no_close_handle,           /* close_handle */
     timer_destroy              /* destroy */
 };
@@ -113,7 +113,7 @@ static struct timer *create_timer( struct object *root, const struct unicode_str
             timer->period   = 0;
             timer->timeout  = NULL;
             timer->thread   = NULL;
-            timer->fast_sync = NULL;
+            timer->inproc_sync = NULL;
         }
     }
     return timer;
@@ -155,7 +155,7 @@ static void timer_callback( void *private )
     /* wake up waiters */
     timer->signaled = 1;
     wake_up( &timer->obj, 0 );
-    fast_set_event( timer->fast_sync );
+    set_inproc_event( timer->inproc_sync );
 }
 
 /* cancel a running timer */
@@ -186,7 +186,7 @@ static int set_timer( struct timer *timer, timeout_t expire, unsigned int period
     {
         period = 0;  /* period doesn't make any sense for a manual timer */
         timer->signaled = 0;
-        fast_reset_event( timer->fast_sync );
+        reset_inproc_event( timer->inproc_sync );
     }
     timer->when     = (expire <= 0) ? expire - monotonic_time : max( expire, current_time );
     timer->period   = period;
@@ -221,17 +221,17 @@ static void timer_satisfied( struct object *obj, struct wait_queue_entry *entry 
     if (!timer->manual) timer->signaled = 0;
 }
 
-static struct fast_sync *timer_get_fast_sync( struct object *obj )
+static struct inproc_sync *timer_get_inproc_sync( struct object *obj )
 {
     struct timer *timer = (struct timer *)obj;
 
-    if (!timer->fast_sync)
+    if (!timer->inproc_sync)
     {
-        enum fast_sync_type type = timer->manual ? FAST_SYNC_MANUAL_SERVER : FAST_SYNC_AUTO_SERVER;
-        timer->fast_sync = fast_create_event( type, timer->signaled );
+        enum inproc_sync_type type = timer->manual ? INPROC_SYNC_MANUAL_SERVER : INPROC_SYNC_AUTO_SERVER;
+        timer->inproc_sync = create_inproc_event( type, timer->signaled );
     }
-    if (timer->fast_sync) grab_object( timer->fast_sync );
-    return timer->fast_sync;
+    if (timer->inproc_sync) grab_object( timer->inproc_sync );
+    return timer->inproc_sync;
 }
 
 static void timer_destroy( struct object *obj )
@@ -241,7 +241,7 @@ static void timer_destroy( struct object *obj )
 
     if (timer->timeout) remove_timeout_user( timer->timeout );
     if (timer->thread) release_object( timer->thread );
-    if (timer->fast_sync) release_object( timer->fast_sync );
+    if (timer->inproc_sync) release_object( timer->inproc_sync );
 }
 
 /* create a timer */

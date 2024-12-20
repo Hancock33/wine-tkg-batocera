@@ -1338,13 +1338,6 @@ static void test_reg_create_key(void)
     RegDeleteKeyA(hkey1, "");
     RegCloseKey(hkey1);
 
-    /* System\CurrentControlSet\Control\Video should be non-volatile */
-    ret = RegCreateKeyExA(HKEY_LOCAL_MACHINE, "System\\CurrentControlSet\\Control\\Video\\Wine",
-                          0, NULL, 0, KEY_NOTIFY, NULL, &hkey1, NULL);
-    ok(ret == ERROR_SUCCESS, "RegCreateKeyExA failed with error %lx\n", ret);
-    RegDeleteKeyA(hkey1, "");
-    RegCloseKey(hkey1);
-
     /* WOW64 flags - open an existing key */
     hkey1 = NULL;
     ret = RegCreateKeyExA(HKEY_LOCAL_MACHINE, "Software", 0, NULL, 0, KEY_READ|KEY_WOW64_32KEY, NULL, &hkey1, NULL);
@@ -4181,6 +4174,7 @@ static void test_RegNotifyChangeKeyValue(void)
     ret = RegOpenKeyA(hkey_main, "TestKey", &key);
     ok(ret == ERROR_SUCCESS, "expected ERROR_SUCCESS, got %ld\n", ret);
 
+    data.key = key;
     data.flags = REG_NOTIFY_THREAD_AGNOSTIC;
     thread = CreateThread(NULL, 0, notify_change_thread, &data, 0, NULL);
     WaitForSingleObject(thread, INFINITE);

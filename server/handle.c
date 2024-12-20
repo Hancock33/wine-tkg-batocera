@@ -138,7 +138,7 @@ static const struct object_ops handle_table_ops =
     NULL,                            /* unlink_name */
     no_open_file,                    /* open_file */
     no_kernel_obj_list,              /* get_kernel_obj_list */
-    no_get_fast_sync,                /* get_fast_sync */
+    no_get_inproc_sync,              /* get_inproc_sync */
     no_close_handle,                 /* close_handle */
     handle_table_destroy             /* destroy */
 };
@@ -837,7 +837,7 @@ static int enum_handles( struct process *process, void *user )
     struct handle_table *table = process->handles;
     struct handle_entry *entry;
     struct handle_info *handle;
-    unsigned int i;
+    int i;
 
     if (!table)
         return 0;
@@ -897,7 +897,7 @@ static int enum_process_handles_cb( struct process *process, void *user )
     struct enum_process_handles_info *info = user;
     struct handle_table *table = process->handles;
     struct handle_entry *entry;
-    unsigned int i;
+    int i;
 
     if (!table)
         return 0;

@@ -42,7 +42,7 @@ struct async;
 struct async_queue;
 struct winstation;
 struct object_type;
-struct fast_sync;
+struct inproc_sync;
 
 
 struct unicode_str
@@ -104,8 +104,8 @@ struct object_ops
                                 unsigned int options);
     /* return list of kernel objects */
     struct list *(*get_kernel_obj_list)(struct object *);
-    /* get a client-waitable fast-synchronization handle to this object */
-    struct fast_sync *(*get_fast_sync)(struct object *);
+    /* get a client-waitable in-process synchronization handle to this object */
+    struct inproc_sync *(*get_inproc_sync)(struct object *);
     /* close a handle to this object */
     int (*close_handle)(struct object *,struct process *,obj_handle_t);
     /* destroy on refcount == 0 */
@@ -176,9 +176,6 @@ extern struct fd *no_get_fd( struct object *obj );
 extern unsigned int default_map_access( struct object *obj, unsigned int access );
 extern struct security_descriptor *default_get_sd( struct object *obj );
 extern int default_set_sd( struct object *obj, const struct security_descriptor *sd, unsigned int set_info );
-extern struct security_descriptor *set_sd_from_token_internal( const struct security_descriptor *sd,
-                                                               const struct security_descriptor *old_sd,
-                                                               unsigned int set_info, struct token *token );
 extern int set_sd_defaults_from_token( struct object *obj, const struct security_descriptor *sd,
                                        unsigned int set_info, struct token *token );
 extern WCHAR *no_get_full_name( struct object *obj, data_size_t *ret_len );
@@ -234,16 +231,16 @@ extern void reset_event( struct event *event );
 
 extern void abandon_mutexes( struct thread *thread );
 
-/* fast-synchronization functions */
+/* in-process synchronization functions */
 
-extern struct fast_sync *fast_create_event( enum fast_sync_type type, int signaled );
-extern struct fast_sync *fast_create_semaphore( unsigned int count, unsigned int max );
-extern struct fast_sync *fast_create_mutex( thread_id_t owner, unsigned int count );
-extern void fast_set_event( struct fast_sync *obj );
-extern void fast_reset_event( struct fast_sync *obj );
-extern void fast_abandon_mutex( thread_id_t tid, struct fast_sync *fast_sync );
+extern struct inproc_sync *create_inproc_event( enum inproc_sync_type type, int signaled );
+extern struct inproc_sync *create_inproc_mutex( thread_id_t owner, unsigned int count );
+extern struct inproc_sync *create_inproc_semaphore( unsigned int count, unsigned int max );
+extern void set_inproc_event( struct inproc_sync *obj );
+extern void reset_inproc_event( struct inproc_sync *obj );
+extern void abandon_inproc_mutex( thread_id_t tid, struct inproc_sync *inproc_sync );
 
-extern struct fast_sync *no_get_fast_sync( struct object *obj );
+extern struct inproc_sync *no_get_inproc_sync( struct object *obj );
 
 /* serial functions */
 
