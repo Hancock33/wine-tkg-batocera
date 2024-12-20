@@ -154,7 +154,9 @@ void abandon_mutexes( struct thread *thread )
     }
 
     LIST_FOR_EACH_ENTRY(mutex, &inproc_mutexes, struct mutex, inproc_mutexes_entry)
+    {
         abandon_inproc_mutex( thread->id, mutex->inproc_sync );
+    }
 }
 
 static void mutex_dump( struct object *obj, int verbose )

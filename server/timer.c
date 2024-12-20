@@ -52,15 +52,15 @@ struct type_descr timer_type =
 
 struct timer
 {
-    struct object        obj;           /* object header */
-    int                  manual;        /* manual reset */
-    int                  signaled;      /* current signaled state */
-    unsigned int         period;        /* timer period in ms */
-    abstime_t            when;          /* next expiration */
-    struct timeout_user *timeout;       /* timeout user */
-    struct thread       *thread;        /* thread that set the APC function */
-    client_ptr_t         callback;      /* callback APC function */
-    client_ptr_t         arg;           /* callback argument */
+    struct object        obj;       /* object header */
+    int                  manual;    /* manual reset */
+    int                  signaled;  /* current signaled state */
+    unsigned int         period;    /* timer period in ms */
+    abstime_t            when;      /* next expiration */
+    struct timeout_user *timeout;   /* timeout user */
+    struct thread       *thread;    /* thread that set the APC function */
+    client_ptr_t         callback;  /* callback APC function */
+    client_ptr_t         arg;       /* callback argument */
     struct inproc_sync  *inproc_sync;   /* in-process synchronization object */
 };
 

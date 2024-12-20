@@ -157,8 +157,8 @@ static void completion_wait_satisfied( struct object *obj, struct wait_queue_ent
 
 static void completion_dump( struct object*, int );
 static int completion_signaled( struct object *obj, struct wait_queue_entry *entry );
-static int completion_close_handle( struct object *obj, struct process *process, obj_handle_t handle );
 static struct inproc_sync *completion_get_inproc_sync( struct object *obj );
+static int completion_close_handle( struct object *obj, struct process *process, obj_handle_t handle );
 static void completion_destroy( struct object * );
 
 static const struct object_ops completion_ops =
