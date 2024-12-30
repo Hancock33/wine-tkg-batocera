@@ -1638,8 +1638,6 @@ BOOL X11DRV_GetWindowStateUpdates( HWND hwnd, UINT *state_cmd, UINT *config_cmd,
 {
     struct x11drv_win_data *data;
 
-    TRACE( "hwnd %p, state_cmd %p, config_cmd %p, rect %p\n", hwnd, state_cmd, config_cmd, rect );
-
     if (!(data = get_win_data( hwnd ))) return FALSE;
 
     *state_cmd = window_update_client_state( data );
@@ -1648,7 +1646,7 @@ BOOL X11DRV_GetWindowStateUpdates( HWND hwnd, UINT *state_cmd, UINT *config_cmd,
 
     release_win_data( data );
 
-    TRACE( "returning state_cmd %#x, config_cmd %#x, rect %s\n", *state_cmd, *config_cmd, wine_dbgstr_rect(rect) );
+    TRACE( "hwnd %p, returning state_cmd %#x, config_cmd %#x, rect %s\n", hwnd, *state_cmd, *config_cmd, wine_dbgstr_rect(rect) );
     return *state_cmd || *config_cmd;
 }
 
