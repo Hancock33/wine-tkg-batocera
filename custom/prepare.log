@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at f10d2d04 Release v10.0-rc3
-HEAD is now at 872f5c59d4b win32u: Check window state updates again after applying new state.
+HEAD is now at c263c6fa Release v10.0-rc4
+HEAD is now at 9008e655e4e Release 10.0-rc4.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
@@ -566,8 +566,8 @@ Hunk #18 succeeded at 840 (offset -3 lines).
 Hunk #19 succeeded at 1014 (offset -3 lines).
 patching file server/process.h
 patching file server/protocol.def
-Hunk #1 succeeded at 4079 (offset 192 lines).
-Hunk #2 succeeded at 4091 (offset 192 lines).
+Hunk #1 succeeded at 4078 (offset 191 lines).
+Hunk #2 succeeded at 4090 (offset 191 lines).
 patching file server/queue.c
 Hunk #1 succeeded at 44 (offset 1 line).
 Hunk #2 succeeded at 134 with fuzz 2 (offset -12 lines).
@@ -594,7 +594,7 @@ Hunk #2 succeeded at 101 (offset -1 lines).
 patching file server/request_handlers.h
 Hunk #1 succeeded at 299 (offset 1 line).
 Hunk #2 succeeded at 601 (offset 2 lines).
-Hunk #3 succeeded at 2285 (offset 9 lines).
+Hunk #3 succeeded at 2284 (offset 8 lines).
 patching file server/semaphore.c
 patching file server/serial.c
 Hunk #1 succeeded at 91 (offset 6 lines).
@@ -629,7 +629,7 @@ patching file server/token.c
 Hunk #1 succeeded at 145 (offset 2 lines).
 Hunk #2 succeeded at 157 (offset 2 lines).
 patching file server/request_trace.h
-Hunk #1 succeeded at 3352 with fuzz 1 (offset -1267 lines).
+Hunk #1 succeeded at 3351 with fuzz 1 (offset -1268 lines).
 patching file server/window.c
 Hunk #1 succeeded at 107 (offset -1 lines).
 Hunk #2 succeeded at 119 (offset -1 lines).
