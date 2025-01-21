@@ -3712,7 +3712,7 @@ dnl Rules for generated source files
 
 WINE_APPEND_RULE(
 [dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-10.0rc6.r0.gd0d5fef5\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
+	@version=\`(echo \"wine-10.0.r0.g05bc4b82\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$[@]) || echo \$\$build >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.nfo:
