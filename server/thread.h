@@ -58,8 +58,6 @@ struct thread
     struct list            mutex_list;    /* list of currently owned mutexes */
     int                    esync_fd;      /* esync file descriptor (signalled on exit) */
     int                    esync_apc_fd;  /* esync apc fd (signalled when APCs are present) */
-    unsigned int           fsync_idx;
-    unsigned int           fsync_apc_idx;
     unsigned int           system_regs;   /* which system regs have been set */
     struct msg_queue      *queue;         /* message queue */
     struct thread_wait    *wait;          /* current wait condition if sleeping */
@@ -97,7 +95,6 @@ struct thread
     data_size_t            desc_len;      /* thread description length in bytes */
     WCHAR                 *desc;          /* thread description string */
     struct completion_wait *completion_wait; /* completion port wait object the thread is associated with */
-    struct timeout_user   *exit_poll;     /* poll if the thread/process has exited already */
 };
 
 extern struct thread *current;
@@ -127,6 +124,7 @@ extern void thread_cancel_apc( struct thread *thread, struct object *owner, enum
 extern int thread_add_inflight_fd( struct thread *thread, int client, int server );
 extern int thread_get_inflight_fd( struct thread *thread, int client );
 extern struct token *thread_get_impersonation_token( struct thread *thread );
+extern unsigned int set_thread_priority( struct thread *thread, int priority_class, int priority );
 extern int set_thread_affinity( struct thread *thread, affinity_t affinity );
 extern int suspend_thread( struct thread *thread );
 extern int resume_thread( struct thread *thread );
@@ -149,10 +147,5 @@ static inline void clear_error(void)             { set_error(0); }
 static inline void set_win32_error( unsigned int err ) { set_error( 0xc0010000 | err ); }
 
 static inline thread_id_t get_thread_id( struct thread *thread ) { return thread->id; }
-
-/* scheduler functions */
-
-extern void init_scheduler( void );
-extern void set_scheduler_priority( struct thread *thread );
 
 #endif  /* __WINE_SERVER_THREAD_H */

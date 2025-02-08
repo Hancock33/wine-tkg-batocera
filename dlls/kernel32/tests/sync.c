@@ -361,13 +361,13 @@ todo_wine_if(getenv("WINEESYNC"))   /* XFAIL: due to the above */
     ok(!!mutex, "got error %lu\n", GetLastError());
 
     ret = ReleaseMutex( mutex );
-    ok(!ret, "got %d\n", ret);
+    ok(!ret, "got %ld\n", ret);
     ok(GetLastError() == ERROR_NOT_OWNER, "got error %lu\n", GetLastError());
 
     for (i = 0; i < 100; i++)
     {
         ret = WaitForSingleObject( mutex, 0 );
-        ok(ret == 0, "got %u\n", ret);
+        ok(ret == 0, "got %lu\n", ret);
     }
 
     for (i = 0; i < 100; i++)
@@ -377,25 +377,25 @@ todo_wine_if(getenv("WINEESYNC"))   /* XFAIL: due to the above */
     }
 
     ret = ReleaseMutex( mutex );
-    ok(!ret, "got %d\n", ret);
+    ok(!ret, "got %ld\n", ret);
     ok(GetLastError() == ERROR_NOT_OWNER, "got error %lu\n", GetLastError());
 
     thread = CreateThread( NULL, 0, mutex_thread, (void *)0, 0, NULL );
     ret = WaitForSingleObject( thread, 2000 );
-    ok(ret == 0, "wait failed: %u\n", ret);
+    ok(ret == 0, "wait failed: %lu\n", ret);
 
     WaitForSingleObject( mutex, 0 );
 
     thread = CreateThread( NULL, 0, mutex_thread, (void *)WAIT_TIMEOUT, 0, NULL );
     ret = WaitForSingleObject( thread, 2000 );
-    ok(ret == 0, "wait failed: %u\n", ret);
+    ok(ret == 0, "wait failed: %lu\n", ret);
 
     ret = ReleaseMutex( mutex );
         ok(ret, "got error %lu\n", GetLastError());
 
     thread = CreateThread( NULL, 0, mutex_thread, (void *)0, 0, NULL );
     ret = WaitForSingleObject( thread, 2000 );
-    ok(ret == 0, "wait failed: %u\n", ret);
+    ok(ret == 0, "wait failed: %lu\n", ret);
 
     mutex2 = CreateMutexA( NULL, TRUE, NULL );
     ok(!!mutex2, "got error %lu\n", GetLastError());
@@ -404,24 +404,24 @@ todo_wine_if(getenv("WINEESYNC"))   /* XFAIL: due to the above */
     ok(ret, "got error %lu\n", GetLastError());
 
     ret = ReleaseMutex( mutex2 );
-    ok(!ret, "got %d\n", ret);
+    ok(!ret, "got %ld\n", ret);
     ok(GetLastError() == ERROR_NOT_OWNER, "got error %lu\n", GetLastError());
 
     mutices[0] = mutex;
     mutices[1] = mutex2;
 
     ret = WaitForMultipleObjects( 2, mutices, FALSE, 0 );
-    ok(ret == 0, "got %u\n", ret);
+    ok(ret == 0, "got %lu\n", ret);
 
     ret = ReleaseMutex( mutex );
     ok(ret, "got error %lu\n", GetLastError());
 
     ret = ReleaseMutex( mutex2 );
-    ok(!ret, "got %d\n", ret);
+    ok(!ret, "got %ld\n", ret);
     ok(GetLastError() == ERROR_NOT_OWNER, "got error %lu\n", GetLastError());
 
     ret = WaitForMultipleObjects( 2, mutices, TRUE, 0 );
-    ok(ret == 0, "got %u\n", ret);
+    ok(ret == 0, "got %lu\n", ret);
 
     ret = ReleaseMutex( mutex );
     ok(ret, "got error %lu\n", GetLastError());
@@ -3290,7 +3290,7 @@ static DWORD CALLBACK zigzag_event0(void *arg)
     {
         WaitForSingleObject(events[0], INFINITE);
         ResetEvent(events[0]);
-        ok(zigzag_state == 0, "got wrong state %d\n", zigzag_state);
+        ok(zigzag_state == 0, "got wrong state %ld\n", zigzag_state);
         zigzag_state++;
         SetEvent(events[1]);
         zigzag_count[0]++;
@@ -3307,7 +3307,7 @@ static DWORD CALLBACK zigzag_event1(void *arg)
     {
         WaitForSingleObject(events[1], INFINITE);
         ResetEvent(events[1]);
-        ok(zigzag_state == 1, "got wrong state %d\n", zigzag_state);
+        ok(zigzag_state == 1, "got wrong state %ld\n", zigzag_state);
         zigzag_state--;
         SetEvent(events[0]);
         zigzag_count[1]++;
@@ -3341,11 +3341,11 @@ static void test_zigzag_event(void)
     Sleep(2000);
     zigzag_stop = 1;
     ret = WaitForMultipleObjects(2, threads, FALSE, INFINITE);
-    trace("%d\n", ret);
-    ok(ret == 0 || ret == 1, "wait failed: %u\n", ret);
+    trace("%ld\n", ret);
+    ok(ret == 0 || ret == 1, "wait failed: %lu\n", ret);
 
     ok(zigzag_count[0] == zigzag_count[1] || zigzag_count[0] == zigzag_count[1] + 1,
-        "count did not match: %d != %d\n", zigzag_count[0], zigzag_count[1]);
+        "count did not match: %d != %ld\n", zigzag_count[0], zigzag_count[1]);
 
     /* signal the other thread to finish, if it didn't already
      * (in theory they both would at the same time, but there's a slight race on teardown if we get
@@ -3353,9 +3353,9 @@ static void test_zigzag_event(void)
     zigzag_state = 1-ret;
     SetEvent(events[1-ret]);
     ret = WaitForSingleObject(threads[1-ret], 1000);
-    ok(!ret, "wait failed: %u\n", ret);
+    ok(!ret, "wait failed: %lu\n", ret);
 
-    trace("count: %d\n", zigzag_count[0]);
+    trace("count: %ld\n", zigzag_count[0]);
 }
 
 START_TEST(sync)

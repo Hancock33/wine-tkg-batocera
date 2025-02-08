@@ -166,16 +166,23 @@ typedef struct
     void *tail;
 } critical_section;
 
-typedef struct
-{
+typedef union {
+    critical_section conc;
+    SRWLOCK win;
+} cs;
+
+typedef struct {
     DWORD flags;
-    critical_section cs;
     ULONG_PTR unknown;
+    cs cs;
     DWORD thread_id;
     DWORD count;
 } *_Mtx_t;
 
-typedef void *_Cnd_t;
+typedef struct {
+    ULONG_PTR unknown;
+    CONDITION_VARIABLE cv;
+} *_Cnd_t;
 
 typedef struct {
     __time64_t sec;
@@ -218,6 +225,8 @@ static int (__cdecl *p__Mtx_init)(_Mtx_t*, int);
 static void (__cdecl *p__Mtx_destroy)(_Mtx_t);
 static int (__cdecl *p__Mtx_lock)(_Mtx_t);
 static int (__cdecl *p__Mtx_unlock)(_Mtx_t);
+static void (__cdecl *p__Mtx_clear_owner)(_Mtx_t);
+static void (__cdecl *p__Mtx_reset_owner)(_Mtx_t);
 static int (__cdecl *p__Cnd_init)(_Cnd_t*);
 static void (__cdecl *p__Cnd_destroy)(_Cnd_t);
 static int (__cdecl *p__Cnd_wait)(_Cnd_t, _Mtx_t);
@@ -354,6 +363,8 @@ static BOOL init(void)
     SET(p__Mtx_destroy, "_Mtx_destroy");
     SET(p__Mtx_lock, "_Mtx_lock");
     SET(p__Mtx_unlock, "_Mtx_unlock");
+    SET(p__Mtx_clear_owner, "_Mtx_clear_owner");
+    SET(p__Mtx_reset_owner, "_Mtx_reset_owner");
     SET(p__Cnd_init, "_Cnd_init");
     SET(p__Cnd_destroy, "_Cnd_destroy");
     SET(p__Cnd_wait, "_Cnd_wait");
@@ -889,15 +900,16 @@ static void test_Stat(void)
         WCHAR const *path;
         enum file_type ret;
         int perms;
+        int is_todo;
     } tests[] = {
-        { NULL, file_not_found, 0xdeadbeef },
-        { L"wine_test_dir", directory_file, 0777 },
-        { L"wine_test_dir/f1", regular_file, 0777 },
-        { L"wine_test_dir/f2", regular_file, 0555 },
-        { L"wine_test_dir/ne", file_not_found, 0xdeadbeef },
-        { L"wine_test_dir\\??invalid_name>>", file_not_found, 0xdeadbeef },
-        { L"wine_test_dir\\f1_link", regular_file, 0777 },
-        { L"wine_test_dir\\dir_link", directory_file, 0777 },
+        { NULL, file_not_found, 0xdeadbeef, FALSE },
+        { L"wine_test_dir", directory_file, 0777, FALSE },
+        { L"wine_test_dir/f1", regular_file, 0777, FALSE },
+        { L"wine_test_dir/f2", regular_file, 0555, FALSE },
+        { L"wine_test_dir/ne", file_not_found, 0xdeadbeef, FALSE },
+        { L"wine_test_dir\\??invalid_name>>", file_not_found, 0xdeadbeef, FALSE },
+        { L"wine_test_dir\\f1_link", regular_file, 0777, TRUE },
+        { L"wine_test_dir\\dir_link", directory_file, 0777, TRUE },
     };
 
     GetCurrentDirectoryW(MAX_PATH, origin_path);
@@ -955,20 +967,26 @@ static void test_Stat(void)
     for(i=0; i<ARRAY_SIZE(tests); i++) {
         perms = 0xdeadbeef;
         val = p_Stat(tests[i].path, &perms);
-        ok(tests[i].ret == val, "_Stat(): test %d expect: %d, got %d\n", i+1, tests[i].ret, val);
-        ok(tests[i].perms == perms, "_Stat(): test %d perms expect: 0%o, got 0%o\n",
-                i+1, tests[i].perms, perms);
+        todo_wine_if(tests[i].is_todo) {
+            ok(tests[i].ret == val, "_Stat(): test %d expect: %d, got %d\n", i+1, tests[i].ret, val);
+            ok(tests[i].perms == perms, "_Stat(): test %d perms expect: 0%o, got 0%o\n",
+                    i+1, tests[i].perms, perms);
+        }
         val = p_Stat(tests[i].path, NULL);
-        ok(tests[i].ret == val, "_Stat(): test %d expect: %d, got %d\n", i+1, tests[i].ret, val);
+        todo_wine_if(tests[i].is_todo)
+            ok(tests[i].ret == val, "_Stat(): test %d expect: %d, got %d\n", i+1, tests[i].ret, val);
 
         /* test _Lstat */
         perms = 0xdeadbeef;
         val = p_Lstat(tests[i].path, &perms);
-        ok(tests[i].ret == val, "_Lstat(): test %d expect: %d, got %d\n", i+1, tests[i].ret, val);
-        ok(tests[i].perms == perms, "_Lstat(): test %d perms expect: 0%o, got 0%o\n",
-                i+1, tests[i].perms, perms);
+        todo_wine_if(tests[i].is_todo) {
+            ok(tests[i].ret == val, "_Lstat(): test %d expect: %d, got %d\n", i+1, tests[i].ret, val);
+            ok(tests[i].perms == perms, "_Lstat(): test %d perms expect: 0%o, got 0%o\n",
+                    i+1, tests[i].perms, perms);
+        }
         val = p_Lstat(tests[i].path, NULL);
-        ok(tests[i].ret == val, "_Lstat(): test %d expect: %d, got %d\n", i+1, tests[i].ret, val);
+        todo_wine_if(tests[i].is_todo)
+            ok(tests[i].ret == val, "_Lstat(): test %d expect: %d, got %d\n", i+1, tests[i].ret, val);
     }
 
     GetSystemDirectoryW(sys_path, MAX_PATH);
@@ -980,9 +998,9 @@ static void test_Stat(void)
     ok(perms == expected_perms, "_Stat(): perms expect: 0%o, got 0%o\n", expected_perms, perms);
 
     if(ret) {
-        ok(DeleteFileW(L"wine_test_dir\\f1_link"),
+        todo_wine ok(DeleteFileW(L"wine_test_dir\\f1_link"),
                 "expect wine_test_dir/f1_link to exist\n");
-        ok(RemoveDirectoryW(L"wine_test_dir\\dir_link"),
+        todo_wine ok(RemoveDirectoryW(L"wine_test_dir\\dir_link"),
                 "expect wine_test_dir/dir_link to exist\n");
     }
     ok(DeleteFileW(L"wine_test_dir/f1"), "expect wine_test_dir/f1 to exist\n");
@@ -1101,14 +1119,15 @@ static void test_Unlink(void)
     struct {
         WCHAR const *path;
         int last_error;
+        MSVCP_bool is_todo;
     } tests[] = {
-        { L"wine_test_dir\\f1_symlink", ERROR_SUCCESS },
-        { L"wine_test_dir\\f1_link", ERROR_SUCCESS },
-        { L"wine_test_dir\\f1", ERROR_SUCCESS },
-        { L"wine_test_dir", ERROR_ACCESS_DENIED },
-        { L"not_exist", ERROR_FILE_NOT_FOUND },
-        { L"not_exist_dir\\not_exist_file", ERROR_PATH_NOT_FOUND },
-        { NULL, ERROR_PATH_NOT_FOUND }
+        { L"wine_test_dir\\f1_symlink", ERROR_SUCCESS, TRUE },
+        { L"wine_test_dir\\f1_link", ERROR_SUCCESS, FALSE },
+        { L"wine_test_dir\\f1", ERROR_SUCCESS, FALSE },
+        { L"wine_test_dir", ERROR_ACCESS_DENIED, FALSE },
+        { L"not_exist", ERROR_FILE_NOT_FOUND, FALSE },
+        { L"not_exist_dir\\not_exist_file", ERROR_PATH_NOT_FOUND, FALSE },
+        { NULL, ERROR_PATH_NOT_FOUND, FALSE }
     };
 
     GetCurrentDirectoryW(MAX_PATH, current_path);
@@ -1137,8 +1156,9 @@ static void test_Unlink(void)
     for(i=0; i<ARRAY_SIZE(tests); i++) {
         errno = 0xdeadbeef;
         ret = p_Unlink(tests[i].path);
-        ok(ret == tests[i].last_error, "_Unlink(): test %d expect: %d, got %d\n",
-           i+1, tests[i].last_error, ret);
+        todo_wine_if(tests[i].is_todo)
+            ok(ret == tests[i].last_error, "_Unlink(): test %d expect: %d, got %d\n",
+                    i+1, tests[i].last_error, ret);
         ok(errno == 0xdeadbeef, "_Unlink(): test %d errno expect: 0xdeadbeef, got %d\n", i+1, ret);
     }
 
@@ -1491,6 +1511,7 @@ struct cndmtx
     _Cnd_t cnd;
     _Mtx_t mtx;
     BOOL timed_wait;
+    BOOL use_cnd_func;
 };
 
 static int __cdecl cnd_wait_thread(void *arg)
@@ -1503,16 +1524,23 @@ static int __cdecl cnd_wait_thread(void *arg)
     if(InterlockedIncrement(&cm->started) == cm->thread_no)
         SetEvent(cm->initialized);
 
-    if(cm->timed_wait) {
-        xtime xt;
+    if(cm->use_cnd_func) {
+        if(cm->timed_wait) {
+            xtime xt;
+            p_xtime_get(&xt, 1);
+            xt.sec += 2;
 
-        p_xtime_get(&xt, 1);
-        xt.sec += 2;
-        r = p__Cnd_timedwait(cm->cnd, cm->mtx, &xt);
-        ok(!r, "timed wait failed\n");
-    } else {
-        r = p__Cnd_wait(cm->cnd, cm->mtx);
+            r = p__Cnd_timedwait(cm->cnd, cm->mtx, &xt);
+        } else {
+            r = p__Cnd_wait(cm->cnd, cm->mtx);
+        }
         ok(!r, "wait failed\n");
+    } else {
+        p__Mtx_clear_owner(cm->mtx);
+        r = SleepConditionVariableSRW(&cm->cnd->cv, &cm->mtx->cs.win,
+                                      cm->timed_wait ? 2000 : INFINITE, 0);
+        ok(r, "wait failed\n");
+        p__Mtx_reset_owner(cm->mtx);
     }
 
     p__Mtx_unlock(cm->mtx);
@@ -1543,12 +1571,27 @@ static void test_cnd(void)
     cm.cnd = cnd;
     cm.mtx = mtx;
     cm.timed_wait = FALSE;
+    cm.use_cnd_func = TRUE;
     p__Thrd_create(&threads[0], cnd_wait_thread, (void*)&cm);
 
     WaitForSingleObject(cm.initialized, INFINITE);
     p__Mtx_lock(mtx);
     p__Mtx_unlock(mtx);
 
+    /* signal cnd function with kernel function */
+    WakeConditionVariable(&cm.cnd->cv);
+    p__Thrd_join(threads[0], NULL);
+
+    cm.started = 0;
+    cm.thread_no = 1;
+    cm.use_cnd_func = FALSE;
+    p__Thrd_create(&threads[0], cnd_wait_thread, (void*)&cm);
+
+    WaitForSingleObject(cm.initialized, INFINITE);
+    p__Mtx_lock(mtx);
+    p__Mtx_unlock(mtx);
+
+    /* signal kernel functions with cnd function */
     r = p__Cnd_signal(cm.cnd);
     ok(!r, "failed to signal\n");
     p__Thrd_join(threads[0], NULL);
@@ -1571,20 +1614,35 @@ static void test_cnd(void)
     /* test _Cnd_timedwait */
     cm.started = 0;
     cm.timed_wait = TRUE;
+    cm.use_cnd_func = TRUE;
     p__Thrd_create(&threads[0], cnd_wait_thread, (void*)&cm);
 
     WaitForSingleObject(cm.initialized, INFINITE);
     p__Mtx_lock(mtx);
     p__Mtx_unlock(mtx);
 
+    /* signal cnd function with kernel function */
+    WakeConditionVariable(&cm.cnd->cv);
+    p__Thrd_join(threads[0], NULL);
+
+    cm.started = 0;
+    cm.use_cnd_func = FALSE;
+    p__Thrd_create(&threads[0], cnd_wait_thread, (void*)&cm);
+
+    WaitForSingleObject(cm.initialized, INFINITE);
+    p__Mtx_lock(mtx);
+    p__Mtx_unlock(mtx);
+
+    /* signal kernel functions with cnd function */
     r = p__Cnd_signal(cm.cnd);
     ok(!r, "failed to signal\n");
     p__Thrd_join(threads[0], NULL);
 
     /* test _Cnd_broadcast */
     cm.started = 0;
+    cm.timed_wait = FALSE;
+    cm.use_cnd_func = TRUE;
     cm.thread_no = NUM_THREADS;
-
     for(i = 0; i < cm.thread_no; i++)
         p__Thrd_create(&threads[i], cnd_wait_thread, (void*)&cm);
 
@@ -1592,6 +1650,21 @@ static void test_cnd(void)
     p__Mtx_lock(mtx);
     p__Mtx_unlock(mtx);
 
+    /* signal cnd function with kernel function */
+    WakeAllConditionVariable(&cm.cnd->cv);
+    for(i = 0; i < cm.thread_no; i++)
+        p__Thrd_join(threads[i], NULL);
+
+    cm.started = 0;
+    cm.use_cnd_func = FALSE;
+    for(i = 0; i < cm.thread_no; i++)
+        p__Thrd_create(&threads[i], cnd_wait_thread, (void*)&cm);
+
+    WaitForSingleObject(cm.initialized, INFINITE);
+    p__Mtx_lock(mtx);
+    p__Mtx_unlock(mtx);
+
+    /* signal kernel functions with cnd function */
     r = p__Cnd_broadcast(cnd);
     ok(!r, "failed to broadcast\n");
     for(i = 0; i < cm.thread_no; i++)
@@ -1673,15 +1746,19 @@ static void test__Mtx(void)
 
     ok(mtx->thread_id == -1, "mtx.thread_id = %lx\n", mtx->thread_id);
     ok(mtx->count == 0, "mtx.count = %lx\n", mtx->count);
+    ok(mtx->cs.win.Ptr == 0, "mtx.cs == %p\n", mtx->cs.win.Ptr);
     p__Mtx_lock(mtx);
     ok(mtx->thread_id == GetCurrentThreadId(), "mtx.thread_id = %lx\n", mtx->thread_id);
     ok(mtx->count == 1, "mtx.count = %lx\n", mtx->count);
+    ok(mtx->cs.win.Ptr != 0, "mtx.cs == %p\n", mtx->cs.win.Ptr);
     p__Mtx_lock(mtx);
     ok(mtx->thread_id == GetCurrentThreadId(), "mtx.thread_id = %lx\n", mtx->thread_id);
     ok(mtx->count == 1, "mtx.count = %lx\n", mtx->count);
+    ok(mtx->cs.win.Ptr != 0, "mtx.cs == %p\n", mtx->cs.win.Ptr);
     p__Mtx_unlock(mtx);
     ok(mtx->thread_id == -1, "mtx.thread_id = %lx\n", mtx->thread_id);
     ok(mtx->count == 0, "mtx.count = %lx\n", mtx->count);
+    ok(mtx->cs.win.Ptr == 0, "mtx.cs == %p\n", mtx->cs.win.Ptr);
     p__Mtx_unlock(mtx);
     ok(mtx->thread_id == -1, "mtx.thread_id = %lx\n", mtx->thread_id);
     ok(mtx->count == -1, "mtx.count = %lx\n", mtx->count);

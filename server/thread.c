@@ -37,6 +37,9 @@
 #define _WITH_CPU_SET_T
 #include <sched.h>
 #endif
+#ifdef HAVE_SYS_RESOURCE_H
+#include <sys/resource.h>
+#endif
 
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
@@ -51,7 +54,6 @@
 #include "user.h"
 #include "security.h"
 #include "esync.h"
-#include "fsync.h"
 
 
 /* thread queues */
@@ -99,7 +101,6 @@ static const struct object_ops thread_apc_ops =
     remove_queue,               /* remove_queue */
     thread_apc_signaled,        /* signaled */
     NULL,                       /* get_esync_fd */
-    NULL,                       /* get_fsync_idx */
     no_satisfied,               /* satisfied */
     no_signal,                  /* signal */
     no_get_fd,                  /* get_fd */
@@ -143,7 +144,6 @@ static const struct object_ops context_ops =
     remove_queue,               /* remove_queue */
     context_signaled,           /* signaled */
     NULL,                       /* get_esync_fd */
-    NULL,                       /* get_fsync_idx */
     no_satisfied,               /* satisfied */
     no_signal,                  /* signal */
     no_get_fd,                  /* get_fd */
@@ -181,7 +181,6 @@ struct type_descr thread_type =
 static void dump_thread( struct object *obj, int verbose );
 static int thread_signaled( struct object *obj, struct wait_queue_entry *entry );
 static int thread_get_esync_fd( struct object *obj, enum esync_type *type );
-static unsigned int thread_get_fsync_idx( struct object *obj, enum fsync_type *type );
 static unsigned int thread_map_access( struct object *obj, unsigned int access );
 static void thread_poll_event( struct fd *fd, int event );
 static struct list *thread_get_kernel_obj_list( struct object *obj );
@@ -196,7 +195,6 @@ static const struct object_ops thread_ops =
     remove_queue,               /* remove_queue */
     thread_signaled,            /* signaled */
     thread_get_esync_fd,        /* get_esync_fd */
-    thread_get_fsync_idx,       /* get_fsync_idx */
     no_satisfied,               /* satisfied */
     no_signal,                  /* signal */
     no_get_fd,                  /* get_fd */
@@ -226,6 +224,51 @@ static const struct fd_ops thread_fd_ops =
 
 static struct list thread_list = LIST_INIT(thread_list);
 
+#if defined(__linux__) && defined(RLIMIT_NICE)
+static int nice_limit;
+
+void init_threading(void)
+{
+    struct rlimit rlimit;
+
+    /* if wineserver has cap_sys_nice we are unlimited, but leave -20 to the user */
+    if (!setpriority( PRIO_PROCESS, getpid(), -20 )) nice_limit = -19;
+    setpriority( PRIO_PROCESS, getpid(), 0 );
+
+    if (!nice_limit && !getrlimit( RLIMIT_NICE, &rlimit ))
+    {
+        rlimit.rlim_cur = rlimit.rlim_max;
+        setrlimit( RLIMIT_NICE, &rlimit );
+        if (rlimit.rlim_max <= 40) nice_limit = 20 - rlimit.rlim_max;
+        else if (rlimit.rlim_max == -1) nice_limit = -20;
+        if (nice_limit >= 0 && debug_level) fprintf(stderr, "wine: RLIMIT_NICE is <= 20, unable to use setpriority safely\n");
+    }
+    if (nice_limit < 0 && debug_level) fprintf(stderr, "wine: Using setpriority to control niceness in the [%d,%d] range\n", nice_limit, -nice_limit );
+}
+
+static void apply_thread_priority( struct thread *thread, int base_priority )
+{
+    int min = -nice_limit, max = nice_limit, range = max - min, niceness;
+
+    /* FIXME: handle realtime priorities using SCHED_RR if possible */
+    if (base_priority > THREAD_BASE_PRIORITY_LOWRT) base_priority = THREAD_BASE_PRIORITY_LOWRT;
+    /* map an NT application band [1,15] base priority to [-nice_limit, nice_limit] */
+    niceness = (min + (base_priority - 1) * range / 14);
+    setpriority( PRIO_PROCESS, thread->unix_tid, niceness );
+}
+
+#else
+
+void init_threading(void)
+{
+}
+
+static void apply_thread_priority( struct thread *thread, int base_priority )
+{
+}
+
+#endif
+
 /* initialize the structure for a newly allocated thread */
 static inline void init_thread_structure( struct thread *thread )
 {
@@ -238,7 +281,6 @@ static inline void init_thread_structure( struct thread *thread )
     thread->entry_point     = 0;
     thread->esync_fd        = -1;
     thread->esync_apc_fd    = -1;
-    thread->fsync_idx       = 0;
     thread->system_regs     = 0;
     thread->queue           = NULL;
     thread->wait            = NULL;
@@ -259,7 +301,6 @@ static inline void init_thread_structure( struct thread *thread )
     thread->token           = NULL;
     thread->desc            = NULL;
     thread->desc_len        = 0;
-    thread->exit_poll       = NULL;
 
     thread->creation_time = current_time;
     thread->exit_time     = 0;
@@ -387,12 +428,6 @@ struct thread *create_thread( int fd, struct process *process, const struct secu
         }
     }
 
-    if (do_fsync())
-    {
-        thread->fsync_idx = fsync_alloc_shm( 0, 0 );
-        thread->fsync_apc_idx = fsync_alloc_shm( 0, 0 );
-    }
-
     if (do_esync())
     {
         thread->esync_fd = esync_create_fd( 0, 0 );
@@ -476,7 +511,6 @@ static void destroy_thread( struct object *obj )
     list_remove( &thread->entry );
     cleanup_thread( thread );
     release_object( thread->process );
-    if (thread->exit_poll) remove_timeout_user( thread->exit_poll );
     if (thread->id) free_ptid( thread->id );
     if (thread->token) release_object( thread->token );
 
@@ -497,7 +531,7 @@ static void dump_thread( struct object *obj, int verbose )
 static int thread_signaled( struct object *obj, struct wait_queue_entry *entry )
 {
     struct thread *mythread = (struct thread *)obj;
-    return mythread->state == TERMINATED && !mythread->exit_poll;
+    return (mythread->state == TERMINATED);
 }
 
 static int thread_get_esync_fd( struct object *obj, enum esync_type *type )
@@ -505,13 +539,6 @@ static int thread_get_esync_fd( struct object *obj, enum esync_type *type )
     struct thread *thread = (struct thread *)obj;
     *type = ESYNC_MANUAL_SERVER;
     return thread->esync_fd;
-}
-
-static unsigned int thread_get_fsync_idx( struct object *obj, enum fsync_type *type )
-{
-    struct thread *thread = (struct thread *)obj;
-    *type = FSYNC_MANUAL_SERVER;
-    return thread->fsync_idx;
 }
 
 static unsigned int thread_map_access( struct object *obj, unsigned int access )
@@ -566,7 +593,6 @@ static struct thread_apc *create_apc( struct object *owner, const union apc_call
         apc->result.type = APC_NONE;
         if (owner) grab_object( owner );
     }
-
     return apc;
 }
 
@@ -650,8 +676,45 @@ affinity_t get_thread_affinity( struct thread *thread )
     return mask;
 }
 
+static int get_base_priority( int priority_class, int priority )
+{
+    /* offsets taken from https://learn.microsoft.com/en-us/windows/win32/procthread/scheduling-priorities */
+    static const int class_offsets[] = { 4, 8, 13, 24, 6, 10 };
+
+    if (priority == THREAD_PRIORITY_IDLE) return (priority_class == PROCESS_PRIOCLASS_REALTIME ? 16 : 1);
+    if (priority == THREAD_PRIORITY_TIME_CRITICAL) return (priority_class == PROCESS_PRIOCLASS_REALTIME ? 31 : 15);
+    if (priority_class >= ARRAY_SIZE(class_offsets)) return 8;
+    return class_offsets[priority_class - 1] + priority;
+}
+
 #define THREAD_PRIORITY_REALTIME_HIGHEST 6
 #define THREAD_PRIORITY_REALTIME_LOWEST -7
+
+unsigned int set_thread_priority( struct thread *thread, int priority_class, int priority )
+{
+    int max = THREAD_PRIORITY_HIGHEST;
+    int min = THREAD_PRIORITY_LOWEST;
+
+    if (priority_class == PROCESS_PRIOCLASS_REALTIME)
+    {
+        max = THREAD_PRIORITY_REALTIME_HIGHEST;
+        min = THREAD_PRIORITY_REALTIME_LOWEST;
+    }
+    if ((priority < min || priority > max) &&
+        priority != THREAD_PRIORITY_IDLE &&
+        priority != THREAD_PRIORITY_TIME_CRITICAL)
+        return STATUS_INVALID_PARAMETER;
+
+    if (thread->state == TERMINATED)
+        return STATUS_THREAD_IS_TERMINATING;
+
+    thread->priority = priority;
+
+    /* if thread is gone or hasn't started yet, this will be called again from init_thread with a unix_tid */
+    if (thread->unix_tid != -1) apply_thread_priority( thread, get_base_priority( priority_class, priority ));
+
+    return STATUS_SUCCESS;
+}
 
 /* set all information about a thread */
 static void set_thread_info( struct thread *thread,
@@ -659,22 +722,8 @@ static void set_thread_info( struct thread *thread,
 {
     if (req->mask & SET_THREAD_INFO_PRIORITY)
     {
-        int max = THREAD_PRIORITY_HIGHEST;
-        int min = THREAD_PRIORITY_LOWEST;
-        if (thread->process->priority == PROCESS_PRIOCLASS_REALTIME)
-        {
-            max = THREAD_PRIORITY_REALTIME_HIGHEST;
-            min = THREAD_PRIORITY_REALTIME_LOWEST;
-        }
-        if ((req->priority >= min && req->priority <= max) ||
-            req->priority == THREAD_PRIORITY_IDLE ||
-            req->priority == THREAD_PRIORITY_TIME_CRITICAL)
-        {
-            thread->priority = req->priority;
-            set_scheduler_priority( thread );
-        }
-        else
-            set_error( STATUS_INVALID_PARAMETER );
+        unsigned int status = set_thread_priority( thread, thread->process->priority, req->priority );
+        if (status) set_error( status );
     }
     if (req->mask & SET_THREAD_INFO_AFFINITY)
     {
@@ -1113,9 +1162,6 @@ void wake_up( struct object *obj, int max )
     struct list *ptr;
     int ret;
 
-    if (do_fsync())
-        fsync_wake_up( obj );
-
     if (do_esync())
         esync_wake_up( obj );
 
@@ -1206,9 +1252,6 @@ static int queue_apc( struct process *process, struct thread *thread, struct thr
     {
         wake_thread( thread );
 
-        if (do_fsync() && queue == &thread->user_apc)
-            fsync_wake_futex( thread->fsync_apc_idx );
-
         if (do_esync() && queue == &thread->user_apc)
             esync_wake_fd( thread->esync_apc_fd );
     }
@@ -1258,9 +1301,6 @@ static struct thread_apc *thread_dequeue_apc( struct thread *thread, int system 
         apc = LIST_ENTRY( ptr, struct thread_apc, entry );
         list_remove( ptr );
     }
-
-    if (do_fsync() && list_empty( &thread->system_apc ) && list_empty( &thread->user_apc ))
-        fsync_clear_futex( thread->fsync_apc_idx );
 
     if (do_esync() && list_empty( &thread->system_apc ) && list_empty( &thread->user_apc ))
         esync_clear( thread->esync_apc_fd );
@@ -1341,26 +1381,6 @@ int thread_get_inflight_fd( struct thread *thread, int client )
     return -1;
 }
 
-static void check_terminated( void *arg )
-{
-    struct thread *thread = arg;
-    assert( thread->obj.ops == &thread_ops );
-    assert( thread->state == TERMINATED );
-
-    /* don't wake up until the thread is really dead, to avoid race conditions */
-    if (thread->unix_tid != -1 && !kill( thread->unix_tid, 0 ))
-    {
-        thread->exit_poll = add_timeout_user( -TICKS_PER_SEC / 1000, check_terminated, thread );
-        return;
-    }
-
-    /* grab reference since object can be destroyed while trying to wake up */
-    grab_object( &thread->obj );
-    thread->exit_poll = NULL;
-    wake_up( &thread->obj, 0 );
-    release_object( &thread->obj );
-}
-
 /* kill a thread on the spot */
 void kill_thread( struct thread *thread, int violent_death )
 {
@@ -1380,16 +1400,10 @@ void kill_thread( struct thread *thread, int violent_death )
     }
     kill_console_processes( thread, 0 );
     abandon_mutexes( thread );
-    if (do_fsync())
-        fsync_abandon_mutexes( thread );
     if (do_esync())
         esync_abandon_mutexes( thread );
-    if (violent_death)
-    {
-        send_thread_signal( thread, SIGQUIT );
-        check_terminated( thread );
-    }
-    else wake_up( &thread->obj, 0 );
+    wake_up( &thread->obj, 0 );
+    if (violent_death) send_thread_signal( thread, SIGQUIT );
     cleanup_thread( thread );
     remove_process_thread( thread->process, thread );
     release_object( thread );
@@ -1519,6 +1533,8 @@ DECL_HANDLER(init_first_thread)
     else
         set_thread_affinity( current, current->affinity );
 
+    set_thread_priority( current, process->priority, current->priority );
+
     debug_level = max( debug_level, req->debug_level );
 
     reply->pid          = get_process_id( process );
@@ -1548,6 +1564,7 @@ DECL_HANDLER(init_thread)
 
     init_thread_context( current );
     generate_debug_event( current, DbgCreateThreadStateChange, &req->entry );
+    set_thread_priority( current, current->process->priority, current->priority );
     set_thread_affinity( current, current->affinity );
 
     reply->suspend = (current->suspend || current->process->suspend || current->context != NULL);
@@ -2120,9 +2137,9 @@ DECL_HANDLER(get_next_thread)
     while (ptr)
     {
         thread = LIST_ENTRY( ptr, struct thread, entry );
-        if (thread->process == process)
+        if (thread->process == process &&
+            (reply->handle = alloc_handle( current->process, thread, req->access, req->attributes )))
         {
-            reply->handle = alloc_handle( current->process, thread, req->access, req->attributes );
             release_object( process );
             return;
         }

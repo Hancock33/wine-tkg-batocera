@@ -1576,7 +1576,6 @@ enum server_fd_type
 {
     FD_TYPE_INVALID,  /* invalid file (no associated fd) */
     FD_TYPE_FILE,     /* regular file */
-    FD_TYPE_SYMLINK,  /* symbolic link */
     FD_TYPE_DIR,      /* directory */
     FD_TYPE_SOCKET,   /* socket */
     FD_TYPE_SERIAL,   /* serial port */
@@ -1997,18 +1996,6 @@ struct process_info
 /* Flush a registry key */
 @REQ(flush_key)
     obj_handle_t hkey;         /* handle to the key */
-@REPLY
-    abstime_t   timestamp_counter; /* branch last change timestamp counter */
-    data_size_t total;             /* total length needed for data */
-    int         branch_count;      /* number of registry branches to flush */
-    VARARG(data,bytes);            /* registry data */
-@END
-
-
-/* Clear KEY_DIRTY after key flush */
-@REQ(flush_key_done)
-    abstime_t    timestamp_counter; /* timestamp counter returned from flush_key */
-    int          branch;            /* saved registry branch id */
 @END
 
 
@@ -2089,19 +2076,11 @@ struct process_info
 @END
 
 
-/* Return full registry branch non-volatile data for saving */
+/* Save a registry branch to a file */
 @REQ(save_registry)
-    obj_handle_t hkey;  /* key to save */
-@REPLY
-    data_size_t  total; /* total length needed for data */
-    VARARG(data,bytes); /* registry data */
+    obj_handle_t hkey;         /* key to save */
+    obj_handle_t file;         /* file to save to */
 @END
-enum prefix_type
-{
-    PREFIX_UNKNOWN,
-    PREFIX_32BIT,
-    PREFIX_64BIT,
-};
 
 
 /* Add a registry key change notification */
@@ -2320,7 +2299,7 @@ enum message_type
 @REQ(send_hardware_message)
     user_handle_t   win;       /* window handle */
     union hw_input  input;     /* input data */
-    unsigned int    flags;     /* flags (see ntuser.h) */
+    unsigned int    flags;     /* flags (see below) */
     VARARG(report,bytes);      /* HID report data */
 @REPLY
     int             wait;      /* do we need to wait for a reply? */
@@ -2329,6 +2308,7 @@ enum message_type
     int             new_x;     /* new cursor position */
     int             new_y;
 @END
+#define SEND_HWMSG_INJECTED    0x01
 
 
 /* Get a message from the current queue */
@@ -4078,6 +4058,7 @@ struct handle_info
     obj_handle_t handle;       /* process handle */
 @END
 
+
 /* Iterate thread list for process */
 @REQ(get_next_thread)
     obj_handle_t process;      /* process handle */
@@ -4087,6 +4068,16 @@ struct handle_info
     unsigned int flags;        /* controls iteration direction */
 @REPLY
     obj_handle_t handle;       /* next thread handle */
+@END
+
+
+/* Setup keyboard auto-repeat */
+@REQ(set_keyboard_repeat)
+    int enable;                /* whether to enable auto-repeat */
+    int delay;                 /* auto-repeat delay in ms */
+    int period;                /* auto-repeat period in ms */
+@REPLY
+    int enable;                /* previous state of auto-repeat enable */
 @END
 
 enum esync_type
@@ -4133,73 +4124,11 @@ enum esync_type
     unsigned int shm_idx;
 @END
 
+/* Notify the server that we are doing a message wait or done with one. */
 @REQ(esync_msgwait)
     int          in_msgwait;    /* are we in a message wait? */
 @END
 
-/* Setup keyboard auto-repeat */
-@REQ(set_keyboard_repeat)
-    int enable;                /* whether to enable auto-repeat */
-    int delay;                 /* auto-repeat delay in ms */
-    int period;                /* auto-repeat period in ms */
-@REPLY
-    int enable;                /* previous state of auto-repeat enable */
-@END
-
 /* Retrieve the fd to wait on for user APCs. */
 @REQ(get_esync_apc_fd)
-@END
-
-enum fsync_type
-{
-    FSYNC_SEMAPHORE = 1,
-    FSYNC_AUTO_EVENT,
-    FSYNC_MANUAL_EVENT,
-    FSYNC_MUTEX,
-    FSYNC_AUTO_SERVER,
-    FSYNC_MANUAL_SERVER,
-    FSYNC_QUEUE,
-};
-
-/* Create a new futex-based synchronization object */
-@REQ(create_fsync)
-    unsigned int access;        /* wanted access rights */
-    int low;                    /* initial value of low word */
-    int high;                   /* initial value of high word */
-    int type;                   /* type of fsync object */
-    VARARG(objattr,object_attributes); /* object attributes */
-@REPLY
-    obj_handle_t handle;        /* handle to the object */
-    int type;                   /* type of fsync object */
-    unsigned int shm_idx;       /* this object's index into the shm section */
-@END
-
-/* Open an fsync object */
-@REQ(open_fsync)
-    unsigned int access;        /* wanted access rights */
-    unsigned int attributes;    /* object attributes */
-    obj_handle_t rootdir;       /* root directory */
-    int          type;          /* type of fsync object */
-    VARARG(name,unicode_str);   /* object name */
-@REPLY
-    obj_handle_t handle;        /* handle to the event */
-    int          type;          /* type of fsync object */
-    unsigned int shm_idx;       /* this object's index into the shm section */
-@END
-
-/* Retrieve the shm index for an object. */
-@REQ(get_fsync_idx)
-    obj_handle_t handle;        /* handle to the object */
-@REPLY
-    int          type;
-    unsigned int shm_idx;
-@END
-
-@REQ(fsync_msgwait)
-    int          in_msgwait;    /* are we in a message wait? */
-@END
-
-@REQ(get_fsync_apc_idx)
-@REPLY
-    unsigned int shm_idx;
 @END

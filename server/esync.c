@@ -20,7 +20,6 @@
 
 #include "config.h"
 
-
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -42,7 +41,6 @@
 #include "request.h"
 #include "file.h"
 #include "esync.h"
-#include "fsync.h"
 
 int do_esync(void)
 {
@@ -50,7 +48,7 @@ int do_esync(void)
     static int do_esync_cached = -1;
 
     if (do_esync_cached == -1)
-        do_esync_cached = getenv("WINEESYNC") && atoi(getenv("WINEESYNC")) && !do_fsync();
+        do_esync_cached = getenv("WINEESYNC") && atoi(getenv("WINEESYNC"));
 
     return do_esync_cached;
 #else
@@ -129,14 +127,13 @@ const struct object_ops esync_ops =
     NULL,                      /* remove_queue */
     NULL,                      /* signaled */
     esync_get_esync_fd,        /* get_esync_fd */
-    NULL,                      /* get_fsync_idx */
     NULL,                      /* satisfied */
     no_signal,                 /* signal */
     no_get_fd,                 /* get_fd */
     esync_map_access,          /* map_access */
     default_get_sd,            /* get_sd */
     default_set_sd,            /* set_sd */
-    default_get_full_name,     /* get_full_name */
+    no_get_full_name,          /* get_full_name */
     no_lookup_name,            /* lookup_name */
     directory_link_name,       /* link_name */
     default_unlink_name,       /* unlink_name */
@@ -150,7 +147,7 @@ static void esync_dump( struct object *obj, int verbose )
 {
     struct esync *esync = (struct esync *)obj;
     assert( obj->ops == &esync_ops );
-    fprintf( stderr, "esync fd=%d\n", esync->fd );
+    fprintf( stderr, "esync fd=%ld\n", esync->fd );
 }
 
 static int esync_get_esync_fd( struct object *obj, enum esync_type *type )
@@ -195,7 +192,7 @@ static void *get_shm( unsigned int idx )
         int new_size = max(shm_addrs_size * 2, entry + 1);
 
         if (!(shm_addrs = realloc( shm_addrs, new_size * sizeof(shm_addrs[0]) )))
-            fprintf( stderr, "esync: couldn't expand shm_addrs array to size %d\n", entry + 1 );
+            fprintf( stderr, "esync: couldn't expand shm_addrs array to size %ld\n", entry + 1 );
 
         memset( shm_addrs + shm_addrs_size, 0, (new_size - shm_addrs_size) * sizeof(shm_addrs[0]) );
 
@@ -279,7 +276,7 @@ struct esync *create_esync( struct object *root, const struct unicode_str *name,
                 if (ftruncate( shm_fd, shm_size ) == -1)
                 {
                     fprintf( stderr, "esync: couldn't expand %s to size %ld: ",
-                             shm_name, (long)shm_size );
+                        shm_name, shm_size );
                     perror( "ftruncate" );
                 }
             }
@@ -403,7 +400,7 @@ void esync_set_event( struct esync *esync )
     assert( event != NULL );
 
     if (debug_level)
-        fprintf( stderr, "esync_set_event() fd=%d\n", esync->fd );
+        fprintf( stderr, "esync_set_event() fd=%ld\n", esync->fd );
 
     if (esync->type == ESYNC_MANUAL_EVENT)
     {
@@ -434,7 +431,7 @@ void esync_reset_event( struct esync *esync )
     assert( event != NULL );
 
     if (debug_level)
-        fprintf( stderr, "esync_reset_event() fd=%d\n", esync->fd );
+        fprintf( stderr, "esync_reset_event() fd=%ld\n", esync->fd );
 
     if (esync->type == ESYNC_MANUAL_EVENT)
     {
@@ -468,7 +465,7 @@ void esync_abandon_mutexes( struct thread *thread )
         if (mutex->tid == thread->id)
         {
             if (debug_level)
-                fprintf( stderr, "esync_abandon_mutexes() fd=%d\n", esync->fd );
+                fprintf( stderr, "esync_abandon_mutexes() fd=%ld\n", esync->fd );
             mutex->tid = ~0;
             mutex->count = 0;
             esync_wake_fd( esync->fd );

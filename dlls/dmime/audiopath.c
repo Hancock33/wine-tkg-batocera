@@ -649,21 +649,18 @@ HRESULT path_config_get_audio_path_params(IUnknown *iface, WAVEFORMATEX *format,
 {
     struct audio_path_config *This = impl_from_IUnknown(iface);
     struct list *first_port_config, *first_pchannel_to_buffer;
-    struct audio_path_port_config *port_config = NULL;
-    struct audio_path_pchannel_to_buffer *pchannel_to_buffer = NULL;
+    struct audio_path_port_config *port_config;
+    struct audio_path_pchannel_to_buffer *pchannel_to_buffer;
     GUID *guids;
 
     first_port_config = list_head(&This->port_config_entries);
-    if (first_port_config)
-    {
-        if (list_next(&This->port_config_entries, first_port_config))
-            FIXME("Only one port config supported. %p -> %p\n", first_port_config, list_next(&This->port_config_entries, first_port_config));
-        port_config = LIST_ENTRY(first_port_config, struct audio_path_port_config, entry);
-        first_pchannel_to_buffer = list_head(&port_config->pchannel_to_buffer_entries);
-        if (list_next(&port_config->pchannel_to_buffer_entries, first_pchannel_to_buffer))
-            FIXME("Only one pchannel to buffer entry supported.\n");
-        pchannel_to_buffer = LIST_ENTRY(first_pchannel_to_buffer, struct audio_path_pchannel_to_buffer, entry);
-    }
+    if (list_next(&This->port_config_entries, first_port_config))
+        FIXME("Only one port config supported. %p -> %p\n", first_port_config, list_next(&This->port_config_entries, first_port_config));
+    port_config = LIST_ENTRY(first_port_config, struct audio_path_port_config, entry);
+    first_pchannel_to_buffer = list_head(&port_config->pchannel_to_buffer_entries);
+    if (list_next(&port_config->pchannel_to_buffer_entries, first_pchannel_to_buffer))
+        FIXME("Only one pchannel to buffer entry supported.\n");
+    pchannel_to_buffer = LIST_ENTRY(first_pchannel_to_buffer, struct audio_path_pchannel_to_buffer, entry);
 
     /* Secondary buffer description */
     memset(format, 0, sizeof(*format));
@@ -683,56 +680,50 @@ HRESULT path_config_get_audio_path_params(IUnknown *iface, WAVEFORMATEX *format,
     desc->lpwfxFormat = format;
     desc->guid3DAlgorithm = GUID_NULL;
 
-    if (pchannel_to_buffer)
+    guids = pchannel_to_buffer->guids;
+    if (pchannel_to_buffer->header.dwBufferCount == 2)
     {
-        guids = pchannel_to_buffer->guids;
-        if (pchannel_to_buffer->header.dwBufferCount == 2)
-        {
-            if ((!IsEqualGUID(&guids[0], &GUID_Buffer_Reverb) && !IsEqualGUID(&guids[0], &GUID_Buffer_Stereo)) ||
-                    (!IsEqualGUID(&guids[1], &GUID_Buffer_Reverb) && !IsEqualGUID(&guids[1], &GUID_Buffer_Stereo)) ||
-                    IsEqualGUID(&guids[0], &guids[1]))
-                FIXME("Only a stereo plus reverb buffer is supported\n");
-            else
-            {
-                desc->dwFlags |= DSBCAPS_CTRLPAN | DSBCAPS_CTRLFREQUENCY;
-                format->nChannels = 2;
-                format->nBlockAlign *= 2;
-                format->nAvgBytesPerSec *= 2;
-            }
-        }
-        else if (pchannel_to_buffer->header.dwBufferCount == 1)
-        {
-            if (IsEqualGUID(guids, &GUID_Buffer_Stereo))
-            {
-                desc->dwFlags |= DSBCAPS_CTRLPAN | DSBCAPS_CTRLFREQUENCY;
-                format->nChannels = 2;
-                format->nBlockAlign *= 2;
-                format->nAvgBytesPerSec *= 2;
-            }
-            else if (IsEqualGUID(guids, &GUID_Buffer_3D_Dry))
-                desc->dwFlags |= DSBCAPS_CTRL3D | DSBCAPS_CTRLFREQUENCY | DSBCAPS_MUTE3DATMAXDISTANCE;
-            else if (IsEqualGUID(guids, &GUID_Buffer_Mono))
-                desc->dwFlags |= DSBCAPS_CTRLPAN | DSBCAPS_CTRLFREQUENCY;
-            else
-                FIXME("Unsupported buffer guid %s\n", debugstr_dmguid(guids));
-        }
+        if ((!IsEqualGUID(&guids[0], &GUID_Buffer_Reverb) && !IsEqualGUID(&guids[0], &GUID_Buffer_Stereo)) ||
+                (!IsEqualGUID(&guids[1], &GUID_Buffer_Reverb) && !IsEqualGUID(&guids[1], &GUID_Buffer_Stereo)) ||
+                IsEqualGUID(&guids[0], &guids[1]))
+            FIXME("Only a stereo plus reverb buffer is supported\n");
         else
-            FIXME("Multiple buffers not supported\n");
+        {
+            desc->dwFlags |= DSBCAPS_CTRLPAN | DSBCAPS_CTRLFREQUENCY;
+            format->nChannels = 2;
+            format->nBlockAlign *= 2;
+            format->nAvgBytesPerSec *= 2;
+        }
     }
-
-    if (port_config)
+    else if (pchannel_to_buffer->header.dwBufferCount == 1)
     {
-        *params = port_config->params;
-        if (!(params->dwValidParams & DMUS_PORTPARAMS_CHANNELGROUPS))
+        if (IsEqualGUID(guids, &GUID_Buffer_Stereo))
         {
-            params->dwValidParams |= DMUS_PORTPARAMS_CHANNELGROUPS;
-            params->dwChannelGroups = (port_config->header.dwPChannelCount + 15) / 16;
+            desc->dwFlags |= DSBCAPS_CTRLPAN | DSBCAPS_CTRLFREQUENCY;
+            format->nChannels = 2;
+            format->nBlockAlign *= 2;
+            format->nAvgBytesPerSec *= 2;
         }
-        if (!(params->dwValidParams & DMUS_PORTPARAMS_AUDIOCHANNELS))
-        {
-            params->dwValidParams |= DMUS_PORTPARAMS_AUDIOCHANNELS;
-            params->dwAudioChannels = format->nChannels;
-        }
+        else if (IsEqualGUID(guids, &GUID_Buffer_3D_Dry))
+            desc->dwFlags |= DSBCAPS_CTRL3D | DSBCAPS_CTRLFREQUENCY | DSBCAPS_MUTE3DATMAXDISTANCE;
+        else if (IsEqualGUID(guids, &GUID_Buffer_Mono))
+            desc->dwFlags |= DSBCAPS_CTRLPAN | DSBCAPS_CTRLFREQUENCY;
+        else
+            FIXME("Unsupported buffer guid %s\n", debugstr_dmguid(guids));
+    }
+    else
+        FIXME("Multiple buffers not supported\n");
+
+    *params = port_config->params;
+    if (!(params->dwValidParams & DMUS_PORTPARAMS_CHANNELGROUPS))
+    {
+        params->dwValidParams |= DMUS_PORTPARAMS_CHANNELGROUPS;
+        params->dwChannelGroups = (port_config->header.dwPChannelCount + 15) / 16;
+    }
+    if (!(params->dwValidParams & DMUS_PORTPARAMS_AUDIOCHANNELS))
+    {
+        params->dwValidParams |= DMUS_PORTPARAMS_AUDIOCHANNELS;
+        params->dwAudioChannels = format->nChannels;
     }
     return S_OK;
 }
