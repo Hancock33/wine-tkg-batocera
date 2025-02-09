@@ -1,18 +1,22 @@
-# Last wine-tkg-esync-git configuration - Sat  8 Feb 12:12:17 GMT 2025 :
+# Last wine-tkg-staging-esync-git configuration - Sun  9 Feb 09:24:02 GMT 2025 :
 
 Local cfg files used
 
 Wine (plain) version: 10.1.r0.ga1dddd902f2
+Using wine-staging patchset (version 10.1.r0.g7b9777c2)
 
-Using esync patchset (version ce79346)
+Disabled the local Esync patchset to use Staging impl instead.
 Not using vkd3d native library for d3d12 translation (allows using vkd3d-proton)
 
 Done applying backports hotfixes (if any) - list available in prepare.log
 Done applying reverting hotfixes (if any) - list available in prepare.log
 
-esync-unix-mainline.patch -- ( Using Esync (unix, mainline) patchset )
+CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 
-LAA-unix.patch -- ( Applied large address aware override support (legacy) )
+Staging overrides, if any: 
+
+
+LAA-unix-staging.patch -- ( Applied large address aware override support (legacy) )
 
 josh-flat-theme.patch -- ( Add Josh's better-theme )
 proton_battleye.patch -- ( Add support for Proton's Battleye runtime )
@@ -22,9 +26,8 @@ Applied hotfix Return_nt_filename_and_resolve_DOS_drive_path.mypatch
 Applied hotfix a608ef1.mypatch
 Applied hotfix opencl-fixup.mypatch
 Applied hotfix nostale_mouse_fix.mypatch
-Applied hotfix HACK-user32-Always-call-get_message-request-after-waiting.mypatch
 
-wine-tkg.patch -- ( Please don't report bugs about this wine build on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead. )
+wine-tkg-staging.patch -- ( Please don't report bugs about this wine build on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead. )
 
 
 With predefined optimizations:

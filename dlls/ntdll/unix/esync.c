@@ -22,24 +22,23 @@
 #pragma makedep unix
 #endif
 
-#define _GNU_SOURCE
-
 #include "config.h"
+
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
-#ifdef HAVE_POLL_H
-#include <poll.h>
-#endif
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/mman.h>
-#include <poll.h>
 #ifdef HAVE_SYS_STAT_H
 # include <sys/stat.h>
 #endif
+#include <poll.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -74,29 +73,29 @@ int do_esync(void)
 
 struct esync
 {
-    enum esync_type type;
+    LONG type;
     int fd;
     void *shm;
 };
 
 struct semaphore
 {
-    int max;
-    int count;
+    LONG max;
+    LONG count;
 };
 C_ASSERT(sizeof(struct semaphore) == 8);
 
 struct mutex
 {
-    DWORD tid;
-    int count;    /* recursion count */
+    LONG tid;
+    LONG count;    /* recursion count */
 };
 C_ASSERT(sizeof(struct mutex) == 8);
 
 struct event
 {
-    int signaled;
-    int locked;
+    LONG signaled;
+    LONG locked;
 };
 C_ASSERT(sizeof(struct event) == 8);
 
@@ -183,7 +182,7 @@ static struct esync *add_to_list( HANDLE handle, enum esync_type type, int fd, v
         }
     }
 
-    if (!InterlockedCompareExchange( (int *)&esync_list[entry][idx].type, type, 0 ))
+    if (!InterlockedCompareExchange( &esync_list[entry][idx].type, type, 0 ))
     {
         esync_list[entry][idx].fd = fd;
         esync_list[entry][idx].shm = shm;
@@ -207,7 +206,7 @@ static struct esync *get_cached_object( HANDLE handle )
  * message queue, etc.) */
 static NTSTATUS get_object( HANDLE handle, struct esync **obj )
 {
-    NTSTATUS ret = STATUS_SUCCESS;
+    int ret = STATUS_SUCCESS;
     enum esync_type type = 0;
     unsigned int shm_idx = 0;
     obj_handle_t fd_handle;
@@ -275,7 +274,7 @@ NTSTATUS esync_close( HANDLE handle )
 
     if (entry < ESYNC_LIST_ENTRIES && esync_list[entry])
     {
-        if (InterlockedExchange((int *)&esync_list[entry][idx].type, 0))
+        if (InterlockedExchange(&esync_list[entry][idx].type, 0))
         {
             close( esync_list[entry][idx].fd );
             return STATUS_SUCCESS;
@@ -371,7 +370,7 @@ static NTSTATUS open_esync( enum esync_type type, HANDLE *handle,
 }
 
 extern NTSTATUS esync_create_semaphore(HANDLE *handle, ACCESS_MASK access,
-    const OBJECT_ATTRIBUTES *attr, LONG initial, LONG max)
+    const OBJECT_ATTRIBUTES *attr, int initial, int max)
 {
     TRACE("name %s, initial %d, max %d.\n",
         attr ? debugstr_us(attr->ObjectName) : "<no name>", initial, max);
@@ -387,7 +386,7 @@ NTSTATUS esync_open_semaphore( HANDLE *handle, ACCESS_MASK access,
     return open_esync( ESYNC_SEMAPHORE, handle, access, attr );
 }
 
-NTSTATUS esync_release_semaphore( HANDLE handle, ULONG count, ULONG *prev )
+NTSTATUS esync_release_semaphore( HANDLE handle, unsigned int count, ULONG *prev )
 {
     struct esync *obj;
     struct semaphore *semaphore;
@@ -529,9 +528,6 @@ NTSTATUS esync_set_event( HANDLE handle )
     if ((ret = get_object( handle, &obj ))) return ret;
     event = obj->shm;
 
-    if (obj->type != ESYNC_MANUAL_EVENT && obj->type != ESYNC_AUTO_EVENT)
-        return STATUS_OBJECT_TYPE_MISMATCH;
-
     if (obj->type == ESYNC_MANUAL_EVENT)
     {
         /* Acquire the spinlock. */
@@ -623,7 +619,7 @@ NTSTATUS esync_pulse_event( HANDLE handle )
 
     /* Try to give other threads a chance to wake up. Hopefully erring on this
      * side is the better thing to do... */
-    usleep(0);
+    NtYieldExecution();
 
     read( obj->fd, &value, sizeof(value) );
 
@@ -804,7 +800,7 @@ static BOOL update_grabbed_object( struct esync *obj )
 
 /* A value of STATUS_NOT_IMPLEMENTED returned from this function means that we
  * need to delegate to server_select(). */
-static NTSTATUS __esync_wait_objects( DWORD count, const HANDLE *handles, BOOLEAN wait_any,
+static NTSTATUS __esync_wait_objects( unsigned int count, const HANDLE *handles, BOOLEAN wait_any,
                              BOOLEAN alertable, const LARGE_INTEGER *timeout )
 {
     static const LARGE_INTEGER zero;
@@ -1154,22 +1150,10 @@ tryagain:
                         {
                             /* We were too slow. Put everything back. */
                             value = 1;
-                            for (j = i - 1; j >= 0; j--)
+                            for (j = i; j >= 0; j--)
                             {
-                                struct esync *obj = objs[j];
-
-                                if (obj->type == ESYNC_MUTEX)
-                                {
-                                    struct mutex *mutex = obj->shm;
-
-                                    if (mutex->tid == GetCurrentThreadId())
-                                        continue;
-                                }
-                                if (write( fds[j].fd, &value, sizeof(value) ) == -1)
-                                {
-                                    ERR("write failed.\n");
+                                if (write( obj->fd, &value, sizeof(value) ) == -1)
                                     return errno_to_status( errno );
-                                }
                             }
 
                             goto tryagain;  /* break out of two loops and a switch */
