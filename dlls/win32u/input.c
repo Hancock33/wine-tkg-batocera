@@ -886,6 +886,58 @@ DWORD WINAPI NtUserGetQueueStatus( UINT flags )
     return ret;
 }
 
+/*******************************************************************
+ *           NtUserGetThreadInfo (win32u.@)
+ */
+ULONG_PTR WINAPI NtUserGetThreadState( USERTHREADSTATECLASS cls )
+{
+    GUITHREADINFO info;
+
+    switch (cls)
+    {
+    case UserThreadStateFocusWindow:
+        info.cbSize = sizeof(info);
+        NtUserGetGUIThreadInfo( GetCurrentThreadId(), &info );
+        return (ULONG_PTR)info.hwndFocus;
+
+    case UserThreadStateActiveWindow:
+        info.cbSize = sizeof(info);
+        NtUserGetGUIThreadInfo( GetCurrentThreadId(), &info );
+        return (ULONG_PTR)info.hwndActive;
+
+    case UserThreadStateCaptureWindow:
+        info.cbSize = sizeof(info);
+        NtUserGetGUIThreadInfo( GetCurrentThreadId(), &info );
+        return (ULONG_PTR)info.hwndCapture;
+
+    case UserThreadStateDefaultImeWindow:
+        return (ULONG_PTR)get_default_ime_window( 0 );
+
+    case UserThreadStateDefaultInputContext:
+        return NtUserGetThreadInfo()->default_imc;
+
+    case UserThreadStateInputState:
+        return get_input_state();
+
+    case UserThreadStateCursor:
+        return (ULONG_PTR)NtUserGetCursor();
+
+    case UserThreadStateExtraInfo:
+        return NtUserGetThreadInfo()->message_extra;
+
+    case UserThreadStateInSendMessage:
+        return NtUserGetThreadInfo()->receive_flags;
+
+    case UserThreadStateMessageTime:
+        return NtUserGetThreadInfo()->message_time;
+
+    case UserThreadStateIsForeground:
+    default:
+        WARN( "unsupported class %u\n", cls );
+        return 0;
+    }
+}
+
 /***********************************************************************
  *           get_input_state
  */
@@ -1327,7 +1379,11 @@ HKL WINAPI NtUserActivateKeyboardLayout( HKL layout, UINT flags )
  */
 UINT WINAPI NtUserGetKeyboardLayoutList( INT size, HKL *layouts )
 {
-    DWORD count;
+    char buffer[4096];
+    KEY_NODE_INFORMATION *key_info = (KEY_NODE_INFORMATION *)buffer;
+    KEY_VALUE_PARTIAL_INFORMATION *value_info = (KEY_VALUE_PARTIAL_INFORMATION *)buffer;
+    DWORD count, tmp, i = 0;
+    HKEY hkey, subkey;
     HKL layout;
 
     TRACE_(keyboard)( "size %d, layouts %p.\n", size, layouts );
@@ -1341,6 +1397,33 @@ UINT WINAPI NtUserGetKeyboardLayoutList( INT size, HKL *layouts )
     if (size && layouts)
     {
         layouts[count - 1] = layout;
+        if (count == size) return count;
+    }
+
+    if ((hkey = reg_open_key( NULL, keyboard_layouts_keyW, sizeof(keyboard_layouts_keyW) )))
+    {
+        while (!NtEnumerateKey( hkey, i++, KeyNodeInformation, key_info,
+                                sizeof(buffer) - sizeof(WCHAR), &tmp ))
+        {
+            if (!(subkey = reg_open_key( hkey, key_info->Name, key_info->NameLength ))) continue;
+            key_info->Name[key_info->NameLength / sizeof(WCHAR)] = 0;
+            tmp = wcstoul( key_info->Name, NULL, 16 );
+            if (query_reg_ascii_value( subkey, "Layout Id", value_info, sizeof(buffer) ) &&
+                value_info->Type == REG_SZ)
+                tmp = 0xf000 | (wcstoul( (const WCHAR *)value_info->Data, NULL, 16 ) & 0xfff);
+            NtClose( subkey );
+
+            tmp = MAKELONG( LOWORD( layout ), LOWORD( tmp ) );
+            if (layout == UlongToHandle( tmp )) continue;
+
+            count++;
+            if (size && layouts)
+            {
+                layouts[count - 1] = UlongToHandle( tmp );
+                if (count == size) break;
+            }
+        }
+        NtClose( hkey );
     }
 
     return count;
@@ -1730,6 +1813,17 @@ BOOL WINAPI NtUserTrackMouseEvent( TRACKMOUSEEVENT *info )
     }
     else
     {
+        /* If TME_LEAVE is set and the mouse is not in the tracking window, post WM_MOUSELEAVE
+         * now and don't overwrite the current tracking information */
+        if (info->dwFlags & TME_LEAVE && !hwnd)
+        {
+            if (info->dwFlags & TME_NONCLIENT)
+                NtUserPostMessage( info->hwndTrack, WM_NCMOUSELEAVE, 0, 0 );
+            else
+                NtUserPostMessage( info->hwndTrack, WM_MOUSELEAVE, 0, 0 );
+            return TRUE;
+        }
+
         /* In our implementation, it's possible that another window will receive
          * WM_MOUSEMOVE and call TrackMouseEvent before TrackMouseEventProc is
          * called. In such a situation, post the WM_MOUSELEAVE now. */
@@ -1811,24 +1905,13 @@ HWND WINAPI NtUserSetCapture( HWND hwnd )
 }
 
 /**********************************************************************
- *           release_capture
+ *           NtUserReleaseCapture (win32u.@)
  */
-BOOL release_capture(void)
+BOOL WINAPI NtUserReleaseCapture(void)
 {
     HWND previous = NULL;
-    BOOL ret;
 
-    ret = set_capture_window( 0, 0, &previous );
-
-    /* Somebody may have missed some mouse movements */
-    if (ret && previous)
-    {
-        INPUT input = { .type = INPUT_MOUSE };
-        input.mi.dwFlags = MOUSEEVENTF_MOVE;
-        NtUserSendInput( 1, &input, sizeof(input) );
-    }
-
-    return ret;
+    return set_capture_window( 0, 0, &previous );
 }
 
 /*****************************************************************
@@ -1885,7 +1968,7 @@ BOOL set_active_window( HWND hwnd, HWND *prev, BOOL mouse, BOOL focus, DWORD new
 {
     HWND previous = get_active_window();
     BOOL ret;
-    DWORD winflags, old_thread, new_thread;
+    DWORD old_thread, new_thread;
     CBTACTIVATESTRUCT cbt;
 
     if (previous == hwnd)
@@ -1894,24 +1977,16 @@ BOOL set_active_window( HWND hwnd, HWND *prev, BOOL mouse, BOOL focus, DWORD new
         goto done;
     }
 
-    /* Prevent a recursive activation loop with the activation messages */
-    winflags = win_set_flags(hwnd, WIN_IS_IN_ACTIVATION, 0);
-    if (!(winflags & WIN_IS_IN_ACTIVATION))
+    /* call CBT hook chain */
+    cbt.fMouse     = mouse;
+    cbt.hWndActive = previous;
+    if (call_hooks( WH_CBT, HCBT_ACTIVATE, (WPARAM)hwnd, (LPARAM)&cbt, sizeof(cbt) )) return FALSE;
+
+    if (is_window( previous ))
     {
-        ret = FALSE;
-
-        /* call CBT hook chain */
-        cbt.fMouse     = mouse;
-        cbt.hWndActive = previous;
-        if (call_hooks( WH_CBT, HCBT_ACTIVATE, (WPARAM)hwnd, (LPARAM)&cbt, sizeof(cbt) ))
-            goto clear_flags;
-
-        if (is_window(previous))
-        {
-            send_message( previous, WM_NCACTIVATE, FALSE, (LPARAM)hwnd );
-            send_message( previous, WM_ACTIVATE,
-                          MAKEWPARAM( WA_INACTIVE, is_iconic(previous) ), (LPARAM)hwnd );
-        }
+        send_message( previous, WM_NCACTIVATE, FALSE, (LPARAM)hwnd );
+        send_message( previous, WM_ACTIVATE,
+                      MAKEWPARAM( WA_INACTIVE, is_iconic(previous) ), (LPARAM)hwnd );
     }
 
     SERVER_START_REQ( set_active_window )
@@ -1933,11 +2008,7 @@ BOOL set_active_window( HWND hwnd, HWND *prev, BOOL mouse, BOOL focus, DWORD new
         if (send_message( hwnd, WM_QUERYNEWPALETTE, 0, 0 ))
             send_message_timeout( HWND_BROADCAST, WM_PALETTEISCHANGING, (WPARAM)hwnd, 0,
                                   SMTO_ABORTIFHUNG, 2000, FALSE );
-        if (!is_window(hwnd))
-        {
-            ret = FALSE;
-            goto clear_flags;
-        }
+        if (!is_window(hwnd)) return FALSE;
     }
 
     old_thread = previous ? get_window_thread( previous, NULL ) : 0;
@@ -1970,24 +2041,15 @@ BOOL set_active_window( HWND hwnd, HWND *prev, BOOL mouse, BOOL focus, DWORD new
         }
     }
 
-    if (!(winflags & WIN_IS_IN_ACTIVATION) && is_window(hwnd))
+    if (is_window(hwnd))
     {
         send_message( hwnd, WM_NCACTIVATE, hwnd == NtUserGetForegroundWindow(), (LPARAM)previous );
         send_message( hwnd, WM_ACTIVATE,
                       MAKEWPARAM( mouse ? WA_CLICKACTIVE : WA_ACTIVE, is_iconic(hwnd) ),
                       (LPARAM)previous );
-
-        send_message( hwnd, WM_NCPOINTERUP, 0, 0);
-
         if (NtUserGetAncestor( hwnd, GA_PARENT ) == get_desktop_window())
             NtUserPostMessage( get_desktop_window(), WM_PARENTNOTIFY, WM_NCACTIVATE, (LPARAM)hwnd );
-
-        if (hwnd == NtUserGetForegroundWindow() && !is_iconic( hwnd ))
-            NtUserSetActiveWindow( hwnd );
-
     }
-
-    user_driver->pSetActiveWindow( hwnd );
 
     /* now change focus if necessary */
     if (focus)
@@ -2004,13 +2066,9 @@ BOOL set_active_window( HWND hwnd, HWND *prev, BOOL mouse, BOOL focus, DWORD new
         }
     }
 
-clear_flags:
-    win_set_flags(hwnd, 0, WIN_IS_IN_ACTIVATION);
-
 done:
     if (hwnd) clip_fullscreen_window( hwnd, FALSE );
-
-    return ret;
+    return TRUE;
 }
 
 /**********************************************************************
@@ -2277,9 +2335,9 @@ BOOL WINAPI NtUserCreateCaret( HWND hwnd, HBITMAP bitmap, int width, int height 
 }
 
 /*******************************************************************
- *              destroy_caret
+ *              NtUserDestroyCaret  (win32u.@)
  */
-BOOL destroy_caret(void)
+BOOL WINAPI NtUserDestroyCaret(void)
 {
     int old_state = 0;
     int hidden = 0;
@@ -2322,9 +2380,9 @@ UINT WINAPI NtUserGetCaretBlinkTime(void)
 }
 
 /*******************************************************************
- *              set_caret_blink_time
+ *           NtUserSetCaretBlinkTime  (win32u.@)
  */
-BOOL set_caret_blink_time( unsigned int time )
+BOOL WINAPI NtUserSetCaretBlinkTime( unsigned int time )
 {
     TRACE( "time %u\n", time );
 
@@ -2366,10 +2424,10 @@ BOOL set_ime_composition_rect( HWND hwnd, RECT rect )
     return user_driver->pSetIMECompositionRect( NtUserGetAncestor( hwnd, GA_ROOT ), rect );
 }
 
-/*******************************************************************
- *              set_caret_pos
+/*****************************************************************
+ *           NtUserSetCaretPos  (win32u.@)
  */
-BOOL set_caret_pos( int x, int y )
+BOOL WINAPI NtUserSetCaretPos( INT x, INT y )
 {
     int old_state = 0;
     int hidden = 0;
@@ -2612,7 +2670,7 @@ BOOL WINAPI NtUserGetPointerInfoList( UINT32 id, POINTER_INPUT_TYPE type, UINT_P
     return FALSE;
 }
 
-BOOL get_clip_cursor( RECT *rect, UINT dpi, MONITOR_DPI_TYPE type )
+static BOOL get_clip_cursor( RECT *rect, UINT dpi, MONITOR_DPI_TYPE type )
 {
     struct object_lock lock = OBJECT_LOCK_INIT;
     const desktop_shm_t *desktop_shm;
@@ -2661,6 +2719,14 @@ BOOL process_wine_clipcursor( HWND hwnd, UINT flags, BOOL reset )
     InterlockedIncrement( &clipping_cursor );
     thread_info->clipping_cursor = TRUE;
     return TRUE;
+}
+
+/**********************************************************************
+ *       NtUserGetClipCursor (win32u.@)
+ */
+BOOL WINAPI NtUserGetClipCursor( RECT *rect )
+{
+    return get_clip_cursor( rect, get_thread_dpi(), MDT_DEFAULT );
 }
 
 /***********************************************************************

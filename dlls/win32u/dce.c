@@ -1856,6 +1856,20 @@ BOOL WINAPI NtUserValidateRect( HWND hwnd, const RECT *rect )
 }
 
 /***********************************************************************
+ *           NtUserValidateRgn (win32u.@)
+ */
+BOOL WINAPI NtUserValidateRgn( HWND hwnd, HRGN hrgn )
+{
+    if (!hwnd)
+    {
+        RtlSetLastWin32Error( ERROR_INVALID_WINDOW_HANDLE );
+        return FALSE;
+    }
+
+    return NtUserRedrawWindow( hwnd, NULL, hrgn, RDW_VALIDATE );
+}
+
+/***********************************************************************
  *           NtUserGetUpdateRgn (win32u.@)
  */
 INT WINAPI NtUserGetUpdateRgn( HWND hwnd, HRGN hrgn, BOOL erase )
@@ -2066,13 +2080,10 @@ INT WINAPI NtUserScrollWindowEx( HWND hwnd, INT dx, INT dy, const RECT *rect,
     rdw_flags = (flags & SW_ERASE) && (flags & SW_INVALIDATE) ?
         RDW_INVALIDATE | RDW_ERASE  : RDW_INVALIDATE;
 
+    if (!is_window_drawable( hwnd, TRUE )) return ERROR;
     hwnd = get_full_window_handle( hwnd );
 
-    if (!is_window_drawable( hwnd, TRUE ))
-        SetRectEmpty( &rc );
-    else
-        get_client_rect( hwnd, &rc, get_thread_dpi() );
-    
+    get_client_rect( hwnd, &rc, get_thread_dpi() );
     if (clip_rect) intersect_rect( &cliprc, &rc, clip_rect );
     else cliprc = rc;
 
@@ -2186,7 +2197,7 @@ INT WINAPI NtUserScrollWindowEx( HWND hwnd, INT dx, INT dy, const RECT *rect,
         NtGdiDeleteObjectApp( winupd_rgn );
     }
 
-    if (move_caret) set_caret_pos( new_caret_pos.x, new_caret_pos.y );
+    if (move_caret) NtUserSetCaretPos( new_caret_pos.x, new_caret_pos.y );
     if (caret_hwnd) NtUserShowCaret( caret_hwnd );
     if (own_rgn && update_rgn) NtGdiDeleteObjectApp( update_rgn );
 

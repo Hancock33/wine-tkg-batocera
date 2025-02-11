@@ -129,7 +129,6 @@ struct async_fileio
 {
     async_callback_t    *callback;
     struct async_fileio *next;
-    DWORD                size;
     HANDLE               handle;
 };
 
@@ -221,6 +220,7 @@ extern unsigned int server_queue_process_apc( HANDLE process, const union apc_ca
                                               union apc_result *result );
 extern int server_get_unix_fd( HANDLE handle, unsigned int wanted_access, int *unix_fd,
                                int *needs_close, enum server_fd_type *type, unsigned int *options );
+extern int remove_fd_from_cache( HANDLE handle );
 extern void wine_server_send_fd( int fd );
 extern void process_exit_wrapper( int status ) DECLSPEC_NORETURN;
 extern size_t server_init_process(void);

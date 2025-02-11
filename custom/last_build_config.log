@@ -1,25 +1,18 @@
-# Last wine-tkg-staging-ntsync-git configuration - Tue 21 Jan 21:07:21 GMT 2025 :
+# Last wine-tkg-ntsync-git configuration - Tue 11 Feb 19:52:08 GMT 2025 :
 
 Local cfg files used
 
-Wine (plain) version: 10.0.r0.gb0738596750
-Using wine-staging patchset (version 10.0.r0.g05bc4b82)
+Wine (plain) version: 10.1.r32.g7b8663e465e
 
-Disabled the local Esync patchset to use Staging impl instead.
 Not using vkd3d native library for d3d12 translation (allows using vkd3d-proton)
 
 Done applying backports hotfixes (if any) - list available in prepare.log
 Done applying reverting hotfixes (if any) - list available in prepare.log
 
-CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 
-Staging overrides, if any: 
+LAA-unix.patch -- ( Applied large address aware override support (legacy) )
 
-
-LAA-unix-staging.patch -- ( Applied large address aware override support (legacy) )
-
-ntsync-config.h.in-org.patch -- ( Using original config.h.in patchset for ntsync5 )
-ntsync5-staging.patch -- ( Using ntsync patchset )
+ntsync5-mainline.patch -- ( Using ntsync patchset )
 josh-flat-theme.patch -- ( Add Josh's better-theme )
 proton_battleye.patch -- ( Add support for Proton's Battleye runtime )
 proton-eac_bridge.patch -- ( Add support for Proton's EAC bridge )
@@ -29,7 +22,7 @@ Applied hotfix a608ef1.mypatch
 Applied hotfix opencl-fixup.mypatch
 Applied hotfix nostale_mouse_fix.mypatch
 
-wine-tkg-staging.patch -- ( Please don't report bugs about this wine build on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead. )
+wine-tkg.patch -- ( Please don't report bugs about this wine build on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead. )
 
 
 With predefined optimizations:

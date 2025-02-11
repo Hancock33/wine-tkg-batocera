@@ -158,7 +158,7 @@ struct event *create_event( struct object *root, const struct unicode_str *name,
             list_init( &event->kernel_object );
             event->manual_reset = manual_reset;
             event->signaled     = initial_state;
-            event->inproc_sync    = NULL;
+            event->inproc_sync  = NULL;
         }
     }
     return event;
@@ -238,6 +238,10 @@ static struct inproc_sync *event_get_inproc_sync( struct object *obj )
 {
     struct event *event = (struct event *)obj;
 
+    /* This state will always be the state that the event was created with.
+     * We could create the inproc_sync at creation time to make this clearer,
+     * but some broken programs create hundreds of thousands of handles which
+     * they never use, and we want to avoid wasting memory or fds in that case. */
     if (!event->inproc_sync)
     {
         enum inproc_sync_type type = event->manual_reset ? INPROC_SYNC_MANUAL_EVENT : INPROC_SYNC_AUTO_EVENT;

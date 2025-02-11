@@ -154,9 +154,7 @@ void abandon_mutexes( struct thread *thread )
     }
 
     LIST_FOR_EACH_ENTRY(mutex, &inproc_mutexes, struct mutex, inproc_mutexes_entry)
-    {
         abandon_inproc_mutex( thread->id, mutex->inproc_sync );
-    }
 }
 
 static void mutex_dump( struct object *obj, int verbose )
@@ -206,6 +204,10 @@ static struct inproc_sync *mutex_get_inproc_sync( struct object *obj )
 {
     struct mutex *mutex = (struct mutex *)obj;
 
+    /* This state will always be the state that the mutex was created with.
+     * We could create the inproc_sync at creation time to make this clearer,
+     * but some broken programs create hundreds of thousands of handles which
+     * they never use, and we want to avoid wasting memory or fds in that case. */
     if (!mutex->inproc_sync)
     {
         mutex->inproc_sync = create_inproc_mutex( mutex->owner ? mutex->owner->id : 0, mutex->count );

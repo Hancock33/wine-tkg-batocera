@@ -236,7 +236,6 @@ static const struct wined3d_extension_map gl_extension_map[] =
     {"GL_NV_vertex_program2_option",        NV_VERTEX_PROGRAM2_OPTION     },
     {"GL_NV_vertex_program3",               NV_VERTEX_PROGRAM3            },
     {"GL_NV_texture_barrier",               NV_TEXTURE_BARRIER            },
-    {"GL_NVX_gpu_memory_info",              NVX_GPU_MEMORY_INFO           },
 };
 
 static const struct wined3d_extension_map wgl_extension_map[] =
@@ -1011,17 +1010,6 @@ static const struct wined3d_gpu_description *query_gpu_description(const struct 
 
         gpu_description = wined3d_get_gpu_description(vendor, device);
     }
-    else if (gl_info->supported[NVX_GPU_MEMORY_INFO])
-    {
-        GLint vram_kb;
-        gl_info->gl_ops.gl.p_glGetIntegerv(GL_GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX, &vram_kb);
-
-        *vram_bytes = (UINT64)vram_kb * 1024;
-        TRACE("Got 0x%s as video memory from NVX_GPU_MEMORY_INFO extension.\n",
-                wine_dbgstr_longlong(*vram_bytes));
-
-        gpu_description = wined3d_get_gpu_description(vendor, device);
-    }
 
     if ((gpu_description_override = wined3d_get_user_override_gpu_description(vendor, device)))
         gpu_description = gpu_description_override;
@@ -1185,7 +1173,6 @@ static enum wined3d_gl_vendor wined3d_guess_gl_vendor(const struct wined3d_gl_in
         return GL_VENDOR_FGLRX;
 
     if (strstr(gl_vendor_string, "Mesa")
-            || strstr(gl_vendor_string, "Brian Paul")
             || strstr(gl_vendor_string, "X.Org")
             || strstr(gl_vendor_string, "Advanced Micro Devices, Inc.")
             || strstr(gl_vendor_string, "DRI R300 Project")
@@ -1310,10 +1297,34 @@ static const struct wined3d_renderer_table
 cards_nvidia_binary[] =
 {
     /* Direct 3D 11 */
+    {"RTX 4090",                    CARD_NVIDIA_GEFORCE_RTX4090},
+    {"RTX 4080 SUPER",              CARD_NVIDIA_GEFORCE_RTX4080SUPER},
+    {"RTX 4080",                    CARD_NVIDIA_GEFORCE_RTX4080},
+    {"RTX 4070 Ti SUPER",           CARD_NVIDIA_GEFORCE_RTX4070TISUPER},
+    {"RTX 4070 Ti",                 CARD_NVIDIA_GEFORCE_RTX4070TI},
+    {"RTX 4070 SUPER",              CARD_NVIDIA_GEFORCE_RTX4070SUPER},
+    {"RTX 4070",                    CARD_NVIDIA_GEFORCE_RTX4070},
+    {"RTX 4060 Ti 16GB",            CARD_NVIDIA_GEFORCE_RTX4060TI16G},
+    {"RTX 4060 Ti 8GB",             CARD_NVIDIA_GEFORCE_RTX4060TI8G},
+    {"RTX 4060",                    CARD_NVIDIA_GEFORCE_RTX4060},
     {"Tesla T4",                    CARD_NVIDIA_TESLA_T4},
     {"Ampere A10",                  CARD_NVIDIA_AMPERE_A10},
-    {"RTX 3080",                    CARD_NVIDIA_GEFORCE_RTX3080},   /* GeForce 3000 - highend */
-    {"RTX 3070",                    CARD_NVIDIA_GEFORCE_RTX3070},   /* GeForce 3000 - highend */
+    {"RTX 3090 Ti",                 CARD_NVIDIA_GEFORCE_RTX3090TI},
+    {"RTX 3090",                    CARD_NVIDIA_GEFORCE_RTX3090},
+    {"RTX 3080 Ti",                 CARD_NVIDIA_GEFORCE_RTX3080TI},
+    {"RTX 3080 12GB",               CARD_NVIDIA_GEFORCE_RTX3080_12GB},
+    {"RTX 3080 10GB LHR",           CARD_NVIDIA_GEFORCE_RTX3080_10GB_LHR},
+    {"RTX 3080 10GB",               CARD_NVIDIA_GEFORCE_RTX3080_10GB},
+    {"RTX 3070 Ti",                 CARD_NVIDIA_GEFORCE_RTX3070TI},
+    {"RTX 3070 mobile",             CARD_NVIDIA_GEFORCE_RTX3070_MOBILE},
+    {"RTX 3070 LHR",                CARD_NVIDIA_GEFORCE_RTX3070_LHR},
+    {"RTX 3070",                    CARD_NVIDIA_GEFORCE_RTX3070},
+    {"RTX 3060 Ti GA104 LHR",       CARD_NVIDIA_GEFORCE_RTX3060TI_GA104_LHR},
+    {"RTX 3060 Ti GA104",           CARD_NVIDIA_GEFORCE_RTX3060TI_GA104},
+    {"RTX 3060 Ti GA103",           CARD_NVIDIA_GEFORCE_RTX3060TI_GA103},
+    {"RTX 3060 LHR",                CARD_NVIDIA_GEFORCE_RTX3060_LHR},
+    {"RTX 3060",                    CARD_NVIDIA_GEFORCE_RTX3060},
+    {"RTX 3050",                    CARD_NVIDIA_GEFORCE_RTX3050},
     {"RTX 2080 Ti",                 CARD_NVIDIA_GEFORCE_RTX2080TI}, /* GeForce 2000 - highend */
     {"RTX 2080",                    CARD_NVIDIA_GEFORCE_RTX2080},   /* GeForce 2000 - highend */
     {"RTX 2070",                    CARD_NVIDIA_GEFORCE_RTX2070},   /* GeForce 2000 - highend */
@@ -4119,7 +4130,6 @@ static void adapter_gl_get_wined3d_caps(const struct wined3d_adapter *adapter, s
     const struct wined3d_d3d_info *d3d_info = &adapter->d3d_info;
 
     caps->ddraw_caps.dds_caps |= WINEDDSCAPS_BACKBUFFER
-            | WINEDDSCAPS_FLIP
             | WINEDDSCAPS_COMPLEX
             | WINEDDSCAPS_FRONTBUFFER
             | WINEDDSCAPS_3DDEVICE

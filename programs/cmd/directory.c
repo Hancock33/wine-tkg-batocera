@@ -23,8 +23,6 @@
 
 #include "wcmd.h"
 #include "wine/debug.h"
-#include "winioctl.h"
-#include "ddk/ntifs.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(cmd);
 
@@ -37,7 +35,8 @@ typedef enum _DISPLAYTIME
 
 typedef enum _DISPLAYORDER
 {
-    Name = 0,
+    Unspecified = 0,
+    Name,
     Extension,
     Size,
     Date
@@ -92,16 +91,37 @@ static int __cdecl WCMD_dir_sort (const void *a, const void *b)
 {
   const WIN32_FIND_DATAW *filea = (const WIN32_FIND_DATAW *)a;
   const WIN32_FIND_DATAW *fileb = (const WIN32_FIND_DATAW *)b;
+  BOOL aDir = filea->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY;
+  BOOL bDir = fileb->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY;
   int result = 0;
 
-  /* If /OG or /O-G supplied, dirs go at the top or bottom, ignoring the
-     requested sort order for the directory components                   */
-  if (orderGroupDirs &&
-      ((filea->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ||
-       (fileb->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)))
-  {
-    BOOL aDir = filea->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY;
-    if (aDir) result = -1;
+  if (orderGroupDirs && dirOrder == Unspecified) {
+    /* Special case: If ordering groups and not sorting by other criteria, "." and ".." always go first. */
+    if (aDir && !lstrcmpW(filea->cFileName, L".")) {
+      result = -1;
+    } else if (bDir && !lstrcmpW(fileb->cFileName, L".")) {
+      result = 1;
+    } else if (aDir && !lstrcmpW(filea->cFileName, L"..")) {
+      result = -1;
+    } else if (bDir && !lstrcmpW(fileb->cFileName, L"..")) {
+      result = 1;
+    }
+
+    if (result) {
+      if (orderGroupDirsReverse) result = -result;
+      return result;
+    }
+  }
+
+  /* If /OG or /O-G supplied, dirs go at the top or bottom, also sorted
+     if requested sort order is by name.                                */
+  if (orderGroupDirs && (aDir || bDir)) {
+    if (aDir && bDir && dirOrder == Name) {
+      result = lstrcmpiW(filea->cFileName, fileb->cFileName);
+      if (orderReverse) result = -result;
+    } else if (aDir) {
+      result = -1;
+    }
     else result = 1;
     if (orderGroupDirsReverse) result = -result;
     return result;
@@ -371,65 +391,6 @@ static DIRECTORY_STACK *WCMD_list_directory (DIRECTORY_STACK *inputparms, int le
             cur_width = 0;
         } else {
             WCMD_output(L"%1!*s!", cur_width - tmp_width, L"");
-        }
-
-      } else if (fd[i].dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
-        if (!bare) {
-           const WCHAR *type;
-
-           switch(fd[i].dwReserved0) {
-           case IO_REPARSE_TAG_MOUNT_POINT:
-              type = L"<JUNCTION>";
-              break;
-           case IO_REPARSE_TAG_SYMLINK:
-           default:
-              type = (fd[i].dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? L"<SYMLINKD>" : L"<SYMLINK>";
-              break;
-           }
-           WCMD_output (L"%1!10s!  %2!8s!  %3!-14s!", datestring, timestring, type);
-           if (shortname) WCMD_output (L"%1!-13s!", fd[i].cAlternateFileName);
-           if (usernames) WCMD_output (L"%1!-23s!", username);
-           WCMD_output(L"%1",fd[i].cFileName);
-           if (fd[i].dwReserved0) {
-              REPARSE_DATA_BUFFER *buffer = NULL;
-              WCHAR *target = NULL;
-              INT buffer_len;
-              HANDLE hlink;
-              DWORD dwret;
-              BOOL bret;
-
-              lstrcpyW(string, inputparms->dirName);
-              lstrcatW(string, fd[i].cFileName);
-              hlink = CreateFileW(string, GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING,
-                                  FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, 0);
-              buffer_len = sizeof(*buffer) + 2*MAX_PATH*sizeof(WCHAR);
-              buffer = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, buffer_len);
-              bret = DeviceIoControl(hlink, FSCTL_GET_REPARSE_POINT, NULL, 0, (LPVOID)buffer,
-                                     buffer_len, &dwret, 0);
-              if (bret) {
-                 INT offset;
-                 switch(buffer->ReparseTag) {
-                 case IO_REPARSE_TAG_MOUNT_POINT:
-                    offset = buffer->MountPointReparseBuffer.PrintNameOffset/sizeof(WCHAR);
-                    target = &buffer->MountPointReparseBuffer.PathBuffer[offset];
-                    break;
-                 case IO_REPARSE_TAG_SYMLINK:
-                    offset = buffer->SymbolicLinkReparseBuffer.PrintNameOffset/sizeof(WCHAR);
-                    target = &buffer->SymbolicLinkReparseBuffer.PathBuffer[offset];
-                    break;
-                 }
-              }
-              CloseHandle(hlink);
-              if (target) WCMD_output(L" [%1]", target);
-              HeapFree(GetProcessHeap(), 0, buffer);
-           }
-        } else {
-           if (!((lstrcmpW(fd[i].cFileName, L".") == 0) ||
-                 (lstrcmpW(fd[i].cFileName, L"..") == 0))) {
-              WCMD_output (L"%1%2", recurse?inputparms->dirName : L"", fd[i].cFileName);
-           } else {
-              addNewLine = FALSE;
-           }
         }
 
       } else if (fd[i].dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
@@ -735,7 +696,7 @@ RETURN_CODE WCMD_directory(WCHAR *args)
   orderByCol = FALSE;
   separator  = TRUE;
   dirTime = Written;
-  dirOrder = Name;
+  dirOrder = Unspecified;
   orderReverse = FALSE;
   orderGroupDirs = FALSE;
   orderGroupDirsReverse = FALSE;
@@ -805,13 +766,16 @@ RETURN_CODE WCMD_directory(WCHAR *args)
               if (*p==':') p++;  /* Skip optional : */
               while (*p && *p != '/') {
                 WINE_TRACE("Processing subparm '%c' (in %s)\n", *p, wine_dbgstr_w(quals));
+                /* Options N,E,S,D are mutually-exclusive, first encountered takes precedence. */
                 switch (*p) {
-                case 'N': dirOrder = Name;       break;
-                case 'E': dirOrder = Extension;  break;
-                case 'S': dirOrder = Size;       break;
-                case 'D': dirOrder = Date;       break;
-                case '-': if (*(p+1)=='G') orderGroupDirsReverse=TRUE;
-                          else orderReverse = TRUE;
+                case 'N': if (dirOrder == Unspecified) dirOrder = Name;       break;
+                case 'E': if (dirOrder == Unspecified) dirOrder = Extension;  break;
+                case 'S': if (dirOrder == Unspecified) dirOrder = Size;       break;
+                case 'D': if (dirOrder == Unspecified) dirOrder = Date;       break;
+                case '-': if (dirOrder == Unspecified) {
+                            if (*(p+1)=='G') orderGroupDirsReverse=TRUE;
+                            else if (*(p+1)=='N'||*(p+1)=='E'||*(p+1)=='S'||*(p+1)=='D') orderReverse = TRUE;
+                          }
                           break;
                 case 'G': orderGroupDirs = TRUE; break;
                 default:
@@ -820,6 +784,13 @@ RETURN_CODE WCMD_directory(WCHAR *args)
                     return errorlevel = ERROR_INVALID_FUNCTION;
                 }
                 p++;
+              }
+              /* Handle default case of /O specified by itself, with no specific options.
+                 This is equivalent to /O:GN. */
+              if (dirOrder == Unspecified && !orderGroupDirs) {
+                orderGroupDirs = TRUE;
+                orderGroupDirsReverse = FALSE;
+                dirOrder = Name;
               }
               p = p - 1; /* So when step on, move to '/' */
               break;

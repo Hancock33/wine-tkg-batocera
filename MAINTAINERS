@@ -187,7 +187,6 @@ F:	dlls/user32/input.c
 F:	dlls/win32u/input.c
 F:	dlls/win32u/rawinput.c
 F:	server/queue.c
-F:	programs/winecfg/input.c
 
 Input methods
 M:	Rémi Bernon <rbernon@codeweavers.com>
@@ -295,6 +294,10 @@ RPC Runtime
 P:	Huw Davies <huw@codeweavers.com>
 P:	Elizabeth Figura <zfigura@codeweavers.com>
 F:	dlls/rpcrt4/
+
+Scripting runtime components
+P:	Nikolay Sivov <nsivov@codeweavers.com>
+F:	dlls/scrrun/
 
 Theming
 M:	Zhiyi Zhang <zzhang@codeweavers.com>
