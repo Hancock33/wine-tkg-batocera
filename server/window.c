@@ -119,7 +119,7 @@ static const struct object_ops window_ops =
     NULL,                     /* unlink_name */
     no_open_file,             /* open_file */
     no_kernel_obj_list,       /* get_kernel_obj_list */
-    no_get_inproc_sync,       /* get_inproc_sync */
+    no_get_inproc_sync,           /* get_inproc_sync */
     no_close_handle,          /* close_handle */
     window_destroy            /* destroy */
 };
@@ -2428,7 +2428,7 @@ DECL_HANDLER(get_window_list)
         set_error( STATUS_INVALID_HANDLE );
         return;
     }
-    if (req->desktop && !(desktop = get_desktop_obj( current->process, req->desktop, DESKTOP_ENUMERATE )))
+    if (req->desktop && !(desktop = get_desktop_obj( current->process, req->desktop, DESKTOP_READOBJECTS )))
     {
         if (thread) release_object( thread );
         return;

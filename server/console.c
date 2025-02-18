@@ -553,7 +553,7 @@ static struct object *create_console(void)
     console->server        = NULL;
     console->fd            = NULL;
     console->last_id       = 0;
-    console->inproc_sync   = NULL;
+    console->inproc_sync     = NULL;
     init_async_queue( &console->ioctl_q );
     init_async_queue( &console->read_q );
 

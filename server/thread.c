@@ -700,13 +700,12 @@ unsigned int set_thread_priority( struct thread *thread, int priority_class, int
         priority != THREAD_PRIORITY_TIME_CRITICAL)
         return STATUS_INVALID_PARAMETER;
 
-    if (thread->state == TERMINATED)
-        return STATUS_THREAD_IS_TERMINATING;
-
     thread->priority = priority;
+    set_scheduler_priority( thread );
 
     /* if thread is gone or hasn't started yet, this will be called again from init_thread with a unix_tid */
-    if (thread->unix_tid != -1) apply_thread_priority( thread, get_base_priority( priority_class, priority ));
+    if (thread->state == RUNNING && thread->unix_tid != -1)
+        apply_thread_priority( thread, get_base_priority( priority_class, priority ));
 
     return STATUS_SUCCESS;
 }

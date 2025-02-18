@@ -1457,6 +1457,7 @@ static BOOL elf_search_and_load_file(struct process* pcs, const WCHAR* filename,
         load_elf.elf_info    = elf_info;
 
         ret = search_unix_path(filename, process_getenv(pcs, L"LD_LIBRARY_PATH"), elf_load_file_cb, &load_elf)
+            || search_unix_path(filename, BINDIR, elf_load_file_cb, &load_elf)
             || search_dll_path(pcs, filename, IMAGE_FILE_MACHINE_UNKNOWN, elf_load_file_cb, &load_elf);
     }
 
@@ -1771,15 +1772,11 @@ BOOL elf_read_wine_loader_dbg_info(struct process* pcs, ULONG_PTR addr)
 {
     struct elf_info     elf_info;
     BOOL ret = FALSE;
-    WCHAR* loader;
+    const WCHAR *loader;
 
     elf_info.flags = ELF_INFO_DEBUG_HEADER | ELF_INFO_MODULE;
     loader = get_wine_loader_name(pcs);
-    if (loader)
-    {
-        ret = elf_search_and_load_file(pcs, loader, addr, 0, &elf_info);
-        HeapFree(GetProcessHeap(), 0, loader);
-    }
+    if (loader) ret = elf_search_and_load_file(pcs, loader, addr, 0, &elf_info);
     if (!ret || !elf_info.dbg_hdr_addr) return FALSE;
     if (elf_info.dbg_hdr_addr != (ULONG_PTR)elf_info.dbg_hdr_addr)
     {
