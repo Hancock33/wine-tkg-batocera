@@ -800,6 +800,7 @@ BISON
 FLEX
 SED_CMD
 RUNTESTFLAGS
+wine64dir
 toolsdir
 x86_64_DISABLED_SUBDIRS
 x86_64_DELAYLOADFLAG
@@ -6519,6 +6520,8 @@ else
     as_fn_error $? "could not find Wine tools in $wine_cv_toolsdir" "$LINENO" 5
 fi
 toolsdir=$wine_cv_toolsdir
+
+wine64dir=$with_wine64
 
 RUNTESTFLAGS="-q -P wine"
 
@@ -22205,12 +22208,7 @@ test "x$enable_tools" = xno || wine_fn_config_makefile tools/wrc enable_wrc
 
 as_fn_append CONFIGURE_TARGETS " TAGS"
 as_fn_append CONFIGURE_TARGETS " tags"
-as_fn_append CONFIGURE_TARGETS " autom4te.cache"
-as_fn_append CONFIGURE_TARGETS " compile_commands.json"
 as_fn_append CONFIGURE_TARGETS " config.log"
-as_fn_append CONFIGURE_TARGETS " config.status"
-as_fn_append CONFIGURE_TARGETS " include/config.h"
-as_fn_append CONFIGURE_TARGETS " include/stamp-h"
 as_fn_append CONFIGURE_TARGETS " loader-wow64"
 
 if test "x$enable_tools" != xno
@@ -22227,15 +22225,6 @@ SHELL=/bin/sh
 
 
 
-as_fn_append wine_rules "
-Makefile: config.status
-	@./config.status Makefile
-config.status: ${wine_srcdir}configure
-	@./config.status --recheck
-include/config.h: include/stamp-h
-include/stamp-h: ${wine_srcdir}include/config.h.in config.status
-	@./config.status include/config.h include/stamp-h"
-
 if test "x$enable_maintainer_mode" = xyes
 then
     as_fn_append wine_rules "
@@ -22248,18 +22237,8 @@ include/stamp-h.in: configure.ac aclocal.m4
 fi
 
 
-if test -n "$with_wine64"
+if test -z "$with_wine64"
 then
-        rm -f fonts server 2>/dev/null
-    as_fn_append wine_rules "
-all: loader-wow64 $with_wine64/loader-wow64
-loader-wow64:
-	rm -f \$@ && \$(LN_S) $with_wine64/loader \$@
-$with_wine64/loader-wow64:
-	rm -f \$@ && \$(LN_S) $ac_pwd/loader \$@
-clean::
-	rm -f loader-wow64 $with_wine64/loader-wow64"
-else
     TOP_INSTALL_DEV="$TOP_INSTALL_DEV include"
     TOP_INSTALL_LIB="$TOP_INSTALL_LIB \
 fonts \
@@ -22287,15 +22266,8 @@ fi
 
 
 as_fn_append wine_rules "
-distclean:: clean
-	rm -rf autom4te.cache
-maintainer-clean::
-	rm -f configure include/config.h.in"
-
-
-as_fn_append wine_rules "
 dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-10.1.r6.g1b224000\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
+	@version=\`(echo \"wine-10.1.r7.ga4e8224b\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$@) || echo \$\$build >\$@ || (rm -f \$@ && exit 1)
 programs/winetest/build.nfo:
@@ -23119,6 +23091,7 @@ x86_64_STRIP = $x86_64_STRIP
 x86_64_DELAYLOADFLAG = $x86_64_DELAYLOADFLAG
 x86_64_DISABLED_SUBDIRS = $x86_64_DISABLED_SUBDIRS
 toolsdir = $toolsdir
+wine64dir = $wine64dir
 RUNTESTFLAGS = $RUNTESTFLAGS
 SED_CMD = $SED_CMD
 FLEX = $FLEX

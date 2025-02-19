@@ -196,6 +196,7 @@ else
     AC_MSG_ERROR([could not find Wine tools in $wine_cv_toolsdir])
 fi
 AC_SUBST(toolsdir,[$wine_cv_toolsdir])
+AC_SUBST(wine64dir,[$with_wine64])
 AC_SUBST(RUNTESTFLAGS,["-q -P wine"])
 AC_SUBST(SED_CMD,["LC_ALL=C sed -e 's,@bindir@,\${bindir},g' -e 's,@PACKAGE_STRING@,$PACKAGE_STRING,g' -e 's,@PACKAGE_VERSION@,$PACKAGE_VERSION,g'"])
 
@@ -3581,12 +3582,7 @@ dnl Main ignore file
 
 WINE_IGNORE_FILE(TAGS)
 WINE_IGNORE_FILE(tags)
-WINE_IGNORE_FILE(autom4te.cache)
-WINE_IGNORE_FILE(compile_commands.json)
 WINE_IGNORE_FILE(config.log)
-WINE_IGNORE_FILE(config.status)
-WINE_IGNORE_FILE(include/config.h)
-WINE_IGNORE_FILE(include/stamp-h)
 WINE_IGNORE_FILE(loader-wow64)
 
 if test "x$enable_tools" != xno
@@ -3631,15 +3627,6 @@ AC_SUBST(SHELL,[/bin/sh])
 
 dnl Rules for re-running configure
 
-WINE_APPEND_RULE(
-[Makefile: config.status
-	@./config.status Makefile
-config.status: ${wine_srcdir}configure
-	@./config.status --recheck
-include/config.h: include/stamp-h
-include/stamp-h: ${wine_srcdir}include/config.h.in config.status
-	@./config.status include/config.h include/stamp-h])
-
 if test "x$enable_maintainer_mode" = xyes
 then
     WINE_APPEND_RULE(
@@ -3653,19 +3640,8 @@ fi
 
 dnl Rules for wineloader
 
-if test -n "$with_wine64"
+if test -z "$with_wine64"
 then
-    dnl Get rid of old symlinks
-    rm -f fonts server 2>/dev/null
-    WINE_APPEND_RULE(
-[all: loader-wow64 $with_wine64/loader-wow64
-loader-wow64:
-	rm -f \$[@] && \$(LN_S) $with_wine64/loader \$[@]
-$with_wine64/loader-wow64:
-	rm -f \$[@] && \$(LN_S) $ac_pwd/loader \$[@]
-clean::
-	rm -f loader-wow64 $with_wine64/loader-wow64])
-else
     TOP_INSTALL_DEV="$TOP_INSTALL_DEV include"
     TOP_INSTALL_LIB="$TOP_INSTALL_LIB \
 fonts \
@@ -3691,19 +3667,11 @@ server/wineserver"
     esac
 fi
 
-dnl Rules for cleaning
-
-WINE_APPEND_RULE(
-[distclean:: clean
-	rm -rf autom4te.cache
-maintainer-clean::
-	rm -f configure include/config.h.in])
-
 dnl Rules for generated source files
 
 WINE_APPEND_RULE(
 [dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-10.1.r6.g1b224000\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
+	@version=\`(echo \"wine-10.1.r7.ga4e8224b\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$[@]) || echo \$\$build >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.nfo:

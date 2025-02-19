@@ -146,6 +146,7 @@ static struct strarray top_install[NB_INSTALL_RULES];
 static const char *root_src_dir;
 static const char *tools_dir;
 static const char *tools_ext;
+static const char *wine64_dir;
 static const char *exe_ext;
 static const char *fontforge;
 static const char *convert;
@@ -240,6 +241,7 @@ static const char *output_makefile_name = "Makefile";
 static const char *input_file_name;
 static const char *output_file_name;
 static const char *temp_file_name;
+static char cwd[PATH_MAX];
 static int compile_commands_mode;
 static int silent_rules;
 static int input_line;
@@ -3981,11 +3983,6 @@ static void output_sources( struct makefile *make )
     strarray_add( &make->distclean_files, "Makefile" );
     if (make->testdll) strarray_add( &make->distclean_files, "testlist.c" );
 
-    if (!make->obj_dir)
-        strarray_addall( &make->distclean_files, get_expanded_make_var_array( make, "CONFIGURE_TARGETS" ));
-    else if (!strcmp( make->obj_dir, "po" ))
-        strarray_add( &make->distclean_files, "LINGUAS" );
-
     for (arch = 0; arch < archs.count; arch++)
     {
         strarray_addall_uniq( &make->clean_files, make->object_files[arch] );
@@ -4003,6 +4000,8 @@ static void output_sources( struct makefile *make )
         output_subdirs( make );
         return;
     }
+
+    if (!strcmp( make->obj_dir, "po" )) strarray_add( &make->distclean_files, "LINGUAS" );
 
     for (arch = 0; arch < archs.count; arch++) strarray_addall( &all_targets, make->all_targets[arch] );
     strarray_addall( &all_targets, make->font_files );
@@ -4142,12 +4141,9 @@ static void output_compile_commands( const char *dest )
     struct compile_command *cmd;
     unsigned int i;
     const char *dir;
-    char buffer[PATH_MAX];
 
     output_file = create_temp_file( dest );
-
-    getcwd( buffer, sizeof(buffer) );
-    dir = escape_cstring( buffer );
+    dir = escape_cstring( cwd );
 
     output( "[\n" );
     LIST_FOR_EACH_ENTRY( cmd, &compile_commands, struct compile_command, entry )
@@ -4341,7 +4337,16 @@ static void output_top_makefile( struct makefile *make )
     output( ".MAKEFILEDEPS:\n" );
     output( ".SUFFIXES:\n" );
     makedep = strmake( "%s%s",tools_dir_path( make, "makedep" ), tools_ext );
-    output( "Makefile: %s\n", makedep );
+    output( "Makefile: config.status %s\n", makedep );
+    output( "\t@./config.status Makefile\n" );
+    output( "config.status: %s\n", root_src_dir_path( "configure" ));
+    output( "\t@./config.status --recheck\n" );
+    strarray_add( &make->distclean_files, "config.status" );
+    output( "include/config.h: include/stamp-h\n" );
+    output( "include/stamp-h: %s config.status\n", root_src_dir_path( "include/config.h.in" ));
+    output( "\t@./config.status include/config.h include/stamp-h\n" );
+    strarray_add( &make->distclean_files, "include/config.h" );
+    strarray_add( &make->distclean_files, "include/stamp-h" );
     output( "depend: %s\n", makedep );
     output( "\t%s%s%s\n", makedep,
             compile_commands_mode ? " -C" : "",
@@ -4350,9 +4355,30 @@ static void output_top_makefile( struct makefile *make )
 
     if (!strarray_exists( &disabled_dirs[0], "tools/wine" ))
     {
-        output( "wine: %s\n", tools_path( make, "wine" ));
-        output( "\t%srm -f $@ && %s %s $@\n", cmd_prefix( "LN" ), ln_s, tools_path( make, "wine" ));
+        const char *loader = "tools/wine/wine";
+        if (!strarray_exists( &subdirs, "tools/wine" )) loader = tools_path( make, "wine" );
+        output( "wine: %s\n", loader );
+        output( "\t%srm -f $@ && %s %s $@\n", cmd_prefix( "LN" ), ln_s, loader );
         strarray_add( &make->all_targets[0], "wine" );
+    }
+
+    if (wine64_dir)
+    {
+        output( "loader-wow64:\n" );
+	output( "\t%srm -f $@ && %s %s/loader $@\n", cmd_prefix( "LN" ), ln_s, wine64_dir );
+        output( "%s/loader-wow64:\n", wine64_dir );
+	output( "\t%srm -f $@ && %s %s/loader $@\n", cmd_prefix( "LN" ), ln_s, cwd );
+        strarray_add( &make->all_targets[0], "loader-wow64" );
+        strarray_add( &make->all_targets[0], strmake( "%s/loader-wow64", wine64_dir ));
+    }
+
+    strarray_add( &make->distclean_files, "autom4te.cache" );
+    if (compile_commands_mode) strarray_add( &make->distclean_files, "compile_commands.json" );
+    strarray_addall( &make->distclean_files, get_expanded_make_var_array( make, "CONFIGURE_TARGETS" ));
+    if (!make->src_dir)
+    {
+        strarray_add( &make->maintainerclean_files, "configure" );
+        strarray_add( &make->maintainerclean_files, "include/config.h.in" );
     }
 
     for (i = 0; i < subdirs.count; i++) output_sources( submakes[i] );
@@ -4586,6 +4612,7 @@ int main( int argc, char *argv[] )
 
     atexit( cleanup_files );
     init_signals( exit_on_signal );
+    getcwd( cwd, sizeof(cwd) );
 
     for (i = 0; i < HASH_SIZE; i++) list_init( &files[i] );
     for (i = 0; i < HASH_SIZE; i++) list_init( &global_includes[i] );
@@ -4606,6 +4633,7 @@ int main( int argc, char *argv[] )
     root_src_dir       = get_expanded_make_variable( top_makefile, "srcdir" );
     tools_dir          = get_expanded_make_variable( top_makefile, "toolsdir" );
     tools_ext          = get_expanded_make_variable( top_makefile, "toolsext" );
+    wine64_dir         = get_expanded_make_variable( top_makefile, "wine64dir" );
     exe_ext            = get_expanded_make_variable( top_makefile, "EXEEXT" );
     dll_ext[0]         = get_expanded_make_variable( top_makefile, "DLLEXT" );
     fontforge          = get_expanded_make_variable( top_makefile, "FONTFORGE" );

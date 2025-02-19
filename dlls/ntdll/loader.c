@@ -924,8 +924,7 @@ static FARPROC find_forwarded_export( HMODULE module, const char *forward, LPCWS
     {
         WINE_MODREF *imp = get_modref( module );
         TRACE( "delay loading %s for '%s'\n", debugstr_w(mod_name), forward );
-        if (load_dll( load_path, mod_name, 0, &wm, imp->system ) == STATUS_SUCCESS &&
-            !(wm->ldr.Flags & LDR_DONT_RESOLVE_REFS))
+        if (load_dll( load_path, mod_name, 0, &wm, imp->system ) == STATUS_SUCCESS)
         {
             if (!imports_fixup_done && importer)
             {
@@ -1732,6 +1731,10 @@ static NTSTATUS process_attach( LDR_DDAG_NODE *node, LPVOID lpReserved )
 
     mod = CONTAINING_RECORD( node->Modules.Flink, LDR_DATA_TABLE_ENTRY, NodeModuleLink );
     wm = CONTAINING_RECORD( mod, WINE_MODREF, ldr );
+
+    /* Skip initialization entirely if requested */
+    if (wm->ldr.Flags & LDR_DONT_RESOLVE_REFS)
+        return status;
 
     /* prevent infinite recursion in case of cyclical dependencies */
     if (    ( wm->ldr.Flags & LDR_LOAD_IN_PROGRESS )
@@ -3473,7 +3476,7 @@ NTSTATUS WINAPI DECLSPEC_HOTPATCH LdrLoadDll(LPCWSTR path_name, DWORD flags,
 
     nts = load_dll( path_name, dllname ? dllname : libname->Buffer, flags, &wm, FALSE );
 
-    if (nts == STATUS_SUCCESS && !(wm->ldr.Flags & LDR_DONT_RESOLVE_REFS))
+    if (nts == STATUS_SUCCESS)
     {
         nts = process_attach( wm->ldr.DdagNode, NULL );
         if (nts != STATUS_SUCCESS)
