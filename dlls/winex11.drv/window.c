@@ -1811,7 +1811,7 @@ static void sync_window_position( struct x11drv_win_data *data, UINT swp_flags, 
     RECT new_rect, window_rect;
     BOOL above = FALSE;
 
-    if (data->managed && data->desired_state.wm_state == IconicState) return;
+    if (data->managed && ((style & WS_MINIMIZE) || data->desired_state.wm_state == IconicState)) return;
 
     if (!(swp_flags & SWP_NOZORDER) || (swp_flags & SWP_SHOWWINDOW))
     {
@@ -3340,15 +3340,6 @@ LRESULT X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
         if ((data = get_win_data( hwnd )))
         {
             sync_window_region( data, (HRGN)1 );
-            release_win_data( data );
-        }
-        return 0;
-    case WM_WINE_DESKTOP_RESIZED:
-        if ((data = get_win_data( hwnd )))
-        {
-            /* update the full screen state */
-            update_net_wm_states( data );
-            window_set_config( data, &data->rects.visible, FALSE );
             release_win_data( data );
         }
         return 0;
