@@ -87,6 +87,7 @@ struct process
     struct list          kernel_object;   /* list of kernel object pointers */
     struct pe_image_info image_info;      /* main exe image info */
     int                  esync_fd;        /* esync file descriptor (signaled on exit) */
+    unsigned int         fsync_idx;
 };
 
 /* process functions */
@@ -117,6 +118,7 @@ extern void kill_process( struct process *process, int violent_death );
 extern void kill_console_processes( struct thread *renderer, int exit_code );
 extern void detach_debugged_processes( struct debug_obj *debug_obj, int exit_code );
 extern void enum_processes( int (*cb)(struct process*, void*), void *user);
+extern void set_process_priority( struct process *process, int priority );
 
 /* console functions */
 extern struct thread *console_get_renderer( struct console *console );

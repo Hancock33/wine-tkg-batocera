@@ -1,9 +1,9 @@
-# Last wine-tkg-staging-esync-git configuration - Sun  9 Feb 09:24:02 GMT 2025 :
+# Last wine-tkg-staging-fsync-git configuration - Fri 21 Feb 07:27:24 GMT 2025 :
 
 Local cfg files used
 
-Wine (plain) version: 10.1.r0.ga1dddd902f2
-Using wine-staging patchset (version 10.1.r0.g7b9777c2)
+Wine (plain) version: 10.1.r252.g4bd044dd328
+Using wine-staging patchset (version 10.1.r10.g4378292a)
 
 Disabled the local Esync patchset to use Staging impl instead.
 Not using vkd3d native library for d3d12 translation (allows using vkd3d-proton)
@@ -15,6 +15,8 @@ CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 
 Staging overrides, if any: 
 
+fsync-unix-staging.patch -- ( Applied fsync patches (unix, staging) )
+fsync_futex_waitv.patch -- ( Applied patches for fsync to support futex_waitv )
 
 LAA-unix-staging.patch -- ( Applied large address aware override support (legacy) )
 
@@ -26,6 +28,7 @@ Applied hotfix Return_nt_filename_and_resolve_DOS_drive_path.mypatch
 Applied hotfix a608ef1.mypatch
 Applied hotfix opencl-fixup.mypatch
 Applied hotfix nostale_mouse_fix.mypatch
+Applied hotfix HACK-user32-Always-call-get_message-request-after-waiting.mypatch
 
 wine-tkg-staging.patch -- ( Please don't report bugs about this wine build on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead. )
 

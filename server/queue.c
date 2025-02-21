@@ -45,6 +45,7 @@
 #include "request.h"
 #include "user.h"
 #include "esync.h"
+#include "fsync.h"
 
 #define WM_NCMOUSEFIRST WM_NCMOUSEMOVE
 #define WM_NCMOUSELAST  (WM_NCMOUSEFIRST+(WM_MOUSELAST-WM_MOUSEFIRST))
@@ -137,6 +138,8 @@ struct msg_queue
     unsigned int           ignore_post_msg; /* ignore post messages newer than this unique id */
     int                    esync_fd;        /* esync file descriptor (signalled on message) */
     int                    esync_in_msgwait; /* our thread is currently waiting on us */
+    unsigned int           fsync_idx;
+    int                    fsync_in_msgwait; /* our thread is currently waiting on us */
 };
 
 struct hotkey
@@ -154,6 +157,7 @@ static int msg_queue_add_queue( struct object *obj, struct wait_queue_entry *ent
 static void msg_queue_remove_queue( struct object *obj, struct wait_queue_entry *entry );
 static int msg_queue_signaled( struct object *obj, struct wait_queue_entry *entry );
 static int msg_queue_get_esync_fd( struct object *obj, enum esync_type *type );
+static unsigned int msg_queue_get_fsync_idx( struct object *obj, enum fsync_type *type );
 static void msg_queue_satisfied( struct object *obj, struct wait_queue_entry *entry );
 static void msg_queue_destroy( struct object *obj );
 static void msg_queue_poll_event( struct fd *fd, int event );
@@ -170,6 +174,7 @@ static const struct object_ops msg_queue_ops =
     msg_queue_remove_queue,    /* remove_queue */
     msg_queue_signaled,        /* signaled */
     msg_queue_get_esync_fd,    /* get_esync_fd */
+    msg_queue_get_fsync_idx,   /* get_fsync_idx */
     msg_queue_satisfied,       /* satisfied */
     no_signal,                 /* signal */
     no_get_fd,                 /* get_fd */
@@ -208,6 +213,7 @@ static const struct object_ops thread_input_ops =
     NULL,                         /* remove_queue */
     NULL,                         /* signaled */
     NULL,                         /* get_esync_fd */
+    NULL,                         /* get_fsync_idx */
     NULL,                         /* satisfied */
     no_signal,                    /* signal */
     no_get_fd,                    /* get_fd */
@@ -322,6 +328,8 @@ static struct msg_queue *create_msg_queue( struct thread *thread, struct thread_
         queue->ignore_post_msg = 0;
         queue->esync_fd        = -1;
         queue->esync_in_msgwait = 0;
+        queue->fsync_idx       = 0;
+        queue->fsync_in_msgwait = 0;
         list_init( &queue->send_result );
         list_init( &queue->callback_result );
         list_init( &queue->pending_timers );
@@ -344,6 +352,9 @@ static struct msg_queue *create_msg_queue( struct thread *thread, struct thread_
         }
         SHARED_WRITE_END;
 
+        if (do_fsync())
+            queue->fsync_idx = fsync_alloc_shm( 0, 0 );
+ 
         if (do_esync())
             queue->esync_fd = esync_create_fd( 0, 0 );
 
@@ -762,6 +773,9 @@ static inline void clear_queue_bits( struct msg_queue *queue, unsigned int bits 
         queue->keystate_lock = 0;
     }
 
+    if (do_fsync() && !is_signaled( queue ))
+        fsync_clear( &queue->obj );
+
     if (do_esync() && !is_signaled( queue ))
         esync_clear( queue->esync_fd );
 }
@@ -823,8 +837,8 @@ static inline unsigned int get_unique_post_id(void)
     return id;
 }
 
-/* try to merge a WM_MOUSEMOVE message with the last in the list; return 1 if successful */
-static int merge_mousemove( struct thread_input *input, const struct message *msg )
+/* lookup an already queued mouse message that matches the message, window and type */
+static struct message *find_mouse_message( struct thread_input *input, const struct message *msg )
 {
     struct message *prev;
     struct list *ptr;
@@ -835,12 +849,45 @@ static int merge_mousemove( struct thread_input *input, const struct message *ms
         if (prev->msg >> 31) continue; /* ignore internal messages */
         if (prev->msg != WM_INPUT) break;
     }
-    if (!ptr) return 0;
-    if (prev->result) return 0;
-    if (prev->win && msg->win && prev->win != msg->win) return 0;
-    if (prev->msg != msg->msg) return 0;
-    if (prev->type != msg->type) return 0;
-    /* now we can merge it */
+    if (!ptr) return NULL;
+    if (prev->result) return NULL;
+    if (prev->win && msg->win && prev->win != msg->win) return NULL;
+    if (prev->msg != msg->msg) return NULL;
+    if (prev->type != msg->type) return NULL;
+    return prev;
+}
+
+/* try to merge a WM_MOUSEWHEEL message with the last in the list; return 1 if successful */
+static int merge_mousewheel( struct thread_input *input, const struct message *msg )
+{
+    struct message *prev;
+
+    if (!(prev = find_mouse_message( input, msg ))) return 0;
+    if (prev->x != msg->x || prev->y != msg->y) return 0; /* don't merge if cursor has moved */
+
+    prev->wparam += msg->wparam; /* accumulate wheel delta */
+    prev->lparam  = msg->lparam;
+    prev->x       = msg->x;
+    prev->y       = msg->y;
+    prev->time    = msg->time;
+    if (msg->type == MSG_HARDWARE && prev->data && msg->data)
+    {
+        struct hardware_msg_data *prev_data = prev->data;
+        struct hardware_msg_data *msg_data = msg->data;
+        prev_data->info = msg_data->info;
+    }
+    list_remove( &prev->entry );
+    list_add_tail( &input->msg_list, &prev->entry );
+    return 1;
+}
+
+/* try to merge a WM_MOUSEMOVE message with the last in the list; return 1 if successful */
+static int merge_mousemove( struct thread_input *input, const struct message *msg )
+{
+    struct message *prev;
+
+    if (!(prev = find_mouse_message( input, msg ))) return 0;
+
     prev->wparam  = msg->wparam;
     prev->lparam  = msg->lparam;
     prev->x       = msg->x;
@@ -852,8 +899,8 @@ static int merge_mousemove( struct thread_input *input, const struct message *ms
         struct hardware_msg_data *msg_data = msg->data;
         prev_data->info = msg_data->info;
     }
-    list_remove( ptr );
-    list_add_tail( &input->msg_list, ptr );
+    list_remove( &prev->entry );
+    list_add_tail( &input->msg_list, &prev->entry );
     return 1;
 }
 
@@ -885,6 +932,7 @@ static int merge_unique_message( struct thread_input *input, unsigned int messag
 /* try to merge a message with the messages in the list; return 1 if successful */
 static int merge_message( struct thread_input *input, const struct message *msg )
 {
+    if (msg->msg == WM_MOUSEWHEEL) return merge_mousewheel( input, msg );
     if (msg->msg == WM_MOUSEMOVE) return merge_mousemove( input, msg );
     if (msg->msg == WM_WINE_CLIPCURSOR) return merge_unique_message( input, WM_WINE_CLIPCURSOR, msg );
     if (msg->msg == WM_WINE_SETCURSOR) return merge_unique_message( input, WM_WINE_SETCURSOR, msg );
@@ -1254,6 +1302,9 @@ static int is_queue_hung( struct msg_queue *queue )
             return 0;  /* thread is waiting on queue -> not hung */
     }
 
+    if (do_fsync() && queue->fsync_in_msgwait)
+        return 0;   /* thread is waiting on queue in absentia -> not hung */
+
     if (do_esync() && queue->esync_in_msgwait)
         return 0;   /* thread is waiting on queue in absentia -> not hung */
 
@@ -1316,6 +1367,13 @@ static int msg_queue_get_esync_fd( struct object *obj, enum esync_type *type )
     struct msg_queue *queue = (struct msg_queue *)obj;
     *type = ESYNC_QUEUE;
     return queue->esync_fd;
+}
+
+static unsigned int msg_queue_get_fsync_idx( struct object *obj, enum fsync_type *type )
+{
+    struct msg_queue *queue = (struct msg_queue *)obj;
+    *type = FSYNC_QUEUE;
+    return queue->fsync_idx;
 }
 
 static void msg_queue_satisfied( struct object *obj, struct wait_queue_entry *entry )
@@ -1838,7 +1896,7 @@ found:
     msg->msg       = WM_HOTKEY;
     msg->wparam    = hotkey->id;
     msg->lparam    = ((hotkey->vkey & 0xffff) << 16) | modifiers;
-    msg->unique_id = get_unique_post_id();
+    msg->unique_id = get_unique_hw_id();
 
     free( msg->data );
     msg->data      = NULL;
@@ -2746,11 +2804,15 @@ static int get_hardware_message( struct thread *thread, unsigned int hw_id, user
                                  struct get_message_reply *reply )
 {
     struct thread_input *input = thread->queue->input;
+    const struct rawinput_device *device;
     struct thread *win_thread;
     struct list *ptr;
     user_handle_t win;
     int clear_bits, got_one = 0;
     unsigned int msg_code;
+    int no_legacy;
+
+    no_legacy = (device = thread->process->rawinput_mouse) && (device->flags & RIDEV_NOLEGACY);
 
     ptr = list_head( &input->msg_list );
     if (hw_id)
@@ -2776,6 +2838,12 @@ static int get_hardware_message( struct thread *thread, unsigned int hw_id, user
         struct hardware_msg_data *data = msg->data;
 
         ptr = list_next( &input->msg_list, ptr );
+        if (no_legacy && msg->msg == WM_MOUSEMOVE && msg->type == MSG_HARDWARE)
+        {
+            list_remove( &msg->entry );
+            free_message( msg );
+            continue;
+        }
         win = find_hardware_message_window( input->desktop, input, msg, &msg_code, &win_thread );
         if (!win || !win_thread)
         {
@@ -3161,6 +3229,8 @@ DECL_HANDLER(set_queue_mask)
             }
             else wake_up( &queue->obj, 0 );
         }
+        if (do_fsync() && !is_signaled( queue ))
+            fsync_clear( &queue->obj );
 
         if (do_esync() && !is_signaled( queue ))
             esync_clear( queue->esync_fd );
@@ -3184,6 +3254,9 @@ DECL_HANDLER(get_queue_status)
             shared->changed_bits &= ~req->clear_bits;
         }
         SHARED_WRITE_END;
+
+        if (do_fsync() && !is_signaled( queue ))
+            fsync_clear( &queue->obj );
 
         if (do_esync() && !is_signaled( queue ))
             esync_clear( queue->esync_fd );
@@ -3455,6 +3528,9 @@ DECL_HANDLER(get_message)
     SHARED_WRITE_END;
 
     set_error( STATUS_PENDING );  /* FIXME */
+
+    if (do_fsync() && !is_signaled( queue ))
+        fsync_clear( &queue->obj );
 
     if (do_esync() && !is_signaled( queue ))
         esync_clear( queue->esync_fd );
@@ -4251,6 +4327,23 @@ DECL_HANDLER(esync_msgwait)
     if (!queue) return;
     queue_shm = queue->shared;
     queue->esync_in_msgwait = req->in_msgwait;
+
+    if (current->process->idle_event && !(queue_shm->wake_mask & QS_SMRESULT))
+        set_event( current->process->idle_event );
+
+    /* and start/stop waiting on the driver */
+    if (queue->fd)
+        set_fd_events( queue->fd, req->in_msgwait ? POLLIN : 0 );
+}
+
+DECL_HANDLER(fsync_msgwait)
+{
+    struct msg_queue *queue = get_current_queue();
+    const queue_shm_t *queue_shm;
+
+    if (!queue) return;
+    queue_shm = queue->shared;
+    queue->fsync_in_msgwait = req->in_msgwait;
 
     if (current->process->idle_event && !(queue_shm->wake_mask & QS_SMRESULT))
         set_event( current->process->idle_event );

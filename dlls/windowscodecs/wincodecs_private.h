@@ -164,6 +164,8 @@ extern HRESULT ColorContext_Create(IWICColorContext **context);
 extern HRESULT ColorTransform_Create(IWICColorTransform **transform);
 extern HRESULT BitmapClipper_Create(IWICBitmapClipper **clipper);
 
+extern HRESULT create_stream_wrapper(IStream *input, ULONG offset, IStream **wrapper);
+
 extern HRESULT copy_pixels(UINT bpp, const BYTE *srcbuffer,
     UINT srcwidth, UINT srcheight, INT srcstride,
     const WICRect *rc, UINT dststride, UINT dstbuffersize, BYTE *dstbuffer);
@@ -203,9 +205,15 @@ typedef struct _MetadataItem
     PROPVARIANT value;
 } MetadataItem;
 
+enum metadatahandler_flags
+{
+    METADATAHANDLER_IS_WRITER = 0x1,
+    METADATAHANDLER_FIXED_ITEMS = 0x2, /* Items cannot be added or removed. */
+};
+
 typedef struct _MetadataHandlerVtbl
 {
-    bool is_writer;
+    DWORD flags;
     const CLSID *clsid;
     HRESULT (*fnLoad)(IStream *stream, const GUID *preferred_vendor,
         DWORD persist_options, MetadataItem **items, DWORD *item_count);
@@ -226,6 +234,7 @@ extern HRESULT GpsMetadataWriter_CreateInstance(REFIID iid, void **ppv);
 extern HRESULT ExifMetadataReader_CreateInstance(REFIID iid, void **ppv);
 extern HRESULT ExifMetadataWriter_CreateInstance(REFIID iid, void **ppv);
 extern HRESULT App1MetadataReader_CreateInstance(REFIID iid, void **ppv);
+extern HRESULT App1MetadataWriter_CreateInstance(REFIID iid, void **ppv);
 extern HRESULT PngChrmReader_CreateInstance(REFIID iid, void** ppv);
 extern HRESULT PngGamaReader_CreateInstance(REFIID iid, void** ppv);
 extern HRESULT PngHistReader_CreateInstance(REFIID iid, void** ppv);
@@ -236,8 +245,10 @@ extern HRESULT IMDReader_CreateInstance(REFIID iid, void **ppv);
 extern HRESULT GCEReader_CreateInstance(REFIID iid, void **ppv);
 extern HRESULT APEReader_CreateInstance(REFIID iid, void **ppv);
 extern HRESULT GifCommentReader_CreateInstance(REFIID iid, void **ppv);
-extern HRESULT MetadataQueryReader_CreateInstance(IWICMetadataBlockReader *, const WCHAR *, IWICMetadataQueryReader **);
-extern HRESULT MetadataQueryWriter_CreateInstance(IWICMetadataBlockWriter *, const WCHAR *, IWICMetadataQueryWriter **);
+extern HRESULT MetadataQueryReader_CreateInstanceFromBlockReader(IWICMetadataBlockReader *, IWICMetadataQueryReader **);
+extern HRESULT MetadataQueryWriter_CreateInstanceFromBlockWriter(IWICMetadataBlockWriter *, IWICMetadataQueryWriter **);
+extern HRESULT MetadataQueryReader_CreateInstance(IWICMetadataReader *, IWICMetadataQueryReader **);
+extern HRESULT MetadataQueryWriter_CreateInstance(IWICMetadataWriter *, IWICMetadataQueryWriter **);
 extern HRESULT stream_initialize_from_filehandle(IWICStream *iface, HANDLE hfile);
 
 static inline const char *debug_wic_rect(const WICRect *rect)
@@ -326,6 +337,8 @@ void CDECL decoder_destroy(struct decoder *This);
 
 HRESULT create_metadata_reader(REFGUID format, const GUID *vendor, DWORD options, IStream *stream,
         IWICMetadataReader **reader);
+HRESULT create_metadata_writer(REFGUID format, const GUID *vendor, DWORD options,
+        IWICMetadataWriter **writer);
 
 struct encoder_funcs;
 

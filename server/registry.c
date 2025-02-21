@@ -181,6 +181,7 @@ static const struct object_ops key_ops =
     NULL,                    /* remove_queue */
     NULL,                    /* signaled */
     NULL,                    /* get_esync_fd */
+    NULL,                    /* get_fsync_idx */
     NULL,                    /* satisfied */
     no_signal,               /* signal */
     no_get_fd,               /* get_fd */
@@ -1863,7 +1864,7 @@ static void init_supported_machines(void)
     {
         supported_machines[count++] = IMAGE_FILE_MACHINE_ARM64;
         supported_machines[count++] = IMAGE_FILE_MACHINE_I386;
-        /* supported_machines[count++] = IMAGE_FILE_MACHINE_ARMNT;  not supported yet */
+        supported_machines[count++] = IMAGE_FILE_MACHINE_ARMNT;
     }
 #else
 #error Unsupported machine

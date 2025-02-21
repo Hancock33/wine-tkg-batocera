@@ -64,6 +64,7 @@
 #include "user.h"
 #include "security.h"
 #include "esync.h"
+#include "fsync.h"
 
 /* process object */
 
@@ -97,6 +98,7 @@ static void process_poll_event( struct fd *fd, int event );
 static struct list *process_get_kernel_obj_list( struct object *obj );
 static void process_destroy( struct object *obj );
 static int process_get_esync_fd( struct object *obj, enum esync_type *type );
+static unsigned int process_get_fsync_idx( struct object *obj, enum fsync_type *type );
 static void terminate_process( struct process *process, struct thread *skip, int exit_code );
 
 static const struct object_ops process_ops =
@@ -108,6 +110,7 @@ static const struct object_ops process_ops =
     remove_queue,                /* remove_queue */
     process_signaled,            /* signaled */
     process_get_esync_fd,        /* get_esync_fd */
+    process_get_fsync_idx,       /* get_fsync_idx */
     no_satisfied,                /* satisfied */
     no_signal,                   /* signal */
     no_get_fd,                   /* get_fd */
@@ -160,6 +163,7 @@ static const struct object_ops startup_info_ops =
     remove_queue,                  /* remove_queue */
     startup_info_signaled,         /* signaled */
     NULL,                          /* get_esync_fd */
+    NULL,                          /* get_fsync_idx */
     no_satisfied,                  /* satisfied */
     no_signal,                     /* signal */
     no_get_fd,                     /* get_fd */
@@ -222,6 +226,7 @@ static const struct object_ops job_ops =
     remove_queue,                  /* remove_queue */
     job_signaled,                  /* signaled */
     NULL,                          /* get_esync_fd */
+    NULL,                          /* get_fsync_idx */
     no_satisfied,                  /* satisfied */
     no_signal,                     /* signal */
     no_get_fd,                     /* get_fd */
@@ -692,6 +697,7 @@ struct process *create_process( int fd, struct process *parent, unsigned int fla
     memset( &process->image_info, 0, sizeof(process->image_info) );
     list_init( &process->rawinput_entry );
     process->esync_fd        = -1;
+    process->fsync_idx       = 0;
     list_init( &process->kernel_object );
     list_init( &process->thread_list );
     list_init( &process->locks );
@@ -741,6 +747,9 @@ struct process *create_process( int fd, struct process *parent, unsigned int fla
     }
     if (!process->handles || !process->token) goto error;
     process->session_id = token_get_session_id( process->token );
+
+    if (do_fsync())
+        process->fsync_idx = fsync_alloc_shm( 0, 0 );
 
     if (do_esync())
         process->esync_fd = esync_create_fd( 0, 0 );
@@ -816,6 +825,13 @@ static int process_get_esync_fd( struct object *obj, enum esync_type *type )
     struct process *process = (struct process *)obj;
     *type = ESYNC_MANUAL_SERVER;
     return process->esync_fd;
+}
+
+static unsigned int process_get_fsync_idx( struct object *obj, enum fsync_type *type )
+{
+    struct process *process = (struct process *)obj;
+    *type = FSYNC_MANUAL_SERVER;
+    return process->fsync_idx;
 }
 
 static unsigned int process_map_access( struct object *obj, unsigned int access )
@@ -1616,6 +1632,18 @@ DECL_HANDLER(get_process_vm_counters)
     release_object( process );
 }
 
+void set_process_priority( struct process *process, int priority )
+{
+    struct thread *thread;
+
+    process->priority = priority;
+
+    LIST_FOR_EACH_ENTRY( thread, &process->thread_list, struct thread, proc_entry )
+    {
+        set_thread_priority( thread, priority, thread->priority );
+    }
+}
+
 static void set_process_affinity( struct process *process, affinity_t affinity )
 {
     struct thread *thread;
@@ -1641,7 +1669,7 @@ DECL_HANDLER(set_process_info)
 
     if ((process = get_process_from_handle( req->handle, PROCESS_SET_INFORMATION )))
     {
-        if (req->mask & SET_PROCESS_INFO_PRIORITY) process->priority = req->priority;
+        if (req->mask & SET_PROCESS_INFO_PRIORITY) set_process_priority( process, req->priority );
         if (req->mask & SET_PROCESS_INFO_AFFINITY) set_process_affinity( process, req->affinity );
         if (req->mask & SET_PROCESS_INFO_TOKEN)
         {

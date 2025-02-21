@@ -800,6 +800,7 @@ BISON
 FLEX
 SED_CMD
 RUNTESTFLAGS
+wine64dir
 toolsdir
 x86_64_DISABLED_SUBDIRS
 x86_64_DELAYLOADFLAG
@@ -1515,6 +1516,7 @@ enable_windows_perception_stub
 enable_windows_security_authentication_onlineid
 enable_windows_security_credentials_ui_userconsentverifier
 enable_windows_storage_applicationdata
+enable_windows_storage
 enable_windows_system_profile_systemmanufacturers
 enable_windows_ui_xaml
 enable_windows_ui
@@ -1739,6 +1741,7 @@ enable_taskkill
 enable_tasklist
 enable_taskmgr
 enable_termsv
+enable_timeout
 enable_uninstaller
 enable_unlodctr
 enable_view
@@ -1772,6 +1775,7 @@ enable_server
 enable_tools
 enable_sfnt2fon
 enable_widl
+enable_wine
 enable_winebuild
 enable_winedump
 enable_winegcc
@@ -6517,6 +6521,8 @@ else
 fi
 toolsdir=$wine_cv_toolsdir
 
+wine64dir=$with_wine64
+
 RUNTESTFLAGS="-q -P wine"
 
 SED_CMD="LC_ALL=C sed -e 's,@bindir@,\${bindir},g' -e 's,@PACKAGE_STRING@,$PACKAGE_STRING,g' -e 's,@PACKAGE_VERSION@,$PACKAGE_VERSION,g'"
@@ -7595,6 +7601,12 @@ ac_fn_c_check_header_compile "$LINENO" "linux/filter.h" "ac_cv_header_linux_filt
 if test "x$ac_cv_header_linux_filter_h" = xyes
 then :
   printf "%s\n" "#define HAVE_LINUX_FILTER_H 1" >>confdefs.h
+
+fi
+ac_fn_c_check_header_compile "$LINENO" "linux/futex.h" "ac_cv_header_linux_futex_h" "$ac_includes_default"
+if test "x$ac_cv_header_linux_futex_h" = xyes
+then :
+  printf "%s\n" "#define HAVE_LINUX_FUTEX_H 1" >>confdefs.h
 
 fi
 ac_fn_c_check_header_compile "$LINENO" "linux/hdreg.h" "ac_cv_header_linux_hdreg_h" "$ac_includes_default"
@@ -9023,7 +9035,8 @@ else
   READELF="$ac_cv_prog_READELF"
 fi
 
-wine_rules="all:"
+wine_rules="all:
+	@echo 'Wine build complete.'"
 SUBDIRS=""
 
 DISABLED_SUBDIRS=""
@@ -9055,15 +9068,6 @@ wine_fn_config_makefile ()
     esac
 }
 
-wine_fn_config_symlink ()
-{
-    ac_links=$@
-    as_fn_append wine_rules "
-$ac_links:
-	@./config.status \$@"
-    for f in $ac_links; do as_fn_append CONFIGURE_TARGETS " $f"; done
-}
-
 case $host_os in
   cygwin*|mingw32*)
     LIBEXT="dll"
@@ -9071,11 +9075,12 @@ case $host_os in
     EXTRACFLAGS="-D__WINE_PE_BUILD"
         enable_loader=${enable_loader:-no}
     enable_server=${enable_server:-no}
+    enable_wine=${enable_wine:-no}
         with_x=${with_x:-no}
     with_pthread=${with_pthread:-no}
     ;;
 
-  darwin*|macosx*)
+  darwin*)
     LIBEXT="dylib"
     DLLFLAGS="$DLLFLAGS -fPIC"
     LDDLLFLAGS="-fPIC"
@@ -15950,7 +15955,7 @@ then :
 
 else $as_nop
   case $host_os in
-                    darwin*|macosx*) PCSCLITE_LIBS="-framework PCSC"
+                    darwin*) PCSCLITE_LIBS="-framework PCSC"
  ;;
                   esac
 fi
@@ -16153,7 +16158,7 @@ CPPFLAGS=$ac_save_CPPFLAGS
 
 fi
 case $host_os in
-  darwin*|macosx*) ;;
+  darwin*) ;;
   *) if test "x$ac_cv_lib_soname_dbus_1" = "x"
 then :
   case "x$with_dbus" in
@@ -19897,12 +19902,7 @@ then
 fi
 
 
-case "$HOST_ARCH,$PE_ARCHS" in
-  x86_64,*i386*) wine_binary="wine" ;;
-  x86_64,*) wine_binary="wine64" ;;
-  *) wine_binary="wine" ;;
-esac
-WINELOADER_PROGRAMS="$wine_binary"
+WINELOADER_PROGRAMS="wine"
 
 
 case $host_os in
@@ -19916,8 +19916,7 @@ esac
 
 if test "$wine_use_preloader" = "yes"
 then
-  test "$wine_binary" = wine || as_fn_append CONFIGURE_TARGETS " loader/wine-preloader"
-  WINELOADER_PROGRAMS="$WINELOADER_PROGRAMS $wine_binary-preloader"
+  WINELOADER_PROGRAMS="$WINELOADER_PROGRAMS wine-preloader"
 
 printf "%s\n" "#define HAVE_WINE_PRELOADER 1" >>confdefs.h
 
@@ -21090,13 +21089,6 @@ test "x$enable_silent_rules" = xyes && makedep_flags="$makedep_flags -S"
 wine_srcdir=
 test "$srcdir" = . || wine_srcdir="$srcdir/"
 
-ac_config_links="$ac_config_links wine:tools/winewrapper"
-wine_fn_config_symlink wine
-if test "$wine_binary" = wine64 -o -n "$with_wine64"; then
-ac_config_links="$ac_config_links wine64:tools/winewrapper"
-wine_fn_config_symlink wine64
-fi
-
 wine_fn_config_makefile dlls/acledit enable_acledit
 wine_fn_config_makefile dlls/aclui enable_aclui
 wine_fn_config_makefile dlls/activeds.tlb enable_activeds_tlb
@@ -21963,6 +21955,8 @@ wine_fn_config_makefile dlls/windows.security.credentials.ui.userconsentverifier
 wine_fn_config_makefile dlls/windows.security.credentials.ui.userconsentverifier/tests enable_tests
 wine_fn_config_makefile dlls/windows.storage.applicationdata enable_windows_storage_applicationdata
 wine_fn_config_makefile dlls/windows.storage.applicationdata/tests enable_tests
+wine_fn_config_makefile dlls/windows.storage enable_windows_storage
+wine_fn_config_makefile dlls/windows.storage/tests enable_tests
 wine_fn_config_makefile dlls/windows.system.profile.systemmanufacturers enable_windows_system_profile_systemmanufacturers
 wine_fn_config_makefile dlls/windows.system.profile.systemmanufacturers/tests enable_tests
 wine_fn_config_makefile dlls/windows.ui.xaml enable_windows_ui_xaml
@@ -22241,6 +22235,8 @@ wine_fn_config_makefile programs/tasklist enable_tasklist
 wine_fn_config_makefile programs/tasklist/tests enable_tests
 wine_fn_config_makefile programs/taskmgr enable_taskmgr
 wine_fn_config_makefile programs/termsv enable_termsv
+wine_fn_config_makefile programs/timeout enable_timeout
+wine_fn_config_makefile programs/timeout/tests enable_tests
 wine_fn_config_makefile programs/uninstaller enable_uninstaller
 wine_fn_config_makefile programs/unlodctr enable_unlodctr
 wine_fn_config_makefile programs/view enable_view
@@ -22279,6 +22275,7 @@ wine_fn_config_makefile server enable_server
 test "x$enable_tools" = xno || wine_fn_config_makefile tools enable_tools
 test "x$enable_tools" = xno || wine_fn_config_makefile tools/sfnt2fon enable_sfnt2fon
 test "x$enable_tools" = xno || wine_fn_config_makefile tools/widl enable_widl
+test "x$enable_tools" = xno || wine_fn_config_makefile tools/wine enable_wine
 test "x$enable_tools" = xno || wine_fn_config_makefile tools/winebuild enable_winebuild
 test "x$enable_tools" = xno || wine_fn_config_makefile tools/winedump enable_winedump
 test "x$enable_tools" = xno || wine_fn_config_makefile tools/winegcc enable_winegcc
@@ -22289,13 +22286,7 @@ test "x$enable_tools" = xno || wine_fn_config_makefile tools/wrc enable_wrc
 
 as_fn_append CONFIGURE_TARGETS " TAGS"
 as_fn_append CONFIGURE_TARGETS " tags"
-as_fn_append CONFIGURE_TARGETS " autom4te.cache"
-as_fn_append CONFIGURE_TARGETS " compile_commands.json"
 as_fn_append CONFIGURE_TARGETS " config.log"
-as_fn_append CONFIGURE_TARGETS " config.status"
-as_fn_append CONFIGURE_TARGETS " include/config.h"
-as_fn_append CONFIGURE_TARGETS " include/stamp-h"
-test "$wine_binary" = wine || as_fn_append CONFIGURE_TARGETS " loader/wine"
 
 if test "x$enable_tools" != xno
 then
@@ -22311,17 +22302,6 @@ SHELL=/bin/sh
 
 
 
-as_fn_append wine_rules "
-all: wine
-	@echo \"Wine build complete.\"
-Makefile: config.status
-	@./config.status Makefile
-config.status: ${wine_srcdir}configure
-	@./config.status --recheck
-include/config.h: include/stamp-h
-include/stamp-h: ${wine_srcdir}include/config.h.in config.status
-	@./config.status include/config.h include/stamp-h"
-
 if test "x$enable_maintainer_mode" = xyes
 then
     as_fn_append wine_rules "
@@ -22334,24 +22314,8 @@ include/stamp-h.in: configure.ac aclocal.m4
 fi
 
 
-if test -n "$with_wine64"
+if test -z "$with_wine64"
 then
-    case "$with_wine64" in
-      /*) reldir="" ;;
-      *)  reldir="../" ;;
-    esac
-        rm -f fonts server 2>/dev/null
-    as_fn_append wine_rules "
-all: loader/wine64 loader/wine64-preloader $with_wine64/loader/wine $with_wine64/loader/wine-preloader
-loader/wine64 loader/wine64-preloader:
-	rm -f \$@ && \$(LN_S) $reldir$with_wine64/\$@ \$@
-$with_wine64/loader/wine:
-	rm -f \$@ && \$(LN_S) $ac_pwd/loader/wine \$@
-$with_wine64/loader/wine-preloader:
-	rm -f \$@ && \$(LN_S) $ac_pwd/loader/wine-preloader \$@
-clean::
-	rm -f loader/wine64 loader/wine64-preloader $with_wine64/loader/wine $with_wine64/loader/wine-preloader"
-else
     TOP_INSTALL_DEV="$TOP_INSTALL_DEV include"
     TOP_INSTALL_LIB="$TOP_INSTALL_LIB \
 fonts \
@@ -22372,22 +22336,15 @@ programs/winepath/winepath \
 server/wineserver"
 
     case $host_os in
-      cygwin*|mingw32*|darwin*|macosx*|linux-android*) ;;
+      cygwin*|mingw32*|darwin*|linux-android*) ;;
       *) TOP_INSTALL_LIB="$TOP_INSTALL_LIB loader/wine.desktop" ;;
     esac
 fi
 
 
 as_fn_append wine_rules "
-distclean:: clean
-	rm -rf autom4te.cache
-maintainer-clean::
-	rm -f configure include/config.h.in"
-
-
-as_fn_append wine_rules "
 dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-10.1.r0.g7b9777c2\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging Esync )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
+	@version=\`(echo \"wine-10.1.r10.g4378292a\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging Esync Fsync )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$@) || echo \$\$build >\$@ || (rm -f \$@ && exit 1)
 programs/winetest/build.nfo:
@@ -22932,7 +22889,6 @@ esac
 cat >>$CONFIG_STATUS <<_ACEOF || ac_write_fail=1
 # Files that config.status was made for.
 config_headers="$ac_config_headers"
-config_links="$ac_config_links"
 config_commands="$ac_config_commands"
 
 _ACEOF
@@ -22957,9 +22913,6 @@ Usage: $0 [OPTION]... [TAG]...
 
 Configuration headers:
 $config_headers
-
-Configuration links:
-$config_links
 
 Configuration commands:
 $config_commands
@@ -23215,6 +23168,7 @@ x86_64_STRIP = $x86_64_STRIP
 x86_64_DELAYLOADFLAG = $x86_64_DELAYLOADFLAG
 x86_64_DISABLED_SUBDIRS = $x86_64_DISABLED_SUBDIRS
 toolsdir = $toolsdir
+wine64dir = $wine64dir
 RUNTESTFLAGS = $RUNTESTFLAGS
 SED_CMD = $SED_CMD
 FLEX = $FLEX
@@ -23383,8 +23337,6 @@ do
   case $ac_config_target in
     "include/config.h") CONFIG_HEADERS="$CONFIG_HEADERS include/config.h" ;;
     "include/stamp-h") CONFIG_COMMANDS="$CONFIG_COMMANDS include/stamp-h" ;;
-    "wine") CONFIG_LINKS="$CONFIG_LINKS wine:tools/winewrapper" ;;
-    "wine64") CONFIG_LINKS="$CONFIG_LINKS wine64:tools/winewrapper" ;;
     "tools/makedep") CONFIG_COMMANDS="$CONFIG_COMMANDS tools/makedep" ;;
     "Makefile") CONFIG_COMMANDS="$CONFIG_COMMANDS Makefile" ;;
 
@@ -23399,7 +23351,6 @@ done
 # bizarre bug on SunOS 4.1.3.
 if $ac_need_defaults; then
   test ${CONFIG_HEADERS+y} || CONFIG_HEADERS=$config_headers
-  test ${CONFIG_LINKS+y} || CONFIG_LINKS=$config_links
   test ${CONFIG_COMMANDS+y} || CONFIG_COMMANDS=$config_commands
 fi
 
@@ -23539,7 +23490,7 @@ cat >>$CONFIG_STATUS <<\_ACEOF || ac_write_fail=1
 fi # test -n "$CONFIG_HEADERS"
 
 
-eval set X "    :H $CONFIG_HEADERS  :L $CONFIG_LINKS  :C $CONFIG_COMMANDS"
+eval set X "    :H $CONFIG_HEADERS    :C $CONFIG_COMMANDS"
 shift
 for ac_tag
 do
@@ -23693,38 +23644,7 @@ printf "%s\n" "$as_me: $ac_file is unchanged" >&6;}
       || as_fn_error $? "could not create -" "$LINENO" 5
   fi
  ;;
-  :L)
-  #
-  # CONFIG_LINK
-  #
 
-  if test "$ac_source" = "$ac_file" && test "$srcdir" = '.'; then
-    :
-  else
-    # Prefer the file from the source tree if names are identical.
-    if test "$ac_source" = "$ac_file" || test ! -r "$ac_source"; then
-      ac_source=$srcdir/$ac_source
-    fi
-
-    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: linking $ac_source to $ac_file" >&5
-printf "%s\n" "$as_me: linking $ac_source to $ac_file" >&6;}
-
-    if test ! -r "$ac_source"; then
-      as_fn_error $? "$ac_source: file not found" "$LINENO" 5
-    fi
-    rm -f "$ac_file"
-
-    # Try a relative symlink, then a hard link, then a copy.
-    case $ac_source in
-    [\\/$]* | ?:[\\/]* ) ac_rel_source=$ac_source ;;
-	*) ac_rel_source=$ac_top_build_prefix$ac_source ;;
-    esac
-    ln -s "$ac_rel_source" "$ac_file" 2>/dev/null ||
-      ln "$ac_source" "$ac_file" 2>/dev/null ||
-      cp -p "$ac_source" "$ac_file" ||
-      as_fn_error $? "cannot link or copy $ac_source to $ac_file" "$LINENO" 5
-  fi
- ;;
   :C)  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: executing $ac_file commands" >&5
 printf "%s\n" "$as_me: executing $ac_file commands" >&6;}
  ;;

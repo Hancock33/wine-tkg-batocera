@@ -127,6 +127,7 @@ static const struct object_ops handle_table_ops =
     NULL,                            /* remove_queue */
     NULL,                            /* signaled */
     NULL,                            /* get_esync_fd */
+    NULL,                            /* get_fsync_idx */
     NULL,                            /* satisfied */
     no_signal,                       /* signal */
     no_get_fd,                       /* get_fd */
@@ -284,8 +285,13 @@ obj_handle_t alloc_handle_no_access_check( struct process *process, void *ptr, u
 obj_handle_t alloc_handle( struct process *process, void *ptr, unsigned int access, unsigned int attr )
 {
     struct object *obj = ptr;
-    access = obj->ops->map_access( obj, access ) & ~RESERVED_ALL;
-    if (access && !check_object_access( NULL, obj, &access )) return 0;
+
+    if (!(access = obj->ops->map_access( obj, access ) & ~RESERVED_ALL))
+    {
+        set_error( STATUS_ACCESS_DENIED );
+        return 0;
+    }
+    if (!check_object_access( NULL, obj, &access )) return 0;
     return alloc_handle_entry( process, ptr, access, attr );
 }
 

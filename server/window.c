@@ -108,6 +108,7 @@ static const struct object_ops window_ops =
     NULL,                     /* remove_queue */
     NULL,                     /* signaled */
     NULL,                     /* get_esync_fd */
+    NULL,                     /* get_fsync_idx */
     NULL,                     /* satisfied */
     no_signal,                /* signal */
     no_get_fd,                /* get_fd */
@@ -2428,7 +2429,7 @@ DECL_HANDLER(get_window_list)
         set_error( STATUS_INVALID_HANDLE );
         return;
     }
-    if (req->desktop && !(desktop = get_desktop_obj( current->process, req->desktop, DESKTOP_ENUMERATE )))
+    if (req->desktop && !(desktop = get_desktop_obj( current->process, req->desktop, DESKTOP_READOBJECTS )))
     {
         if (thread) release_object( thread );
         return;
