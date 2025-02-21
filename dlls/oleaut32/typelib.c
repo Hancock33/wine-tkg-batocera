@@ -4495,9 +4495,6 @@ static ITypeLib2* ITypeLib2_Constructor_SLTG(LPVOID pLib, DWORD dwTLBLength)
 	return NULL;
     }
 
-    /* There are pHeader->nrOfFileBlks - 2 TypeInfo records in this typelib */
-    pTypeLibImpl->TypeInfoCount = pHeader->nrOfFileBlks - 2;
-
     /* This points to pHeader->nrOfFileBlks - 1 of SLTG_BlkEntry */
     pBlkEntry = (SLTG_BlkEntry*)(pHeader + 1);
 
@@ -4518,7 +4515,7 @@ static ITypeLib2* ITypeLib2_Constructor_SLTG(LPVOID pLib, DWORD dwTLBLength)
 
     pIndex = (SLTG_Index*)(pMagic+1);
 
-    pPad9 = (SLTG_Pad9*)(pIndex + pTypeLibImpl->TypeInfoCount);
+    pPad9 = (SLTG_Pad9*)(pIndex + pHeader->nrOfFileBlks - 2);
 
     pFirstBlk = pPad9 + 1;
 
@@ -4566,7 +4563,7 @@ static ITypeLib2* ITypeLib2_Constructor_SLTG(LPVOID pLib, DWORD dwTLBLength)
 	    pOtherTypeInfoBlks[i].other_name[w] = '\0';
 	}
 	pOtherTypeInfoBlks[i].res1a = *(WORD*)(ptr + len + 4);
-	pOtherTypeInfoBlks[i].name_offs = *(WORD*)(ptr + len + 8);
+	pOtherTypeInfoBlks[i].name_offs = *(WORD*)(ptr + len + 6);
 	extra = pOtherTypeInfoBlks[i].hlpstr_len = *(WORD*)(ptr + 8 + len);
 	if(extra) {
 	    pOtherTypeInfoBlks[i].extra = malloc(extra);

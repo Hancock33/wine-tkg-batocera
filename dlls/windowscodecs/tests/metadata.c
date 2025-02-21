@@ -316,10 +316,10 @@ static const char metadata_gAMA[] = {
 static const char metadata_cHRM[] = {
     0,0,0,32, /* chunk length */
     'c','H','R','M', /* chunk type */
-    0,0,122,38, 0,0,128,132, /* white point */
-    0,0,250,0, 0,0,128,232, /* red */
-    0,0,117,48, 0,0,234,96, /* green */
-    0,0,58,152, 0,0,23,112, /* blue */
+    0,0,122,40, 0,0,120,132, /* white point */
+    0,0,240,0, 0,0,128,220, /* red */
+    0,0,100,48, 0,0,234,100, /* green */
+    0,0,58,140, 0,0,23,100, /* blue */
     0xff,0xff,0xff,0xff /* chunk CRC */
 };
 
@@ -814,6 +814,21 @@ static void test_metadata_unknown(void)
     ok(count == 1, "Unexpected count %u.\n", count);
 
     PropVariantInit(&schema);
+    PropVariantInit(&id);
+    PropVariantInit(&value);
+    hr = IWICMetadataWriter_GetValueByIndex(writer, 0, &schema, &id, &value);
+    todo_wine
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    if (hr == S_OK)
+    {
+        ok(schema.vt == VT_EMPTY, "Unexpected type %d.\n", schema.vt);
+        ok(id.vt == VT_EMPTY, "Unexpected type %d.\n", id.vt);
+        ok(value.vt == VT_BLOB, "Unexpected type %d.\n", id.vt);
+        ok(!value.blob.cbSize, "Unexpected size %lu.\n", value.blob.cbSize);
+        ok(!value.blob.pBlobData, "Unexpected data pointer %p.\n", value.blob.pBlobData);
+    }
+
+    PropVariantInit(&schema);
     PropVariantInit(&value);
 
     id.vt = VT_EMPTY;
@@ -822,8 +837,16 @@ static void test_metadata_unknown(void)
     todo_wine
     ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
 
+    PropVariantInit(&id);
+    PropVariantInit(&schema);
+    hr = IWICMetadataWriter_RemoveValue(writer, &schema, &id);
+    ok(hr == WINCODEC_ERR_UNSUPPORTEDOPERATION, "Unexpected hr %#lx.\n", hr);
+
+    id.vt = VT_UI4;
+    hr = IWICMetadataWriter_RemoveValue(writer, &schema, &id);
+    ok(hr == WINCODEC_ERR_UNSUPPORTEDOPERATION, "Unexpected hr %#lx.\n", hr);
+
     hr = IWICMetadataWriter_RemoveValueByIndex(writer, 0);
-    todo_wine
     ok(hr == WINCODEC_ERR_UNSUPPORTEDOPERATION, "Unexpected hr %#lx.\n", hr);
 
     hr = IWICMetadataWriter_GetCount(writer, &count);
@@ -1085,6 +1108,28 @@ static void test_metadata_gAMA(void)
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     ok(count == 1, "Unexpected count %u.\n", count);
 
+    hr = IWICMetadataWriter_GetValueByIndex(writer, 0, &schema, &id, &value);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    ok(schema.vt == VT_EMPTY, "Unexpected type %d.\n", schema.vt);
+    ok(id.vt == VT_LPWSTR, "Unexpected type %d.\n", id.vt);
+    ok(!lstrcmpW(id.pwszVal, L"ImageGamma"), "Unexpected id %s.\n", wine_dbgstr_w(id.pwszVal));
+    PropVariantClear(&id);
+
+    ok(value.vt == VT_UI4, "Unexpected type %d.\n", value.vt);
+    ok(value.ulVal == 45455, "unexpected value: %lu\n", value.ulVal);
+
+    hr = IWICMetadataWriter_RemoveValueByIndex(writer, 0);
+    ok(hr == WINCODEC_ERR_UNSUPPORTEDOPERATION, "Unexpected hr %#lx.\n", hr);
+
+    hr = IWICMetadataWriter_RemoveValueByIndex(writer, count);
+    ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
+
+    id.vt = VT_EMPTY;
+    V_UI4(&id) = 123;
+    hr = IWICMetadataWriter_SetValue(writer, &schema, &id, &value);
+    ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
+
     load_stream(writer, metadata_gAMA, sizeof(metadata_gAMA), 0);
     load_stream(writer, metadata_gAMA, sizeof(metadata_gAMA), WICPersistOptionNoCacheStream);
 
@@ -1112,7 +1157,10 @@ static void test_metadata_cHRM(void)
         L"BlueY",
     };
     static const ULONG expected_vals[8] = {
-        31270,32900, 64000,33000, 30000,60000, 15000,6000
+        31272, 30852, 61440, 32988, 25648, 60004, 14988, 5988
+    };
+    static const ULONG default_values[8] = {
+        31270,32900,64000, 33000,30000, 60000,15000, 6000
     };
 
     PropVariantInit(&schema);
@@ -1175,6 +1223,32 @@ static void test_metadata_cHRM(void)
     hr = IWICMetadataWriter_GetCount(writer, &count);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     ok(count == 8, "Unexpected count %u.\n", count);
+
+    for (i = 0; i < count && count == ARRAY_SIZE(expected_names); ++i)
+    {
+        hr = IWICMetadataWriter_GetValueByIndex(writer, i, &schema, &id, &value);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+        ok(schema.vt == VT_EMPTY, "Unexpected type %d.\n", schema.vt);
+        PropVariantClear(&schema);
+
+        ok(id.vt == VT_LPWSTR, "Unexpected type %d.\n", id.vt);
+        ok(!lstrcmpW(id.pwszVal, expected_names[i]), "Unexpected id %s, expected %s.\n",
+                wine_dbgstr_w(id.pwszVal), wine_dbgstr_w(expected_names[i]));
+        PropVariantClear(&id);
+
+        ok(value.vt == VT_UI4, "Unexpected type %d.\n", value.vt);
+        ok(value.ulVal == default_values[i], "Got %lu, expected %lu.\n", value.ulVal, default_values[i]);
+        PropVariantClear(&value);
+    }
+
+    for (i = 0; i < count; ++i)
+    {
+        hr = IWICMetadataWriter_RemoveValueByIndex(writer, i);
+        ok(hr == WINCODEC_ERR_UNSUPPORTEDOPERATION, "Unexpected hr %#lx.\n", hr);
+    }
+    hr = IWICMetadataWriter_RemoveValueByIndex(writer, count);
+    ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
 
     load_stream(writer, metadata_cHRM, sizeof(metadata_cHRM), 0);
     load_stream(writer, metadata_cHRM, sizeof(metadata_cHRM), WICPersistOptionNoCacheStream);
@@ -1251,6 +1325,24 @@ static void test_metadata_hIST(void)
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     ok(count == 1, "Unexpected count %u.\n", count);
 
+    hr = IWICMetadataWriter_GetValueByIndex(writer, 0, &schema, &id, &value);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    ok(schema.vt == VT_EMPTY, "Unexpected type %d.\n", schema.vt);
+
+    ok(id.vt == VT_LPWSTR, "Unexpected type %d.\n", id.vt);
+    ok(!lstrcmpW(id.pwszVal, L"Frequencies"), "Unexpected id %s.\n", wine_dbgstr_w(id.pwszVal));
+    PropVariantClear(&id);
+
+    ok(value.vt == (VT_UI2|VT_VECTOR), "Unexpected type %#x.\n", value.vt);
+    ok(!value.caui.cElems, "Unexpected cElems %ld.\n", value.caub.cElems);
+    ok(!value.caui.pElems, "Unexpected value %p.\n", value.caui.pElems);
+
+    hr = IWICMetadataWriter_RemoveValueByIndex(writer, 0);
+    ok(hr == WINCODEC_ERR_UNSUPPORTEDOPERATION, "Unexpected hr %#lx.\n", hr);
+    hr = IWICMetadataWriter_RemoveValueByIndex(writer, 1);
+    ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
+
     load_stream(writer, metadata_hIST, sizeof(metadata_hIST), 0);
     load_stream(writer, metadata_hIST, sizeof(metadata_hIST), WICPersistOptionNoCacheStream);
 
@@ -1262,7 +1354,7 @@ static void test_metadata_tIME(void)
     HRESULT hr;
     IWICMetadataReader *reader;
     IWICMetadataWriter *writer;
-    UINT count;
+    UINT i, count;
     GUID format;
     static const struct test_data td[] =
     {
@@ -1272,6 +1364,15 @@ static void test_metadata_tIME(void)
         { VT_UI1, 0, 0, { 12 }, NULL, L"Hour" },
         { VT_UI1, 0, 0, { 34 }, NULL, L"Minute" },
         { VT_UI1, 0, 0, { 56 }, NULL, L"Second" },
+    };
+    static const struct test_data default_data[] =
+    {
+        { VT_UI2, 0, 0, { 0 }, NULL, L"Year" },
+        { VT_UI1, 0, 0, { 1 }, NULL, L"Month" },
+        { VT_UI1, 0, 0, { 1 }, NULL, L"Day" },
+        { VT_UI1, 0, 0, { 0 }, NULL, L"Hour" },
+        { VT_UI1, 0, 0, { 0 }, NULL, L"Minute" },
+        { VT_UI1, 0, 0, { 0 }, NULL, L"Second" },
     };
 
     hr = CoCreateInstance(&CLSID_WICPngTimeMetadataReader, NULL, CLSCTX_INPROC_SERVER,
@@ -1315,6 +1416,16 @@ static void test_metadata_tIME(void)
     hr = IWICMetadataWriter_GetCount(writer, &count);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     ok(count == 6, "Unexpected count %u.\n", count);
+
+    compare_metadata((IWICMetadataReader *)writer, default_data, count);
+
+    for (i = 0; i < count; ++i)
+    {
+        hr = IWICMetadataWriter_RemoveValueByIndex(writer, i);
+        ok(hr == WINCODEC_ERR_UNSUPPORTEDOPERATION, "Unexpected hr %#lx.\n", hr);
+    }
+    hr = IWICMetadataWriter_RemoveValueByIndex(writer, count);
+    ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
 
     load_stream(writer, metadata_tIME, sizeof(metadata_tIME), 0);
     load_stream(writer, metadata_tIME, sizeof(metadata_tIME), WICPersistOptionNoCacheStream);
@@ -1726,6 +1837,7 @@ static void test_metadata_Exif(void)
 
 static void test_metadata_Gps(void)
 {
+    PROPVARIANT schema, id, value;
     IWICMetadataReader *reader;
     IWICMetadataWriter *writer;
     UINT count=0;
@@ -1769,6 +1881,31 @@ static void test_metadata_Gps(void)
     check_interface(writer, &IID_IPersistStream, TRUE);
     check_interface(writer, &IID_IWICPersistStream, TRUE);
     check_interface(writer, &IID_IWICStreamProvider, TRUE);
+
+    hr = IWICMetadataWriter_GetCount(writer, &count);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(!count, "Unexpected count %u.\n", count);
+
+    id.vt = VT_UI2;
+    id.uiVal = 0x300;
+    value.vt = VT_UI2;
+    value.ulVal = 555;
+    PropVariantInit(&schema);
+    hr = IWICMetadataWriter_SetValue(writer, &schema, &id, &value);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    hr = IWICMetadataWriter_GetCount(writer, &count);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(count == 1, "Unexpected count %u.\n", count);
+
+    id.uiVal = 1;
+    hr = IWICMetadataWriter_RemoveValue(writer, &schema, &id);
+    ok(hr == WINCODEC_ERR_PROPERTYNOTFOUND, "Unexpected hr %#lx.\n", hr);
+
+    schema.vt = VT_UI4;
+    id.uiVal = 0x300;
+    hr = IWICMetadataWriter_RemoveValue(writer, &schema, &id);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 
     hr = IWICMetadataWriter_GetCount(writer, &count);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
@@ -2025,7 +2162,7 @@ static void test_metadata_png(void)
     IWICBitmapDecoder *decoder;
     IWICBitmapFrameDecode *frame;
     IWICMetadataBlockReader *blockreader;
-    IWICMetadataReader *reader;
+    IWICMetadataReader *reader, *reader2;
     IWICMetadataQueryReader *queryreader;
     IWICComponentFactory *factory;
     GUID containerformat;
@@ -2051,85 +2188,69 @@ static void test_metadata_png(void)
     hr = IWICBitmapFrameDecode_QueryInterface(frame, &IID_IWICMetadataBlockReader, (void**)&blockreader);
     ok(hr == S_OK, "QueryInterface failed, hr=%lx\n", hr);
 
-    if (SUCCEEDED(hr))
-    {
-        winetest_push_context("png");
-        test_block_reader_enumerator(blockreader);
-        winetest_pop_context();
+    winetest_push_context("png");
+    test_block_reader_enumerator(blockreader);
+    winetest_pop_context();
 
-        hr = IWICMetadataBlockReader_GetContainerFormat(blockreader, NULL);
-        ok(hr == E_INVALIDARG, "GetContainerFormat failed, hr=%lx\n", hr);
+    hr = IWICMetadataBlockReader_GetContainerFormat(blockreader, NULL);
+    ok(hr == E_INVALIDARG, "GetContainerFormat failed, hr=%lx\n", hr);
 
-        hr = IWICMetadataBlockReader_GetContainerFormat(blockreader, &containerformat);
-        ok(hr == S_OK, "GetContainerFormat failed, hr=%lx\n", hr);
-        ok(IsEqualGUID(&containerformat, &GUID_ContainerFormatPng), "unexpected container format\n");
+    hr = IWICMetadataBlockReader_GetContainerFormat(blockreader, &containerformat);
+    ok(hr == S_OK, "GetContainerFormat failed, hr=%lx\n", hr);
+    ok(IsEqualGUID(&containerformat, &GUID_ContainerFormatPng), "unexpected container format\n");
 
-        hr = IWICMetadataBlockReader_GetCount(blockreader, NULL);
-        ok(hr == E_INVALIDARG, "GetCount failed, hr=%lx\n", hr);
+    hr = IWICMetadataBlockReader_GetCount(blockreader, NULL);
+    ok(hr == E_INVALIDARG, "GetCount failed, hr=%lx\n", hr);
 
-        hr = IWICMetadataBlockReader_GetCount(blockreader, &count);
-        ok(hr == S_OK, "GetCount failed, hr=%lx\n", hr);
-        ok(count == 1, "unexpected count %d\n", count);
+    hr = IWICMetadataBlockReader_GetCount(blockreader, &count);
+    ok(hr == S_OK, "GetCount failed, hr=%lx\n", hr);
+    ok(count == 1, "unexpected count %d\n", count);
 
-        if (0)
-        {
-            /* Crashes on Windows XP */
-            hr = IWICMetadataBlockReader_GetReaderByIndex(blockreader, 0, NULL);
-            ok(hr == E_INVALIDARG, "GetReaderByIndex failed, hr=%lx\n", hr);
-        }
+    hr = IWICMetadataBlockReader_GetReaderByIndex(blockreader, 0, NULL);
+    ok(hr == E_INVALIDARG, "GetReaderByIndex failed, hr=%lx\n", hr);
 
-        hr = IWICMetadataBlockReader_GetReaderByIndex(blockreader, 0, &reader);
-        ok(hr == S_OK, "GetReaderByIndex failed, hr=%lx\n", hr);
+    hr = IWICMetadataBlockReader_GetReaderByIndex(blockreader, 0, &reader);
+    ok(hr == S_OK, "GetReaderByIndex failed, hr=%lx\n", hr);
+    hr = IWICMetadataBlockReader_GetReaderByIndex(blockreader, 0, &reader2);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    todo_wine
+    ok(reader == reader2, "Unexpected instance.\n");
+    IWICMetadataReader_Release(reader2);
 
-        if (SUCCEEDED(hr))
-        {
-            hr = IWICMetadataReader_GetMetadataFormat(reader, &containerformat);
-            ok(hr == S_OK, "GetMetadataFormat failed, hr=%#lx\n", hr);
-            ok(IsEqualGUID(&containerformat, &GUID_MetadataFormatChunktIME) ||
-               broken(IsEqualGUID(&containerformat, &GUID_MetadataFormatUnknown)) /* Windows XP */,
-               "unexpected container format\n");
+    hr = IWICMetadataReader_GetMetadataFormat(reader, &containerformat);
+    ok(hr == S_OK, "GetMetadataFormat failed, hr=%#lx\n", hr);
+    ok(IsEqualGUID(&containerformat, &GUID_MetadataFormatChunktIME), "Unexpected format %s.\n",
+            wine_dbgstr_guid(&containerformat));
 
-            test_reader_container_format(reader, &GUID_ContainerFormatPng);
+    test_reader_container_format(reader, &GUID_ContainerFormatPng);
 
-            hr = IWICMetadataReader_GetCount(reader, &count);
-            ok(hr == S_OK, "GetCount error %#lx\n", hr);
-            ok(count == 6 || broken(count == 1) /* XP */, "expected 6, got %u\n", count);
-            if (count == 6)
-                compare_metadata(reader, td, count);
+    hr = IWICMetadataReader_GetCount(reader, &count);
+    ok(hr == S_OK, "GetCount error %#lx\n", hr);
+    ok(count == 6, "Unexpected item count %u.\n", count);
+    if (count == 6)
+        compare_metadata(reader, td, count);
 
-            IWICMetadataReader_Release(reader);
-        }
+    IWICMetadataReader_Release(reader);
 
-        hr = IWICMetadataBlockReader_GetReaderByIndex(blockreader, 1, &reader);
-        todo_wine ok(hr == WINCODEC_ERR_VALUEOUTOFRANGE, "GetReaderByIndex failed, hr=%lx\n", hr);
+    hr = IWICMetadataBlockReader_GetReaderByIndex(blockreader, 1, &reader);
+    todo_wine ok(hr == WINCODEC_ERR_VALUEOUTOFRANGE, "GetReaderByIndex failed, hr=%lx\n", hr);
 
-        hr = CoCreateInstance(&CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER,
-            &IID_IWICComponentFactory, (void**)&factory);
-        ok(hr == S_OK, "CoCreateInstance failed, hr=%lx\n", hr);
+    hr = CoCreateInstance(&CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER,
+        &IID_IWICComponentFactory, (void**)&factory);
+    ok(hr == S_OK, "CoCreateInstance failed, hr=%lx\n", hr);
 
-        hr = IWICComponentFactory_CreateQueryReaderFromBlockReader(factory, NULL, &queryreader);
-        ok(hr == E_INVALIDARG, "CreateQueryReaderFromBlockReader should have failed: %08lx\n", hr);
+    hr = IWICComponentFactory_CreateQueryReaderFromBlockReader(factory, blockreader, &queryreader);
+    ok(hr == S_OK, "CreateQueryReaderFromBlockReader failed: %08lx\n", hr);
 
-        hr = IWICComponentFactory_CreateQueryReaderFromBlockReader(factory, blockreader, NULL);
-        ok(hr == E_INVALIDARG, "CreateQueryReaderFromBlockReader should have failed: %08lx\n", hr);
+    IWICMetadataQueryReader_Release(queryreader);
 
-        hr = IWICComponentFactory_CreateQueryReaderFromBlockReader(factory, blockreader, &queryreader);
-        ok(hr == S_OK, "CreateQueryReaderFromBlockReader failed: %08lx\n", hr);
+    IWICComponentFactory_Release(factory);
 
-        IWICMetadataQueryReader_Release(queryreader);
-
-        IWICComponentFactory_Release(factory);
-
-        IWICMetadataBlockReader_Release(blockreader);
-    }
+    IWICMetadataBlockReader_Release(blockreader);
 
     hr = IWICBitmapFrameDecode_GetMetadataQueryReader(frame, &queryreader);
     ok(hr == S_OK, "GetMetadataQueryReader failed: %08lx\n", hr);
-
-    if (SUCCEEDED(hr))
-    {
-        IWICMetadataQueryReader_Release(queryreader);
-    }
+    IWICMetadataQueryReader_Release(queryreader);
 
     IWICBitmapFrameDecode_Release(frame);
 
@@ -2219,7 +2340,7 @@ static void test_metadata_gif(void)
     IWICBitmapDecoder *decoder;
     IWICBitmapFrameDecode *frame;
     IWICMetadataBlockReader *blockreader;
-    IWICMetadataReader *reader;
+    IWICMetadataReader *reader, *reader2;
     IWICMetadataQueryReader *queryreader;
     GUID format;
     HRESULT hr;
@@ -2257,6 +2378,12 @@ static void test_metadata_gif(void)
 
         hr = IWICMetadataBlockReader_GetReaderByIndex(blockreader, 0, &reader);
         ok(hr == S_OK, "GetReaderByIndex error %#lx\n", hr);
+
+        hr = IWICMetadataBlockReader_GetReaderByIndex(blockreader, 0, &reader2);
+        ok(hr == S_OK, "GetReaderByIndex error %#lx\n", hr);
+        todo_wine
+        ok(reader == reader2, "Unexpected instance.\n");
+        IWICMetadataReader_Release(reader2);
 
         if (SUCCEEDED(hr))
         {
@@ -2308,6 +2435,11 @@ static void test_metadata_gif(void)
 
         hr = IWICMetadataBlockReader_GetReaderByIndex(blockreader, 0, &reader);
         ok(hr == S_OK, "GetReaderByIndex error %#lx\n", hr);
+        hr = IWICMetadataBlockReader_GetReaderByIndex(blockreader, 0, &reader2);
+        ok(hr == S_OK, "GetReaderByIndex error %#lx\n", hr);
+        todo_wine
+        ok(reader == reader2, "Unexpected instance.\n");
+        IWICMetadataReader_Release(reader2);
 
         if (SUCCEEDED(hr))
         {
@@ -2977,6 +3109,14 @@ static void test_metadata_GCE(void)
         { VT_UI2, 0, 0, { 0x302 }, NULL, L"Delay" },
         { VT_UI1, 0, 0, { 4 }, NULL, L"TransparentColorIndex" }
     };
+    static const struct test_data default_data[5] =
+    {
+        { VT_UI1, 0, 0, { 0 }, NULL, L"Disposal" },
+        { VT_BOOL, 0, 0, { 0 }, NULL, L"UserInputFlag" },
+        { VT_BOOL, 0, 0, { 0 }, NULL, L"TransparencyFlag" },
+        { VT_UI2, 0, 0, { 0 }, NULL, L"Delay" },
+        { VT_UI1, 0, 0, { 0 }, NULL, L"TransparentColorIndex" }
+    };
     LARGE_INTEGER pos;
     HRESULT hr;
     IStream *stream;
@@ -2985,7 +3125,7 @@ static void test_metadata_GCE(void)
     IWICMetadataWriter *writer;
     IWICMetadataHandlerInfo *info;
     WCHAR name[64];
-    UINT count, dummy;
+    UINT i, count, dummy;
     GUID format;
     CLSID id;
 
@@ -3061,6 +3201,16 @@ static void test_metadata_GCE(void)
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     ok(count == 5, "Unexpected count %u.\n", count);
 
+    compare_metadata((IWICMetadataReader *)writer, default_data, count);
+
+    for (i = 0; i < count; ++i)
+    {
+        hr = IWICMetadataWriter_RemoveValueByIndex(writer, i);
+        ok(hr == WINCODEC_ERR_UNSUPPORTEDOPERATION, "Unexpected hr %#lx.\n", hr);
+    }
+    hr = IWICMetadataWriter_RemoveValueByIndex(writer, count);
+    ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
+
     load_stream(writer, GCE_data, sizeof(GCE_data), 0);
     load_stream(writer, GCE_data, sizeof(GCE_data), WICPersistOptionNoCacheStream);
 
@@ -3078,6 +3228,11 @@ static void test_metadata_APE(void)
     {
         { VT_UI1|VT_VECTOR, 0, 11, { 'H','e','l','l','o',' ','W','o','r','l','d' }, NULL, L"Application" },
         { VT_UI1|VT_VECTOR, 0, 10, { 1,0x11,2,0x22,0x33,4,0x44,0x55,0x66,0x77 }, NULL, L"Data" }
+    };
+    static const struct test_data default_data[2] =
+    {
+        { VT_EMPTY, 0, 0, { 0 }, NULL, L"Application" },
+        { VT_UI1|VT_VECTOR, 0, 0, { 0 }, NULL, L"Data" }
     };
     WCHAR dataW[] = { 'd','a','t','a',0 };
     HRESULT hr;
@@ -3172,6 +3327,16 @@ static void test_metadata_APE(void)
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     ok(count == 2, "Unexpected count %u.\n", count);
 
+    compare_metadata((IWICMetadataReader *)writer, default_data, count);
+
+    for (i = 0; i < count; ++i)
+    {
+        hr = IWICMetadataWriter_RemoveValueByIndex(writer, i);
+        ok(hr == WINCODEC_ERR_UNSUPPORTEDOPERATION, "Unexpected hr %#lx.\n", hr);
+    }
+    hr = IWICMetadataWriter_RemoveValueByIndex(writer, count);
+    ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
+
     load_stream(writer, APE_data, sizeof(APE_data), 0);
     load_stream(writer, APE_data, sizeof(APE_data), WICPersistOptionNoCacheStream);
 
@@ -3189,6 +3354,10 @@ static void test_metadata_GIF_comment(void)
     {
         { VT_LPSTR, 0, 12, { 0 }, "Hello World!", L"TextEntry" }
     };
+    static const struct test_data default_data[1] =
+    {
+        { VT_LPSTR, 0, 0, { 0 }, "", L"TextEntry" }
+    };
     WCHAR text_entryW[] = L"TEXTENTRY";
     HRESULT hr;
     IStream *stream;
@@ -3197,7 +3366,7 @@ static void test_metadata_GIF_comment(void)
     IWICMetadataWriter *writer;
     IWICMetadataHandlerInfo *info;
     WCHAR name[64];
-    UINT count, dummy;
+    UINT i, count, dummy;
     GUID format;
     CLSID clsid;
     PROPVARIANT id, value;
@@ -3279,6 +3448,16 @@ static void test_metadata_GIF_comment(void)
     hr = IWICMetadataWriter_GetCount(writer, &count);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     ok(count == 1, "Unexpected count %u.\n", count);
+
+    compare_metadata((IWICMetadataReader *)writer, default_data, count);
+
+    for (i = 0; i < count; ++i)
+    {
+        hr = IWICMetadataWriter_RemoveValueByIndex(writer, i);
+        ok(hr == WINCODEC_ERR_UNSUPPORTEDOPERATION, "Unexpected hr %#lx.\n", hr);
+    }
+    hr = IWICMetadataWriter_RemoveValueByIndex(writer, count);
+    ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
 
     load_stream(writer, GIF_comment_data, sizeof(GIF_comment_data), 0);
     load_stream(writer, GIF_comment_data, sizeof(GIF_comment_data), WICPersistOptionNoCacheStream);
@@ -4090,8 +4269,18 @@ static HRESULT WINAPI test_block_writer_SetWriterByIndex(IWICMetadataBlockWriter
 
 static HRESULT WINAPI test_block_writer_RemoveWriterByIndex(IWICMetadataBlockWriter *iface, UINT index)
 {
-    ok(0, "not implemented\n");
-    return E_NOTIMPL;
+    struct test_block_writer *writer = impl_from_IWICMetadataBlockWriter(iface);
+
+    if (index >= writer->count)
+        return E_INVALIDARG;
+
+    IWICMetadataWriter_Release(writer->writers[index]);
+    writer->writers[index] = NULL;
+    writer->count--;
+    if (index != writer->count)
+        memcpy(&writer->writers[index], &writer->writers[index + 1], (writer->count - index) * sizeof(*writer->writers));
+
+    return S_OK;
 }
 
 static const IWICMetadataBlockWriterVtbl test_block_writer_vtbl =
@@ -5227,6 +5416,15 @@ static void test_metadata_App1(void)
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     ok(!count, "Unexpected count %u.\n", count);
 
+    id.vt = VT_UI2;
+    id.uiVal = 0x300;
+    value.vt = VT_UI2;
+    value.ulVal = 555;
+    PropVariantInit(&schema);
+    hr = IWICMetadataWriter_SetValue(writer, &schema, &id, &value);
+    todo_wine
+    ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
+
     IWICMetadataWriter_Release(writer);
 
     IWICComponentFactory_Release(factory);
@@ -5857,6 +6055,95 @@ if (hr == S_OK)
     IWICComponentFactory_Release(factory);
 }
 
+static void test_RemoveMetadataByName(void)
+{
+    IWICMetadataQueryWriter *query_writer;
+    IWICComponentFactory *factory;
+    IWICMetadataReader *reader;
+    PROPVARIANT value;
+    HRESULT hr;
+
+    hr = CoCreateInstance(&CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER,
+            &IID_IWICComponentFactory, (void **)&factory);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    hr = CoCreateInstance(&CLSID_WICApp1MetadataReader, NULL, CLSCTX_INPROC_SERVER,
+            &IID_IWICMetadataReader, (void **)&reader);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    load_stream(reader, (const char *)&app1_data, sizeof(app1_data), 0);
+
+    hr = create_query_writer_from_metadata_reader(factory, reader, &GUID_ContainerFormatJpeg, &query_writer);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    PropVariantInit(&value);
+    hr = IWICMetadataQueryWriter_GetMetadataByName(query_writer, L"/app1/ifd/exif/{ushort=512}", &value);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(value.vt == VT_UI2, "Unexpected value type: %u.\n", value.vt);
+    ok(value.ulVal == 444, "Unexpected value %lu.\n", value.ulVal);
+
+    /* Item does not exist. */
+    hr = IWICMetadataQueryWriter_RemoveMetadataByName(query_writer, NULL);
+    ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
+    hr = IWICMetadataQueryWriter_RemoveMetadataByName(query_writer, L"/app1/ifd/exif/{ushort=513}");
+    ok(hr == WINCODEC_ERR_PROPERTYNOTFOUND, "Unexpected hr %#lx.\n", hr);
+    hr = IWICMetadataQueryWriter_RemoveMetadataByName(query_writer, L"/app1/ifd/exif/ifd");
+    ok(hr == WINCODEC_ERR_PROPERTYNOTFOUND, "Unexpected hr %#lx.\n", hr);
+    hr = IWICMetadataQueryWriter_RemoveMetadataByName(query_writer, L"/app1/ifd/exif/invalid");
+    ok(hr == WINCODEC_ERR_PROPERTYNOTFOUND, "Unexpected hr %#lx.\n", hr);
+    hr = IWICMetadataQueryWriter_RemoveMetadataByName(query_writer, L"/app1/invalid/exif");
+    ok(hr == WINCODEC_ERR_PROPERTYNOTFOUND, "Unexpected hr %#lx.\n", hr);
+
+    /* Removing terminal item. */
+    hr = IWICMetadataQueryWriter_RemoveMetadataByName(query_writer, L"/app1/ifd/exif/{ushort=512}");
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    PropVariantInit(&value);
+    hr = IWICMetadataQueryWriter_GetMetadataByName(query_writer, L"/app1/ifd/exif/{ushort=512}", &value);
+    ok(hr == WINCODEC_ERR_PROPERTYNOTFOUND, "Unexpected hr %#lx.\n", hr);
+
+    /* Remove at handler level. */
+    hr = IWICMetadataQueryWriter_RemoveMetadataByName(query_writer, L"/app1/ifd");
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    PropVariantInit(&value);
+    hr = IWICMetadataQueryWriter_GetMetadataByName(query_writer, L"/app1/ifd", &value);
+    ok(hr == WINCODEC_ERR_PROPERTYNOTFOUND, "Unexpected hr %#lx.\n", hr);
+    /* At root */
+    hr = IWICMetadataQueryWriter_RemoveMetadataByName(query_writer, L"/");
+    ok(hr == WINCODEC_ERR_INVALIDQUERYREQUEST, "Unexpected hr %#lx.\n", hr);
+    hr = IWICMetadataQueryWriter_RemoveMetadataByName(query_writer, L"/app1");
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    IWICMetadataQueryWriter_Release(query_writer);
+    IWICMetadataReader_Release(reader);
+    IWICComponentFactory_Release(factory);
+}
+
+static void test_CreateQueryReaderFromBlockReader(void)
+{
+    IWICMetadataQueryReader *queryreader;
+    IWICMetadataBlockWriter *writer;
+    IWICComponentFactory *factory;
+    HRESULT hr;
+
+    hr = CoCreateInstance(&CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER,
+            &IID_IWICComponentFactory, (void **)&factory);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    hr = create_test_block_writer(&GUID_ContainerFormatPng, &writer);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    hr = IWICComponentFactory_CreateQueryReaderFromBlockReader(factory, NULL, &queryreader);
+    ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
+
+    hr = IWICComponentFactory_CreateQueryReaderFromBlockReader(factory, (IWICMetadataBlockReader *)writer, NULL);
+    ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
+
+    IWICMetadataBlockWriter_Release(writer);
+
+    IWICComponentFactory_Release(factory);
+}
+
 START_TEST(metadata)
 {
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
@@ -5890,6 +6177,8 @@ START_TEST(metadata)
     test_metadata_writer();
     test_CreateQueryWriter();
     test_CreateQueryWriterFromReader();
+    test_RemoveMetadataByName();
+    test_CreateQueryReaderFromBlockReader();
 
     CoUninitialize();
 }
