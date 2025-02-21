@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
 HEAD is now at 4378292a Rebase against 4bd044dd32818166d42a9262411a1ae7ef42cc07.
-HEAD is now at 4bd044dd328 gdiplus/tests: Add some tests for loading TIFF images in various color formats.
+HEAD is now at 41abefccebf Release 10.2.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
@@ -378,9 +378,9 @@ Hunk #1 succeeded at 1724 (offset 253 lines).
 patching file dlls/ntdll/unix/unix_private.h
 Hunk #1 succeeded at 577 with fuzz 2 (offset 107 lines).
 patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 3444 with fuzz 1 (offset 24 lines).
+Hunk #1 succeeded at 3398 with fuzz 1 (offset -22 lines).
 patching file dlls/ntdll/loader.c
-Hunk #1 succeeded at 3421 (offset -54 lines).
+Hunk #1 succeeded at 3434 (offset -41 lines).
 patching file dlls/ntdll/ntdll.spec
 Hunk #1 succeeded at 1754 (offset 40 lines).
 patching file dlls/ntdll/unix/loader.c
@@ -388,7 +388,7 @@ Hunk #1 succeeded at 990 (offset -1114 lines).
 patching file dlls/ntdll/unix/unix_private.h
 Hunk #1 succeeded at 367 with fuzz 1 (offset 45 lines).
 patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 3504 with fuzz 1 (offset -4 lines).
+Hunk #1 succeeded at 3513 with fuzz 1 (offset 5 lines).
 patching file dlls/ntdll/unixlib.h
 
 ntsync-config.h.in-org.patch -- ( Using original config.h.in patchset for ntsync5 )
@@ -475,7 +475,7 @@ Hunk #5 succeeded at 385 (offset 29 lines).
 Hunk #6 succeeded at 395 (offset 29 lines).
 Hunk #7 succeeded at 461 (offset 36 lines).
 patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 3714 (offset 2 lines).
+Hunk #1 succeeded at 3727 (offset 15 lines).
 patching file dlls/webservices/tests/channel.c
 patching file include/config.h.in
 Hunk #1 succeeded at 189 (offset 12 lines).
@@ -718,7 +718,7 @@ patching file dlls/ntdll/unix/loadorder.c
 Applying hotfix wine-tkg-patches/hotfixes/GetMappedFileName/Return_nt_filename_and_resolve_DOS_drive_path.mypatch
 patching file dlls/ntdll/unix/virtual.c
 Hunk #1 succeeded at 120 with fuzz 2 (offset -13 lines).
-Hunk #2 succeeded at 5468 (offset 1193 lines).
+Hunk #2 succeeded at 5481 (offset 1206 lines).
 
 Applying hotfix wine-tkg-patches/hotfixes/08cccb5/a608ef1.mypatch
 patching file dlls/dxgi/dxgi_main.c
@@ -736,6 +736,6 @@ patching file dlls/user32/Makefile.in
 
 wine-tkg-staging.patch -- ( Please don't report bugs about this wine build on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead. )
 patching file dlls/ntdll/loader.c
-Hunk #1 succeeded at 4526 with fuzz 2 (offset 1043 lines).
+Hunk #1 succeeded at 4539 with fuzz 2 (offset 1056 lines).
 
 Running make_vulkan
