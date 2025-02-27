@@ -3375,7 +3375,8 @@ static uint32_t spirv_compiler_get_constant(struct spirv_compiler *compiler,
                     "Vectors of bool type are not supported.");
             return vkd3d_spirv_get_op_undef(builder, type_id);
         default:
-            FIXME("Unhandled component_type %#x.\n", component_type);
+            spirv_compiler_error(compiler, VKD3D_SHADER_ERROR_SPV_INVALID_TYPE,
+                    "Unhandled component_type %#x.", component_type);
             return vkd3d_spirv_get_op_undef(builder, type_id);
     }
 
@@ -6903,6 +6904,13 @@ static void spirv_compiler_emit_workgroup_memory(struct spirv_compiler *compiler
     struct vkd3d_spirv_builder *builder = &compiler->spirv_builder;
     const SpvStorageClass storage_class = SpvStorageClassWorkgroup;
     struct vkd3d_symbol reg_symbol;
+
+    if (zero_init && !(compiler->features & VKD3D_SHADER_COMPILE_OPTION_FEATURE_ZERO_INITIALIZE_WORKGROUP_MEMORY))
+    {
+        WARN("Unsupported zero-initialized workgroup memory.\n");
+        spirv_compiler_error(compiler, VKD3D_SHADER_ERROR_SPV_UNSUPPORTED_FEATURE,
+                "The target environment does not support zero-initialized workgroup memory.");
+    }
 
     /* Alignment is supported only in the Kernel execution model. */
     if (alignment)
