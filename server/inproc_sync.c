@@ -21,7 +21,6 @@
 #include "config.h"
 
 #include <assert.h>
-#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -35,12 +34,15 @@
 #include "thread.h"
 
 #ifdef HAVE_LINUX_NTSYNC_H
+# include <linux/ntsync.h>
+#endif
+
+#ifdef NTSYNC_IOC_EVENT_READ
 
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <linux/ntsync.h>
 
 struct linux_device
 {
@@ -48,7 +50,7 @@ struct linux_device
     struct fd *fd;          /* fd for unix fd */
 };
 
-static struct linux_device *linux_device_object;
+static struct object *linux_device_object;
 
 static void linux_device_dump( struct object *obj, int verbose );
 static struct fd *linux_device_get_fd( struct object *obj );
@@ -125,55 +127,33 @@ static enum server_fd_type inproc_sync_get_fd_type( struct fd *fd )
 static struct linux_device *get_linux_device(void)
 {
     struct linux_device *device;
-    static int initialized;
     int unix_fd;
 
-    if (initialized)
-    {
-        if (linux_device_object)
-            grab_object( linux_device_object );
-	else
-	  set_error( STATUS_NOT_IMPLEMENTED );
-        return linux_device_object;
-    }
-
-    if (getenv( "WINE_DISABLE_FAST_SYNC" ) && atoi( getenv( "WINE_DISABLE_FAST_SYNC" ) ))
-    {
-      static int once;
-        set_error( STATUS_NOT_IMPLEMENTED );
-	if (!once++) fprintf(stderr, "ntsync is explicitly disabled.\n");
-	initialized = 1;
-        return NULL;
-    }
+    if (linux_device_object)
+        return (struct linux_device *)grab_object( linux_device_object );
 
     unix_fd = open( "/dev/ntsync", O_CLOEXEC | O_RDONLY );
     if (unix_fd == -1)
     {
-      static int once;
         file_set_error();
-	if (!once++) fprintf(stderr, "Cannot open /dev/ntsync: %s\n", strerror(errno));
-	initialized = 1;
         return NULL;
     }
 
     if (!(device = alloc_object( &linux_device_ops )))
     {
         close( unix_fd );
-        set_error( STATUS_NO_MEMORY );
-	initialized = 1;
         return NULL;
     }
 
     if (!(device->fd = create_anonymous_fd( &inproc_sync_fd_ops, unix_fd, &device->obj, 0 )))
     {
         release_object( device );
-	initialized = 1;
         return NULL;
     }
+    allow_fd_caching( device->fd );
 
-    fprintf( stderr, "wine: using fast synchronization.\n" );
-    linux_device_object = device;
-    initialized = 1;
+    linux_device_object = grab_object( device );
+    make_object_permanent( linux_device_object );
     return device;
 }
 
@@ -251,6 +231,7 @@ static struct inproc_sync *create_inproc_sync( enum inproc_sync_type type, int u
         release_object( inproc_sync );
         return NULL;
     }
+    allow_fd_caching( inproc_sync->fd );
 
     return inproc_sync;
 }
@@ -266,21 +247,20 @@ struct inproc_sync *create_inproc_event( enum inproc_sync_type type, int signale
     args.signaled = signaled;
     switch (type)
     {
-        case INPROC_SYNC_AUTO_EVENT:
-        case INPROC_SYNC_AUTO_SERVER:
-            args.manual = 0;
-            break;
+    case INPROC_SYNC_AUTO_EVENT:
+    case INPROC_SYNC_AUTO_SERVER:
+        args.manual = 0;
+        break;
 
-        case INPROC_SYNC_MANUAL_EVENT:
-        case INPROC_SYNC_MANUAL_SERVER:
-        case INPROC_SYNC_QUEUE:
-            args.manual = 1;
-            break;
+    case INPROC_SYNC_MANUAL_EVENT:
+    case INPROC_SYNC_MANUAL_SERVER:
+    case INPROC_SYNC_QUEUE:
+        args.manual = 1;
+        break;
 
-        case INPROC_SYNC_MUTEX:
-        case INPROC_SYNC_SEMAPHORE:
-            assert(0);
-            break;
+    default:
+        assert(0);
+        break;
     }
     if ((event = ioctl( get_unix_fd( device->fd ), NTSYNC_IOC_CREATE_EVENT, &args )) < 0)
     {
@@ -398,9 +378,10 @@ void abandon_inproc_mutex( thread_id_t tid, struct inproc_sync *inproc_sync )
 
 #endif
 
+
 DECL_HANDLER(get_linux_sync_device)
 {
-#ifdef HAVE_LINUX_NTSYNC_H
+#ifdef NTSYNC_IOC_EVENT_READ
     struct linux_device *device;
 
     if ((device = get_linux_device()))
@@ -415,7 +396,7 @@ DECL_HANDLER(get_linux_sync_device)
 
 DECL_HANDLER(get_linux_sync_obj)
 {
-#ifdef HAVE_LINUX_NTSYNC_H
+#ifdef NTSYNC_IOC_EVENT_READ
     struct object *obj;
 
     if ((obj = get_handle_obj( current->process, req->handle, 0, NULL )))

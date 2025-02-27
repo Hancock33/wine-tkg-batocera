@@ -1,9 +1,9 @@
-# Last wine-tkg-staging-ntsync-git configuration - Sat 22 Feb 22:18:46 GMT 2025 :
+# Last wine-tkg-staging-ntsync-git configuration - Thu 27 Feb 07:21:04 GMT 2025 :
 
 Local cfg files used
 
-Wine (plain) version: 10.2.r30.ge1b8e7f6ec7
-Using wine-staging patchset (version 10.2.r1.gec5fbb99)
+Wine (plain) version: 10.2.r92.g32a81ee2135
+Using wine-staging patchset (version 10.2.r6.ga381f356)
 
 Disabled the local Esync patchset to use Staging impl instead.
 Not using vkd3d native library for d3d12 translation (allows using vkd3d-proton)
@@ -33,9 +33,9 @@ wine-tkg-staging.patch -- ( Please don't report bugs about this wine build on wi
 
 
 With predefined optimizations:
-CFLAGS = -O2 -ftree-vectorize -Wno-error=implicit-function-declaration
+CFLAGS = -O2 -ftree-vectorize -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types
 LDFLAGS = -Wl,-O1,--sort-common,--as-needed
-CROSSCFLAGS = -O2 -ftree-vectorize -Wno-error=implicit-function-declaration
+CROSSCFLAGS = -O2 -ftree-vectorize -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types
 CROSSLDFLAGS = -Wl,-O1,--sort-common,--as-needed
 
 configure arguments: --disable-tests --without-vkd3d

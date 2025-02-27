@@ -298,6 +298,7 @@ DECL_HANDLER(get_job_info);
 DECL_HANDLER(terminate_job);
 DECL_HANDLER(suspend_process);
 DECL_HANDLER(resume_process);
+DECL_HANDLER(get_next_process);
 DECL_HANDLER(get_next_thread);
 DECL_HANDLER(get_linux_sync_device);
 DECL_HANDLER(get_linux_sync_obj);
@@ -600,6 +601,7 @@ static const req_handler req_handlers[REQ_NB_REQUESTS] =
     (req_handler)req_terminate_job,
     (req_handler)req_suspend_process,
     (req_handler)req_resume_process,
+    (req_handler)req_get_next_process,
     (req_handler)req_get_next_thread,
     (req_handler)req_get_linux_sync_device,
     (req_handler)req_get_linux_sync_obj,
@@ -2276,6 +2278,13 @@ C_ASSERT( offsetof(struct suspend_process_request, handle) == 12 );
 C_ASSERT( sizeof(struct suspend_process_request) == 16 );
 C_ASSERT( offsetof(struct resume_process_request, handle) == 12 );
 C_ASSERT( sizeof(struct resume_process_request) == 16 );
+C_ASSERT( offsetof(struct get_next_process_request, last) == 12 );
+C_ASSERT( offsetof(struct get_next_process_request, access) == 16 );
+C_ASSERT( offsetof(struct get_next_process_request, attributes) == 20 );
+C_ASSERT( offsetof(struct get_next_process_request, flags) == 24 );
+C_ASSERT( sizeof(struct get_next_process_request) == 32 );
+C_ASSERT( offsetof(struct get_next_process_reply, handle) == 8 );
+C_ASSERT( sizeof(struct get_next_process_reply) == 16 );
 C_ASSERT( offsetof(struct get_next_thread_request, process) == 12 );
 C_ASSERT( offsetof(struct get_next_thread_request, last) == 16 );
 C_ASSERT( offsetof(struct get_next_thread_request, access) == 20 );

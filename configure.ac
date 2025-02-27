@@ -177,25 +177,30 @@ esac
 m4_set_add_all([_AC_SUBST_VARS],[HOST_ARCH]m4_foreach([cpu],[aarch64,arm,arm64ec,i386,x86_64],
                                 [m4_foreach([var],[CC,CFLAGS,EXTRACFLAGS,LDFLAGS,DEBUG,TARGET,STRIP,DELAYLOADFLAG,DISABLED_SUBDIRS],[,cpu[_]var])]))
 
-AC_CACHE_CHECK([for the directory containing the Wine tools], wine_cv_toolsdir,
-  [wine_cv_toolsdir="$with_wine_tools"
-   if test -z "$with_wine_tools"; then
-     if test "$cross_compiling" = "yes"; then
-       AC_MSG_ERROR([you must use the --with-wine-tools option when cross-compiling.])
-     elif test -n "$with_wine64"; then
-       wine_cv_toolsdir="$with_wine64"
-     fi
-   fi])
-if test -z "$wine_cv_toolsdir"; then
-    wine_makedep=tools/makedep$toolsext
-elif test -d "$wine_cv_toolsdir/tools/winebuild"; then
-    wine_makedep=$wine_cv_toolsdir/tools/makedep$toolsext
-    enable_tools=${enable_tools:-no}
-    test -f "$wine_makedep" || AC_MSG_ERROR([the Wine tools have not yet been built in $wine_cv_toolsdir])
-else
-    AC_MSG_ERROR([could not find Wine tools in $wine_cv_toolsdir])
+AC_SUBST(toolsdir,[$with_wine_tools])
+AC_MSG_CHECKING([for the directory containing the Wine tools])
+if test -z "$toolsdir"; then
+    if test "$cross_compiling" = "yes"; then
+        AC_MSG_ERROR([you must use the --with-wine-tools option when cross-compiling.])
+    elif test -n "$with_wine64"; then
+        toolsdir="$with_wine64"
+        libdir64=$(grep "^libdir *=" $with_wine64/Makefile | sed 's/^libdir *= *//')
+        if test "$libdir64" != "$libdir"; then
+            AS_ECHO(["$as_me:${as_lineno-$LINENO}: libdir64: $libdir64"]) >&AS_MESSAGE_LOG_FD
+            AC_MSG_ERROR([when using --with-wine64 you must use the same --libdir in both build trees.])
+        fi
+    fi
 fi
-AC_SUBST(toolsdir,[$wine_cv_toolsdir])
+if test -z "$toolsdir"; then
+    wine_makedep=tools/makedep$toolsext
+elif test -d "$toolsdir/tools/winebuild"; then
+    wine_makedep=$toolsdir/tools/makedep$toolsext
+    enable_tools=${enable_tools:-no}
+    test -f "$wine_makedep" || AC_MSG_ERROR([the Wine tools have not yet been built in $toolsdir])
+else
+    AC_MSG_ERROR([could not find Wine tools in $toolsdir])
+fi
+AC_MSG_RESULT([${toolsdir:-none needed}])
 AC_SUBST(wine64dir,[$with_wine64])
 AC_SUBST(RUNTESTFLAGS,["-q -P wine"])
 AC_SUBST(SED_CMD,["LC_ALL=C sed -e 's,@bindir@,\${bindir},g' -e 's,@PACKAGE_STRING@,$PACKAGE_STRING,g' -e 's,@PACKAGE_VERSION@,$PACKAGE_VERSION,g'"])
@@ -1182,6 +1187,7 @@ WINE_EXTLIB_FLAGS(MPG123, mpg123, mpg123, "-I\$(top_srcdir)/libs/mpg123/src/incl
 WINE_EXTLIB_FLAGS(MUSL, musl, musl)
 WINE_EXTLIB_FLAGS(PNG, png, "png \$(ZLIB_PE_LIBS)", "-I\$(top_srcdir)/libs/png")
 WINE_EXTLIB_FLAGS(TIFF, tiff, "tiff \$(ZLIB_PE_LIBS)", "-I\$(top_srcdir)/libs/tiff/libtiff")
+WINE_EXTLIB_FLAGS(TOMCRYPT, tomcrypt, tomcrypt, "-I\$(top_srcdir)/libs/tomcrypt/src/headers -DLTC_NO_PROTOTYPES -DLTC_SOURCE")
 WINE_EXTLIB_FLAGS(VKD3D, vkd3d, vkd3d, "-I\$(top_srcdir)/libs/vkd3d/include")
 WINE_EXTLIB_FLAGS(XML2, xml2, xml2, "-I\$(top_srcdir)/libs/xml2/include -DLIBXML_STATIC")
 WINE_EXTLIB_FLAGS(XSLT, xslt, xslt, "-I\$(top_srcdir)/libs/xslt/libxslt -I\$(top_srcdir)/libs/xslt -DLIBXSLT_STATIC")
@@ -3425,6 +3431,7 @@ WINE_CONFIG_MAKEFILE(libs/png)
 WINE_CONFIG_MAKEFILE(libs/strmbase)
 WINE_CONFIG_MAKEFILE(libs/strmiids)
 WINE_CONFIG_MAKEFILE(libs/tiff)
+WINE_CONFIG_MAKEFILE(libs/tomcrypt)
 WINE_CONFIG_MAKEFILE(libs/uuid)
 WINE_CONFIG_MAKEFILE(libs/vkd3d)
 WINE_CONFIG_MAKEFILE(libs/wbemuuid)
@@ -3477,6 +3484,7 @@ WINE_CONFIG_MAKEFILE(programs/iexplore)
 WINE_CONFIG_MAKEFILE(programs/ipconfig)
 WINE_CONFIG_MAKEFILE(programs/klist)
 WINE_CONFIG_MAKEFILE(programs/lodctr)
+WINE_CONFIG_MAKEFILE(programs/makecab)
 WINE_CONFIG_MAKEFILE(programs/mofcomp)
 WINE_CONFIG_MAKEFILE(programs/mshta)
 WINE_CONFIG_MAKEFILE(programs/msidb)
@@ -3670,7 +3678,7 @@ dnl Rules for generated source files
 
 WINE_APPEND_RULE(
 [dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-10.2.r1.gec5fbb99\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
+	@version=\`(echo \"wine-10.2.r6.ga381f356\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$[@]) || echo \$\$build >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.nfo:

@@ -176,6 +176,10 @@ static struct inproc_sync *semaphore_get_inproc_sync( struct object *obj )
 {
     struct semaphore *semaphore = (struct semaphore *)obj;
 
+    /* This state will always be the state that the semaphore was created with.
+     * We could create the inproc_sync at creation time to make this clearer,
+     * but some broken programs create hundreds of thousands of handles which
+     * they never use, and we want to avoid wasting memory or fds in that case. */
     if (!semaphore->inproc_sync)
         semaphore->inproc_sync = create_inproc_semaphore( semaphore->count, semaphore->max );
     if (semaphore->inproc_sync) grab_object( semaphore->inproc_sync );

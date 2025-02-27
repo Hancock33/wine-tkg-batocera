@@ -1114,7 +1114,7 @@ static inline NTSTATUS get_cached_fd( HANDLE handle, int *fd, enum server_fd_typ
 /***********************************************************************
  *           remove_fd_from_cache
  */
-static int remove_fd_from_cache( HANDLE handle )
+int remove_fd_from_cache( HANDLE handle )
 {
     unsigned int entry, idx = handle_to_index( handle, &entry );
     int fd = -1;

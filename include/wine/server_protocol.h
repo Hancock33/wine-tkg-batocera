@@ -5875,6 +5875,23 @@ struct resume_process_reply
 };
 
 
+struct get_next_process_request
+{
+    struct request_header __header;
+    obj_handle_t last;
+    unsigned int access;
+    unsigned int attributes;
+    unsigned int flags;
+    char __pad_28[4];
+};
+struct get_next_process_reply
+{
+    struct reply_header __header;
+    obj_handle_t handle;
+    char __pad_12[4];
+};
+
+
 
 struct get_next_thread_request
 {
@@ -5892,13 +5909,13 @@ struct get_next_thread_reply
     char __pad_12[4];
 };
 
-
 enum inproc_sync_type
 {
-    INPROC_SYNC_SEMAPHORE = 1,
-    INPROC_SYNC_MUTEX,
+    INPROC_SYNC_UNKNOWN,
     INPROC_SYNC_AUTO_EVENT,
     INPROC_SYNC_MANUAL_EVENT,
+    INPROC_SYNC_SEMAPHORE,
+    INPROC_SYNC_MUTEX,
     INPROC_SYNC_AUTO_SERVER,
     INPROC_SYNC_MANUAL_SERVER,
     INPROC_SYNC_QUEUE,
@@ -6281,6 +6298,7 @@ enum request
     REQ_terminate_job,
     REQ_suspend_process,
     REQ_resume_process,
+    REQ_get_next_process,
     REQ_get_next_thread,
     REQ_get_linux_sync_device,
     REQ_get_linux_sync_obj,
@@ -6586,6 +6604,7 @@ union generic_request
     struct terminate_job_request terminate_job_request;
     struct suspend_process_request suspend_process_request;
     struct resume_process_request resume_process_request;
+    struct get_next_process_request get_next_process_request;
     struct get_next_thread_request get_next_thread_request;
     struct get_linux_sync_device_request get_linux_sync_device_request;
     struct get_linux_sync_obj_request get_linux_sync_obj_request;
@@ -6889,6 +6908,7 @@ union generic_reply
     struct terminate_job_reply terminate_job_reply;
     struct suspend_process_reply suspend_process_reply;
     struct resume_process_reply resume_process_reply;
+    struct get_next_process_reply get_next_process_reply;
     struct get_next_thread_reply get_next_thread_reply;
     struct get_linux_sync_device_reply get_linux_sync_device_reply;
     struct get_linux_sync_obj_reply get_linux_sync_obj_reply;
@@ -6898,6 +6918,6 @@ union generic_reply
     struct get_inproc_alert_event_reply get_inproc_alert_event_reply;
 };
 
-#define SERVER_PROTOCOL_VERSION 857
+#define SERVER_PROTOCOL_VERSION 868
 
 #endif /* __WINE_WINE_SERVER_PROTOCOL_H */
