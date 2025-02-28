@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at a381f356 Updated vkd3d-latest patchset
-HEAD is now at 32a81ee2135 d3dx9: Add basic support for saving surfaces to targa files.
+HEAD is now at 6f8931b3 Rebase against 0bf15e3e0715ebda735e9857cbcb36ebc491293f.
+HEAD is now at 0bf15e3e071 mfplat/tests: Run tests modifying process state in separate processes.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
@@ -64,7 +64,6 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/dsound-EAX/0022-dsound-Enable-EAX-by-default.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/dsound-EAX/0023-dsound-Fake-success-for-EAX-Set-Buffer-ListenerPrope.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/dxgi_getFrameStatistics/0001-dxgi-Semi-stub-IDXGISwapChain4-GetFrameStatistics.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/server-Realtime_Priority/0001-wineserver-Draft-to-implement-priority-levels-throug.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Serial_Port_Detection/0001-ntdll-Do-a-device-check-before-returning-a-default-s.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0001-ntdll-Add-support-for-creating-reparse-points.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0002-ntdll-Add-support-for-reading-reparse-points.patch
@@ -351,11 +350,11 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ws2_32-af_unix/0004-server-Introduce-error-when-attempting-to-create-a-S.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ws2_32-af_unix/0005-server-Fix-getsockname-and-accept-on-AF_UNIX-sockets.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ws2_32-af_unix/0006-ws2_32-tests-Add-test-for-AF_UNIX-sockets.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wscript-support-d-u-switches/0001-wscript-return-TRUE-for-d-and-u-stub-switches.patch
 include/wine/server_protocol.h updated
 include/wine/server_protocol.h updated
 server/request_trace.h updated
 server/request_handlers.h updated
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wscript-support-d-u-switches/0001-wscript-return-TRUE-for-d-and-u-stub-switches.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/xactengine-initial/0001-x3daudio1_7-Create-import-library.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/xactengine-initial/0003-xactengine3_7-tests-Add-Global-settings-test.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/xactengine3_7-PrepareWave/0002-xactengine3_7-Implement-IXACT3Engine-PrepareStreamin.patch
@@ -396,17 +395,18 @@ Hunk #2 succeeded at 390 (offset 9 lines).
 
 ntsync5-staging.patch -- ( Using ntsync patchset )
 patching file configure
-Hunk #1 succeeded at 7648 (offset -108 lines).
+Hunk #1 succeeded at 7659 (offset -97 lines).
 patching file configure.ac
 Hunk #1 succeeded at 389 (offset 5 lines).
 Hunk #2 succeeded at 419 (offset 5 lines).
-Hunk #3 succeeded at 2084 (offset 5 lines).
-Hunk #4 succeeded at 2105 (offset 5 lines).
+Hunk #3 succeeded at 2089 (offset 10 lines).
+Hunk #4 succeeded at 2110 (offset 10 lines).
 patching file dlls/kernel32/tests/sync.c
 patching file dlls/ntdll/Makefile.in
 patching file dlls/ntdll/unix/esync.c
 patching file dlls/ntdll/unix/esync.h
 patching file dlls/ntdll/unix/file.c
+Hunk #1 succeeded at 7666 (offset 45 lines).
 patching file dlls/ntdll/unix/loader.c
 Hunk #2 succeeded at 1844 (offset 1 line).
 patching file dlls/ntdll/unix/process.c
@@ -445,6 +445,7 @@ patching file server/hook.c
 patching file server/inproc_sync.c
 patching file server/mailslot.c
 patching file server/main.c
+Hunk #2 succeeded at 229 with fuzz 1.
 patching file server/Makefile.in
 patching file server/mapping.c
 patching file server/mutex.c
@@ -465,6 +466,13 @@ patching file server/signal.c
 patching file server/sock.c
 patching file server/symlink.c
 patching file server/thread.c
+Hunk #15 succeeded at 1272 (offset -1 lines).
+Hunk #16 succeeded at 1359 (offset -1 lines).
+Hunk #17 succeeded at 1393 (offset -1 lines).
+Hunk #18 succeeded at 1409 (offset -1 lines).
+Hunk #19 succeeded at 1489 (offset -1 lines).
+Hunk #20 succeeded at 1508 (offset -1 lines).
+Hunk #21 succeeded at 2256 (offset -1 lines).
 patching file server/thread.h
 patching file server/timer.c
 patching file server/token.c
@@ -499,7 +507,7 @@ patching file dlls/kernelbase/process.c
 Hunk #2 succeeded at 503 (offset -3 lines).
 Hunk #3 succeeded at 735 (offset -60 lines).
 patching file configure.ac
-Hunk #1 succeeded at 3444 (offset -18 lines).
+Hunk #1 succeeded at 3451 (offset -11 lines).
 patching file dlls/kernelbase/process.c
 Hunk #1 succeeded at 505 (offset -3 lines).
 Hunk #2 succeeded at 554 (offset -3 lines).

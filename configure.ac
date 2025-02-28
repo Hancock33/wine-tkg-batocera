@@ -950,6 +950,10 @@ This is an error since --enable-archs=$wine_arch was requested.])])
 
     AS_VAR_IF([wine_arch],[$extra_arch],[],[AS_VAR_APPEND([PE_ARCHS],[" $wine_arch"])])
 
+    case "$target" in
+      *-windows) wine_compiler_rt_libs="compiler-rt" ;;
+    esac
+
     WINE_TRY_PE_CFLAGS([-fno-strict-aliasing])
     dnl clang needs to be told to fail on unknown options
     WINE_TRY_PE_CFLAGS([-Werror=unknown-warning-option],[CFLAGS="$CFLAGS -Werror=unknown-warning-option"])
@@ -1176,6 +1180,7 @@ then
 fi
 
 WINE_EXTLIB_FLAGS(CAPSTONE, capstone, capstone, "-I\$(top_srcdir)/libs/capstone/include")
+WINE_EXTLIB_FLAGS(COMPILER_RT, compiler-rt, "$wine_compiler_rt_libs")
 WINE_EXTLIB_FLAGS(FAUDIO, faudio, "faudio mfplat mfreadwrite mfuuid propsys", "-I\$(top_srcdir)/libs/faudio/include")
 WINE_EXTLIB_FLAGS(FLUIDSYNTH, fluidsynth, "fluidsynth", "-I\$(top_srcdir)/libs/fluidsynth/include")
 WINE_EXTLIB_FLAGS(GSM, gsm, gsm, "-I\$(top_srcdir)/libs/gsm/inc")
@@ -2359,6 +2364,7 @@ else
     enable_wow64win=${enable_wow64win:-no}
     enable_wow64cpu=${enable_wow64cpu:-no}
     enable_xtajit64=${enable_xtajit64:-no}
+    enable_compiler_rt=${enable_compiler_rt:-no}
 fi
 
 dnl Explicitly enable some programs for arm64ec
@@ -3413,6 +3419,7 @@ WINE_CONFIG_MAKEFILE(fonts)
 WINE_CONFIG_MAKEFILE(include)
 WINE_CONFIG_MAKEFILE(libs/adsiid)
 WINE_CONFIG_MAKEFILE(libs/capstone)
+WINE_CONFIG_MAKEFILE(libs/compiler-rt)
 WINE_CONFIG_MAKEFILE(libs/dmoguids)
 WINE_CONFIG_MAKEFILE(libs/dxerr8)
 WINE_CONFIG_MAKEFILE(libs/dxerr9)
@@ -3678,7 +3685,7 @@ dnl Rules for generated source files
 
 WINE_APPEND_RULE(
 [dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-10.2.r6.ga381f356\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
+	@version=\`(echo \"wine-10.2.r9.g6f8931b3\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$[@]) || echo \$\$build >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.nfo:
