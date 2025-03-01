@@ -339,6 +339,9 @@
 @ cdecl wined3d_vertex_declaration_get_parent(ptr)
 @ cdecl wined3d_vertex_declaration_incref(ptr)
 
+@ stdcall vkd3d_D3DPreprocess(ptr long ptr ptr ptr ptr ptr) D3DPreprocess
+@ stdcall vkd3d_D3DCompile2VKD3D(ptr long ptr ptr ptr ptr ptr long long long ptr long ptr ptr long) D3DCompile2VKD3D
+
 @ cdecl vkd3d_acquire_vk_queue(ptr)
 @ cdecl vkd3d_create_device(ptr ptr ptr)
 @ cdecl vkd3d_create_image_resource(ptr ptr ptr)
@@ -360,6 +363,7 @@
 @ cdecl vkd3d_resource_incref(ptr)
 @ cdecl vkd3d_serialize_root_signature(ptr long ptr ptr)
 @ cdecl vkd3d_serialize_versioned_root_signature(ptr ptr ptr)
+@ cdecl vkd3d_queue_signal_on_cpu(ptr ptr long)
 
 @ cdecl vkd3d_shader_compile(ptr ptr ptr)
 @ cdecl vkd3d_shader_convert_root_signature(ptr long ptr)

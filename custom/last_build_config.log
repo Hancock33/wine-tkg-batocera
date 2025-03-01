@@ -1,9 +1,9 @@
-# Last wine-tkg-staging-ntsync-git configuration - Fri 28 Feb 17:33:21 GMT 2025 :
+# Last wine-tkg-staging-ntsync-git configuration - Sat  1 Mar 19:58:09 GMT 2025 :
 
 Local cfg files used
 
-Wine (plain) version: 10.2.r118.g0bf15e3e071
-Using wine-staging patchset (version 10.2.r9.g6f8931b3)
+Wine (plain) version: 10.2.r156.gd17225a89cf
+Using wine-staging patchset (version 10.2.r10.gdb49cb37)
 
 Disabled the local Esync patchset to use Staging impl instead.
 Not using vkd3d native library for d3d12 translation (allows using vkd3d-proton)
@@ -23,6 +23,7 @@ ntsync5-staging.patch -- ( Using ntsync patchset )
 josh-flat-theme.patch -- ( Add Josh's better-theme )
 proton_battleye.patch -- ( Add support for Proton's Battleye runtime )
 proton-eac_bridge.patch -- ( Add support for Proton's EAC bridge )
+wow64_loader_hack.patch -- ( Hack around loader name for EAC on 10.2+ )
 
 Applied hotfix Return_nt_filename_and_resolve_DOS_drive_path.mypatch
 Applied hotfix a608ef1.mypatch

@@ -13091,22 +13091,22 @@ CPPFLAGS=$ac_save_CPPFLAGS
 then :
   if test ${MINGW_PKG_CONFIG+y}
 then :
-  VKD3D_PE_CFLAGS=`$MINGW_PKG_CONFIG --cflags libvkd3d libvkd3d-shader 2>/dev/null`
+  VKD3D_PE_CFLAGS=`$MINGW_PKG_CONFIG --cflags libvkd3d-utils libvkd3d libvkd3d-shader 2>/dev/null`
 fi
 fi
 if ${VKD3D_PE_LIBS:+false} :
 then :
   if test ${MINGW_PKG_CONFIG+y}
 then :
-  VKD3D_PE_LIBS=`$MINGW_PKG_CONFIG --libs libvkd3d libvkd3d-shader 2>/dev/null`
+  VKD3D_PE_LIBS=`$MINGW_PKG_CONFIG --libs libvkd3d-utils libvkd3d libvkd3d-shader 2>/dev/null`
 fi
 fi
-VKD3D_PE_LIBS=${VKD3D_PE_LIBS:-"-lvkd3d -lvkd3d-shader"}
+VKD3D_PE_LIBS=${VKD3D_PE_LIBS:-"-lvkd3d-utils -lvkd3d -lvkd3d-shader"}
 ac_save_CPPFLAGS=$CPPFLAGS
 CPPFLAGS="$CPPFLAGS $VKD3D_PE_CFLAGS"
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for MinGW vkd3d.h" >&5
-printf %s "checking for MinGW vkd3d.h... " >&6; }
-if test ${ac_cv_mingw_header_vkd3d_h+y}
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for MinGW vkd3d_utils.h" >&5
+printf %s "checking for MinGW vkd3d_utils.h... " >&6; }
+if test ${ac_cv_mingw_header_vkd3d_utils_h+y}
 then :
   printf %s "(cached) " >&6
 else $as_nop
@@ -13117,7 +13117,7 @@ ac_exeext=".exe"
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
-#include <vkd3d.h>
+#include <vkd3d_utils.h>
 int
 main (void)
 {
@@ -13128,17 +13128,17 @@ main (void)
 _ACEOF
 if ac_fn_c_try_compile "$LINENO"
 then :
-  ac_cv_mingw_header_vkd3d_h=yes
+  ac_cv_mingw_header_vkd3d_utils_h=yes
 else $as_nop
-  ac_cv_mingw_header_vkd3d_h=no
+  ac_cv_mingw_header_vkd3d_utils_h=no
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 CC=$ac_wine_check_headers_saved_cc
 ac_exeext=$ac_wine_check_headers_saved_exeext
 fi
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_mingw_header_vkd3d_h" >&5
-printf "%s\n" "$ac_cv_mingw_header_vkd3d_h" >&6; }
-if test "x$ac_cv_mingw_header_vkd3d_h" = xyes
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_mingw_header_vkd3d_utils_h" >&5
+printf "%s\n" "$ac_cv_mingw_header_vkd3d_utils_h" >&6; }
+if test "x$ac_cv_mingw_header_vkd3d_utils_h" = xyes
 then :
 
 fi
@@ -13180,11 +13180,11 @@ if test "x$ac_cv_mingw_header_vkd3d_shader_h" = xyes
 then :
 
 fi
-        if test "$ac_cv_mingw_header_vkd3d_h" = "yes" -a "$ac_cv_mingw_header_vkd3d_shader_h" = "yes"
+        if test "$ac_cv_mingw_header_vkd3d_utils_h" = "yes" -a "$ac_cv_mingw_header_vkd3d_shader_h" = "yes"
         then
-            { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for vkd3d_set_log_callback in MinGW -lvkd3d" >&5
-printf %s "checking for vkd3d_set_log_callback in MinGW -lvkd3d... " >&6; }
-if test ${ac_cv_mingw_lib_vkd3d+y}
+            { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for vkd3d_utils_set_log_callback in MinGW -lvkd3d-utils" >&5
+printf %s "checking for vkd3d_utils_set_log_callback in MinGW -lvkd3d-utils... " >&6; }
+if test ${ac_cv_mingw_lib_vkd3d_utils+y}
 then :
   printf %s "(cached) " >&6
 else $as_nop
@@ -13193,27 +13193,27 @@ ac_wine_check_headers_saved_exeext=$ac_exeext
 ac_wine_check_headers_saved_libs=$LIBS
 eval CC=\$${wine_arch}_CC
 ac_exeext=".exe"
-LIBS="-lvkd3d $VKD3D_PE_LIBS $LIBS"
+LIBS="-lvkd3d-utils $VKD3D_PE_LIBS $LIBS"
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
 /* Override any GCC internal prototype to avoid an error.
    Use char because int might match the return type of a GCC
    builtin and then its argument prototype would still apply.  */
-char vkd3d_set_log_callback ();
+char vkd3d_utils_set_log_callback ();
 int
 main (void)
 {
-return vkd3d_set_log_callback ();
+return vkd3d_utils_set_log_callback ();
   ;
   return 0;
 }
 _ACEOF
 if ac_fn_c_try_link "$LINENO"
 then :
-  ac_cv_mingw_lib_vkd3d=yes
+  ac_cv_mingw_lib_vkd3d_utils=yes
 else $as_nop
-  ac_cv_mingw_lib_vkd3d=no
+  ac_cv_mingw_lib_vkd3d_utils=no
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.beam \
     conftest$ac_exeext conftest.$ac_ext
@@ -13221,9 +13221,9 @@ CC=$ac_wine_check_headers_saved_cc
 ac_exeext=$ac_wine_check_headers_saved_exeext
 LIBS=$ac_wine_check_headers_saved_libs
 fi
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_mingw_lib_vkd3d" >&5
-printf "%s\n" "$ac_cv_mingw_lib_vkd3d" >&6; }
-if test "x$ac_cv_mingw_lib_vkd3d" = xyes
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_mingw_lib_vkd3d_utils" >&5
+printf "%s\n" "$ac_cv_mingw_lib_vkd3d_utils" >&6; }
+if test "x$ac_cv_mingw_lib_vkd3d_utils" = xyes
 then :
   :
 else $as_nop
@@ -13276,7 +13276,7 @@ then :
 else $as_nop
   :
 fi
-            if test "$ac_cv_mingw_lib_vkd3d" = "no" -o "$ac_cv_mingw_lib_vkd3d_shader" = "no"
+            if test "$ac_cv_mingw_lib_vkd3d_utils" = "no" -o "$ac_cv_mingw_lib_vkd3d_shader" = "no"
             then
                 VKD3D_PE_CFLAGS=""
                 VKD3D_PE_LIBS=""
@@ -19951,7 +19951,13 @@ then
 fi
 
 
-WINELOADER_PROGRAMS="wine"
+case "$HOST_ARCH,$PE_ARCHS" in
+  x86_64,*i386*) wine_binary="wine" ;;
+  x86_64,*) wine_binary="wine64" ;;
+  *) wine_binary="wine" ;;
+esac
+test "$wine_binary" = wine || as_fn_append CONFIGURE_TARGETS " loader/wine"
+WINELOADER_PROGRAMS="$wine_binary"
 
 
 case $host_os in
@@ -19965,7 +19971,8 @@ esac
 
 if test "$wine_use_preloader" = "yes"
 then
-  WINELOADER_PROGRAMS="$WINELOADER_PROGRAMS wine-preloader"
+  test "$wine_binary" = wine || as_fn_append CONFIGURE_TARGETS " loader/wine-preloader"
+  WINELOADER_PROGRAMS="$WINELOADER_PROGRAMS $wine_binary-preloader"
 
 printf "%s\n" "#define HAVE_WINE_PRELOADER 1" >>confdefs.h
 
@@ -20050,6 +20057,12 @@ ac_fn_c_check_func "$LINENO" "epoll_create" "ac_cv_func_epoll_create"
 if test "x$ac_cv_func_epoll_create" = xyes
 then :
   printf "%s\n" "#define HAVE_EPOLL_CREATE 1" >>confdefs.h
+
+fi
+ac_fn_c_check_func "$LINENO" "epoll_pwait2" "ac_cv_func_epoll_pwait2"
+if test "x$ac_cv_func_epoll_pwait2" = xyes
+then :
+  printf "%s\n" "#define HAVE_EPOLL_PWAIT2 1" >>confdefs.h
 
 fi
 ac_fn_c_check_func "$LINENO" "fstatfs" "ac_cv_func_fstatfs"
@@ -22325,7 +22338,7 @@ fi
 
 as_fn_append wine_rules "
 dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-10.2.r9.g6f8931b3\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
+	@version=\`(echo \"wine-10.2.r10.gdb49cb37\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$@) || echo \$\$build >\$@ || (rm -f \$@ && exit 1)
 programs/winetest/build.nfo:
