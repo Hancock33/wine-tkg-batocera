@@ -907,13 +907,15 @@ typedef struct _FILE_REMOTE_PROTOCOL_INFO {
 
 #define PIPE_CLIENT_END       0
 #define PIPE_SERVER_END       1
-#define PIPE_READMODE_BYTE    0
-#define PIPE_READMODE_MESSAGE 2
-#define PIPE_TYPE_BYTE        0
-#define PIPE_TYPE_MESSAGE     4
 
-#define PIPE_WAIT   0
-#define PIPE_NOWAIT 1
+#define PIPE_WAIT                  0x00000000
+#define PIPE_NOWAIT                0x00000001
+#define PIPE_READMODE_BYTE         0x00000000
+#define PIPE_READMODE_MESSAGE      0x00000002
+#define PIPE_TYPE_BYTE             0x00000000
+#define PIPE_TYPE_MESSAGE          0x00000004
+#define PIPE_ACCEPT_REMOTE_CLIENTS 0x00000000
+#define PIPE_REJECT_REMOTE_CLIENTS 0x00000008
 
 #define PIPE_UNLIMITED_INSTANCES 255
 
@@ -1896,7 +1898,12 @@ WINBASEAPI HANDLE      WINAPI ConvertToGlobalHandle(HANDLE hSrc);
 WINBASEAPI BOOL        WINAPI CopyContext(CONTEXT*, DWORD, CONTEXT*);
 WINBASEAPI BOOL        WINAPI CopyFileA(LPCSTR,LPCSTR,BOOL);
 WINBASEAPI BOOL        WINAPI CopyFileW(LPCWSTR,LPCWSTR,BOOL);
-#define                       CopyFile WINELIB_NAME_AW(CopyFile)
+#ifndef WINE_NO_UNICODE_MACROS
+static inline BOOL CopyFile( LPCTSTR source, LPCTSTR dest, BOOL fail_if_exists )
+{
+    return WINELIB_NAME_AW(CopyFile)( source, dest, fail_if_exists );
+}
+#endif
 WINBASEAPI HRESULT     WINAPI CopyFile2(PCWSTR,PCWSTR,COPYFILE2_EXTENDED_PARAMETERS*);
 WINBASEAPI BOOL        WINAPI CopyFileExA(LPCSTR, LPCSTR, LPPROGRESS_ROUTINE, LPVOID, LPBOOL, DWORD);
 WINBASEAPI BOOL        WINAPI CopyFileExW(LPCWSTR, LPCWSTR, LPPROGRESS_ROUTINE, LPVOID, LPBOOL, DWORD);
@@ -2012,7 +2019,12 @@ WINBASEAPI void        WINAPI DeleteCriticalSection(CRITICAL_SECTION *lpCrit);
 WINBASEAPI void        WINAPI DeleteFiber(LPVOID);
 WINBASEAPI BOOL        WINAPI DeleteFileA(LPCSTR);
 WINBASEAPI BOOL        WINAPI DeleteFileW(LPCWSTR);
-#define                       DeleteFile WINELIB_NAME_AW(DeleteFile)
+#ifndef WINE_NO_UNICODE_MACROS
+static inline BOOL DeleteFile( LPCTSTR file_name )
+{
+    return WINELIB_NAME_AW(DeleteFile)( file_name );
+}
+#endif
 WINBASEAPI void        WINAPI DeleteProcThreadAttributeList(struct _PROC_THREAD_ATTRIBUTE_LIST*);
 WINBASEAPI BOOL        WINAPI DeleteTimerQueue(HANDLE);
 WINBASEAPI BOOL        WINAPI DeleteTimerQueueEx(HANDLE,HANDLE);
@@ -2559,7 +2571,12 @@ WINBASEAPI LPVOID      WINAPI MapViewOfFileEx(HANDLE,DWORD,DWORD,DWORD,SIZE_T,LP
 WINBASEAPI LPVOID      WINAPI MapViewOfFileFromApp(HANDLE,ULONG,ULONG64,SIZE_T);
 WINBASEAPI BOOL        WINAPI MoveFileA(LPCSTR,LPCSTR);
 WINBASEAPI BOOL        WINAPI MoveFileW(LPCWSTR,LPCWSTR);
-#define                       MoveFile WINELIB_NAME_AW(MoveFile)
+#ifndef WINE_NO_UNICODE_MACROS
+static inline BOOL MoveFile( LPCTSTR source, LPCTSTR dest)
+{
+    return WINELIB_NAME_AW(MoveFile)( source, dest );
+}
+#endif
 WINBASEAPI BOOL        WINAPI MoveFileExA(LPCSTR,LPCSTR,DWORD);
 WINBASEAPI BOOL        WINAPI MoveFileExW(LPCWSTR,LPCWSTR,DWORD);
 #define                       MoveFileEx WINELIB_NAME_AW(MoveFileEx)
