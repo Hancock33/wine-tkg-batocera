@@ -1,4 +1,6 @@
 /*
+ * Copyright (C) 2024 Alistair Leslie-Hughes
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
@@ -13,24 +15,35 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
+#ifndef _GDIPLUSBASE_H
+#define _GDIPLUSBASE_H
 
-#ifndef _SECURITY_H
-#define _SECURITY_H
+#ifdef __cplusplus
 
-#ifndef NEGOSSP_NAME
-#define NEGOSSP_NAME_A "Negotiate"
-#if defined(_MSC_VER) || defined(__MINGW32__)
-#define NEGOSSP_NAME_W L"Negotiate"
-#else
-static const WCHAR NEGOSSP_NAME_W[] = { 'N','e','g','o','t','i','a','t','e',0 };
+class GdiplusBase
+{
+public:
+    void (operator delete)(void *p)
+    {
+       DllExports::GdipFree(p);
+    }
+
+    void* (operator new)(size_t size)
+    {
+       return DllExports::GdipAlloc(size);
+    }
+
+    void (operator delete[])(void* p)
+    {
+       DllExports::GdipFree(p);
+    }
+
+    void* (operator new[])(size_t size)
+    {
+       return DllExports::GdipAlloc(size);
+    }
+};
+
 #endif
-#define NEGOSSP_NAME WINELIB_NAME_AW(NEGOSSP_NAME_)
-#endif /* NEGOSSP_NAME */
 
-#include <sspi.h>
-
-#if defined(SECURITY_WIN32) || defined(SECURITY_KERNEL)
-#include <secext.h>
 #endif
-
-#endif /* _SECURITY_H */

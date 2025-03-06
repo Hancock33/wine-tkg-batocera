@@ -228,6 +228,7 @@ static HRESULT WINAPI MediaObject_GetOutputType(IMediaObject *iface, DWORD index
 static HRESULT WINAPI MediaObject_SetInputType(IMediaObject *iface, DWORD index, const DMO_MEDIA_TYPE *type, DWORD flags)
 {
     struct mp3_decoder *dmo = impl_from_IMediaObject(iface);
+    const WAVEFORMATEX *format;
 
     TRACE("iface %p, index %lu, type %p, flags %#lx.\n", iface, index, type, flags);
 
@@ -247,6 +248,11 @@ static HRESULT WINAPI MediaObject_SetInputType(IMediaObject *iface, DWORD index,
             || !IsEqualGUID(&type->formattype, &WMFORMAT_WaveFormatEx))
         return DMO_E_TYPE_NOT_ACCEPTED;
 
+    format = (WAVEFORMATEX *) type->pbFormat;
+
+    if (!format->nChannels)
+        return DMO_E_TYPE_NOT_ACCEPTED;
+
     if (!(flags & DMO_SET_TYPEF_TEST_ONLY))
     {
         if (dmo->intype_set)
@@ -261,7 +267,7 @@ static HRESULT WINAPI MediaObject_SetInputType(IMediaObject *iface, DWORD index,
 static HRESULT WINAPI MediaObject_SetOutputType(IMediaObject *iface, DWORD index, const DMO_MEDIA_TYPE *type, DWORD flags)
 {
     struct mp3_decoder *This = impl_from_IMediaObject(iface);
-    WAVEFORMATEX *format;
+    WAVEFORMATEX *format, *in_format;
     long enc;
     int err;
 
@@ -289,9 +295,25 @@ static HRESULT WINAPI MediaObject_SetOutputType(IMediaObject *iface, DWORD index
         enc = MPG123_ENC_UNSIGNED_8;
     else if (format->wBitsPerSample == 16)
         enc = MPG123_ENC_SIGNED_16;
+    else if (format->wBitsPerSample == 32)
+        enc = MPG123_ENC_FLOAT_32;
     else
     {
         ERR("Cannot decode to bit depth %u.\n", format->wBitsPerSample);
+        return DMO_E_TYPE_NOT_ACCEPTED;
+    }
+
+    if (format->nChannels * format->wBitsPerSample/8 != format->nBlockAlign
+            || format->nSamplesPerSec * format->nBlockAlign != format->nAvgBytesPerSec)
+        return E_INVALIDARG;
+
+    in_format = (WAVEFORMATEX *)This->intype.pbFormat;
+
+    if (format->nSamplesPerSec != in_format->nSamplesPerSec &&
+            format->nSamplesPerSec*2 != in_format->nSamplesPerSec &&
+            format->nSamplesPerSec*4 != in_format->nSamplesPerSec)
+    {
+        ERR("Cannot decode to %lu samples per second (input %lu).\n", format->nSamplesPerSec, in_format->nSamplesPerSec);
         return DMO_E_TYPE_NOT_ACCEPTED;
     }
 
@@ -421,16 +443,16 @@ static HRESULT WINAPI MediaObject_Discontinuity(IMediaObject *iface, DWORD index
 
 static HRESULT WINAPI MediaObject_AllocateStreamingResources(IMediaObject *iface)
 {
-    FIXME("(%p)->() stub!\n", iface);
+    TRACE("(%p)->()\n", iface);
 
-    return E_NOTIMPL;
+    return S_OK;
 }
 
 static HRESULT WINAPI MediaObject_FreeStreamingResources(IMediaObject *iface)
 {
-    FIXME("(%p)->() stub!\n", iface);
+    TRACE("(%p)->()\n", iface);
 
-    return E_NOTIMPL;
+    return S_OK;
 }
 
 static HRESULT WINAPI MediaObject_GetInputStatus(IMediaObject *iface, DWORD index, DWORD *flags)
