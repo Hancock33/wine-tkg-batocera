@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
 HEAD is now at 4914f150 Updated vkd3d-latest patchset
-HEAD is now at 1f947b1c62c wine.inf: Add VC runtime version key.
+HEAD is now at 3364df08cb6 Release 10.3.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
