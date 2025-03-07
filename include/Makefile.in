@@ -327,6 +327,7 @@ SOURCES = \
 	fci.h \
 	fdi.h \
 	featurestagingapi.h \
+	fibersapi.h \
 	fileapi.h \
 	filter.idl \
 	fltdefs.h \
@@ -459,6 +460,7 @@ SOURCES = \
 	minidumpapiset.h \
 	minmax.h \
 	minschannel.h \
+	minwindef.h \
 	mlang.idl \
 	mmc.idl \
 	mmddk.h \
@@ -1023,6 +1025,7 @@ SOURCES = \
 	wownt16.h \
 	wownt32.h \
 	wpcapi.idl \
+	ws2bth.h \
 	ws2def.h \
 	ws2ipdef.h \
 	ws2spi.h \
