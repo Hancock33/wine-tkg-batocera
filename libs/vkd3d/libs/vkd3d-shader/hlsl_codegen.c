@@ -829,9 +829,9 @@ static bool find_recursive_calls(struct hlsl_ctx *ctx, struct hlsl_ir_node *inst
 static void insert_early_return_break(struct hlsl_ctx *ctx,
         struct hlsl_ir_function_decl *func, struct hlsl_ir_node *cf_instr)
 {
-    struct hlsl_ir_node *iff, *jump;
     struct hlsl_block then_block;
     struct hlsl_ir_load *load;
+    struct hlsl_ir_node *iff;
 
     hlsl_block_init(&then_block);
 
@@ -839,9 +839,7 @@ static void insert_early_return_break(struct hlsl_ctx *ctx,
         return;
     list_add_after(&cf_instr->entry, &load->node.entry);
 
-    if (!(jump = hlsl_new_jump(ctx, HLSL_IR_JUMP_BREAK, NULL, &cf_instr->loc)))
-        return;
-    hlsl_block_add_instr(&then_block, jump);
+    hlsl_block_add_jump(ctx, &then_block, HLSL_IR_JUMP_BREAK, NULL, &cf_instr->loc);
 
     if (!(iff = hlsl_new_if(ctx, &load->node, &then_block, NULL, &cf_instr->loc)))
         return;
@@ -1013,7 +1011,7 @@ static bool lower_return(struct hlsl_ctx *ctx, struct hlsl_ir_function_decl *fun
     else if (cf_instr)
     {
         struct list *tail = list_tail(&block->instrs);
-        struct hlsl_ir_node *not, *iff, *load;
+        struct hlsl_ir_node *not, *load;
         struct hlsl_block then_block;
 
         /* If we're in a loop, we should have used "break" instead. */
@@ -1028,10 +1026,7 @@ static bool lower_return(struct hlsl_ctx *ctx, struct hlsl_ir_function_decl *fun
 
         load = hlsl_block_add_simple_load(ctx, block, func->early_return_var, &cf_instr->loc);
         not = hlsl_block_add_unary_expr(ctx, block, HLSL_OP1_LOGIC_NOT, load, &cf_instr->loc);
-
-        if (!(iff = hlsl_new_if(ctx, not, &then_block, NULL, &cf_instr->loc)))
-            return false;
-        list_add_tail(&block->instrs, &iff->entry);
+        hlsl_block_add_if(ctx, block, not, &then_block, NULL, &cf_instr->loc);
     }
 
     return has_early_return;
@@ -2694,16 +2689,9 @@ static bool normalize_switch_cases(struct hlsl_ctx *ctx, struct hlsl_ir_node *in
     }
     else
     {
-        struct hlsl_ir_node *jump;
-
         if (!(def = hlsl_new_switch_case(ctx, 0, true, NULL, &s->node.loc)))
             return true;
-        if (!(jump = hlsl_new_jump(ctx, HLSL_IR_JUMP_BREAK, NULL, &s->node.loc)))
-        {
-            hlsl_free_ir_switch_case(def);
-            return true;
-        }
-        hlsl_block_add_instr(&def->body, jump);
+        hlsl_block_add_jump(ctx, &def->body, HLSL_IR_JUMP_BREAK, NULL, &s->node.loc);
     }
     list_add_tail(&s->cases, &def->entry);
 
@@ -5321,11 +5309,8 @@ static uint32_t allocate_temp_registers(struct hlsl_ctx *ctx, struct hlsl_ir_fun
     /* ps_1_* outputs are special and go in temp register 0. */
     if (ctx->profile->major_version == 1 && ctx->profile->type == VKD3D_SHADER_TYPE_PIXEL)
     {
-        size_t i;
-
-        for (i = 0; i < entry_func->parameters.count; ++i)
+        LIST_FOR_EACH_ENTRY(var, &entry_func->extern_vars, struct hlsl_ir_var, extern_entry)
         {
-            var = entry_func->parameters.vars[i];
             if (var->is_output_semantic)
             {
                 record_allocation(ctx, &allocator, 0, VKD3DSP_WRITEMASK_ALL,
@@ -7522,7 +7507,7 @@ static void sm1_generate_vsir_instr_expr_sincos(struct hlsl_ctx *ctx, struct vsi
         src_param->reg.idx[0].offset = ctx->d3dsincosconst1.id;
         src_param->swizzle = VKD3D_SHADER_NO_SWIZZLE;
 
-        src_param = &ins->src[1];
+        src_param = &ins->src[2];
         vsir_register_init(&src_param->reg, VKD3DSPR_CONST, VKD3D_DATA_FLOAT, 1);
         src_param->reg.idx[0].offset = ctx->d3dsincosconst2.id;
         src_param->swizzle = VKD3D_SHADER_NO_SWIZZLE;

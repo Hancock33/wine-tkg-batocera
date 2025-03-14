@@ -102,7 +102,7 @@ static const WCHAR *get_machine_wow64_dir( WORD machine )
  */
 static inline BOOL contains_path( const WCHAR *name )
 {
-    if (RtlDetermineDosPathNameType_U( name ) != RELATIVE_PATH) return TRUE;
+    if (RtlDetermineDosPathNameType_U( name ) != RtlPathTypeRelative) return TRUE;
     if (name[0] != '.') return FALSE;
     if (name[1] == '/' || name[1] == '\\') return TRUE;
     return (name[1] == '.' && (name[2] == '/' || name[2] == '\\'));
@@ -1058,7 +1058,7 @@ BOOLEAN WINAPI /* DECLSPEC_HOTPATCH */ CreateSymbolicLinkW( LPCWSTR link, LPCWST
 
     TRACE( "(%s %s %ld): stub\n", debugstr_w(link), debugstr_w(target), flags );
 
-    is_relative = (RtlDetermineDosPathNameType_U( target ) == RELATIVE_PATH);
+    is_relative = (RtlDetermineDosPathNameType_U( target ) == RtlPathTypeRelative);
     is_dir = (flags & SYMBOLIC_LINK_FLAG_DIRECTORY);
     if (is_dir && !CreateDirectoryW( link, NULL ))
         return FALSE;
