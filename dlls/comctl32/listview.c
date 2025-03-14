@@ -9842,6 +9842,10 @@ static LRESULT LISTVIEW_VScroll(LISTVIEW_INFO *infoPtr, INT nScrollCode,
 	nScrollDiff = scrollInfo.nPage;
         break;
 
+    case SB_TOP:
+        nScrollDiff = -nOldScrollPos;
+        break;
+
     case SB_THUMBPOSITION:
     case SB_THUMBTRACK:
 	nScrollDiff = scrollInfo.nTrackPos - scrollInfo.nPos;
@@ -11552,11 +11556,17 @@ LISTVIEW_WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     return 1;
 
   case LVM_GETORIGIN:
-    if (!lParam) return FALSE;
+  {
+    POINT *point = (POINT *)lParam;
+
+    if (!point) return FALSE;
     if (infoPtr->uView == LV_VIEW_DETAILS ||
         infoPtr->uView == LV_VIEW_LIST) return FALSE;
-    LISTVIEW_GetOrigin(infoPtr, (LPPOINT)lParam);
+    LISTVIEW_GetOrigin(infoPtr, point);
+    point->x = -point->x;
+    point->y = -point->y;
     return TRUE;
+  }
 
   /* case LVM_GETOUTLINECOLOR: */
 

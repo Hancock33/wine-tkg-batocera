@@ -3551,6 +3551,8 @@ NTSTATUS virtual_map_module( HANDLE mapping, void **module, SIZE_T *size, SECTIO
         status = virtual_map_image( mapping, module, size, shared_file, limit_low, limit_high, 0,
                                     machine, image_info, filename, FALSE );
         virtual_fill_image_information( image_info, info );
+        if (status == STATUS_IMAGE_NOT_AT_BASE)
+            info->TransferAddress = (char *)*module + image_info->entry_point;
     }
     if (shared_file) NtClose( shared_file );
     free( image_info );
@@ -5774,15 +5776,12 @@ NTSTATUS WINAPI NtMapViewOfSection( HANDLE handle, HANDLE process, PVOID *addr_p
         return STATUS_INVALID_PARAMETER_4;
 
     /* If both addr_ptr and zero_bits are passed, they have match */
-    if (*addr_ptr && zero_bits && zero_bits < 32 &&
-        (((UINT_PTR)*addr_ptr) >> (32 - zero_bits)))
+    if (zero_bits && zero_bits < 32 && ((UINT_PTR)*addr_ptr >> (32 - zero_bits)))
         return STATUS_INVALID_PARAMETER_4;
-    if (*addr_ptr && zero_bits >= 32 &&
-        (((UINT_PTR)*addr_ptr) & ~zero_bits))
+    if (zero_bits >= 32 && ((UINT_PTR)*addr_ptr & ~zero_bits))
         return STATUS_INVALID_PARAMETER_4;
 
-#ifndef _WIN64
-    if (!is_old_wow64())
+    if (!is_win64 && !is_wow64())
     {
         if (zero_bits >= 32) return STATUS_INVALID_PARAMETER_4;
         if (alloc_type & AT_ROUND_TO_PAGE)
@@ -5791,7 +5790,7 @@ NTSTATUS WINAPI NtMapViewOfSection( HANDLE handle, HANDLE process, PVOID *addr_p
             mask = page_mask;
         }
     }
-#endif
+    else if (alloc_type & AT_ROUND_TO_PAGE) return STATUS_INVALID_PARAMETER_9;
 
     if (alloc_type & MEM_REPLACE_PLACEHOLDER)
         mask = page_mask;
@@ -5857,13 +5856,12 @@ NTSTATUS WINAPI NtMapViewOfSectionEx( HANDLE handle, HANDLE process, PVOID *addr
     if (align) return STATUS_INVALID_PARAMETER;
     if (*addr_ptr && (limit_low || limit_high)) return STATUS_INVALID_PARAMETER;
 
-#ifndef _WIN64
-    if (!is_old_wow64() && (alloc_type & AT_ROUND_TO_PAGE))
+    if (alloc_type & AT_ROUND_TO_PAGE)
     {
+        if (is_win64 || is_wow64()) return STATUS_INVALID_PARAMETER;
         *addr_ptr = ROUND_ADDR( *addr_ptr, page_mask );
         mask = page_mask;
     }
-#endif
 
     if (alloc_type & MEM_REPLACE_PLACEHOLDER)
         mask = page_mask;

@@ -1,9 +1,9 @@
-# Last wine-tkg-staging-ntsync-git configuration - Fri  7 Mar 22:00:42 GMT 2025 :
+# Last wine-tkg-staging-ntsync-git configuration - Fri 14 Mar 21:02:38 GMT 2025 :
 
 Local cfg files used
 
-Wine (plain) version: 10.3.r0.g3364df08cb6
-Using wine-staging patchset (version 10.2.r13.g4914f150)
+Wine (plain) version: 10.3.r71.gc5de4eda4b2
+Using wine-staging patchset (version 10.3.r3.gf247cd5d)
 
 Disabled the local Esync patchset to use Staging impl instead.
 Not using vkd3d native library for d3d12 translation (allows using vkd3d-proton)

@@ -451,7 +451,7 @@ static uint32_t add_modifiers(struct hlsl_ctx *ctx, uint32_t modifiers, uint32_t
 
 static bool append_conditional_break(struct hlsl_ctx *ctx, struct hlsl_block *cond_block)
 {
-    struct hlsl_ir_node *condition, *cast, *not, *iff, *jump;
+    struct hlsl_ir_node *condition, *cast, *not;
     struct hlsl_block then_block;
     struct hlsl_type *bool_type;
 
@@ -472,14 +472,8 @@ static bool append_conditional_break(struct hlsl_ctx *ctx, struct hlsl_block *co
     not = hlsl_block_add_unary_expr(ctx, cond_block, HLSL_OP1_LOGIC_NOT, cast, &condition->loc);
 
     hlsl_block_init(&then_block);
-
-    if (!(jump = hlsl_new_jump(ctx, HLSL_IR_JUMP_BREAK, NULL, &condition->loc)))
-        return false;
-    hlsl_block_add_instr(&then_block, jump);
-
-    if (!(iff = hlsl_new_if(ctx, not, &then_block, NULL, &condition->loc)))
-        return false;
-    hlsl_block_add_instr(cond_block, iff);
+    hlsl_block_add_jump(ctx, &then_block, HLSL_IR_JUMP_BREAK, NULL, &condition->loc);
+    hlsl_block_add_if(ctx, cond_block, not, &then_block, NULL, &condition->loc);
     return true;
 }
 
@@ -661,7 +655,6 @@ static struct hlsl_block *create_loop(struct hlsl_ctx *ctx, enum hlsl_loop_type 
 {
     enum hlsl_loop_unroll_type unroll_type = HLSL_LOOP_UNROLL;
     unsigned int i, unroll_limit = 0;
-    struct hlsl_ir_node *loop;
 
     check_attribute_list_for_duplicates(ctx, attributes);
     check_loop_attributes(ctx, attributes, loc);
@@ -720,9 +713,7 @@ static struct hlsl_block *create_loop(struct hlsl_ctx *ctx, enum hlsl_loop_type 
     else
         list_move_head(&body->instrs, &cond->instrs);
 
-    if (!(loop = hlsl_new_loop(ctx, iter, body, unroll_type, unroll_limit, loc)))
-        goto oom;
-    hlsl_block_add_instr(init, loop);
+    hlsl_block_add_loop(ctx, init, iter, body, unroll_type, unroll_limit, loc);
 
     destroy_block(cond);
     destroy_block(body);
@@ -851,7 +842,6 @@ static bool add_return(struct hlsl_ctx *ctx, struct hlsl_block *block,
         struct hlsl_ir_node *return_value, const struct vkd3d_shader_location *loc)
 {
     struct hlsl_type *return_type = ctx->cur_function->return_type;
-    struct hlsl_ir_node *jump;
 
     if (ctx->cur_function->return_var)
     {
@@ -877,10 +867,7 @@ static bool add_return(struct hlsl_ctx *ctx, struct hlsl_block *block,
             hlsl_error(ctx, loc, VKD3D_SHADER_ERROR_HLSL_INVALID_RETURN, "Void functions cannot return a value.");
     }
 
-    if (!(jump = hlsl_new_jump(ctx, HLSL_IR_JUMP_RETURN, NULL, loc)))
-        return false;
-    hlsl_block_add_instr(block, jump);
-
+    hlsl_block_add_jump(ctx, block, HLSL_IR_JUMP_RETURN, NULL, loc);
     return true;
 }
 
@@ -902,20 +889,15 @@ struct hlsl_ir_node *hlsl_add_load_component(struct hlsl_ctx *ctx, struct hlsl_b
     return hlsl_block_add_load_component(ctx, block, &src, comp, loc);
 }
 
-static bool add_record_access(struct hlsl_ctx *ctx, struct hlsl_block *block, struct hlsl_ir_node *record,
+static void add_record_access(struct hlsl_ctx *ctx, struct hlsl_block *block, struct hlsl_ir_node *record,
         unsigned int idx, const struct vkd3d_shader_location *loc)
 {
-    struct hlsl_ir_node *index, *c;
+    struct hlsl_ir_node *c;
 
     VKD3D_ASSERT(idx < record->data_type->e.record.field_count);
 
     c = hlsl_block_add_uint_constant(ctx, block, idx, loc);
-
-    if (!(index = hlsl_new_index(ctx, record, c, loc)))
-        return false;
-    hlsl_block_add_instr(block, index);
-
-    return true;
+    hlsl_block_add_index(ctx, block, record, c, loc);
 }
 
 static struct hlsl_ir_node *add_binary_arithmetic_expr(struct hlsl_ctx *ctx, struct hlsl_block *block,
@@ -926,7 +908,6 @@ static bool add_array_access(struct hlsl_ctx *ctx, struct hlsl_block *block, str
         struct hlsl_ir_node *index, const struct vkd3d_shader_location *loc)
 {
     const struct hlsl_type *expr_type = array->data_type, *index_type = index->data_type;
-    struct hlsl_ir_node *return_index;
 
     if (array->data_type->class == HLSL_CLASS_ERROR || index->data_type->class == HLSL_CLASS_ERROR)
     {
@@ -954,10 +935,7 @@ static bool add_array_access(struct hlsl_ctx *ctx, struct hlsl_block *block, str
                 hlsl_get_vector_type(ctx, HLSL_TYPE_UINT, dim_count), &index->loc)))
             return false;
 
-        if (!(return_index = hlsl_new_index(ctx, array, index, loc)))
-            return false;
-        hlsl_block_add_instr(block, return_index);
-
+        hlsl_block_add_index(ctx, block, array, index, loc);
         return true;
     }
 
@@ -978,10 +956,7 @@ static bool add_array_access(struct hlsl_ctx *ctx, struct hlsl_block *block, str
         return false;
     }
 
-    if (!(return_index = hlsl_new_index(ctx, array, index, loc)))
-        return false;
-    hlsl_block_add_instr(block, return_index);
-
+    hlsl_block_add_index(ctx, block, array, index, loc);
     return true;
 }
 
@@ -1123,31 +1098,34 @@ static bool gen_struct_fields(struct hlsl_ctx *ctx, struct parse_fields *fields,
     return true;
 }
 
-static bool add_record_access_recurse(struct hlsl_ctx *ctx, struct hlsl_block *block,
+static void add_record_access_recurse(struct hlsl_ctx *ctx, struct hlsl_block *block,
         const char *name, const struct vkd3d_shader_location *loc)
 {
     struct hlsl_ir_node *record = node_from_block(block);
     const struct hlsl_type *type = record->data_type;
     const struct hlsl_struct_field *field, *base;
 
+    if (type->class == HLSL_CLASS_ERROR)
+        return;
+
     if ((field = get_struct_field(type->e.record.fields, type->e.record.field_count, name)))
     {
         unsigned int field_idx = field - type->e.record.fields;
 
-        return add_record_access(ctx, block, record, field_idx, loc);
+        add_record_access(ctx, block, record, field_idx, loc);
     }
     else if ((base = get_struct_field(type->e.record.fields, type->e.record.field_count, "$super")))
     {
         unsigned int base_idx = base - type->e.record.fields;
 
-        if (!add_record_access(ctx, block, record, base_idx, loc))
-            return false;
-        return add_record_access_recurse(ctx, block, name, loc);
+        add_record_access(ctx, block, record, base_idx, loc);
+        add_record_access_recurse(ctx, block, name, loc);
     }
-
-    hlsl_error(ctx, loc, VKD3D_SHADER_ERROR_HLSL_NOT_DEFINED, "Field \"%s\" is not defined.", name);
-    block->value = ctx->error_instr;
-    return true;
+    else
+    {
+        hlsl_error(ctx, loc, VKD3D_SHADER_ERROR_HLSL_NOT_DEFINED, "Field \"%s\" is not defined.", name);
+        block->value = ctx->error_instr;
+    }
 }
 
 static bool add_typedef(struct hlsl_ctx *ctx, struct hlsl_type *const orig_type, struct list *list)
@@ -2132,7 +2110,6 @@ static bool add_assignment(struct hlsl_ctx *ctx, struct hlsl_block *block, struc
         struct hlsl_ir_node *coords = hlsl_ir_index(lhs)->idx.node;
         struct hlsl_deref resource_deref;
         struct hlsl_type *resource_type;
-        struct hlsl_ir_node *store;
         unsigned int dim_count;
 
         if (!hlsl_index_is_resource_access(hlsl_ir_index(lhs)))
@@ -2161,12 +2138,7 @@ static bool add_assignment(struct hlsl_ctx *ctx, struct hlsl_block *block, struc
         VKD3D_ASSERT(coords->data_type->e.numeric.type == HLSL_TYPE_UINT);
         VKD3D_ASSERT(coords->data_type->e.numeric.dimx == dim_count);
 
-        if (!(store = hlsl_new_resource_store(ctx, &resource_deref, coords, rhs, &lhs->loc)))
-        {
-            hlsl_cleanup_deref(&resource_deref);
-            return false;
-        }
-        hlsl_block_add_instr(block, store);
+        hlsl_block_add_resource_store(ctx, block, &resource_deref, coords, rhs, &lhs->loc);
         hlsl_cleanup_deref(&resource_deref);
     }
     else if (matrix_writemask)
@@ -2212,10 +2184,7 @@ static bool add_assignment(struct hlsl_ctx *ctx, struct hlsl_block *block, struc
 
             c = hlsl_block_add_uint_constant(ctx, block, i, &lhs->loc);
 
-            if (!(cell = hlsl_new_index(ctx, &row->node, c, &lhs->loc)))
-                return false;
-            hlsl_block_add_instr(block, cell);
-
+            cell = hlsl_block_add_index(ctx, block, &row->node, c, &lhs->loc);
             load = hlsl_add_load_component(ctx, block, rhs, k++, &rhs->loc);
 
             if (!hlsl_init_deref_from_index_chain(ctx, &deref, cell))
@@ -3578,7 +3547,7 @@ static bool intrinsic_clamp(struct hlsl_ctx *ctx,
 static bool intrinsic_clip(struct hlsl_ctx *ctx,
         const struct parse_initializer *params, const struct vkd3d_shader_location *loc)
 {
-    struct hlsl_ir_node *condition, *jump;
+    struct hlsl_ir_node *condition;
 
     if (!elementwise_intrinsic_float_convert_args(ctx, params, loc))
         return false;
@@ -3596,10 +3565,7 @@ static bool intrinsic_clip(struct hlsl_ctx *ctx,
         return false;
     }
 
-    if (!(jump = hlsl_new_jump(ctx, HLSL_IR_JUMP_DISCARD_NEG, condition, loc)))
-        return false;
-    hlsl_block_add_instr(params->instrs, jump);
-
+    hlsl_block_add_jump(ctx, params->instrs, HLSL_IR_JUMP_DISCARD_NEG, condition, loc);
     return true;
 }
 
@@ -6469,7 +6435,7 @@ static bool add_sample_grad_method_call(struct hlsl_ctx *ctx, struct hlsl_block 
 static bool add_store_method_call(struct hlsl_ctx *ctx, struct hlsl_block *block, struct hlsl_ir_node *object,
         const char *name, const struct parse_initializer *params, const struct vkd3d_shader_location *loc)
 {
-    struct hlsl_ir_node *offset, *rhs, *store;
+    struct hlsl_ir_node *offset, *rhs;
     struct hlsl_deref resource_deref;
     unsigned int value_dim;
 
@@ -6500,13 +6466,7 @@ static bool add_store_method_call(struct hlsl_ctx *ctx, struct hlsl_block *block
     if (!hlsl_init_deref_from_index_chain(ctx, &resource_deref, object))
         return false;
 
-    if (!(store = hlsl_new_resource_store(ctx, &resource_deref, offset, rhs, loc)))
-    {
-        hlsl_cleanup_deref(&resource_deref);
-        return false;
-    }
-
-    hlsl_block_add_instr(block, store);
+    hlsl_block_add_resource_store(ctx, block, &resource_deref, offset, rhs, loc);
     hlsl_cleanup_deref(&resource_deref);
 
     return true;
@@ -8954,8 +8914,6 @@ statement:
 jump_statement:
       KW_BREAK ';'
         {
-            struct hlsl_ir_node *jump;
-
             if (!is_break_allowed(ctx->cur_scope))
             {
                 hlsl_error(ctx, &@1, VKD3D_SHADER_ERROR_HLSL_INVALID_SYNTAX,
@@ -8964,22 +8922,15 @@ jump_statement:
 
             if (!($$ = make_empty_block(ctx)))
                 YYABORT;
-            if (!(jump = hlsl_new_jump(ctx, HLSL_IR_JUMP_BREAK, NULL, &@1)))
-                YYABORT;
-            hlsl_block_add_instr($$, jump);
+            hlsl_block_add_jump(ctx, $$, HLSL_IR_JUMP_BREAK, NULL, &@1);
         }
     | KW_CONTINUE ';'
         {
-            struct hlsl_ir_node *jump;
-
             check_continue(ctx, ctx->cur_scope, &@1);
 
             if (!($$ = make_empty_block(ctx)))
                 YYABORT;
-
-            if (!(jump = hlsl_new_jump(ctx, HLSL_IR_JUMP_UNRESOLVED_CONTINUE, NULL, &@1)))
-                YYABORT;
-            hlsl_block_add_instr($$, jump);
+            hlsl_block_add_jump(ctx, $$, HLSL_IR_JUMP_UNRESOLVED_CONTINUE, NULL, &@1);
         }
     | KW_RETURN expr ';'
         {
@@ -8996,16 +8947,12 @@ jump_statement:
         }
     | KW_DISCARD ';'
         {
-            struct hlsl_ir_node *discard, *c;
+            struct hlsl_ir_node *c;
 
             if (!($$ = make_empty_block(ctx)))
                 YYABORT;
-
             c = hlsl_block_add_uint_constant(ctx, $$, ~0u, &@1);
-
-            if (!(discard = hlsl_new_jump(ctx, HLSL_IR_JUMP_DISCARD_NZ, c, &@1)))
-                return false;
-            hlsl_block_add_instr($$, discard);
+            hlsl_block_add_jump(ctx, $$, HLSL_IR_JUMP_DISCARD_NZ, c, &@1);
         }
 
 selection_statement:
@@ -9013,7 +8960,6 @@ selection_statement:
         {
             struct hlsl_ir_node *condition = node_from_block($4);
             const struct parse_attribute_list *attributes = &$1;
-            struct hlsl_ir_node *instr;
             unsigned int i;
 
             check_attribute_list_for_duplicates(ctx, attributes);
@@ -9043,19 +8989,13 @@ selection_statement:
                 YYABORT;
             }
 
-            if (!(instr = hlsl_new_if(ctx, condition, $6.then_block, $6.else_block, &@2)))
-            {
-                destroy_block($6.then_block);
-                destroy_block($6.else_block);
-                cleanup_parse_attribute_list(&$1);
-                YYABORT;
-            }
+            hlsl_block_add_if(ctx, $4, condition, $6.then_block, $6.else_block, &@2);
+
             destroy_block($6.then_block);
             destroy_block($6.else_block);
             cleanup_parse_attribute_list(&$1);
 
             $$ = $4;
-            hlsl_block_add_instr($$, instr);
         }
 
 if_body:
@@ -9394,12 +9334,7 @@ postfix_expr:
 
             if (node->data_type->class == HLSL_CLASS_STRUCT)
             {
-                if (!add_record_access_recurse(ctx, $1, $3, &@2))
-                {
-                    destroy_block($1);
-                    vkd3d_free($3);
-                    YYABORT;
-                }
+                add_record_access_recurse(ctx, $1, $3, &@2);
             }
             else if (hlsl_is_numeric_type(node->data_type))
             {

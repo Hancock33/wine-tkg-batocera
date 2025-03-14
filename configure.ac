@@ -2529,6 +2529,7 @@ WINE_CONFIG_MAKEFILE(dlls/d3dcompiler_39)
 WINE_CONFIG_MAKEFILE(dlls/d3dcompiler_40)
 WINE_CONFIG_MAKEFILE(dlls/d3dcompiler_41)
 WINE_CONFIG_MAKEFILE(dlls/d3dcompiler_42)
+WINE_CONFIG_MAKEFILE(dlls/d3dcompiler_42/tests)
 WINE_CONFIG_MAKEFILE(dlls/d3dcompiler_43)
 WINE_CONFIG_MAKEFILE(dlls/d3dcompiler_43/tests)
 WINE_CONFIG_MAKEFILE(dlls/d3dcompiler_46)
@@ -2584,6 +2585,7 @@ WINE_CONFIG_MAKEFILE(dlls/d3dx9_39)
 WINE_CONFIG_MAKEFILE(dlls/d3dx9_40)
 WINE_CONFIG_MAKEFILE(dlls/d3dx9_41)
 WINE_CONFIG_MAKEFILE(dlls/d3dx9_42)
+WINE_CONFIG_MAKEFILE(dlls/d3dx9_42/tests)
 WINE_CONFIG_MAKEFILE(dlls/d3dx9_43)
 WINE_CONFIG_MAKEFILE(dlls/d3dx9_43/tests)
 WINE_CONFIG_MAKEFILE(dlls/d3dxof)
@@ -3693,7 +3695,7 @@ dnl Rules for generated source files
 
 WINE_APPEND_RULE(
 [dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-10.2.r13.g4914f150\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
+	@version=\`(echo \"wine-10.3.r3.gf247cd5d\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$[@]) || echo \$\$build >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.nfo:

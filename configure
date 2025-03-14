@@ -21206,6 +21206,7 @@ wine_fn_config_makefile dlls/d3dcompiler_39 enable_d3dcompiler_39
 wine_fn_config_makefile dlls/d3dcompiler_40 enable_d3dcompiler_40
 wine_fn_config_makefile dlls/d3dcompiler_41 enable_d3dcompiler_41
 wine_fn_config_makefile dlls/d3dcompiler_42 enable_d3dcompiler_42
+wine_fn_config_makefile dlls/d3dcompiler_42/tests enable_tests
 wine_fn_config_makefile dlls/d3dcompiler_43 enable_d3dcompiler_43
 wine_fn_config_makefile dlls/d3dcompiler_43/tests enable_tests
 wine_fn_config_makefile dlls/d3dcompiler_46 enable_d3dcompiler_46
@@ -21261,6 +21262,7 @@ wine_fn_config_makefile dlls/d3dx9_39 enable_d3dx9_39
 wine_fn_config_makefile dlls/d3dx9_40 enable_d3dx9_40
 wine_fn_config_makefile dlls/d3dx9_41 enable_d3dx9_41
 wine_fn_config_makefile dlls/d3dx9_42 enable_d3dx9_42
+wine_fn_config_makefile dlls/d3dx9_42/tests enable_tests
 wine_fn_config_makefile dlls/d3dx9_43 enable_d3dx9_43
 wine_fn_config_makefile dlls/d3dx9_43/tests enable_tests
 wine_fn_config_makefile dlls/d3dxof enable_d3dxof
@@ -22338,7 +22340,7 @@ fi
 
 as_fn_append wine_rules "
 dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-10.2.r13.g4914f150\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
+	@version=\`(echo \"wine-10.3.r3.gf247cd5d\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$@) || echo \$\$build >\$@ || (rm -f \$@ && exit 1)
 programs/winetest/build.nfo:
