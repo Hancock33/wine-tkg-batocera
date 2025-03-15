@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
 HEAD is now at f247cd5d Rebase against b201cd518f3448553c31e329d5504b94f21d84ce.
-HEAD is now at c5de4eda4b2 ieframe: Enter reallocation path one position earlier (ASan).
+HEAD is now at 245d3230271 advapi32: Avoid buffer underrun in split_domain_account (ASan).
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
@@ -391,7 +391,7 @@ Hunk #18 succeeded at 1758 (offset 59 lines).
 patching file dlls/ntdll/unix/unix_private.h
 Hunk #1 succeeded at 104 with fuzz 2 (offset 45 lines).
 patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 3712 with fuzz 2 (offset 1029 lines).
+Hunk #1 succeeded at 3717 with fuzz 2 (offset 1034 lines).
 patching file server/Makefile.in
 patching file server/async.c
 Hunk #1 succeeded at 79 (offset 8 lines).
@@ -509,7 +509,7 @@ Hunk #8 succeeded at 827 (offset 133 lines).
 patching file server/process.h
 Hunk #1 succeeded at 87 with fuzz 2 (offset -12 lines).
 patching file server/protocol.def
-Hunk #1 succeeded at 4159 (offset 393 lines).
+Hunk #1 succeeded at 4161 (offset 395 lines).
 patching file server/queue.c
 Hunk #1 succeeded at 45 (offset 1 line).
 Hunk #2 succeeded at 138 (offset -10 lines).
@@ -580,7 +580,7 @@ Hunk #2 succeeded at 135 (offset -10 lines).
 
 fsync_futex_waitv.patch -- ( Applied patches for fsync to support futex_waitv )
 patching file configure
-Hunk #1 succeeded at 7628 (offset -354 lines).
+Hunk #1 succeeded at 7629 (offset -353 lines).
 patching file configure.ac
 Hunk #1 succeeded at 384 (offset -57 lines).
 patching file dlls/ntdll/unix/esync.c
@@ -628,7 +628,7 @@ Hunk #1 succeeded at 1725 (offset 254 lines).
 patching file dlls/ntdll/unix/unix_private.h
 Hunk #1 succeeded at 581 with fuzz 2 (offset 111 lines).
 patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 3398 with fuzz 1 (offset -22 lines).
+Hunk #1 succeeded at 3403 with fuzz 1 (offset -17 lines).
 patching file dlls/ntdll/loader.c
 Hunk #1 succeeded at 3468 (offset -7 lines).
 patching file dlls/ntdll/ntdll.spec
@@ -638,7 +638,7 @@ Hunk #1 succeeded at 991 (offset -1113 lines).
 patching file dlls/ntdll/unix/unix_private.h
 Hunk #1 succeeded at 371 with fuzz 1 (offset 49 lines).
 patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 3513 with fuzz 1 (offset 5 lines).
+Hunk #1 succeeded at 3518 with fuzz 1 (offset 10 lines).
 patching file dlls/ntdll/unixlib.h
 
 josh-flat-theme.patch -- ( Add Josh's better-theme )
@@ -669,6 +669,7 @@ patching file dlls/kernelbase/process.c
 Hunk #2 succeeded at 503 (offset -3 lines).
 Hunk #3 succeeded at 735 (offset -60 lines).
 patching file configure.ac
+Hunk #1 succeeded at 3463 (offset 1 line).
 patching file dlls/kernelbase/process.c
 Hunk #1 succeeded at 505 (offset -3 lines).
 Hunk #2 succeeded at 554 (offset -3 lines).
@@ -715,7 +716,7 @@ patching file loader/Makefile.in
 Applying hotfix wine-tkg-patches/hotfixes/GetMappedFileName/Return_nt_filename_and_resolve_DOS_drive_path.mypatch
 patching file dlls/ntdll/unix/virtual.c
 Hunk #1 succeeded at 120 with fuzz 2 (offset -13 lines).
-Hunk #2 succeeded at 5484 (offset 1209 lines).
+Hunk #2 succeeded at 5489 (offset 1214 lines).
 
 Applying hotfix wine-tkg-patches/hotfixes/08cccb5/a608ef1.mypatch
 patching file dlls/dxgi/dxgi_main.c

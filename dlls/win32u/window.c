@@ -6248,3 +6248,12 @@ HWND WINAPI NtUserSetTaskmanWindow( HWND hwnd )
     SERVER_END_REQ;
     return hwnd;
 }
+
+/***********************************************************************
+ *            NtUserIsChildWindowDpiMessageEnabled (win32u.@)
+ */
+BOOL WINAPI NtUserIsChildWindowDpiMessageEnabled( HWND hwnd )
+{
+    FIXME( "%p: stub\n", hwnd );
+    return FALSE;
+}

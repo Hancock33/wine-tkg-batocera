@@ -3071,12 +3071,12 @@ static void* pdb_ds_read(const struct PDB_DS_HEADER* pdb, const UINT *block_list
     if (!size) return NULL;
 
     num_blocks = (size + pdb->block_size - 1) / pdb->block_size;
-    buffer = HeapAlloc(GetProcessHeap(), 0, num_blocks * pdb->block_size);
+    buffer = HeapAlloc(GetProcessHeap(), 0, (SIZE_T)num_blocks * pdb->block_size);
     if (!buffer) return NULL;
 
     for (i = 0; i < num_blocks; i++)
         memcpy(buffer + i * pdb->block_size,
-               (const char*)pdb + block_list[i] * pdb->block_size, pdb->block_size);
+               (const char*)pdb + (DWORD_PTR)block_list[i] * pdb->block_size, pdb->block_size);
 
     return buffer;
 }
@@ -3521,7 +3521,7 @@ static BOOL pdb_init(struct pdb_file_info* pdb_file, const char* image)
         struct PDB_DS_ROOT*         root;
         struct PDB_DS_TOC*          ds_toc;
 
-        ds_toc = pdb_ds_read(pdb, (const UINT*)((const char*)pdb + pdb->toc_block * pdb->block_size),
+        ds_toc = pdb_ds_read(pdb, (const UINT*)((const char*)pdb + (DWORD_PTR)pdb->toc_block * pdb->block_size),
                              pdb->toc_size);
         if (!ds_toc)
         {
@@ -3635,7 +3635,7 @@ DWORD pdb_get_file_indexinfo(void* image, DWORD size, SYMSRV_INDEX_INFOW* info)
         struct PDB_DS_ROOT*         root;
         DWORD                       ec = ERROR_SUCCESS;
 
-        ds_toc = pdb_ds_read(pdb, (const UINT*)((const char*)pdb + pdb->toc_block * pdb->block_size),
+        ds_toc = pdb_ds_read(pdb, (const UINT*)((const char*)pdb + (DWORD_PTR)pdb->toc_block * pdb->block_size),
                              pdb->toc_size);
         root = pdb_read_ds_stream(pdb, ds_toc, 1);
         if (!root)
@@ -4187,7 +4187,7 @@ static void  pev_init(struct pevaluator* pev, struct cpu_stack_walk* csw,
 {
     pev->csw = csw;
     pool_init(&pev->pool, 512);
-    vector_init(&pev->stack, sizeof(char*), 8);
+    vector_init(&pev->stack, sizeof(char*), 0);
     pev->stk_index = 0;
     hash_table_init(&pev->pool, &pev->values, 8);
     pev->error[0] = '\0';
@@ -4440,8 +4440,9 @@ static BOOL codeview_process_info(const struct process *pcs,
     if (ret)
     {
         msc_dbg->module->module.CVSig = *signature;
-        memcpy(msc_dbg->module->module.CVData, msc_dbg->root,
-               sizeof(msc_dbg->module->module.CVData));
+        if (*signature == CODEVIEW_RSDS_SIG)
+            memcpy(msc_dbg->module->module.CVData, msc_dbg->root,
+                   sizeof(msc_dbg->module->module.CVData));
     }
     return ret;
 }
