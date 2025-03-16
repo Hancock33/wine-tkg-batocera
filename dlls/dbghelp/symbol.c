@@ -226,7 +226,7 @@ struct symt_module* symt_new_module(struct module* module)
     {
         sym->symt.tag = SymTagExe;
         sym->module   = module;
-        vector_init(&sym->vchildren, sizeof(struct symt*), 8);
+        vector_init(&sym->vchildren, sizeof(struct symt*), 0);
     }
     return sym;
 }
@@ -244,7 +244,7 @@ struct symt_compiland* symt_new_compiland(struct module* module, unsigned src_id
         sym->container = module->top;
         sym->address   = 0;
         sym->source    = src_idx;
-        vector_init(&sym->vchildren, sizeof(struct symt*), 32);
+        vector_init(&sym->vchildren, sizeof(struct symt*), 0);
         sym->user      = NULL;
         p = vector_add(&module->top->vchildren, &module->pool);
         *p = sym;
@@ -333,8 +333,8 @@ static struct symt_function* init_function_or_inlinesite(struct module* module,
         sym->hash_elt.name = pool_strdup(&module->pool, name);
         sym->container = container;
         sym->type      = sig_type;
-        vector_init(&sym->vlines,  sizeof(struct line_info), tag == SymTagFunction ? 8 : 4);
-        vector_init(&sym->vchildren, sizeof(struct symt*), 8);
+        vector_init(&sym->vlines,  sizeof(struct line_info), 0);
+        vector_init(&sym->vchildren, sizeof(struct symt*), 0);
         sym->num_ranges = num_ranges;
     }
     return sym;
@@ -548,7 +548,7 @@ struct symt_block* symt_open_func_block(struct module* module,
     block->symt.tag = SymTagBlock;
     block->num_ranges = num_ranges;
     block->container = parent_block ? &parent_block->symt : &func->symt;
-    vector_init(&block->vchildren, sizeof(struct symt*), 4);
+    vector_init(&block->vchildren, sizeof(struct symt*), 0);
     if (parent_block)
         p = vector_add(&parent_block->vchildren, &module->pool);
     else
@@ -1910,9 +1910,9 @@ static BOOL get_line_from_addr(HANDLE hProcess, DWORD64 addr,
     struct symt_ht*             symt;
 
     if (!module_init_pair(&pair, hProcess, addr)) return FALSE;
-    if ((symt = symt_find_symbol_at(pair.effective, addr)) == NULL) return FALSE;
+    symt = symt_find_symbol_at(pair.effective, addr);
 
-    if (symt->symt.tag != SymTagFunction && symt->symt.tag != SymTagInlineSite) return FALSE;
+    if (!symt_check_tag(&symt->symt, SymTagFunction)) return FALSE;
     return get_line_from_function(&pair, (struct symt_function*)symt, addr, pdwDisplacement, intl);
 }
 

@@ -1369,7 +1369,7 @@ static BOOL dwarf2_read_one_debug_info(dwarf2_parse_context_t* ctx,
     else di->data = NULL;
     if (abbrev->have_child)
     {
-        vector_init(&di->children, sizeof(dwarf2_debug_info_t*), 16);
+        vector_init(&di->children, sizeof(dwarf2_debug_info_t*), 0);
         while (traverse->data < traverse->end_data)
         {
             if (!dwarf2_read_one_debug_info(ctx, traverse, di, &child)) return FALSE;
@@ -2685,7 +2685,7 @@ static BOOL dwarf2_parse_line_numbers(dwarf2_parse_context_t* ctx,
     opcode_len = traverse.data;
     traverse.data += opcode_base - 1;
 
-    vector_init(&dirs, sizeof(const char*), 4);
+    vector_init(&dirs, sizeof(const char*), 0);
     p = vector_add(&dirs, &ctx->pool);
     *p = compile_dir ? compile_dir : ".";
     while (traverse.data < traverse.end_data && *traverse.data)
@@ -2712,7 +2712,7 @@ static BOOL dwarf2_parse_line_numbers(dwarf2_parse_context_t* ctx,
     }
     traverse.data++;
 
-    vector_init(&files, sizeof(unsigned), 16);
+    vector_init(&files, sizeof(unsigned), 0);
     while (traverse.data < traverse.end_data && *traverse.data)
     {
         unsigned int    dir_index, mod_time;
@@ -2858,7 +2858,7 @@ static dwarf2_parse_context_t* dwarf2_locate_cu(dwarf2_parse_module_context_t* m
     const BYTE* where;
     for (i = 0; i < module_ctx->unit_contexts.num_elts; ++i)
     {
-        ctx = vector_at(&module_ctx->unit_contexts, i);
+        ctx = *(dwarf2_parse_context_t**)vector_at(&module_ctx->unit_contexts, i);
         where = module_ctx->sections[ctx->section].address + ref;
         if (where >= ctx->traverse_DIE.data && where < ctx->traverse_DIE.end_data)
             return ctx;
@@ -4114,7 +4114,7 @@ static BOOL dwarf2_load_CU_module(dwarf2_parse_module_context_t* module_ctx, str
     module_ctx->module = module;
     module_ctx->thunks = thunks;
     module_ctx->load_offset = load_offset;
-    vector_init(&module_ctx->unit_contexts, sizeof(dwarf2_parse_context_t), 16);
+    vector_init(&module_ctx->unit_contexts, sizeof(dwarf2_parse_context_t*), 0);
     module_ctx->cu_versions = 0;
 
     /* phase I: parse all CU heads */
@@ -4122,10 +4122,13 @@ static BOOL dwarf2_load_CU_module(dwarf2_parse_module_context_t* module_ctx, str
     mod_ctx.end_data = mod_ctx.data + sections[section_debug].size;
     while (mod_ctx.data < mod_ctx.end_data)
     {
-        dwarf2_parse_context_t* unit_ctx = vector_add(&module_ctx->unit_contexts, &module_ctx->module->pool);
+        dwarf2_parse_context_t **punit_ctx = vector_add(&module_ctx->unit_contexts, &module_ctx->module->pool);
 
-        unit_ctx->module_ctx = module_ctx;
-        dwarf2_parse_compilation_unit_head(unit_ctx, &mod_ctx);
+        if (!(*punit_ctx = pool_alloc(&module_ctx->module->pool, sizeof(dwarf2_parse_context_t))))
+            return FALSE;
+
+        (*punit_ctx)->module_ctx = module_ctx;
+        dwarf2_parse_compilation_unit_head(*punit_ctx, &mod_ctx);
     }
 
     /* phase2: load content of all CU
@@ -4135,7 +4138,7 @@ static BOOL dwarf2_load_CU_module(dwarf2_parse_module_context_t* module_ctx, str
      */
     if (!is_dwz)
         for (i = 0; i < module_ctx->unit_contexts.num_elts; ++i)
-            dwarf2_parse_compilation_unit((dwarf2_parse_context_t*)vector_at(&module_ctx->unit_contexts, i));
+            dwarf2_parse_compilation_unit(*(dwarf2_parse_context_t**)vector_at(&module_ctx->unit_contexts, i));
 
     return TRUE;
 }
@@ -4189,9 +4192,10 @@ static BOOL dwarf2_unload_CU_module(dwarf2_parse_module_context_t* module_ctx)
     unsigned i;
     for (i = 0; i < module_ctx->unit_contexts.num_elts; ++i)
     {
-        dwarf2_parse_context_t* unit = vector_at(&module_ctx->unit_contexts, i);
-        if (unit->status != UNIT_ERROR)
+        dwarf2_parse_context_t* unit = *(dwarf2_parse_context_t**)vector_at(&module_ctx->unit_contexts, i);
+        if (unit && unit->status != UNIT_ERROR)
             pool_destroy(&unit->pool);
+        pool_free(&module_ctx->module->pool, unit);
     }
     dwarf2_unload_dwz(module_ctx->dwz);
     return TRUE;
