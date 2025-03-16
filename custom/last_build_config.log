@@ -1,4 +1,4 @@
-# Last wine-tkg-staging-ntsync-git configuration - Sun 16 Mar 10:50:09 GMT 2025 :
+# Last wine-tkg-staging-ntsync-git configuration - Sun 16 Mar 13:57:03 GMT 2025 :
 
 Local cfg files used
 
@@ -20,7 +20,7 @@ LAA-unix-staging.patch -- ( Applied large address aware override support (legacy
 
 ntsync-config.h.in-org.patch -- ( Using original config.h.in patchset for ntsync5 )
 ntsync5-staging.patch -- ( Using ntsync patchset )
-josh-flat-theme.patch -- ( Add Josh's better-theme )
+proton-win10-default.patch -- ( Enforce win10 as default wine version )
 proton_battleye.patch -- ( Add support for Proton's Battleye runtime )
 proton-eac_bridge.patch -- ( Add support for Proton's EAC bridge )
 wow64_loader_hack.patch -- ( Hack around loader name for EAC on 10.2+ )

@@ -483,22 +483,24 @@ patching file server/token.c
 patching file server/window.c
 patching file server/winstation.c
 
-josh-flat-theme.patch -- ( Add Josh's better-theme )
-patching file dlls/win32u/sysparams.c
-Hunk #1 succeeded at 5271 (offset 3818 lines).
-patching file dlls/comctl32/tab.c
-Hunk #2 succeeded at 2124 (offset 7 lines).
-Hunk #3 succeeded at 2161 (offset 7 lines).
-Hunk #4 succeeded at 2207 (offset 7 lines).
-Hunk #5 succeeded at 2255 (offset 7 lines).
-patching file dlls/user32/uitools.c
-Hunk #1 succeeded at 167 (offset -1 lines).
-Hunk #2 succeeded at 476 (offset -1 lines).
-Hunk #3 succeeded at 1496 (offset -2 lines).
-patching file dlls/comctl32/treeview.c
-Hunk #1 succeeded at 2387 (offset -3 lines).
-patching file dlls/user32/uitools.c
-Hunk #1 succeeded at 1488 (offset -2 lines).
+proton-win10-default.patch -- ( Enforce win10 as default wine version )
+patching file programs/wineboot/wineboot.c
+Hunk #1 succeeded at 1761 (offset 310 lines).
+Hunk #2 succeeded at 1856 with fuzz 2 (offset 323 lines).
+patching file programs/wineboot/wineboot.c
+Hunk #1 succeeded at 1763 (offset 57 lines).
+patching file loader/wine.inf.in
+Hunk #1 succeeded at 2826 with fuzz 2 (offset 403 lines).
+patching file loader/wine.inf.in
+Hunk #1 succeeded at 2823 with fuzz 2 (offset 357 lines).
+patching file loader/wine.inf.in
+Hunk #1 succeeded at 376 (offset -173 lines).
+Hunk #2 succeeded at 402 with fuzz 1 (offset -171 lines).
+patching file loader/wine.inf.in
+Hunk #1 succeeded at 2816 with fuzz 2 (offset 360 lines).
+patching file programs/wineboot/wineboot.c
+Hunk #2 succeeded at 1959 (offset 353 lines).
+Hunk #3 succeeded at 2114 with fuzz 2 (offset 351 lines).
 
 proton_battleye.patch -- ( Add support for Proton's Battleye runtime )
 patching file dlls/kernel32/kernel32.spec
