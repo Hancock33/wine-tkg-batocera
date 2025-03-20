@@ -1272,6 +1272,8 @@ static char *get_device_mount_point( dev_t dev )
 #if defined(HAVE_GETATTRLIST) && defined(ATTR_VOL_CAPABILITIES) && \
     defined(VOL_CAPABILITIES_FORMAT) && defined(VOL_CAP_FMT_CASE_SENSITIVE)
 
+static pthread_mutex_t fs_cache_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 struct get_fsid
 {
     ULONG size;
@@ -1344,10 +1346,11 @@ static void add_fs_cache( dev_t dev, fsid_t fsid, BOOLEAN case_sensitive )
  *           get_dir_case_sensitivity_attr
  *
  * Checks if the volume containing the specified directory is case
- * sensitive or not. Uses getattrlist(2).
+ * sensitive or not. Uses getattrlist(2)/getattrlistat(2).
  */
-static int get_dir_case_sensitivity_attr( const char *dir )
+static int get_dir_case_sensitivity_attr( int root_fd, const char *dir )
 {
+    BOOLEAN ret = FALSE;
     char *mntpoint;
     struct attrlist attr;
     struct vol_caps caps;
@@ -1360,16 +1363,21 @@ static int get_dir_case_sensitivity_attr( const char *dir )
     attr.commonattr = ATTR_CMN_DEVID|ATTR_CMN_FSID;
     attr.volattr = attr.dirattr = attr.fileattr = attr.forkattr = 0;
     get_fsid.size = 0;
-    if (getattrlist( dir, &attr, &get_fsid, sizeof(get_fsid), 0 ) != 0 ||
+    if (getattrlistat( root_fd, dir, &attr, &get_fsid, sizeof(get_fsid), 0 ) != 0 ||
         get_fsid.size != sizeof(get_fsid))
         return -1;
+
     /* Try to look it up in the cache */
+    mutex_lock( &fs_cache_mutex );
     entry = look_up_fs_cache( get_fsid.dev );
     if (entry && !memcmp( &entry->fsid, &get_fsid.fsid, sizeof(fsid_t) ))
+    {
         /* Cache lookup succeeded */
-        return entry->case_sensitive;
-    /* Cache is stale at this point, we have to update it */
+        ret = entry->case_sensitive;
+        goto done;
+    }
 
+    /* Cache is stale at this point, we have to update it */
     mntpoint = get_device_mount_point( get_fsid.dev );
     /* Now look up the case-sensitivity */
     attr.commonattr = 0;
@@ -1378,7 +1386,8 @@ static int get_dir_case_sensitivity_attr( const char *dir )
     {
         free( mntpoint );
         add_fs_cache( get_fsid.dev, get_fsid.fsid, TRUE );
-        return TRUE;
+        ret = TRUE;
+        goto done;
     }
     free( mntpoint );
     if (caps.size == sizeof(caps) &&
@@ -1386,8 +1395,6 @@ static int get_dir_case_sensitivity_attr( const char *dir )
          (VOL_CAP_FMT_CASE_SENSITIVE | VOL_CAP_FMT_CASE_PRESERVING)) ==
         (VOL_CAP_FMT_CASE_SENSITIVE | VOL_CAP_FMT_CASE_PRESERVING))
     {
-        BOOLEAN ret;
-
         if ((caps.caps.capabilities[VOL_CAPABILITIES_FORMAT] &
             VOL_CAP_FMT_CASE_SENSITIVE) != VOL_CAP_FMT_CASE_SENSITIVE)
             ret = FALSE;
@@ -1395,9 +1402,12 @@ static int get_dir_case_sensitivity_attr( const char *dir )
             ret = TRUE;
         /* Update the cache */
         add_fs_cache( get_fsid.dev, get_fsid.fsid, ret );
-        return ret;
+        goto done;
     }
-    return FALSE;
+
+done:
+    mutex_unlock( &fs_cache_mutex );
+    return ret;
 }
 #endif
 
@@ -1407,12 +1417,19 @@ static int get_dir_case_sensitivity_attr( const char *dir )
  * Checks if the volume containing the specified directory is case
  * sensitive or not. Uses (f)statfs(2), statvfs(2), fstatat(2), or ioctl(2).
  */
-static BOOLEAN get_dir_case_sensitivity_stat( const char *dir )
+static BOOLEAN get_dir_case_sensitivity_stat( int root_fd, const char *dir )
 {
 #if defined(__APPLE__) || defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
     struct statfs stfs;
+    int fd;
 
-    if (statfs( dir, &stfs ) == -1) return TRUE;
+    if ((fd = openat( root_fd, dir, O_RDONLY )) == -1) return TRUE;
+    if (fstatfs( fd, &stfs ) == -1)
+    {
+        close( fd );
+        return TRUE;
+    }
+    close( fd );
     /* Assume these file systems are always case insensitive.*/
     if (!strcmp( stfs.f_fstypename, "fusefs" ) &&
         !strncmp( stfs.f_mntfromname, "ciopfs", 5 ))
@@ -1453,8 +1470,15 @@ static BOOLEAN get_dir_case_sensitivity_stat( const char *dir )
 
 #elif defined(__NetBSD__)
     struct statvfs stfs;
+    int fd;
 
-    if (statvfs( dir, &stfs ) == -1) return TRUE;
+    if ((fd = openat( root_fd, dir, O_RDONLY )) == -1) return TRUE;
+    if (fstatvfs( fd, &stfs ) == -1)
+    {
+        close( fd );
+        return TRUE;
+    }
+    close( fd );
     /* Only assume CIOPFS is case insensitive. */
     if (strcmp( stfs.f_fstypename, "fusefs" ) ||
         strncmp( stfs.f_mntfromname, "ciopfs", 5 ))
@@ -1467,7 +1491,7 @@ static BOOLEAN get_dir_case_sensitivity_stat( const char *dir )
     struct stat st;
     int fd, flags;
 
-    if ((fd = open( dir, O_RDONLY | O_NONBLOCK )) == -1)
+    if ((fd = openat( root_fd, dir, O_RDONLY | O_NONBLOCK )) == -1)
         return TRUE;
 
     if (ioctl( fd, EXT2_IOC_GETFLAGS, &flags ) != -1 && (flags & EXT4_CASEFOLD_FL))
@@ -1495,14 +1519,14 @@ static BOOLEAN get_dir_case_sensitivity_stat( const char *dir )
  * Checks if the volume containing the specified directory is case
  * sensitive or not. Uses multiple methods, depending on platform.
  */
-static BOOLEAN get_dir_case_sensitivity( const char *dir )
+static BOOLEAN get_dir_case_sensitivity( int root_fd, const char *dir )
 {
 #if defined(HAVE_GETATTRLIST) && defined(ATTR_VOL_CAPABILITIES) && \
     defined(VOL_CAPABILITIES_FORMAT) && defined(VOL_CAP_FMT_CASE_SENSITIVE)
-    int case_sensitive = get_dir_case_sensitivity_attr( dir );
+    int case_sensitive = get_dir_case_sensitivity_attr( root_fd, dir );
     if (case_sensitive != -1) return case_sensitive;
 #endif
-    return get_dir_case_sensitivity_stat( dir );
+    return get_dir_case_sensitivity_stat( root_fd, dir );
 }
 
 
@@ -2746,7 +2770,7 @@ static NTSTATUS read_directory_data_stat( struct dir_data *data, const char *uni
     struct stat st;
 
     /* if the file system is not case sensitive we can't find the actual name through stat() */
-    if (!get_dir_case_sensitivity(".")) return STATUS_NO_SUCH_FILE;
+    if (!get_dir_case_sensitivity( AT_FDCWD, "." )) return STATUS_NO_SUCH_FILE;
     if (stat( unix_name, &st ) == -1) return STATUS_NO_SUCH_FILE;
 
     TRACE( "found %s\n", debugstr_a(unix_name) );
@@ -3070,7 +3094,7 @@ NTSTATUS WINAPI NtQueryDirectoryFile( HANDLE handle, HANDLE event, PIO_APC_ROUTI
  * The file found is appended to unix_name at pos.
  * There must be at least MAX_DIR_ENTRY_LEN+2 chars available at pos.
  */
-static NTSTATUS find_file_in_dir( char *unix_name, int pos, const WCHAR *name, int length,
+static NTSTATUS find_file_in_dir( int root_fd, char *unix_name, int pos, const WCHAR *name, int length,
                                   BOOLEAN check_case )
 {
     WCHAR buffer[MAX_DIR_ENTRY_LEN];
@@ -3078,7 +3102,7 @@ static NTSTATUS find_file_in_dir( char *unix_name, int pos, const WCHAR *name, i
     DIR *dir;
     struct dirent *de;
     struct stat st;
-    int ret;
+    int fd, ret;
 
     /* try a shortcut for this directory */
 
@@ -3087,7 +3111,7 @@ static NTSTATUS find_file_in_dir( char *unix_name, int pos, const WCHAR *name, i
     if (ret >= 0 && ret <= MAX_DIR_ENTRY_LEN)
     {
         unix_name[pos + ret] = 0;
-        if (!lstat( unix_name, &st )) return STATUS_SUCCESS;
+        if (!fstatat( root_fd, unix_name, &st, 0 )) return STATUS_SUCCESS;
     }
     if (check_case) goto not_found;  /* we want an exact match */
 
@@ -3101,14 +3125,14 @@ static NTSTATUS find_file_in_dir( char *unix_name, int pos, const WCHAR *name, i
     is_name_8_dot_3 = is_name_8_dot_3 && length >= 8 && name[4] == '~';
 #endif
 
-    if (!is_name_8_dot_3 && !get_dir_case_sensitivity( unix_name )) goto not_found;
+    if (!is_name_8_dot_3 && !get_dir_case_sensitivity( root_fd, unix_name )) goto not_found;
 
     /* now look for it through the directory */
 
 #ifdef VFAT_IOCTL_READDIR_BOTH
     if (is_name_8_dot_3)
     {
-        int fd = open( unix_name, O_RDONLY | O_DIRECTORY );
+        int fd = openat( root_fd, unix_name, O_RDONLY | O_DIRECTORY );
         if (fd != -1)
         {
             KERNEL_DIRENT kde[2];
@@ -3153,7 +3177,12 @@ static NTSTATUS find_file_in_dir( char *unix_name, int pos, const WCHAR *name, i
     }
 #endif /* VFAT_IOCTL_READDIR_BOTH */
 
-    if (!(dir = opendir( unix_name ))) return errno_to_status( errno );
+    if ((fd = openat( root_fd, unix_name, O_RDONLY )) == -1) return errno_to_status( errno );
+    if (!(dir = fdopendir( fd )))
+    {
+        close( fd );
+        return errno_to_status( errno );
+    }
 
     unix_name[pos - 1] = '/';
     while ((de = readdir( dir )))
@@ -4386,9 +4415,8 @@ static NTSTATUS IoReplaceFileObjectName( FILE_OBJECT *fileobj, PWSTR name, USHOR
  *
  * Helper for nt_to_unix_file_name
  */
-static NTSTATUS lookup_unix_name( FILE_OBJECT *fileobj, const WCHAR *name, int name_len,
-                                  char **buffer, int unix_len, int pos, UINT disposition,
-                                  BOOL is_unix )
+static NTSTATUS lookup_unix_name( FILE_OBJECT *fileobj, int root_fd, const WCHAR *name, int name_len, char **buffer, int unix_len,
+                                  int pos, UINT disposition, BOOL is_unix )
 {
     static const WCHAR invalid_charsW[] = { INVALID_NT_CHARS, '/', 0 };
     const WCHAR *fullname = fileobj->FileName.Buffer;
@@ -4431,7 +4459,7 @@ static NTSTATUS lookup_unix_name( FILE_OBJECT *fileobj, const WCHAR *name, int n
         char *p;
         unix_name[pos + 1 + ret] = 0;
         for (p = unix_name + pos ; *p; p++) if (*p == '\\') *p = '/';
-        if (!lstat( unix_name, &st ))
+        if (!fstatat( root_fd, unix_name, &st, 0 ))
         {
             if (disposition == FILE_CREATE) return STATUS_OBJECT_NAME_COLLISION;
             return STATUS_SUCCESS;
@@ -4467,7 +4495,7 @@ static NTSTATUS lookup_unix_name( FILE_OBJECT *fileobj, const WCHAR *name, int n
             unix_name = *buffer = new_name;
         }
 
-        status = find_file_in_dir( unix_name, pos, name, end - name, is_unix );
+        status = find_file_in_dir( root_fd, unix_name, pos, name, end - name, is_unix );
 
         /* follow reparse point and restart from there (if applicable) */
         if (name_len && find_reparse_target( unix_name, fullname, name - fullname, &target, &target_len ) == STATUS_REPARSE)
@@ -4627,7 +4655,7 @@ static NTSTATUS nt_to_unix_file_name_no_root( FILE_OBJECT *fileobj, char **unix_
     name += prefix_len;
     name_len -= prefix_len;
 
-    status = lookup_unix_name( fileobj, name, name_len, &unix_name, unix_len, pos, disposition, is_unix );
+    status = lookup_unix_name( fileobj, AT_FDCWD, name, name_len, &unix_name, unix_len, pos, disposition, is_unix );
     if (status == STATUS_SUCCESS || status == STATUS_NO_SUCH_FILE)
     {
         TRACE( "%s -> %s\n", debugstr_us(nameW), debugstr_a(unix_name) );
@@ -4697,7 +4725,7 @@ reparse:
             mutex_lock( &dir_mutex );
             if ((old_cwd = open( ".", O_RDONLY )) != -1 && fchdir( root_fd ) != -1)
             {
-                status = lookup_unix_name( &fileobj, name, name_len, &unix_name, unix_len, 1,
+                status = lookup_unix_name( &fileobj, root_fd, name, name_len, &unix_name, unix_len, 1,
                                            disposition, FALSE );
                 if (fchdir( old_cwd ) == -1) chdir( "/" );
             }
