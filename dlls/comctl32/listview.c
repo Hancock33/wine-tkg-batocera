@@ -1023,6 +1023,34 @@ static BOOL notify_dispinfoT(const LISTVIEW_INFO *infoPtr, UINT code, LPNMLVDISP
     return ret;
 }
 
+static int notify_odfinditem(const LISTVIEW_INFO *infoPtr, NMLVFINDITEMW *nmlv)
+{
+    NMLVFINDITEMA nmlva;
+    char *str = NULL;
+    int len, ret;
+
+    if (infoPtr->notifyFormat == NFR_UNICODE)
+        return notify_hdr(infoPtr, LVN_ODFINDITEMW, &nmlv->hdr);
+
+    /* A/W layout is the same, the only difference is string encoding. */
+    memcpy(&nmlva, nmlv, sizeof(nmlva));
+    nmlva.lvfi.psz = NULL;
+
+    if (nmlv->lvfi.psz)
+    {
+        len = WideCharToMultiByte(CP_ACP, 0, nmlv->lvfi.psz, -1, NULL, 0, NULL, NULL);
+        str = Alloc(len);
+        if (!str) return 0;
+        WideCharToMultiByte(CP_ACP, 0, nmlv->lvfi.psz, -1, str, len, NULL, NULL);
+        nmlva.lvfi.psz = str;
+    }
+
+    ret = notify_hdr(infoPtr, LVN_ODFINDITEMA, &nmlva.hdr);
+    Free(str);
+
+    return ret;
+}
+
 static void customdraw_fill(NMLVCUSTOMDRAW *lpnmlvcd, const LISTVIEW_INFO *infoPtr, HDC hdc,
 			    const RECT *rcBounds, const LVITEMW *lplvItem)
 {
@@ -1917,7 +1945,7 @@ static INT LISTVIEW_ProcessLetterKeys(LISTVIEW_INFO *infoPtr, WPARAM charCode, L
 
         infoPtr->szSearchParam[infoPtr->nSearchParamLength] = 0;
 
-        nItem = notify_hdr(infoPtr, LVN_ODFINDITEMW, (LPNMHDR)&nmlv.hdr);
+        nItem = notify_odfinditem(infoPtr, &nmlv);
     }
     else
     {
@@ -5921,18 +5949,15 @@ static BOOL LISTVIEW_EndEditLabelT(LISTVIEW_INFO *infoPtr, BOOL storeText, BOOL 
 
     if (storeText)
     {
-        DWORD len = isW ? GetWindowTextLengthW(infoPtr->hwndEdit) : GetWindowTextLengthA(infoPtr->hwndEdit);
+        DWORD len = (isW ? GetWindowTextLengthW(infoPtr->hwndEdit) : GetWindowTextLengthA(infoPtr->hwndEdit)) + 1;
 
-        if (len++)
-        {
-            if (!(pszText = Alloc(len * (isW ? sizeof(WCHAR) : sizeof(CHAR)))))
-                return FALSE;
+        if (!(pszText = Alloc(len * (isW ? sizeof(WCHAR) : sizeof(CHAR)))))
+            return FALSE;
 
-            if (isW)
-                GetWindowTextW(infoPtr->hwndEdit, pszText, len);
-            else
-                GetWindowTextA(infoPtr->hwndEdit, (CHAR*)pszText, len);
-        }
+        if (isW)
+            GetWindowTextW(infoPtr->hwndEdit, pszText, len);
+        else
+            GetWindowTextA(infoPtr->hwndEdit, (CHAR*)pszText, len);
     }
 
     TRACE("(pszText=%s, isW=%d)\n", debugtext_t(pszText, isW), isW);
@@ -6301,7 +6326,7 @@ static INT LISTVIEW_FindItemW(const LISTVIEW_INFO *infoPtr, INT nStart,
 
         nmlv.iStart = nStart;
         nmlv.lvfi = *lpFindInfo;
-        return notify_hdr(infoPtr, LVN_ODFINDITEMW, (LPNMHDR)&nmlv.hdr);
+        return notify_odfinditem(infoPtr, &nmlv);
     }
 
     if (!lpFindInfo || nItem < 0) return -1;

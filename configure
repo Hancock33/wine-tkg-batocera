@@ -1522,6 +1522,7 @@ enable_windows_security_authentication_onlineid
 enable_windows_security_credentials_ui_userconsentverifier
 enable_windows_storage_applicationdata
 enable_windows_storage
+enable_windows_system_profile_systemid
 enable_windows_system_profile_systemmanufacturers
 enable_windows_ui_xaml
 enable_windows_ui
@@ -21256,6 +21257,7 @@ wine_fn_config_makefile dlls/d3dx9_32 enable_d3dx9_32
 wine_fn_config_makefile dlls/d3dx9_33 enable_d3dx9_33
 wine_fn_config_makefile dlls/d3dx9_34 enable_d3dx9_34
 wine_fn_config_makefile dlls/d3dx9_35 enable_d3dx9_35
+wine_fn_config_makefile dlls/d3dx9_35/tests enable_tests
 wine_fn_config_makefile dlls/d3dx9_36 enable_d3dx9_36
 wine_fn_config_makefile dlls/d3dx9_36/tests enable_tests
 wine_fn_config_makefile dlls/d3dx9_37 enable_d3dx9_37
@@ -21952,6 +21954,8 @@ wine_fn_config_makefile dlls/windows.storage.applicationdata enable_windows_stor
 wine_fn_config_makefile dlls/windows.storage.applicationdata/tests enable_tests
 wine_fn_config_makefile dlls/windows.storage enable_windows_storage
 wine_fn_config_makefile dlls/windows.storage/tests enable_tests
+wine_fn_config_makefile dlls/windows.system.profile.systemid enable_windows_system_profile_systemid
+wine_fn_config_makefile dlls/windows.system.profile.systemid/tests enable_tests
 wine_fn_config_makefile dlls/windows.system.profile.systemmanufacturers enable_windows_system_profile_systemmanufacturers
 wine_fn_config_makefile dlls/windows.system.profile.systemmanufacturers/tests enable_tests
 wine_fn_config_makefile dlls/windows.ui.xaml enable_windows_ui_xaml
@@ -22342,7 +22346,7 @@ fi
 
 as_fn_append wine_rules "
 dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-10.3.r3.gf247cd5d\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
+	@version=\`(echo \"wine-10.3.r6.gbb826f21\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$@) || echo \$\$build >\$@ || (rm -f \$@ && exit 1)
 programs/winetest/build.nfo:
