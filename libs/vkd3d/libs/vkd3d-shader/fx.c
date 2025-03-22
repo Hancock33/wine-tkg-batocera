@@ -25,6 +25,14 @@ static inline size_t put_u32_unaligned(struct vkd3d_bytecode_buffer *buffer, uin
     return bytecode_put_bytes_unaligned(buffer, &value, sizeof(value));
 }
 
+enum fx_2_type_constants
+{
+    /* Assignment types */
+    FX_2_ASSIGNMENT_CODE_BLOB = 0x0,
+    FX_2_ASSIGNMENT_PARAMETER = 0x1,
+    FX_2_ASSIGNMENT_ARRAY_SELECTOR = 0x2,
+};
+
 enum state_property_component_type
 {
     FX_BOOL,
@@ -279,6 +287,15 @@ static void set_status(struct fx_write_context *fx, int status)
         return;
     if (status < 0)
         fx->status = status;
+}
+
+static void fx_print_string(struct vkd3d_string_buffer *buffer, const char *prefix,
+        const char *s, size_t len)
+{
+    if (len)
+        --len; /* Trim terminating null. */
+    vkd3d_string_buffer_printf(buffer, "%s", prefix);
+    vkd3d_string_buffer_print_string_escaped(buffer, s, len);
 }
 
 static uint32_t write_string(const char *string, struct fx_write_context *fx)
@@ -725,6 +742,28 @@ static const struct rhs_named_value fx_2_lighttype_values[] =
     { NULL }
 };
 
+static const struct rhs_named_value fx_2_address_values[] =
+{
+    { "WRAP", 1 },
+    { "MIRROR", 2 },
+    { "CLAMP", 3 },
+    { "BORDER", 4 },
+    { "MIRROR_ONCE", 5 },
+    { NULL }
+};
+
+static const struct rhs_named_value fx_2_filter_values[] =
+{
+    { "NONE", 0 },
+    { "POINT", 1 },
+    { "LINEAR", 2 },
+    { "ANISOTROPIC", 3 },
+    { "PYRAMIDALQUAD", 6 },
+    { "GAUSSIANQUAD", 7 },
+    { "CONVOLUTIONMONO", 8 },
+    { NULL }
+};
+
 static const struct fx_2_state
 {
     const char *name;
@@ -895,6 +934,38 @@ fx_2_states[] =
 
     { "VertexShader",      HLSL_CLASS_SCALAR, FX_VERTEXSHADER, 1, 1, 146 },
     { "PixelShader",       HLSL_CLASS_SCALAR, FX_PIXELSHADER,  1, 1, 147 },
+
+    { "VertexShaderConstantF", HLSL_CLASS_SCALAR, FX_FLOAT, 1, ~0u-1, 148 },
+    { "VertexShaderConstantB", HLSL_CLASS_SCALAR, FX_BOOL,  1, ~0u-1, 149 },
+    { "VertexShaderConstantI", HLSL_CLASS_SCALAR, FX_UINT,  1, ~0u-1, 150 },
+    { "VertexShaderConstant",  HLSL_CLASS_SCALAR, FX_FLOAT, 1, ~0u-1, 151 },
+    { "VertexShaderConstant1", HLSL_CLASS_SCALAR, FX_FLOAT, 1, ~0u-1, 152 },
+    { "VertexShaderConstant2", HLSL_CLASS_SCALAR, FX_FLOAT, 1, ~0u-1, 153 },
+    { "VertexShaderConstant3", HLSL_CLASS_SCALAR, FX_FLOAT, 1, ~0u-1, 154 },
+    { "VertexShaderConstant4", HLSL_CLASS_SCALAR, FX_FLOAT, 1, ~0u-1, 155 },
+
+    { "PixelShaderConstantF", HLSL_CLASS_SCALAR, FX_FLOAT, 1, ~0u-1, 156 },
+    { "PixelShaderConstantB", HLSL_CLASS_SCALAR, FX_BOOL,  1, ~0u-1, 157 },
+    { "PixelShaderConstantI", HLSL_CLASS_SCALAR, FX_UINT,  1, ~0u-1, 158 },
+    { "PixelShaderConstant",  HLSL_CLASS_SCALAR, FX_FLOAT, 1, ~0u-1, 159 },
+    { "PixelShaderConstant1", HLSL_CLASS_SCALAR, FX_FLOAT, 1, ~0u-1, 160 },
+    { "PixelShaderConstant2", HLSL_CLASS_SCALAR, FX_FLOAT, 1, ~0u-1, 161 },
+    { "PixelShaderConstant3", HLSL_CLASS_SCALAR, FX_FLOAT, 1, ~0u-1, 162 },
+    { "PixelShaderConstant4", HLSL_CLASS_SCALAR, FX_FLOAT, 1, ~0u-1, 163 },
+
+    { "Texture",           HLSL_CLASS_SCALAR, FX_TEXTURE, 1, 1, 164 },
+    { "AddressU",          HLSL_CLASS_SCALAR, FX_UINT,    1, 1, 165, fx_2_address_values },
+    { "AddressV",          HLSL_CLASS_SCALAR, FX_UINT,    1, 1, 166, fx_2_address_values },
+    { "AddressW",          HLSL_CLASS_SCALAR, FX_UINT,    1, 1, 167, fx_2_address_values },
+    { "BorderColor",       HLSL_CLASS_SCALAR, FX_UINT,    1, 1, 168 },
+    { "MagFilter",         HLSL_CLASS_SCALAR, FX_UINT,    1, 1, 169, fx_2_filter_values },
+    { "MinFilter",         HLSL_CLASS_SCALAR, FX_UINT,    1, 1, 170, fx_2_filter_values },
+    { "MipFilter",         HLSL_CLASS_SCALAR, FX_UINT,    1, 1, 171, fx_2_filter_values },
+    { "MipMapLodBias",     HLSL_CLASS_SCALAR, FX_UINT,    1, 1, 172 },
+    { "MaxMipLevel",       HLSL_CLASS_SCALAR, FX_UINT,    1, 1, 173 },
+    { "MaxAnisotropy",     HLSL_CLASS_SCALAR, FX_UINT,    1, 1, 174 },
+    { "SRBTexture",        HLSL_CLASS_SCALAR, FX_UINT,    1, 1, 175 },
+    { "ElementIndex",      HLSL_CLASS_SCALAR, FX_UINT,    1, 1, 176 },
 };
 
 static void write_fx_2_pass(struct hlsl_ir_var *var, struct fx_write_context *fx)
@@ -1659,7 +1730,13 @@ static uint32_t write_fx_2_object_initializer(const struct hlsl_ir_var *var, str
             put_u32(buffer, id);
             put_u32(buffer, size);
             if (size)
+            {
+                static const uint32_t pad;
+
                 bytecode_put_bytes(buffer, data, size);
+                if (size % 4)
+                    bytecode_put_bytes_unaligned(buffer, &pad, 4 - (size % 4));
+            }
         }
     }
 
@@ -3452,13 +3529,12 @@ static void parse_fx_print_indent(struct fx_parser *parser)
     vkd3d_string_buffer_printf(&parser->buffer, "%*s", 4 * parser->indent, "");
 }
 
-static const char *fx_2_get_string(struct fx_parser *parser, uint32_t offset)
+static const char *fx_2_get_string(struct fx_parser *parser, uint32_t offset, uint32_t *size)
 {
     const char *ptr;
-    uint32_t size;
 
-    fx_parser_read_unstructured(parser, &size, offset, sizeof(size));
-    ptr = fx_parser_get_unstructured_ptr(parser, offset + 4, size);
+    fx_parser_read_unstructured(parser, size, offset, sizeof(*size));
+    ptr = fx_parser_get_unstructured_ptr(parser, offset + 4, *size);
 
     if (!ptr)
     {
@@ -3624,13 +3700,14 @@ static void fx_parse_fx_2_parameter(struct fx_parser *parser, uint32_t offset)
         uint32_t element_count;
     } var;
     const char *name;
+    uint32_t size;
 
     fx_parser_read_unstructured(parser, &var, offset, sizeof(var));
 
     fx_parse_fx_2_type(parser, offset);
 
-    name = fx_2_get_string(parser, var.name);
-    vkd3d_string_buffer_printf(&parser->buffer, " %s", name);
+    name = fx_2_get_string(parser, var.name, &size);
+    fx_print_string(&parser->buffer, " ", name, size);
     if (var.element_count)
         vkd3d_string_buffer_printf(&parser->buffer, "[%u]", var.element_count);
 }
@@ -3642,6 +3719,40 @@ static bool is_fx_2_sampler(uint32_t type)
             || type == D3DXPT_SAMPLER2D
             || type == D3DXPT_SAMPLER3D
             || type == D3DXPT_SAMPLERCUBE;
+}
+
+static void fx_parse_fx_2_assignment(struct fx_parser *parser, const struct fx_assignment *entry);
+
+static void parse_fx_2_sampler(struct fx_parser *parser, uint32_t element_count,
+        uint32_t offset)
+{
+    struct fx_assignment entry;
+    uint32_t count;
+
+    element_count = max(element_count, 1);
+
+    vkd3d_string_buffer_printf(&parser->buffer, "\n");
+    for (uint32_t i = 0; i < element_count; ++i)
+    {
+        fx_parser_read_unstructured(parser, &count, offset, sizeof(count));
+        offset += sizeof(count);
+
+        parse_fx_start_indent(parser);
+        parse_fx_print_indent(parser);
+        vkd3d_string_buffer_printf(&parser->buffer, "{\n");
+        parse_fx_start_indent(parser);
+        for (uint32_t j = 0; j < count; ++j, offset += sizeof(entry))
+        {
+            fx_parser_read_unstructured(parser, &entry, offset, sizeof(entry));
+
+            parse_fx_print_indent(parser);
+            fx_parse_fx_2_assignment(parser, &entry);
+        }
+        parse_fx_end_indent(parser);
+        parse_fx_print_indent(parser);
+        vkd3d_string_buffer_printf(&parser->buffer, "},\n");
+        parse_fx_end_indent(parser);
+    }
 }
 
 static void fx_parse_fx_2_initial_value(struct fx_parser *parser, uint32_t param, uint32_t value)
@@ -3672,8 +3783,7 @@ static void fx_parse_fx_2_initial_value(struct fx_parser *parser, uint32_t param
     if (var.class == D3DXPC_OBJECT)
     {
         if (is_fx_2_sampler(var.type))
-            fx_parser_error(parser, VKD3D_SHADER_ERROR_FX_NOT_IMPLEMENTED,
-                    "Parsing sampler initializers is not supported.");
+            parse_fx_2_sampler(parser, var.element_count, value);
         else
             parse_fx_2_object_value(parser, var.element_count, var.type, value);
     }
@@ -3714,24 +3824,22 @@ static void fx_parse_fx_2_annotations(struct fx_parser *parser, uint32_t count)
     vkd3d_string_buffer_printf(&parser->buffer, ">");
 }
 
-static void fx_parse_fx_2_assignment(struct fx_parser *parser)
+static void fx_parse_fx_2_assignment(struct fx_parser *parser, const struct fx_assignment *entry)
 {
     const struct rhs_named_value *named_value = NULL;
     const struct fx_2_state *state = NULL;
-    struct fx_assignment entry;
 
-    fx_parser_read_u32s(parser, &entry, sizeof(entry));
-    if (entry.id <= ARRAY_SIZE(fx_2_states))
+    if (entry->id <= ARRAY_SIZE(fx_2_states))
     {
-        state = &fx_2_states[entry.id];
+        state = &fx_2_states[entry->id];
 
         vkd3d_string_buffer_printf(&parser->buffer, "%s", state->name);
         if (state->array_size > 1)
-            vkd3d_string_buffer_printf(&parser->buffer, "[%u]", entry.lhs_index);
+            vkd3d_string_buffer_printf(&parser->buffer, "[%u]", entry->lhs_index);
     }
     else
     {
-        vkd3d_string_buffer_printf(&parser->buffer, "<unrecognized state %u>", entry.id);
+        vkd3d_string_buffer_printf(&parser->buffer, "<unrecognized state %u>", entry->id);
     }
     vkd3d_string_buffer_printf(&parser->buffer, " = ");
 
@@ -3740,7 +3848,7 @@ static void fx_parse_fx_2_assignment(struct fx_parser *parser)
         const struct rhs_named_value *ptr = state->values;
         uint32_t value;
 
-        fx_parser_read_unstructured(parser, &value, entry.value, sizeof(value));
+        fx_parser_read_unstructured(parser, &value, entry->value, sizeof(value));
 
         while (ptr->name)
         {
@@ -3757,13 +3865,27 @@ static void fx_parse_fx_2_assignment(struct fx_parser *parser)
     {
         vkd3d_string_buffer_printf(&parser->buffer, "%s /* %u */", named_value->name, named_value->value);
     }
-    else if (state && (state->type == FX_UINT || state->type == FX_FLOAT))
+    else if (state)
     {
-        uint32_t offset = entry.type;
-        unsigned int size;
+        if (state->type == FX_UINT || state->type == FX_FLOAT)
+        {
+            uint32_t offset = entry->type;
+            unsigned int size;
 
-        size = fx_get_fx_2_type_size(parser, &offset);
-        parse_fx_2_numeric_value(parser, entry.value, size, entry.type);
+            size = fx_get_fx_2_type_size(parser, &offset);
+            parse_fx_2_numeric_value(parser, entry->value, size, entry->type);
+        }
+        else if (state->type == FX_VERTEXSHADER || state->type == FX_PIXELSHADER)
+        {
+            uint32_t id;
+
+            fx_parser_read_unstructured(parser, &id, entry->value, sizeof(id));
+            vkd3d_string_buffer_printf(&parser->buffer, "<object id %u>", id);
+        }
+        else
+        {
+            vkd3d_string_buffer_printf(&parser->buffer, "<ignored>");
+        }
     }
     else
     {
@@ -3787,16 +3909,17 @@ static void fx_parse_fx_2_technique(struct fx_parser *parser)
         uint32_t assignment_count;
     } pass;
     const char *name;
+    uint32_t size;
 
     if (parser->failed)
         return;
 
     fx_parser_read_u32s(parser, &technique, sizeof(technique));
 
-    name = fx_2_get_string(parser, technique.name);
+    name = fx_2_get_string(parser, technique.name, &size);
 
     parse_fx_print_indent(parser);
-    vkd3d_string_buffer_printf(&parser->buffer, "technique %s", name);
+    fx_print_string(&parser->buffer, "technique ", name, size);
     fx_parse_fx_2_annotations(parser, technique.annotation_count);
 
     vkd3d_string_buffer_printf(&parser->buffer, "\n");
@@ -3807,10 +3930,10 @@ static void fx_parse_fx_2_technique(struct fx_parser *parser)
     for (uint32_t i = 0; i < technique.pass_count; ++i)
     {
         fx_parser_read_u32s(parser, &pass, sizeof(pass));
-        name = fx_2_get_string(parser, pass.name);
+        name = fx_2_get_string(parser, pass.name, &size);
 
         parse_fx_print_indent(parser);
-        vkd3d_string_buffer_printf(&parser->buffer, "pass %s", name);
+        fx_print_string(&parser->buffer, "pass ", name, size);
         fx_parse_fx_2_annotations(parser, pass.annotation_count);
 
         vkd3d_string_buffer_printf(&parser->buffer, "\n");
@@ -3820,8 +3943,11 @@ static void fx_parse_fx_2_technique(struct fx_parser *parser)
         parse_fx_start_indent(parser);
         for (uint32_t j = 0; j < pass.assignment_count; ++j)
         {
+            struct fx_assignment entry;
+
             parse_fx_print_indent(parser);
-            fx_parse_fx_2_assignment(parser);
+            fx_parser_read_u32s(parser, &entry, sizeof(entry));
+            fx_parse_fx_2_assignment(parser, &entry);
         }
         parse_fx_end_indent(parser);
 
@@ -3858,10 +3984,62 @@ static void fx_2_parse_parameters(struct fx_parser *parser, uint32_t count)
         vkd3d_string_buffer_printf(&parser->buffer, "\n");
 }
 
+static void fx_parse_shader_blob(struct fx_parser *parser, enum vkd3d_shader_source_type source_type,
+        const void *data, uint32_t data_size)
+{
+    struct vkd3d_shader_compile_info info = { 0 };
+    struct vkd3d_shader_code output;
+    const char *p, *q, *end;
+    int ret;
+
+    static const struct vkd3d_shader_compile_option options[] =
+    {
+        {VKD3D_SHADER_COMPILE_OPTION_API_VERSION, VKD3D_SHADER_API_VERSION_1_15},
+    };
+
+    info.type = VKD3D_SHADER_STRUCTURE_TYPE_COMPILE_INFO;
+    info.source.code = data;
+    info.source.size = data_size;
+    info.source_type = source_type;
+    info.target_type = VKD3D_SHADER_TARGET_D3D_ASM;
+    info.options = options;
+    info.option_count = ARRAY_SIZE(options);
+    info.log_level = VKD3D_SHADER_LOG_INFO;
+
+    if ((ret = vkd3d_shader_compile(&info, &output, NULL)) < 0)
+    {
+        fx_parser_error(parser, VKD3D_SHADER_ERROR_FX_INVALID_DATA,
+                "Failed to disassemble shader blob.");
+        return;
+    }
+    parse_fx_print_indent(parser);
+    vkd3d_string_buffer_printf(&parser->buffer, "asm {\n");
+
+    parse_fx_start_indent(parser);
+
+    end = (const char *)output.code + output.size;
+    for (p = output.code; p < end; p = q)
+    {
+        if (!(q = memchr(p, '\n', end - p)))
+            q = end;
+        else
+            ++q;
+
+        parse_fx_print_indent(parser);
+        vkd3d_string_buffer_printf(&parser->buffer, "%.*s", (int)(q - p), p);
+    }
+
+    parse_fx_end_indent(parser);
+    parse_fx_print_indent(parser);
+    vkd3d_string_buffer_printf(&parser->buffer, "}");
+
+    vkd3d_shader_free_shader_code(&output);
+}
+
 static void fx_parse_fx_2_data_blob(struct fx_parser *parser)
 {
     uint32_t id, size;
-    const char *str;
+    const void *data;
 
     id = fx_parser_read_u32(parser);
     size = fx_parser_read_u32(parser);
@@ -3882,13 +4060,24 @@ static void fx_parse_fx_2_data_blob(struct fx_parser *parser)
             case D3DXPT_VERTEXSHADER:
                 vkd3d_string_buffer_printf(&parser->buffer, "%s object %u size %u bytes%s\n",
                         fx_2_types[type], id, size, size ? ":" : ",");
-                if (size && type == D3DXPT_STRING)
+
+                if (size)
                 {
-                    parse_fx_start_indent(parser);
-                    parse_fx_print_indent(parser);
-                    str = fx_parser_get_ptr(parser, size);
-                    vkd3d_string_buffer_printf(&parser->buffer, "\"%.*s\"\n", size, str);
-                    parse_fx_end_indent(parser);
+                    data = fx_parser_get_ptr(parser, size);
+
+                    if (type == D3DXPT_STRING)
+                    {
+                        parse_fx_start_indent(parser);
+                        parse_fx_print_indent(parser);
+                        fx_print_string(&parser->buffer, "\"", (const char *)data, size);
+                        vkd3d_string_buffer_printf(&parser->buffer, "\"");
+                        parse_fx_end_indent(parser);
+                    }
+                    else if (type == D3DXPT_PIXELSHADER || type == D3DXPT_VERTEXSHADER)
+                    {
+                        fx_parse_shader_blob(parser, VKD3D_SHADER_SOURCE_D3D_BYTECODE, data, size);
+                    }
+                    vkd3d_string_buffer_printf(&parser->buffer, "\n");
                 }
                 break;
             default:
@@ -3903,9 +4092,117 @@ static void fx_parse_fx_2_data_blob(struct fx_parser *parser)
     fx_parser_skip(parser, align(size, 4));
 }
 
+static void fx_dump_blob(struct fx_parser *parser, const void *blob, uint32_t size)
+{
+    const uint32_t *data = blob;
+    unsigned int i, j, n;
+
+    size /= sizeof(*data);
+    i = 0;
+    while (i < size)
+    {
+        parse_fx_print_indent(parser);
+        n = min(size - i, 8);
+        for (j = 0; j < n; ++j)
+            vkd3d_string_buffer_printf(&parser->buffer, "0x%08x,", data[i + j]);
+        i += n;
+        vkd3d_string_buffer_printf(&parser->buffer, "\n");
+    }
+}
+
+static void fx_parse_fx_2_array_selector(struct fx_parser *parser, uint32_t size)
+{
+    const uint8_t *end = parser->ptr + size;
+    uint32_t name_size, blob_size = 0;
+    const void *blob = NULL;
+    const char *name;
+
+    name_size = fx_parser_read_u32(parser);
+    name = fx_parser_get_ptr(parser, name_size);
+    fx_parser_skip(parser, name_size);
+
+    if (!name || (uint8_t *)name >= end)
+        fx_parser_error(parser, VKD3D_SHADER_ERROR_FX_INVALID_DATA,
+                "Malformed name entry in the array selector.");
+
+    if (parser->ptr <= end)
+    {
+        blob_size = end - parser->ptr;
+        blob = fx_parser_get_ptr(parser, blob_size);
+        fx_parser_skip(parser, blob_size);
+    }
+    else
+    {
+        fx_parser_error(parser, VKD3D_SHADER_ERROR_FX_INVALID_DATA,
+                "Malformed blob entry in the array selector.");
+    }
+
+    if (name)
+    {
+        fx_print_string(&parser->buffer, "array \"", name, name_size);
+        vkd3d_string_buffer_printf(&parser->buffer, "\"\n");
+    }
+    if (blob)
+    {
+        parse_fx_print_indent(parser);
+        vkd3d_string_buffer_printf(&parser->buffer, "selector blob size %u\n", blob_size);
+        fx_dump_blob(parser, blob, blob_size);
+    }
+}
+
+static void fx_parse_fx_2_complex_state(struct fx_parser *parser)
+{
+    struct
+    {
+        uint32_t technique;
+        uint32_t index;
+        uint32_t element;
+        uint32_t state;
+        uint32_t assignment_type;
+    } state;
+    const char *data;
+    uint32_t size;
+
+    fx_parser_read_u32s(parser, &state, sizeof(state));
+
+    if (state.technique == ~0u)
+    {
+        vkd3d_string_buffer_printf(&parser->buffer, "parameter %u[%u], state %u =\n",
+                state.index, state.element, state.state);
+    }
+    else
+    {
+        vkd3d_string_buffer_printf(&parser->buffer, "technique %u, pass %u, state %u =\n",
+                state.technique, state.index, state.state);
+    }
+
+    size = fx_parser_read_u32(parser);
+
+    parse_fx_print_indent(parser);
+
+    if (state.assignment_type == FX_2_ASSIGNMENT_PARAMETER)
+    {
+        data = fx_parser_get_ptr(parser, size);
+        fx_print_string(&parser->buffer, "parameter \"", data, size);
+        vkd3d_string_buffer_printf(&parser->buffer, "\"\n");
+        fx_parser_skip(parser, align(size, 4));
+    }
+    else if (state.assignment_type == FX_2_ASSIGNMENT_ARRAY_SELECTOR)
+    {
+        fx_parse_fx_2_array_selector(parser, size);
+    }
+    else
+    {
+        vkd3d_string_buffer_printf(&parser->buffer, "blob size %u\n", size);
+        data = fx_parser_get_ptr(parser, size);
+        fx_dump_blob(parser, data, size);
+        fx_parser_skip(parser, align(size, 4));
+    }
+}
+
 static void fx_2_parse(struct fx_parser *parser)
 {
-    uint32_t i, size, parameter_count, technique_count, blob_count;
+    uint32_t i, size, parameter_count, technique_count, blob_count, state_count;
 
     fx_parser_skip(parser, sizeof(uint32_t)); /* Version */
     size = fx_parser_read_u32(parser);
@@ -3931,12 +4228,19 @@ static void fx_2_parse(struct fx_parser *parser)
         fx_parse_fx_2_technique(parser);
 
     blob_count = fx_parser_read_u32(parser);
-    fx_parser_read_u32(parser); /* Resource count */
+    state_count = fx_parser_read_u32(parser);
 
     vkd3d_string_buffer_printf(&parser->buffer, "object data {\n");
     parse_fx_start_indent(parser);
     for (i = 0; i < blob_count; ++i)
         fx_parse_fx_2_data_blob(parser);
+    parse_fx_end_indent(parser);
+    vkd3d_string_buffer_printf(&parser->buffer, "}\n\n");
+
+    vkd3d_string_buffer_printf(&parser->buffer, "state data {\n");
+    parse_fx_start_indent(parser);
+    for (i = 0; i < state_count; ++i)
+        fx_parse_fx_2_complex_state(parser);
     parse_fx_end_indent(parser);
     vkd3d_string_buffer_printf(&parser->buffer, "}\n");
 }
@@ -4157,17 +4461,8 @@ static void fx_parse_buffers(struct fx_parser *parser)
 
 static void fx_4_parse_shader_blob(struct fx_parser *parser, unsigned int object_type, const struct fx_5_shader *shader)
 {
-    struct vkd3d_shader_compile_info info = { 0 };
-    struct vkd3d_shader_code output;
     const void *data = NULL;
-    const char *p, *q, *end;
     uint32_t data_size;
-    int ret;
-
-    static const struct vkd3d_shader_compile_option options[] =
-    {
-        {VKD3D_SHADER_COMPILE_OPTION_API_VERSION, VKD3D_SHADER_API_VERSION_1_15},
-    };
 
     if (!shader->offset)
     {
@@ -4183,42 +4478,8 @@ static void fx_4_parse_shader_blob(struct fx_parser *parser, unsigned int object
     if (!data)
         return;
 
-    info.type = VKD3D_SHADER_STRUCTURE_TYPE_COMPILE_INFO;
-    info.source.code = data;
-    info.source.size = data_size;
-    info.source_type = VKD3D_SHADER_SOURCE_DXBC_TPF;
-    info.target_type = VKD3D_SHADER_TARGET_D3D_ASM;
-    info.options = options;
-    info.option_count = ARRAY_SIZE(options);
-    info.log_level = VKD3D_SHADER_LOG_INFO;
+    fx_parse_shader_blob(parser, VKD3D_SHADER_SOURCE_DXBC_TPF, data, data_size);
 
-    if ((ret = vkd3d_shader_compile(&info, &output, NULL)) < 0)
-    {
-        fx_parser_error(parser, VKD3D_SHADER_ERROR_FX_INVALID_DATA,
-                "Failed to disassemble shader blob.");
-        return;
-    }
-    parse_fx_print_indent(parser);
-    vkd3d_string_buffer_printf(&parser->buffer, "asm {\n");
-
-    parse_fx_start_indent(parser);
-
-    end = (const char *)output.code + output.size;
-    for (p = output.code; p < end; p = q)
-    {
-        if (!(q = memchr(p, '\n', end - p)))
-            q = end;
-        else
-            ++q;
-
-        parse_fx_print_indent(parser);
-        vkd3d_string_buffer_printf(&parser->buffer, "%.*s", (int)(q - p), p);
-    }
-
-    parse_fx_end_indent(parser);
-
-    parse_fx_print_indent(parser);
-    vkd3d_string_buffer_printf(&parser->buffer, "}");
     if (object_type == FX_4_OBJECT_TYPE_GEOMETRY_SHADER_SO && shader->sodecl[0])
     {
         vkd3d_string_buffer_printf(&parser->buffer, "\n/* Stream output declaration: \"%s\" */",
@@ -4235,8 +4496,6 @@ static void fx_4_parse_shader_blob(struct fx_parser *parser, unsigned int object
         if (shader->sodecl_count)
             vkd3d_string_buffer_printf(&parser->buffer, "\n/* Rasterized stream %u */", shader->rast_stream);
     }
-
-    vkd3d_shader_free_shader_code(&output);
 }
 
 static void fx_4_parse_shader_initializer(struct fx_parser *parser, unsigned int object_type)

@@ -1,6 +1,6 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at 30f69aa4 Staging: Avoid leaking staging_event for every thread.
+HEAD is now at c110178b Release v10.4
 HEAD is now at 0927c5c3da7 Release 10.4.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
@@ -275,6 +275,9 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vcomp_for_dynamic_init_i8/0001-vcomp-Implement-_vcomp_for_dynamic_init_i8.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/version-VerQueryValue/0001-version-Test-for-VerQueryValueA-try-2.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0001-Updated-vkd3d-to-81dc67b1ef411ea3cd7c09e6e935765ac15.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0002-Updated-vkd3d-to-a4f58be00c58e06b5bd60bec7eb9e37b6f1.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0003-Updated-vkd3d-to-e418bbcfac74230dfbf0c49b72c4f059cb1.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0004-Updated-vkd3d-to-110edf32d0b2a2f0a49cdd76c977b9eedd0.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wbemdisp-ISWbemObject-Invoke/0001-wbemdisp-Support-DISPATCH_METHOD-in-ISWbemObject-Inv.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wbemdisp-ISWbemObject-Invoke/0002-vbscript-Support-VT_BSTR-VT_ARRAY-Iterator.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wbemdisp-ISWbemObject-Invoke/0003-wbemprox-Support-VT_BYREF-in-to_longlong.patch
@@ -317,13 +320,13 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Fixed-scancodes/0008-winex11-Support-fixed-X11-keycode-to-scancode-conver.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Fixed-scancodes/0009-winex11-Disable-keyboard-scancode-auto-detection-by-.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-WM_WINDOWPOSCHANGING/0001-winex11.drv-Send-WM_WINDOWPOSCHANGING-WM_WINDOWPOSCH.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Window_Style/0001-winex11-Fix-handling-of-window-attributes-for-WS_EX_.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-ime-check-thread-data/0001-winex11.drv-handle-missing-thread-data-in-X11DRV_get_ic.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11.drv-Query_server_position/0001-winex11.drv-window-Query-the-X-server-for-the-actual.patch
 include/wine/server_protocol.h updated
 include/wine/server_protocol.h updated
 server/request_trace.h updated
 server/request_handlers.h updated
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Window_Style/0001-winex11-Fix-handling-of-window-attributes-for-WS_EX_.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-ime-check-thread-data/0001-winex11.drv-handle-missing-thread-data-in-X11DRV_get_ic.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11.drv-Query_server_position/0001-winex11.drv-window-Query-the-X-server-for-the-actual.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wininet-Cleanup/0001-wininet-tests-Add-more-tests-for-cookies.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wininet-Cleanup/0002-wininet-tests-Test-auth-credential-reusage-with-host.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wininet-Cleanup/0003-wininet-tests-Check-cookie-behaviour-when-overriding.patch
