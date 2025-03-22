@@ -234,6 +234,33 @@ unsigned int hlsl_get_multiarray_size(const struct hlsl_type *type)
     return 1;
 }
 
+const struct hlsl_type *hlsl_get_stream_output_type(const struct hlsl_type *type)
+{
+    unsigned int i;
+
+    switch (type->class)
+    {
+        case HLSL_CLASS_ARRAY:
+            return hlsl_get_stream_output_type(type->e.array.type);
+
+        case HLSL_CLASS_STRUCT:
+            for (i = 0; i < type->e.record.field_count; ++i)
+            {
+                const struct hlsl_type *field_type = hlsl_get_stream_output_type(type->e.record.fields[i].type);
+
+                if (field_type)
+                    return field_type;
+            }
+            return NULL;
+
+        case HLSL_CLASS_STREAM_OUTPUT:
+            return type;
+
+        default:
+            return NULL;
+    }
+}
+
 bool hlsl_type_is_resource(const struct hlsl_type *type)
 {
     switch (type->class)
@@ -296,6 +323,12 @@ bool hlsl_type_is_patch_array(const struct hlsl_type *type)
 {
     return type->class == HLSL_CLASS_ARRAY && (type->e.array.array_type == HLSL_ARRAY_PATCH_INPUT
             || type->e.array.array_type == HLSL_ARRAY_PATCH_OUTPUT);
+}
+
+bool hlsl_type_is_primitive_array(const struct hlsl_type *type)
+{
+    return type->class == HLSL_CLASS_ARRAY && (type->e.array.array_type != HLSL_ARRAY_GENERIC
+            || (type->modifiers & HLSL_PRIMITIVE_MODIFIERS_MASK));
 }
 
 bool hlsl_base_type_is_integer(enum hlsl_base_type type)
@@ -739,8 +772,7 @@ unsigned int hlsl_type_get_component_offset(struct hlsl_ctx *ctx, struct hlsl_ty
     return offset[*regset];
 }
 
-static bool init_deref(struct hlsl_ctx *ctx, struct hlsl_deref *deref, struct hlsl_ir_var *var,
-        unsigned int path_len)
+bool hlsl_init_deref(struct hlsl_ctx *ctx, struct hlsl_deref *deref, struct hlsl_ir_var *var, unsigned int path_len)
 {
     deref->var = var;
     deref->path_len = path_len;
@@ -798,7 +830,7 @@ bool hlsl_init_deref_from_index_chain(struct hlsl_ctx *ctx, struct hlsl_deref *d
     }
     load = hlsl_ir_load(ptr);
 
-    if (!init_deref(ctx, deref, load->src.var, load->src.path_len + chain_len))
+    if (!hlsl_init_deref(ctx, deref, load->src.var, load->src.path_len + chain_len))
         return false;
 
     for (i = 0; i < load->src.path_len; ++i)
@@ -867,7 +899,7 @@ static bool init_deref_from_component_index(struct hlsl_ctx *ctx, struct hlsl_bl
         ++path_len;
     }
 
-    if (!init_deref(ctx, deref, prefix->var, prefix->path_len + path_len))
+    if (!hlsl_init_deref(ctx, deref, prefix->var, prefix->path_len + path_len))
         return false;
 
     deref_path_len = 0;
@@ -1133,6 +1165,7 @@ unsigned int hlsl_type_component_count(const struct hlsl_type *type)
         case HLSL_CLASS_HULL_SHADER:
         case HLSL_CLASS_GEOMETRY_SHADER:
         case HLSL_CLASS_BLEND_STATE:
+        case HLSL_CLASS_STREAM_OUTPUT:
         case HLSL_CLASS_NULL:
             return 1;
 
@@ -1140,7 +1173,6 @@ unsigned int hlsl_type_component_count(const struct hlsl_type *type)
         case HLSL_CLASS_PASS:
         case HLSL_CLASS_TECHNIQUE:
         case HLSL_CLASS_VOID:
-        case HLSL_CLASS_STREAM_OUTPUT:
             break;
     }
 
@@ -1459,7 +1491,7 @@ bool hlsl_copy_deref(struct hlsl_ctx *ctx, struct hlsl_deref *deref, const struc
 
     VKD3D_ASSERT(!hlsl_deref_is_lowered(other));
 
-    if (!init_deref(ctx, deref, other->var, other->path_len))
+    if (!hlsl_init_deref(ctx, deref, other->var, other->path_len))
         return false;
 
     for (i = 0; i < deref->path_len; ++i)
@@ -1521,7 +1553,7 @@ struct hlsl_ir_node *hlsl_new_store_index(struct hlsl_ctx *ctx, const struct hls
         return NULL;
     init_node(&store->node, HLSL_IR_STORE, NULL, loc);
 
-    if (!init_deref(ctx, &store->lhs, lhs->var, lhs->path_len + !!idx))
+    if (!hlsl_init_deref(ctx, &store->lhs, lhs->var, lhs->path_len + !!idx))
     {
         vkd3d_free(store);
         return NULL;
@@ -1857,7 +1889,7 @@ struct hlsl_ir_load *hlsl_new_load_index(struct hlsl_ctx *ctx, const struct hlsl
         return NULL;
     init_node(&load->node, HLSL_IR_LOAD, type, loc);
 
-    if (!init_deref(ctx, &load->src, deref->var, deref->path_len + !!idx))
+    if (!hlsl_init_deref(ctx, &load->src, deref->var, deref->path_len + !!idx))
     {
         vkd3d_free(load);
         return NULL;
@@ -1939,7 +1971,7 @@ struct hlsl_ir_node *hlsl_block_add_load_component(struct hlsl_ctx *ctx, struct 
     return &load->node;
 }
 
-struct hlsl_ir_node *hlsl_new_resource_load(struct hlsl_ctx *ctx,
+static struct hlsl_ir_node *hlsl_new_resource_load(struct hlsl_ctx *ctx,
         const struct hlsl_resource_load_params *params, const struct vkd3d_shader_location *loc)
 {
     struct hlsl_ir_resource_load *load;
@@ -1976,6 +2008,12 @@ struct hlsl_ir_node *hlsl_new_resource_load(struct hlsl_ctx *ctx,
     if (load->sampling_dim == HLSL_SAMPLER_DIM_GENERIC)
         load->sampling_dim = hlsl_deref_get_type(ctx, &load->resource)->sampler_dim;
     return &load->node;
+}
+
+struct hlsl_ir_node *hlsl_block_add_resource_load(struct hlsl_ctx *ctx, struct hlsl_block *block,
+        const struct hlsl_resource_load_params *params, const struct vkd3d_shader_location *loc)
+{
+    return append_new_instr(ctx, block, hlsl_new_resource_load(ctx, params, loc));
 }
 
 static struct hlsl_ir_node *hlsl_new_resource_store(struct hlsl_ctx *ctx, const struct hlsl_deref *resource,
@@ -2020,6 +2058,12 @@ struct hlsl_ir_node *hlsl_new_swizzle(struct hlsl_ctx *ctx, uint32_t s, unsigned
     swizzle->u.vector = s;
 
     return &swizzle->node;
+}
+
+struct hlsl_ir_node *hlsl_block_add_swizzle(struct hlsl_ctx *ctx, struct hlsl_block *block, uint32_t s,
+        unsigned int width, struct hlsl_ir_node *val, const struct vkd3d_shader_location *loc)
+{
+    return append_new_instr(ctx, block, hlsl_new_swizzle(ctx, s, width, val, loc));
 }
 
 struct hlsl_ir_node *hlsl_new_matrix_swizzle(struct hlsl_ctx *ctx, struct hlsl_matrix_swizzle s,
@@ -2367,7 +2411,7 @@ static bool clone_deref(struct hlsl_ctx *ctx, struct clone_instr_map *map,
 
     VKD3D_ASSERT(!hlsl_deref_is_lowered(src));
 
-    if (!init_deref(ctx, dst, src->var, src->path_len))
+    if (!hlsl_init_deref(ctx, dst, src->var, src->path_len))
         return false;
 
     for (i = 0; i < src->path_len; ++i)
@@ -3203,6 +3247,16 @@ struct vkd3d_string_buffer *hlsl_modifiers_to_string(struct hlsl_ctx *ctx, uint3
         vkd3d_string_buffer_printf(string, "row_major ");
     if (modifiers & HLSL_MODIFIER_COLUMN_MAJOR)
         vkd3d_string_buffer_printf(string, "column_major ");
+    if (modifiers & HLSL_PRIMITIVE_POINT)
+        vkd3d_string_buffer_printf(string, "point ");
+    if (modifiers & HLSL_PRIMITIVE_LINE)
+        vkd3d_string_buffer_printf(string, "line ");
+    if (modifiers & HLSL_PRIMITIVE_TRIANGLE)
+        vkd3d_string_buffer_printf(string, "triangle ");
+    if (modifiers & HLSL_PRIMITIVE_LINEADJ)
+        vkd3d_string_buffer_printf(string, "lineadj ");
+    if (modifiers & HLSL_PRIMITIVE_TRIANGLEADJ)
+        vkd3d_string_buffer_printf(string, "triangleadj ");
     if ((modifiers & (HLSL_STORAGE_IN | HLSL_STORAGE_OUT)) == (HLSL_STORAGE_IN | HLSL_STORAGE_OUT))
         vkd3d_string_buffer_printf(string, "inout ");
     else if (modifiers & HLSL_STORAGE_IN)
@@ -4736,6 +4790,8 @@ static bool hlsl_ctx_init(struct hlsl_ctx *ctx, const struct vkd3d_shader_compil
     ctx->output_primitive = 0;
     ctx->partitioning = 0;
     ctx->input_control_point_count = UINT_MAX;
+    ctx->max_vertex_count = 0;
+    ctx->input_primitive_type = VKD3D_PT_UNDEFINED;
 
     return true;
 }
