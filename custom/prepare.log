@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at bb826f21 Rebase against ced1402d20ba874f9634a306630455366c3865b5.
-HEAD is now at ced1402d20b win32u: Fix alpha blending in X11DRV_UpdateLayeredWindow.
+HEAD is now at 30f69aa4 Staging: Avoid leaking staging_event for every thread.
+HEAD is now at 0927c5c3da7 Release 10.4.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
@@ -362,7 +362,7 @@ Hunk #1 succeeded at 1724 (offset 253 lines).
 patching file dlls/ntdll/unix/unix_private.h
 Hunk #1 succeeded at 577 with fuzz 2 (offset 107 lines).
 patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 3403 with fuzz 1 (offset -17 lines).
+Hunk #1 succeeded at 3405 with fuzz 1 (offset -15 lines).
 patching file dlls/ntdll/loader.c
 Hunk #1 succeeded at 3468 (offset -7 lines).
 patching file dlls/ntdll/ntdll.spec
@@ -372,28 +372,21 @@ Hunk #1 succeeded at 990 (offset -1114 lines).
 patching file dlls/ntdll/unix/unix_private.h
 Hunk #1 succeeded at 367 with fuzz 1 (offset 45 lines).
 patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 3518 with fuzz 1 (offset 10 lines).
+Hunk #1 succeeded at 3520 with fuzz 1 (offset 12 lines).
 patching file dlls/ntdll/unixlib.h
 
 ntsync-config.h.in-org.patch -- ( Using original config.h.in patchset for ntsync5 )
 patching file include/config.h.in
-Hunk #1 succeeded at 327 (offset 12 lines).
-Hunk #2 succeeded at 393 (offset 12 lines).
 
 ntsync5-staging.patch -- ( Using ntsync patchset )
+patching file README.esync
 patching file configure
-Hunk #1 succeeded at 7661 (offset -95 lines).
 patching file configure.ac
-Hunk #1 succeeded at 389 (offset 5 lines).
-Hunk #2 succeeded at 419 (offset 5 lines).
-Hunk #3 succeeded at 2090 (offset 11 lines).
-Hunk #4 succeeded at 2111 (offset 11 lines).
 patching file dlls/kernel32/tests/sync.c
 patching file dlls/ntdll/Makefile.in
 patching file dlls/ntdll/unix/esync.c
 patching file dlls/ntdll/unix/esync.h
 patching file dlls/ntdll/unix/file.c
-Hunk #1 succeeded at 7691 (offset 70 lines).
 patching file dlls/ntdll/unix/loader.c
 Hunk #2 succeeded at 1844 (offset 1 line).
 patching file dlls/ntdll/unix/process.c
@@ -407,17 +400,10 @@ Hunk #5 succeeded at 386 (offset 1 line).
 Hunk #6 succeeded at 396 (offset 1 line).
 Hunk #7 succeeded at 462 (offset 1 line).
 patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 3734 (offset 25 lines).
+Hunk #1 succeeded at 3736 (offset 18 lines).
 patching file include/config.h.in
-Hunk #1 succeeded at 192 (offset 3 lines).
-Hunk #2 succeeded at 525 (offset -3 lines).
 patching file include/wine/server_protocol.h
-Hunk #1 succeeded at 5910 (offset 2 lines).
-Hunk #2 succeeded at 5992 (offset 2 lines).
-Hunk #3 succeeded at 6301 (offset 2 lines).
-Hunk #4 succeeded at 6607 (offset 2 lines).
-Hunk #5 succeeded at 6911 (offset 2 lines).
-patching file README.esync
+patching file server/Makefile.in
 patching file server/async.c
 patching file server/atom.c
 patching file server/change.c
@@ -431,11 +417,6 @@ patching file server/esync.c
 patching file server/esync.h
 patching file server/event.c
 patching file server/fd.c
-Hunk #11 succeeded at 1661 (offset 4 lines).
-Hunk #12 succeeded at 1780 (offset 4 lines).
-Hunk #13 succeeded at 1821 (offset 4 lines).
-Hunk #14 succeeded at 2302 (offset 4 lines).
-Hunk #15 succeeded at 2336 (offset 4 lines).
 patching file server/file.c
 patching file server/file.h
 patching file server/handle.c
@@ -443,8 +424,6 @@ patching file server/hook.c
 patching file server/inproc_sync.c
 patching file server/mailslot.c
 patching file server/main.c
-Hunk #2 succeeded at 229 with fuzz 1.
-patching file server/Makefile.in
 patching file server/mapping.c
 patching file server/mutex.c
 patching file server/named_pipe.c
@@ -453,9 +432,6 @@ patching file server/object.h
 patching file server/process.c
 patching file server/process.h
 patching file server/protocol.def
-Hunk #1 succeeded at 4090 (offset 2 lines).
-Hunk #2 succeeded at 4102 (offset 2 lines).
-Hunk #3 succeeded at 4151 (offset 2 lines).
 patching file server/queue.c
 patching file server/registry.c
 patching file server/request.c
@@ -467,13 +443,6 @@ patching file server/signal.c
 patching file server/sock.c
 patching file server/symlink.c
 patching file server/thread.c
-Hunk #15 succeeded at 1272 (offset -1 lines).
-Hunk #16 succeeded at 1359 (offset -1 lines).
-Hunk #17 succeeded at 1393 (offset -1 lines).
-Hunk #18 succeeded at 1409 (offset -1 lines).
-Hunk #19 succeeded at 1489 (offset -1 lines).
-Hunk #20 succeeded at 1508 (offset -1 lines).
-Hunk #21 succeeded at 2262 (offset 5 lines).
 patching file server/thread.h
 patching file server/timer.c
 patching file server/token.c
@@ -557,7 +526,7 @@ patching file loader/Makefile.in
 Applying hotfix wine-tkg-patches/hotfixes/GetMappedFileName/Return_nt_filename_and_resolve_DOS_drive_path.mypatch
 patching file dlls/ntdll/unix/virtual.c
 Hunk #1 succeeded at 120 with fuzz 2 (offset -13 lines).
-Hunk #2 succeeded at 5488 (offset 1213 lines).
+Hunk #2 succeeded at 5490 (offset 1215 lines).
 
 Applying hotfix wine-tkg-patches/hotfixes/08cccb5/a608ef1.mypatch
 patching file dlls/dxgi/dxgi_main.c
@@ -575,6 +544,6 @@ patching file dlls/user32/Makefile.in
 
 wine-tkg-staging.patch -- ( Please don't report bugs about this wine build on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead. )
 patching file dlls/ntdll/loader.c
-Hunk #1 succeeded at 4573 with fuzz 2 (offset 1090 lines).
+Hunk #1 succeeded at 4573 (offset 9 lines).
 
 Running make_vulkan

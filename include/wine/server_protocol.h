@@ -827,6 +827,7 @@ struct pe_image_info
     mem_size_t     stack_commit;
     unsigned int   entry_point;
     unsigned int   map_size;
+    unsigned int   alignment;
     unsigned int   zerobits;
     unsigned int   subsystem;
     unsigned short subsystem_minor;
@@ -849,7 +850,6 @@ struct pe_image_info
     unsigned int   checksum;
     unsigned int   dbg_offset;
     unsigned int   dbg_size;
-    unsigned int   __pad;
 };
 #define IMAGE_FLAGS_ComPlusNativeReady        0x01
 #define IMAGE_FLAGS_ComPlusILOnly             0x02
@@ -1331,7 +1331,7 @@ struct set_thread_info_request
     struct request_header __header;
     obj_handle_t handle;
     int          mask;
-    int          priority;
+    int          base_priority;
     affinity_t   affinity;
     client_ptr_t entry_point;
     obj_handle_t token;
@@ -1342,12 +1342,12 @@ struct set_thread_info_reply
 {
     struct reply_header __header;
 };
-#define SET_THREAD_INFO_PRIORITY    0x01
-#define SET_THREAD_INFO_AFFINITY    0x02
-#define SET_THREAD_INFO_TOKEN       0x04
-#define SET_THREAD_INFO_ENTRYPOINT  0x08
-#define SET_THREAD_INFO_DESCRIPTION 0x10
-#define SET_THREAD_INFO_DBG_HIDDEN  0x20
+#define SET_THREAD_INFO_BASE_PRIORITY   0x01
+#define SET_THREAD_INFO_AFFINITY        0x02
+#define SET_THREAD_INFO_TOKEN           0x04
+#define SET_THREAD_INFO_ENTRYPOINT      0x08
+#define SET_THREAD_INFO_DESCRIPTION     0x10
+#define SET_THREAD_INFO_DBG_HIDDEN      0x20
 
 
 
