@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at bb826f21 Rebase against ced1402d20ba874f9634a306630455366c3865b5.
-HEAD is now at ced1402d20b win32u: Fix alpha blending in X11DRV_UpdateLayeredWindow.
+HEAD is now at 30f69aa4 Staging: Avoid leaking staging_event for every thread.
+HEAD is now at 0927c5c3da7 Release 10.4.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
@@ -388,7 +388,7 @@ Hunk #18 succeeded at 1758 (offset 59 lines).
 patching file dlls/ntdll/unix/unix_private.h
 Hunk #1 succeeded at 104 with fuzz 2 (offset 45 lines).
 patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 3717 with fuzz 2 (offset 1034 lines).
+Hunk #1 succeeded at 3719 with fuzz 2 (offset 1036 lines).
 patching file server/Makefile.in
 patching file server/async.c
 Hunk #1 succeeded at 79 (offset 8 lines).
@@ -536,18 +536,19 @@ Hunk #3 succeeded at 4013 (offset 2615 lines).
 patching file server/symlink.c
 Hunk #1 succeeded at 72 (offset 11 lines).
 patching file server/thread.c
-Hunk #1 succeeded at 60 with fuzz 1 (offset 8 lines).
-Hunk #2 succeeded at 108 (offset -5 lines).
-Hunk #4 succeeded at 190 (offset 14 lines).
-Hunk #5 succeeded at 205 (offset 14 lines).
-Hunk #6 succeeded at 403 (offset 170 lines).
-Hunk #7 succeeded at 552 with fuzz 1 (offset 182 lines).
-Hunk #8 succeeded at 672 (offset 176 lines).
-Hunk #9 succeeded at 731 (offset 179 lines).
-Hunk #10 succeeded at 1299 (offset 211 lines).
-Hunk #11 succeeded at 1392 (offset 211 lines).
-Hunk #12 succeeded at 1445 (offset 211 lines).
-Hunk #13 succeeded at 1566 (offset 210 lines).
+Hunk #1 succeeded at 61 with fuzz 1 (offset 9 lines).
+Hunk #2 succeeded at 109 (offset -4 lines).
+Hunk #3 succeeded at 153 (offset 1 line).
+Hunk #4 succeeded at 191 (offset 15 lines).
+Hunk #5 succeeded at 206 (offset 15 lines).
+Hunk #6 succeeded at 404 (offset 171 lines).
+Hunk #7 succeeded at 553 with fuzz 1 (offset 183 lines).
+Hunk #8 succeeded at 673 (offset 177 lines).
+Hunk #9 succeeded at 732 (offset 180 lines).
+Hunk #10 succeeded at 1311 (offset 223 lines).
+Hunk #11 succeeded at 1404 (offset 223 lines).
+Hunk #12 succeeded at 1457 (offset 223 lines).
+Hunk #13 succeeded at 1578 (offset 222 lines).
 patching file server/thread.h
 Hunk #1 succeeded at 58 (offset 2 lines).
 patching file server/timer.c
@@ -625,7 +626,7 @@ Hunk #1 succeeded at 1725 (offset 254 lines).
 patching file dlls/ntdll/unix/unix_private.h
 Hunk #1 succeeded at 581 with fuzz 2 (offset 111 lines).
 patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 3403 with fuzz 1 (offset -17 lines).
+Hunk #1 succeeded at 3405 with fuzz 1 (offset -15 lines).
 patching file dlls/ntdll/loader.c
 Hunk #1 succeeded at 3468 (offset -7 lines).
 patching file dlls/ntdll/ntdll.spec
@@ -635,7 +636,7 @@ Hunk #1 succeeded at 991 (offset -1113 lines).
 patching file dlls/ntdll/unix/unix_private.h
 Hunk #1 succeeded at 371 with fuzz 1 (offset 49 lines).
 patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 3518 with fuzz 1 (offset 10 lines).
+Hunk #1 succeeded at 3520 with fuzz 1 (offset 12 lines).
 patching file dlls/ntdll/unixlib.h
 
 proton-win10-default.patch -- ( Enforce win10 as default wine version )
@@ -715,7 +716,7 @@ patching file loader/Makefile.in
 Applying hotfix wine-tkg-patches/hotfixes/GetMappedFileName/Return_nt_filename_and_resolve_DOS_drive_path.mypatch
 patching file dlls/ntdll/unix/virtual.c
 Hunk #1 succeeded at 120 with fuzz 2 (offset -13 lines).
-Hunk #2 succeeded at 5489 (offset 1214 lines).
+Hunk #2 succeeded at 5491 (offset 1216 lines).
 
 Applying hotfix wine-tkg-patches/hotfixes/08cccb5/a608ef1.mypatch
 patching file dlls/dxgi/dxgi_main.c
@@ -746,6 +747,6 @@ Hunk #1 succeeded at 218 (offset -17 lines).
 
 wine-tkg-staging.patch -- ( Please don't report bugs about this wine build on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead. )
 patching file dlls/ntdll/loader.c
-Hunk #1 succeeded at 4573 with fuzz 2 (offset 1090 lines).
+Hunk #1 succeeded at 4573 (offset 9 lines).
 
 Running make_vulkan

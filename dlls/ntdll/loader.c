@@ -4577,7 +4577,10 @@ void loader_init( CONTEXT *context, void **entry )
         FIXME_(winediag)("Please don't report bugs about it on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead.\n");
     }
     else
+    {
         WARN_(winediag)("Wine TkG (staging) %s is a testing version containing experimental patches.\n", wine_get_version());
+        NtClose( staging_event );
+    }
 
     NtCurrentTeb()->FlsSlots = fls_alloc_data();
 
