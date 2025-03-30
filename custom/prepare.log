@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at c110178b Release v10.4
-HEAD is now at 0927c5c3da7 Release 10.4.
+HEAD is now at c103bbb0 Rebase against cf6bdfd2260b4e2a29e72a241ad60f6f39712fa3.
+HEAD is now at cf6bdfd2260 server: Use INOTIFY_CFLAGS.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
@@ -180,10 +180,6 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/msxml3-write_out_doc/0001-msxml3-Write-to-DOMDocument-mxwriter-destination-in-.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-APC_Performance/0001-ntdll-Reuse-old-async-fileio-structures-if-possible.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Exception/0002-ntdll-OutputDebugString-should-throw-the-exception-a.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-ForceBottomUpAlloc/0001-ntdll-Increase-step-after-failed-map-attempt-in-try_.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-ForceBottomUpAlloc/0002-ntdll-Increase-free-ranges-view-block-size-on-64-bit.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-ForceBottomUpAlloc/0003-ntdll-Force-virtual-memory-allocation-order.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-ForceBottomUpAlloc/0004-ntdll-Exclude-natively-mapped-areas-from-free-areas-.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Hide_Wine_Exports/0001-ntdll-Add-support-for-hiding-wine-version-informatio.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-NtDevicePath/0001-ntdll-Implement-opening-files-through-nt-device-path.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-NtSetLdtEntries/0001-ntdll-Implement-NtSetLdtEntries.patch
@@ -256,8 +252,6 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/user32-ListBox_Size/0001-user32-Fix-calculation-of-listbox-size-when-horizont.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/user32-Refresh_MDI_Menus/0001-user32-Refresh-MDI-menus-when-DefMDIChildProcW-WM_SE.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/user32-ScrollWindowEx/0001-user32-Fix-return-value-of-ScrollWindowEx-for-invisi.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-_NET_ACTIVE_WINDOW/0001-winex11.drv-Add-support-for-_NET_ACTIVE_WINDOW.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-_NET_ACTIVE_WINDOW/0002-user32-Before-asking-a-WM-to-activate-a-window-make-.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/user32-alttab-focus/0001-Send-WM_NCPOINTERUP-on-focus-regain.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/user32-message-order/0001-user32-Fix-messages-sent-on-a-window-without-WS_CHIL.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/user32-msgbox-Support-WM_COPY-mesg/0001-user32-msgbox-Support-WM_COPY-Message.patch
@@ -319,11 +313,6 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Fixed-scancodes/0007-winex11-Use-scancode-high-bit-to-set-KEYEVENTF_EXTEN.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Fixed-scancodes/0008-winex11-Support-fixed-X11-keycode-to-scancode-conver.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Fixed-scancodes/0009-winex11-Disable-keyboard-scancode-auto-detection-by-.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-WM_WINDOWPOSCHANGING/0001-winex11.drv-Send-WM_WINDOWPOSCHANGING-WM_WINDOWPOSCH.patch
-include/wine/server_protocol.h updated
-include/wine/server_protocol.h updated
-server/request_trace.h updated
-server/request_handlers.h updated
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Window_Style/0001-winex11-Fix-handling-of-window-attributes-for-WS_EX_.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-ime-check-thread-data/0001-winex11.drv-handle-missing-thread-data-in-X11DRV_get_ic.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11.drv-Query_server_position/0001-winex11.drv-window-Query-the-X-server-for-the-actual.patch
@@ -331,6 +320,10 @@ server/request_handlers.h updated
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wininet-Cleanup/0002-wininet-tests-Test-auth-credential-reusage-with-host.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wininet-Cleanup/0003-wininet-tests-Check-cookie-behaviour-when-overriding.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wininet-Cleanup/0004-wininet-Strip-filename-if-no-path-is-set-in-cookie.patch
+include/wine/server_protocol.h updated
+include/wine/server_protocol.h updated
+server/request_trace.h updated
+server/request_handlers.h updated
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wininet-Cleanup/0005-wininet-Replacing-header-fields-should-fail-if-they-.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winmm-mciSendCommandA/0001-winmm-Do-not-crash-in-Win-9X-mode-when-an-invalid-de.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wintab32-improvements/0002-wintab32-Set-lcSysExtX-Y-for-the-first-index-of-WTI_.patch
@@ -365,7 +358,7 @@ patching file dlls/ntdll/unix/fsync.c
 patching file dlls/ntdll/unix/fsync.h
 patching file dlls/ntdll/unix/loader.c
 Hunk #1 succeeded at 91 with fuzz 2 (offset 4 lines).
-Hunk #2 succeeded at 1845 with fuzz 1 (offset 279 lines).
+Hunk #2 succeeded at 1846 with fuzz 1 (offset 280 lines).
 patching file dlls/ntdll/unix/server.c
 Hunk #1 succeeded at 84 (offset -11 lines).
 Hunk #2 succeeded at 1915 with fuzz 2 (offset 216 lines).
@@ -391,7 +384,7 @@ Hunk #18 succeeded at 1758 (offset 59 lines).
 patching file dlls/ntdll/unix/unix_private.h
 Hunk #1 succeeded at 104 with fuzz 2 (offset 45 lines).
 patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 3719 with fuzz 2 (offset 1036 lines).
+Hunk #1 succeeded at 3834 with fuzz 2 (offset 1151 lines).
 patching file server/Makefile.in
 patching file server/async.c
 Hunk #1 succeeded at 79 (offset 8 lines).
@@ -407,20 +400,20 @@ Hunk #1 succeeded at 93 (offset 1 line).
 Hunk #2 succeeded at 169 (offset 2 lines).
 patching file server/console.c
 Hunk #1 succeeded at 42 (offset -1 lines).
-Hunk #2 succeeded at 84 with fuzz 2 (offset 1 line).
-Hunk #3 succeeded at 144 (offset 6 lines).
-Hunk #4 succeeded at 151 with fuzz 2 (offset 2 lines).
-Hunk #5 succeeded at 167 (offset 7 lines).
-Hunk #6 succeeded at 238 (offset 9 lines).
-Hunk #7 succeeded at 289 (offset 11 lines).
-Hunk #8 succeeded at 328 with fuzz 1 (offset 24 lines).
-Hunk #9 succeeded at 387 with fuzz 1 (offset 52 lines).
-Hunk #10 succeeded at 447 (offset 73 lines).
-Hunk #11 succeeded at 610 (offset 13 lines).
-Hunk #12 succeeded at 960 (offset 171 lines).
-Hunk #13 succeeded at 1000 with fuzz 2 (offset 172 lines).
-Hunk #14 succeeded at 1618 (offset 48 lines).
-Hunk #15 succeeded at 1709 (offset 35 lines).
+Hunk #2 succeeded at 87 (offset 4 lines).
+Hunk #3 succeeded at 147 (offset 9 lines).
+Hunk #4 succeeded at 154 with fuzz 2 (offset 5 lines).
+Hunk #5 succeeded at 170 (offset 10 lines).
+Hunk #6 succeeded at 241 (offset 12 lines).
+Hunk #7 succeeded at 292 (offset 14 lines).
+Hunk #8 succeeded at 333 with fuzz 1 (offset 29 lines).
+Hunk #9 succeeded at 394 with fuzz 1 (offset 59 lines).
+Hunk #10 succeeded at 454 (offset 80 lines).
+Hunk #11 succeeded at 618 (offset 21 lines).
+Hunk #12 succeeded at 974 (offset 185 lines).
+Hunk #13 succeeded at 1014 with fuzz 2 (offset 186 lines).
+Hunk #14 succeeded at 1657 (offset 87 lines).
+Hunk #15 succeeded at 1748 (offset 74 lines).
 patching file server/debugger.c
 Hunk #1 succeeded at 87 (offset 13 lines).
 Hunk #2 succeeded at 117 (offset 13 lines).
@@ -460,11 +453,11 @@ Hunk #3 succeeded at 177 (offset -44 lines).
 Hunk #4 succeeded at 220 (offset -44 lines).
 Hunk #5 succeeded at 262 (offset -44 lines).
 Hunk #6 succeeded at 306 (offset -44 lines).
-Hunk #7 succeeded at 1790 (offset 70 lines).
-Hunk #8 succeeded at 1800 (offset 70 lines).
-Hunk #9 succeeded at 1839 (offset 73 lines).
-Hunk #10 succeeded at 2328 (offset 123 lines).
-Hunk #11 succeeded at 2367 (offset 117 lines).
+Hunk #7 succeeded at 1798 (offset 78 lines).
+Hunk #8 succeeded at 1808 (offset 78 lines).
+Hunk #9 succeeded at 1847 (offset 81 lines).
+Hunk #10 succeeded at 2336 (offset 131 lines).
+Hunk #11 succeeded at 2375 (offset 125 lines).
 patching file server/file.c
 Hunk #1 succeeded at 124 (offset 12 lines).
 patching file server/file.h
@@ -509,7 +502,7 @@ Hunk #8 succeeded at 827 (offset 133 lines).
 patching file server/process.h
 Hunk #1 succeeded at 87 with fuzz 2 (offset -12 lines).
 patching file server/protocol.def
-Hunk #1 succeeded at 4161 (offset 395 lines).
+Hunk #1 succeeded at 4165 (offset 399 lines).
 patching file server/queue.c
 Hunk #1 succeeded at 45 (offset 1 line).
 Hunk #2 succeeded at 138 (offset -10 lines).
@@ -533,9 +526,9 @@ Hunk #1 succeeded at 92 (offset -1 lines).
 patching file server/signal.c
 Hunk #1 succeeded at 63 (offset -5 lines).
 patching file server/sock.c
-Hunk #1 succeeded at 477 (offset 304 lines).
-Hunk #2 succeeded at 3790 (offset 2614 lines).
-Hunk #3 succeeded at 4013 (offset 2615 lines).
+Hunk #1 succeeded at 492 (offset 319 lines).
+Hunk #2 succeeded at 3886 (offset 2710 lines).
+Hunk #3 succeeded at 4109 (offset 2711 lines).
 patching file server/symlink.c
 Hunk #1 succeeded at 72 (offset 11 lines).
 patching file server/thread.c
@@ -545,13 +538,13 @@ Hunk #3 succeeded at 153 (offset 1 line).
 Hunk #4 succeeded at 191 (offset 15 lines).
 Hunk #5 succeeded at 206 (offset 15 lines).
 Hunk #6 succeeded at 404 (offset 171 lines).
-Hunk #7 succeeded at 553 with fuzz 1 (offset 183 lines).
-Hunk #8 succeeded at 673 (offset 177 lines).
-Hunk #9 succeeded at 732 (offset 180 lines).
-Hunk #10 succeeded at 1311 (offset 223 lines).
-Hunk #11 succeeded at 1404 (offset 223 lines).
-Hunk #12 succeeded at 1457 (offset 223 lines).
-Hunk #13 succeeded at 1578 (offset 222 lines).
+Hunk #7 succeeded at 554 with fuzz 1 (offset 184 lines).
+Hunk #8 succeeded at 674 (offset 178 lines).
+Hunk #9 succeeded at 733 (offset 181 lines).
+Hunk #10 succeeded at 1327 (offset 239 lines).
+Hunk #11 succeeded at 1420 (offset 239 lines).
+Hunk #12 succeeded at 1473 (offset 239 lines).
+Hunk #13 succeeded at 1594 (offset 238 lines).
 patching file server/thread.h
 Hunk #1 succeeded at 58 (offset 2 lines).
 patching file server/timer.c
@@ -581,9 +574,9 @@ Hunk #2 succeeded at 135 (offset -10 lines).
 
 fsync_futex_waitv.patch -- ( Applied patches for fsync to support futex_waitv )
 patching file configure
-Hunk #1 succeeded at 7630 (offset -352 lines).
+Hunk #1 succeeded at 7636 (offset -346 lines).
 patching file configure.ac
-Hunk #1 succeeded at 384 (offset -57 lines).
+Hunk #1 succeeded at 385 (offset -56 lines).
 patching file dlls/ntdll/unix/esync.c
 Hunk #1 succeeded at 954 (offset 1 line).
 Hunk #2 succeeded at 971 (offset 1 line).
@@ -609,12 +602,12 @@ Hunk #14 succeeded at 1072 (offset -1 lines).
 Hunk #15 succeeded at 1092 (offset -1 lines).
 Hunk #16 succeeded at 1137 (offset -1 lines).
 patching file dlls/ntdll/unix/loader.c
-Hunk #1 succeeded at 1017 with fuzz 2 (offset -1011 lines).
-Hunk #2 succeeded at 1873 (offset -196 lines).
+Hunk #1 succeeded at 1018 with fuzz 2 (offset -1010 lines).
+Hunk #2 succeeded at 1874 (offset -195 lines).
 patching file dlls/ntdll/unix/unix_private.h
 Hunk #1 succeeded at 191 with fuzz 1 (offset 45 lines).
 patching file include/config.h.in
-Hunk #1 succeeded at 168 (offset -20 lines).
+Hunk #1 succeeded at 174 (offset -14 lines).
 patching file server/fsync.c
 
 LAA-unix-staging.patch -- ( Applied large address aware override support (legacy) )
@@ -629,17 +622,17 @@ Hunk #1 succeeded at 1725 (offset 254 lines).
 patching file dlls/ntdll/unix/unix_private.h
 Hunk #1 succeeded at 581 with fuzz 2 (offset 111 lines).
 patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 3405 with fuzz 1 (offset -15 lines).
+Hunk #1 succeeded at 3520 with fuzz 1 (offset 100 lines).
 patching file dlls/ntdll/loader.c
-Hunk #1 succeeded at 3468 (offset -7 lines).
+Hunk #1 succeeded at 3463 (offset -12 lines).
 patching file dlls/ntdll/ntdll.spec
 Hunk #1 succeeded at 1766 (offset 52 lines).
 patching file dlls/ntdll/unix/loader.c
-Hunk #1 succeeded at 991 (offset -1113 lines).
+Hunk #1 succeeded at 992 (offset -1112 lines).
 patching file dlls/ntdll/unix/unix_private.h
 Hunk #1 succeeded at 371 with fuzz 1 (offset 49 lines).
 patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 3520 with fuzz 1 (offset 12 lines).
+Hunk #1 succeeded at 3533 with fuzz 1 (offset 25 lines).
 patching file dlls/ntdll/unixlib.h
 
 proton-win10-default.patch -- ( Enforce win10 as default wine version )
@@ -665,14 +658,14 @@ proton_battleye.patch -- ( Add support for Proton's Battleye runtime )
 patching file dlls/kernel32/kernel32.spec
 Hunk #1 succeeded at 622 (offset 2 lines).
 patching file dlls/kernelbase/console.c
-Hunk #1 succeeded at 1068 (offset 3 lines).
+Hunk #1 succeeded at 1067 (offset 2 lines).
 patching file dlls/kernelbase/kernelbase.spec
 Hunk #1 succeeded at 475 (offset 3 lines).
 patching file dlls/kernelbase/process.c
 Hunk #2 succeeded at 503 (offset -3 lines).
 Hunk #3 succeeded at 735 (offset -60 lines).
 patching file configure.ac
-Hunk #1 succeeded at 3466 (offset 4 lines).
+Hunk #1 succeeded at 3472 (offset 10 lines).
 patching file dlls/kernelbase/process.c
 Hunk #1 succeeded at 505 (offset -3 lines).
 Hunk #2 succeeded at 554 (offset -3 lines).
@@ -708,8 +701,8 @@ patching file dlls/ntdll/unix/loadorder.c
 
 wow64_loader_hack.patch -- ( Hack around loader name for EAC on 10.2+ )
 patching file configure.ac
-Hunk #1 succeeded at 2048 (offset 15 lines).
-Hunk #2 succeeded at 2067 (offset 15 lines).
+Hunk #1 succeeded at 2054 (offset 21 lines).
+Hunk #2 succeeded at 2073 (offset 21 lines).
 patching file dlls/ntdll/unix/loader.c
 Hunk #1 succeeded at 520 (offset 44 lines).
 Hunk #2 succeeded at 532 (offset 44 lines).
@@ -718,8 +711,8 @@ patching file loader/Makefile.in
 
 Applying hotfix wine-tkg-patches/hotfixes/GetMappedFileName/Return_nt_filename_and_resolve_DOS_drive_path.mypatch
 patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 120 with fuzz 2 (offset -13 lines).
-Hunk #2 succeeded at 5491 (offset 1216 lines).
+Hunk #1 succeeded at 122 with fuzz 2 (offset -11 lines).
+Hunk #2 succeeded at 5602 (offset 1327 lines).
 
 Applying hotfix wine-tkg-patches/hotfixes/08cccb5/a608ef1.mypatch
 patching file dlls/dxgi/dxgi_main.c
@@ -729,8 +722,8 @@ Applying hotfix wine-tkg-patches/hotfixes/autoconf-opencl-hotfix/opencl-fixup.my
 patching file configure.ac
 Hunk #1 succeeded at 45 with fuzz 2 (offset -5 lines).
 Hunk #2 succeeded at 373 with fuzz 1 (offset -57 lines).
-Hunk #3 succeeded at 451 (offset -63 lines).
-Hunk #4 succeeded at 677 with fuzz 2 (offset -78 lines).
+Hunk #3 succeeded at 452 (offset -62 lines).
+Hunk #4 succeeded at 683 with fuzz 2 (offset -72 lines).
 
 Applying hotfix wine-tkg-patches/hotfixes/NosTale/nostale_mouse_fix.mypatch
 patching file dlls/user32/Makefile.in
@@ -750,6 +743,6 @@ Hunk #1 succeeded at 218 (offset -17 lines).
 
 wine-tkg-staging.patch -- ( Please don't report bugs about this wine build on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead. )
 patching file dlls/ntdll/loader.c
-Hunk #1 succeeded at 4573 (offset 9 lines).
+Hunk #1 succeeded at 4556 with fuzz 1 (offset 1073 lines).
 
 Running make_vulkan
