@@ -2033,13 +2033,7 @@ BOOL set_active_window( HWND hwnd, HWND *prev, BOOL mouse, BOOL focus, DWORD new
 
         if (NtUserGetAncestor( hwnd, GA_PARENT ) == get_desktop_window())
             NtUserPostMessage( get_desktop_window(), WM_PARENTNOTIFY, WM_NCACTIVATE, (LPARAM)hwnd );
-
-        if (hwnd == NtUserGetForegroundWindow() && !is_iconic( hwnd ))
-            NtUserSetActiveWindow( hwnd );
-
     }
-
-    user_driver->pSetActiveWindow( hwnd );
 
     /* now change focus if necessary */
     if (focus)
@@ -2076,7 +2070,7 @@ HWND WINAPI NtUserSetActiveWindow( HWND hwnd )
 
     if (hwnd)
     {
-        LONG style;
+        DWORD style;
 
         hwnd = get_full_window_handle( hwnd );
         if (!is_window( hwnd ))
@@ -2117,7 +2111,7 @@ HWND WINAPI NtUserSetFocus( HWND hwnd )
         for (;;)
         {
             HWND parent;
-            LONG style = get_window_long( hwndTop, GWL_STYLE );
+            DWORD style = get_window_long( hwndTop, GWL_STYLE );
             if (style & (WS_MINIMIZE | WS_DISABLED)) return 0;
             if (!(style & WS_CHILD)) break;
             parent = NtUserGetAncestor( hwndTop, GA_PARENT );

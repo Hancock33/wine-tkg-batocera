@@ -378,6 +378,7 @@ AC_CHECK_HEADERS(\
 	asm/termbits.h \
 	asm/types.h \
 	asm/user.h \
+        bluetooth/bluetooth.h \
 	elf.h \
 	gettext-po.h \
 	link.h \
@@ -582,6 +583,11 @@ AC_CHECK_HEADERS([libprocstat.h],,,
 #include <sys/socket.h>
 #ifdef HAVE_SYS_QUEUE_H
 #include <sys/queue.h>
+#endif])
+
+AC_CHECK_HEADERS([bluetooth/rfcomm.h],,,
+[#ifdef HAVE_BLUETOOTH_BLUETOOTH_H
+#include <bluetooth/bluetooth.h>
 #endif])
 
 if test "x$ac_cv_header_sys_xattr_h" = xyes
@@ -3699,7 +3705,7 @@ dnl Rules for generated source files
 
 WINE_APPEND_RULE(
 [dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-10.4.r0.gc110178b\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
+	@version=\`(echo \"wine-10.4.r3.gc103bbb0\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$[@]) || echo \$\$build >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.nfo:

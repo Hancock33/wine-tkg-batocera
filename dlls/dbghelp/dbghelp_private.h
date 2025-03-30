@@ -414,14 +414,22 @@ enum format_info
     DFI_LAST
 };
 
-struct module_format
+struct module_format;
+struct module_format_vtable
 {
-    struct module*              module;
-    void                        (*remove)(struct process* pcs, struct module_format* modfmt);
-    void                        (*loc_compute)(struct process* pcs,
-                                               const struct module_format* modfmt,
+    /* module handling */
+    void                        (*remove)(struct module_format* modfmt);
+    /* stack walk */
+    void                        (*loc_compute)(const struct module_format* modfmt,
                                                const struct symt_function* func,
                                                struct location* loc);
+};
+
+struct module_format
+{
+    struct module*                      module;
+    const struct module_format_vtable*  vtable;
+
     union
     {
         struct elf_module_info*         elf_info;
@@ -477,6 +485,29 @@ struct module
     char*                       sources;
     struct wine_rb_tree         sources_offsets_tree;
 };
+
+struct module_format_vtable_iterator
+{
+    int dfi;
+    struct module_format *modfmt;
+};
+
+#define MODULE_FORMAT_VTABLE_INDEX(f) (offsetof(struct module_format_vtable, f) / sizeof(void*))
+
+static inline BOOL module_format_vtable_iterator_next(struct module *module, struct module_format_vtable_iterator *iter, size_t method_index)
+{
+    for ( ; iter->dfi < DFI_LAST; iter->dfi++)
+    {
+        iter->modfmt = module->format_info[iter->dfi];
+        if (iter->modfmt && ((const void**)iter->modfmt->vtable)[method_index])
+        {
+            iter->dfi++;
+            return TRUE;
+        }
+    }
+    iter->modfmt = NULL;
+    return FALSE;
+}
 
 typedef BOOL (*enum_modules_cb)(const WCHAR*, ULONG_PTR addr, void* user);
 
@@ -985,3 +1016,14 @@ extern struct symt_function*
 #define IFC_DEPTH_MASK   0x3FFFFFFF
 #define IFC_MODE(x)      ((x) & ~IFC_DEPTH_MASK)
 #define IFC_DEPTH(x)     ((x) & IFC_DEPTH_MASK)
+
+/* temporary helpers for PDB rewriting */
+struct _PDB_FPO_DATA;
+extern BOOL pdb_fpo_unwind_parse_cmd_string(struct cpu_stack_walk* csw, struct _PDB_FPO_DATA* fpoext,
+                                            const char* cmd, struct pdb_cmd_pair* cpair);
+extern BOOL pdb_old_virtual_unwind(struct cpu_stack_walk *csw, DWORD_PTR ip,
+                                   union ctx *context, struct pdb_cmd_pair *cpair);
+struct pdb_reader;
+extern BOOL pdb_hack_get_main_info(struct module_format *modfmt, struct pdb_reader **pdb, unsigned *fpoext_stream);
+extern void pdb_reader_dispose(struct pdb_reader *pdb);
+extern struct pdb_reader *pdb_hack_reader_init(struct module *module, HANDLE file);

@@ -7596,6 +7596,12 @@ then :
   printf "%s\n" "#define HAVE_ASM_USER_H 1" >>confdefs.h
 
 fi
+ac_fn_c_check_header_compile "$LINENO" "bluetooth/bluetooth.h" "ac_cv_header_bluetooth_bluetooth_h" "$ac_includes_default"
+if test "x$ac_cv_header_bluetooth_bluetooth_h" = xyes
+then :
+  printf "%s\n" "#define HAVE_BLUETOOTH_BLUETOOTH_H 1" >>confdefs.h
+
+fi
 ac_fn_c_check_header_compile "$LINENO" "elf.h" "ac_cv_header_elf_h" "$ac_includes_default"
 if test "x$ac_cv_header_elf_h" = xyes
 then :
@@ -8739,6 +8745,17 @@ ac_fn_c_check_header_compile "$LINENO" "libprocstat.h" "ac_cv_header_libprocstat
 if test "x$ac_cv_header_libprocstat_h" = xyes
 then :
   printf "%s\n" "#define HAVE_LIBPROCSTAT_H 1" >>confdefs.h
+
+fi
+
+
+ac_fn_c_check_header_compile "$LINENO" "bluetooth/rfcomm.h" "ac_cv_header_bluetooth_rfcomm_h" "#ifdef HAVE_BLUETOOTH_BLUETOOTH_H
+#include <bluetooth/bluetooth.h>
+#endif
+"
+if test "x$ac_cv_header_bluetooth_rfcomm_h" = xyes
+then :
+  printf "%s\n" "#define HAVE_BLUETOOTH_RFCOMM_H 1" >>confdefs.h
 
 fi
 
@@ -22346,7 +22363,7 @@ fi
 
 as_fn_append wine_rules "
 dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-10.4.r0.gc110178b\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
+	@version=\`(echo \"wine-10.4.r3.gc103bbb0\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$@) || echo \$\$build >\$@ || (rm -f \$@ && exit 1)
 programs/winetest/build.nfo:

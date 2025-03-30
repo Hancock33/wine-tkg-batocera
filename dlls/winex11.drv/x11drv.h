@@ -226,7 +226,6 @@ extern void X11DRV_GetDC( HDC hdc, HWND hwnd, HWND top, const RECT *win_rect,
                           const RECT *top_rect, DWORD flags );
 extern void X11DRV_ReleaseDC( HWND hwnd, HDC hdc );
 extern BOOL X11DRV_ScrollDC( HDC hdc, INT dx, INT dy, HRGN update );
-extern void X11DRV_SetActiveWindow( HWND hwnd );
 extern void X11DRV_SetCapture( HWND hwnd, UINT flags );
 extern void X11DRV_SetDesktopWindow( HWND hwnd );
 extern void X11DRV_SetLayeredWindowAttributes( HWND hwnd, COLORREF key, BYTE alpha,
@@ -382,12 +381,16 @@ extern RECT host_window_configure_child( struct host_window *win, Window window,
 extern POINT host_window_map_point( struct host_window *win, int x, int y );
 extern struct host_window *get_host_window( Window window, BOOL create );
 
+struct display_state
+{
+    Window net_active_window;
+};
+
 struct x11drv_thread_data
 {
     Display *display;
     XEvent  *current_event;        /* event currently being processed */
     HWND     grab_hwnd;            /* window that currently grabs the mouse */
-    HWND     active_window;        /* active window */
     HWND     last_focus;           /* last window that had focus */
     HWND     keymapnotify_hwnd;    /* window that should receive modifier release events */
     XIM      xim;                  /* input method */
@@ -406,6 +409,11 @@ struct x11drv_thread_data
     int      xinput2_pointer;      /* XInput2 master pointer device id */
     int      xinput2_rawinput;     /* XInput2 rawinput-only thread */
 #endif /* HAVE_X11_EXTENSIONS_XINPUT2_H */
+
+    struct display_state desired_state;       /* display state tracking the desired / win32 state */
+    struct display_state pending_state;       /* display state tracking the pending / requested state */
+    struct display_state current_state;       /* display state tracking the current X11 state */
+    unsigned long net_active_window_serial;   /* serial of last pending _NET_ACTIVE_WINDOW request */
 };
 
 extern struct x11drv_thread_data *x11drv_init_thread_data(void);
@@ -647,6 +655,7 @@ struct x11drv_win_data
     Pixmap         icon_mask;
     unsigned long *icon_bits;
     unsigned int   icon_size;
+    Time           user_time;
 
     struct window_state desired_state; /* window state tracking the desired / win32 state */
     struct window_state pending_state; /* window state tracking the pending / requested state */
@@ -667,16 +676,19 @@ extern void set_gl_drawable_parent( HWND hwnd, HWND parent );
 extern void destroy_gl_drawable( HWND hwnd );
 extern void destroy_vk_surface( HWND hwnd );
 
+extern BOOL window_should_take_focus( HWND hwnd, Time time );
 extern BOOL window_has_pending_wm_state( HWND hwnd, UINT state );
-extern void window_wm_state_notify( struct x11drv_win_data *data, unsigned long serial, UINT value );
+extern void window_wm_state_notify( struct x11drv_win_data *data, unsigned long serial, UINT value, Time time );
 extern void window_net_wm_state_notify( struct x11drv_win_data *data, unsigned long serial, UINT value );
 extern void window_configure_notify( struct x11drv_win_data *data, unsigned long serial, const RECT *rect );
-extern BOOL get_window_state_updates( HWND hwnd, UINT *state_cmd, UINT *config_cmd, RECT *rect );
 
+extern Window get_net_active_window( Display *display );
+extern void net_active_window_notify( unsigned long serial, Window window, Time time );
+extern void net_active_window_init( struct x11drv_thread_data *data );
 extern void net_supported_init( struct x11drv_thread_data *data );
 
 extern Window init_clip_window(void);
-extern void update_user_time( Time time );
+extern void window_set_user_time( struct x11drv_win_data *data, Time time );
 extern UINT get_window_net_wm_state( Display *display, Window window );
 extern void make_window_embedded( struct x11drv_win_data *data );
 extern Window create_client_window( HWND hwnd, const XVisualInfo *visual, Colormap colormap );
@@ -712,7 +724,6 @@ extern void move_resize_window( HWND hwnd, int dir, POINT pos );
 extern void X11DRV_InitKeyboard( Display *display );
 extern void X11DRV_InitMouse( Display *display );
 extern BOOL X11DRV_ProcessEvents( DWORD mask );
-extern HWND *build_hwnd_list(void);
 
 typedef int (*x11drv_error_callback)( Display *display, XErrorEvent *event, void *arg );
 
