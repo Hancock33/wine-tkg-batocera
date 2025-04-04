@@ -3815,7 +3815,7 @@ static BOOL pdb_process_internal(const struct process *pcs,
         pdb_file->pdb_reader = NULL;
         CloseHandle(hFile);
     }
-    else if (!(pdb_file->pdb_reader = pdb_hack_reader_init(msc_dbg->module, hFile)))
+    else if (!(pdb_file->pdb_reader = pdb_hack_reader_init(msc_dbg->module, hFile, msc_dbg->sectp, msc_dbg->nsect)))
     {
         CloseHandle(hFile);
         UnmapViewOfFile(image);
@@ -3906,25 +3906,25 @@ static BOOL pdb_process_internal(const struct process *pcs,
                     files_image};
                 codeview_snarf(msc_dbg, modimage, sizeof(DWORD), sfile.symbol_size, &cvmod, file_name);
 
-                if (SymGetOptions() & SYMOPT_LOAD_LINES)
+                if (sfile.lineno_size && sfile.lineno2_size)
+                    FIXME("Both line info present... preferring second\n");
+                if (sfile.lineno2_size)
                 {
-                    if (sfile.lineno_size && sfile.lineno2_size)
-                        FIXME("Both line info present... only supporting second\n");
-                    else if (sfile.lineno_size)
-                    {
-                        if (codeview_snarf_linetab(msc_dbg,
-                                                   modimage + sfile.symbol_size,
-                                                   sfile.lineno_size,
-                                                   pdb_file->kind == PDB_JG))
-                            *has_linenumber_info = TRUE;
-                    }
-                    else if (sfile.lineno2_size)
-                    {
-                        if (codeview_snarf_linetab2(msc_dbg, &cvmod))
-                            *has_linenumber_info = TRUE;
-                    }
+                    if (pdb_file->pdb_reader ||
+                        ((SymGetOptions() & SYMOPT_LOAD_LINES) && codeview_snarf_linetab2(msc_dbg, &cvmod)))
+                        *has_linenumber_info = TRUE;
                 }
-
+                else if (sfile.lineno_size)
+                {
+                    if (pdb_file->pdb_reader)
+                        FIXME("New PDB reader doesn't support old line format\n");
+                    else if ((SymGetOptions() & SYMOPT_LOAD_LINES) &&
+                             codeview_snarf_linetab(msc_dbg,
+                                                    modimage + sfile.symbol_size,
+                                                    sfile.lineno_size,
+                                                    pdb_file->kind == PDB_JG))
+                        *has_linenumber_info = TRUE;
+                }
                 pdb_free(modimage);
             }
             file_name += strlen(file_name) + 1;
@@ -3971,7 +3971,7 @@ static BOOL pdb_process_internal(const struct process *pcs,
     return TRUE;
 }
 
-static const struct module_format_vtable pdb_module_format_vtable =
+static const struct module_format_vtable old_pdb_module_format_vtable =
 {
     pdb_module_remove,
     pdb_location_compute,
@@ -3996,7 +3996,7 @@ static BOOL pdb_process_file(const struct process *pcs,
         pdb_module_info = (void*)(modfmt + 1);
         msc_dbg->module->format_info[DFI_PDB] = modfmt;
         modfmt->module      = msc_dbg->module;
-        modfmt->vtable      = &pdb_module_format_vtable;
+        modfmt->vtable      = &old_pdb_module_format_vtable;
         modfmt->u.pdb_info  = pdb_module_info;
 
         memset(cv_zmodules, 0, sizeof(cv_zmodules));

@@ -1650,7 +1650,7 @@ BOOL X11DRV_ButtonPress( HWND hwnd, XEvent *xev )
 
     if ((data = get_win_data( hwnd )))
     {
-        window_set_user_time( data, event->time );
+        window_set_user_time( data, event->time, FALSE );
         release_win_data( data );
     }
 
