@@ -1916,8 +1916,6 @@ static HWND set_focus_window( HWND hwnd )
     }
     if (is_window(hwnd))
     {
-        user_driver->pSetFocus(hwnd);
-
         ime_hwnd = get_default_ime_window( hwnd );
         if (ime_hwnd)
             send_message( ime_hwnd, WM_IME_INTERNAL, IME_INTERNAL_ACTIVATE,
@@ -2054,7 +2052,11 @@ clear_flags:
     win_set_flags(hwnd, 0, WIN_IS_IN_ACTIVATION);
 
 done:
-    if (hwnd) clip_fullscreen_window( hwnd, FALSE );
+    if (hwnd)
+    {
+        if (hwnd == NtUserGetForegroundWindow()) user_driver->pActivateWindow( hwnd, previous );
+        clip_fullscreen_window( hwnd, FALSE );
+    }
 
     return ret;
 }

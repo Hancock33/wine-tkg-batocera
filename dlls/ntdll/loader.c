@@ -83,7 +83,7 @@ unixlib_handle_t __wine_unixlib_handle = 0;
 /* windows directory */
 const WCHAR windows_dir[] = L"C:\\windows";
 /* system directory with trailing backslash */
-const WCHAR system_dir[] = L"C:\\windows\\system32\\";
+static const WCHAR system_dir[] = L"C:\\windows\\system32\\";
 
 /* system search path */
 static const WCHAR system_path[] = L"C:\\windows\\system32;C:\\windows\\system;C:\\windows";
@@ -101,6 +101,7 @@ static UNICODE_STRING dll_directory;  /* extra path for LdrSetDllDirectory */
 static UNICODE_STRING system_dll_path; /* path to search for system dependency dlls */
 static DWORD default_search_flags;  /* default flags set by LdrSetDefaultDllDirectories */
 static WCHAR *default_load_path;    /* default dll search path */
+static HANDLE known_dlls_ntdir;  /* NT directory containing known dlls sections */
 
 struct dll_dir_entry
 {
@@ -555,6 +556,16 @@ static ULONG hash_basename( const UNICODE_STRING *basename )
 
     RtlHashUnicodeString( basename, TRUE, HASH_STRING_ALGORITHM_DEFAULT, &hash );
     return hash % HASH_MAP_SIZE;
+}
+
+/* build NT name for dll in system directory */
+static void build_sysdir_nt_name( const WCHAR *name, UNICODE_STRING *nt_name )
+{
+    nt_name->Length = (4 + wcslen(system_dir) + wcslen(name)) * sizeof(WCHAR);
+    nt_name->Buffer = RtlAllocateHeap( GetProcessHeap(), 0, nt_name->Length + sizeof(WCHAR) );
+    wcscpy( nt_name->Buffer, L"\\??\\" );
+    wcscat( nt_name->Buffer, system_dir );
+    wcscat( nt_name->Buffer, name );
 }
 
 /*************************************************************************
@@ -1380,9 +1391,6 @@ static BOOL alloc_tls_slot( LDR_DATA_TABLE_ENTRY *mod )
             if (!new) return FALSE;
             if (old) memcpy( new, old, old_module_count * sizeof(*new) );
             teb->ThreadLocalStoragePointer = new;
-#ifdef __x86_64__  /* macOS-specific hack */
-            if (teb->Instrumentation[0]) ((TEB *)teb->Instrumentation[0])->ThreadLocalStoragePointer = new;
-#endif
             TRACE( "thread %04lx tls block %p -> %p\n", HandleToULong(teb->ClientId.UniqueThread), old, new );
             /* FIXME: can't free old block here, should be freed at thread exit */
         }
@@ -1628,10 +1636,6 @@ static NTSTATUS alloc_thread_tls(void)
         TRACE( "slot %u: %u/%lu bytes at %p\n", i, size, dir->SizeOfZeroFill, pointers[i] );
     }
     NtCurrentTeb()->ThreadLocalStoragePointer = pointers;
-#ifdef __x86_64__  /* macOS-specific hack */
-    if (NtCurrentTeb()->Instrumentation[0])
-        ((TEB *)NtCurrentTeb()->Instrumentation[0])->ThreadLocalStoragePointer = pointers;
-#endif
     return STATUS_SUCCESS;
 }
 
@@ -2823,6 +2827,35 @@ static NTSTATUS open_dll_file( UNICODE_STRING *nt_name, WINE_MODREF **pwm, HANDL
 }
 
 
+/***********************************************************************
+ *	open_known_dll
+ *
+ * Open a dll from the KnownDlls NT directory.
+ */
+static NTSTATUS open_known_dll( const WCHAR *libname, UNICODE_STRING *nt_name, WINE_MODREF **pwm,
+                                HANDLE *mapping, SECTION_IMAGE_INFORMATION *image_info, struct file_id *id )
+{
+    NTSTATUS status;
+    UNICODE_STRING str;
+    OBJECT_ATTRIBUTES attr;
+
+    if (!known_dlls_ntdir) return STATUS_DLL_NOT_FOUND;
+    RtlInitUnicodeString( &str, libname );
+    InitializeObjectAttributes( &attr, &str, OBJ_CASE_INSENSITIVE, known_dlls_ntdir, NULL );
+    if ((status = NtOpenSection( mapping, MAXIMUM_ALLOWED, &attr ))) return status;
+    build_sysdir_nt_name( libname, nt_name );
+    if ((*pwm = find_fullname_module( nt_name )))
+    {
+        NtClose( *mapping );
+        return STATUS_SUCCESS;
+    }
+    NtQuerySection( *mapping, SectionImageInformation, image_info, sizeof(*image_info), NULL );
+    memset( id, 0, sizeof(*id) );
+    TRACE( "loaded %s from known dlls\n", debugstr_us(nt_name) );
+    return STATUS_SUCCESS;
+}
+
+
 /******************************************************************************
  *	find_existing_module
  *
@@ -3245,14 +3278,7 @@ static NTSTATUS find_builtin_without_file( const WCHAR *name, UNICODE_STRING *ne
 
 done:
     RtlFreeUnicodeString( new_name );
-    if (!status)
-    {
-        new_name->Length = (4 + wcslen(system_dir) + wcslen(name)) * sizeof(WCHAR);
-        new_name->Buffer = RtlAllocateHeap( GetProcessHeap(), 0, new_name->Length + sizeof(WCHAR) );
-        wcscpy( new_name->Buffer, L"\\??\\" );
-        wcscat( new_name->Buffer, system_dir );
-        wcscat( new_name->Buffer, name );
-    }
+    if (!status) build_sysdir_nt_name( name, new_name );
     return status;
 }
 
@@ -3322,16 +3348,12 @@ static NTSTATUS find_dll_file( const WCHAR *load_path, const WCHAR *libname, UNI
     ULONG wow64_old_value = 0;
 
     *pwm = NULL;
-
-    /* Win 7/2008R2 and up seem to re-enable WoW64 FS redirection when loading libraries */
-    RtlWow64EnableFsRedirectionEx( 0, &wow64_old_value );
-
     nt_name->Buffer = NULL;
 
     if (!contains_path( libname ))
     {
         status = find_apiset_dll( libname, &fullname );
-        if (status == STATUS_DLL_NOT_FOUND) goto done;
+        if (status == STATUS_DLL_NOT_FOUND) return status;
 
         if (status) status = find_actctx_dll( libname, &fullname );
 
@@ -3342,20 +3364,19 @@ static NTSTATUS find_dll_file( const WCHAR *load_path, const WCHAR *libname, UNI
         }
         else
         {
-            if (status != STATUS_SXS_KEY_NOT_FOUND) goto done;
-            if ((*pwm = find_basename_module( libname )) != NULL)
-            {
-                status = STATUS_SUCCESS;
-                goto done;
-            }
+            if (status != STATUS_SXS_KEY_NOT_FOUND) return status;
+            if ((*pwm = find_basename_module( libname ))) return STATUS_SUCCESS;
             if (find_loaded)
             {
                 TRACE( "Skipping file search for %s.\n", debugstr_w(libname) );
-                status = STATUS_DLL_NOT_FOUND;
-                goto done;
+                return STATUS_DLL_NOT_FOUND;
             }
+            if (!open_known_dll( libname, nt_name, pwm, mapping, image_info, id )) return STATUS_SUCCESS;
         }
     }
+
+    /* Win 7/2008R2 and up seem to re-enable WoW64 FS redirection when loading libraries */
+    RtlWow64EnableFsRedirectionEx( 0, &wow64_old_value );
 
     if (RtlDetermineDosPathNameType_U( libname ) == RtlPathTypeRelative)
     {
@@ -3368,7 +3389,6 @@ static NTSTATUS find_dll_file( const WCHAR *load_path, const WCHAR *libname, UNI
 
     if (status == STATUS_NOT_SUPPORTED) status = STATUS_INVALID_IMAGE_FORMAT;
 
-done:
     RtlFreeHeap( GetProcessHeap(), 0, fullname );
     if (wow64_old_value) RtlWow64EnableFsRedirectionEx( 1, &wow64_old_value );
     return status;
@@ -4022,10 +4042,6 @@ void WINAPI LdrShutdownThread(void)
     if ((pointers = NtCurrentTeb()->ThreadLocalStoragePointer))
     {
         NtCurrentTeb()->ThreadLocalStoragePointer = NULL;
-#ifdef __x86_64__  /* macOS-specific hack */
-        if (NtCurrentTeb()->Instrumentation[0])
-            ((TEB *)NtCurrentTeb()->Instrumentation[0])->ThreadLocalStoragePointer = NULL;
-#endif
         for (i = 0; i < tls_module_count; i++) RtlFreeHeap( GetProcessHeap(), 0, pointers[i] );
         RtlFreeHeap( GetProcessHeap(), 0, pointers );
     }
@@ -4288,6 +4304,26 @@ static void elevate_token(void)
     NtClose( linked.LinkedToken );
 }
 
+static void open_known_dll_ntdir(void)
+{
+    UNICODE_STRING dir = RTL_CONSTANT_STRING( L"\\KnownDlls" );
+    OBJECT_ATTRIBUTES attr;
+
+    switch (current_machine)
+    {
+    case IMAGE_FILE_MACHINE_I386:
+        if (NtCurrentTeb()->WowTebOffset) RtlInitUnicodeString( &dir, L"\\KnownDlls32" );
+        break;
+    case IMAGE_FILE_MACHINE_ARMNT:
+        if (NtCurrentTeb()->WowTebOffset) RtlInitUnicodeString( &dir, L"\\KnownDllsArm32" );
+        break;
+    default:
+        break;
+    }
+    InitializeObjectAttributes( &attr, &dir, OBJ_CASE_INSENSITIVE, 0, NULL );
+    NtOpenDirectoryObject( &known_dlls_ntdir, DIRECTORY_ALL_ACCESS, &attr );
+}
+
 #ifdef __arm64ec__
 
 static void load_arm64ec_module(void)
@@ -4499,6 +4535,7 @@ void loader_init( CONTEXT *context, void **entry )
         init_user_process_params();
         load_global_options();
         version_init();
+        open_known_dll_ntdir();
 
         default_load_path = peb->ProcessParameters->DllPath.Buffer;
         if (!default_load_path)

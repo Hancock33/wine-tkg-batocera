@@ -38,6 +38,8 @@
 #include <sys/un.h>
 #endif
 
+#include "ntstatus.h"
+#define WIN32_NO_STATUS
 #include "x11drv.h"
 #include "xcomposite.h"
 #include "winternl.h"
@@ -240,6 +242,7 @@ struct wgl_pbuffer
     const struct glx_pixel_format* fmt;
     int        width;
     int        height;
+    int        pixel_format;
     int*       attribList;
     int        use_render_texture; /* This is also the internal texture format */
     int        texture_bind_target;
@@ -285,7 +288,6 @@ static const BOOL is_win64 = sizeof(void *) > sizeof(int);
 
 static struct opengl_funcs opengl_funcs;
 
-static void X11DRV_WineGL_LoadExtensions(void);
 static void init_pixel_formats( Display *display );
 static BOOL glxRequireVersion(int requiredVersion);
 
@@ -534,18 +536,19 @@ done:
 }
 
 static void *opengl_handle;
+static const struct opengl_driver_funcs x11drv_driver_funcs;
 
 /**********************************************************************
- *           X11DRV_wine_get_wgl_driver
+ *           X11DRV_OpenglInit
  */
-struct opengl_funcs *X11DRV_wine_get_wgl_driver(UINT version)
+UINT X11DRV_OpenGLInit( UINT version, struct opengl_funcs **funcs, const struct opengl_driver_funcs **driver_funcs )
 {
     int error_base, event_base;
 
     if (version != WINE_OPENGL_DRIVER_VERSION)
     {
         ERR( "version mismatch, opengl32 wants %u but driver has %u\n", version, WINE_OPENGL_DRIVER_VERSION );
-        return NULL;
+        return STATUS_INVALID_PARAMETER;
     }
 
     /* No need to load any other libraries as according to the ABI, libGL should be self-sufficient
@@ -555,7 +558,7 @@ struct opengl_funcs *X11DRV_wine_get_wgl_driver(UINT version)
     {
         ERR( "Failed to load libGL: %s\n", dlerror() );
         ERR( "OpenGL support is disabled.\n");
-        return NULL;
+        return STATUS_NOT_SUPPORTED;
     }
 
 #define USE_GL_FUNC(func) \
@@ -721,15 +724,16 @@ struct opengl_funcs *X11DRV_wine_get_wgl_driver(UINT version)
         pglXSwapBuffersMscOML = pglXGetProcAddressARB( (const GLubyte *)"glXSwapBuffersMscOML" );
     }
 
-    X11DRV_WineGL_LoadExtensions();
     init_pixel_formats( gdi_display );
 
-    return &opengl_funcs;
+    *funcs = &opengl_funcs;
+    *driver_funcs = &x11drv_driver_funcs;
+    return STATUS_SUCCESS;
 
 failed:
     dlclose(opengl_handle);
     opengl_handle = NULL;
-    return NULL;
+    return STATUS_NOT_SUPPORTED;
 }
 
 static const char *debugstr_fbconfig( GLXFBConfig fbconfig )
@@ -899,11 +903,6 @@ static inline BOOL is_valid_pixel_format( int format )
 static inline BOOL is_onscreen_pixel_format( int format )
 {
     return format > 0 && format <= nb_onscreen_formats;
-}
-
-static inline int pixel_format_index( const struct glx_pixel_format *format )
-{
-    return format - pixel_formats + 1;
 }
 
 /* GLX can advertise dozens of different pixelformats including offscreen and onscreen ones.
@@ -1196,26 +1195,33 @@ static struct gl_drawable *create_gl_drawable( HWND hwnd, const struct glx_pixel
     return gl;
 }
 
-
-/***********************************************************************
- *              set_win_format
- */
-static BOOL set_win_format( HWND hwnd, const struct glx_pixel_format *format, BOOL internal )
+static BOOL x11drv_set_pixel_format( HWND hwnd, int old_format, int new_format, BOOL internal )
 {
+    const struct glx_pixel_format *fmt;
     struct gl_drawable *old, *gl;
 
-    if (!format->visual) return FALSE;
+    /* Even for internal pixel format fail setting it if the app has already set a
+     * different pixel format. Let wined3d create a backup GL context instead.
+     * Switching pixel format involves drawable recreation and is much more expensive
+     * than blitting from backup context. */
+    if (old_format) return old_format == new_format;
 
-    if (!(old = get_gl_drawable( hwnd, 0 )) || old->format != format)
+    if (!(fmt = get_pixel_format(gdi_display, new_format, FALSE /* Offscreen */)))
     {
-        if (!(gl = create_gl_drawable( hwnd, format, FALSE, internal )))
+        ERR( "Invalid format %d\n", new_format );
+        return FALSE;
+    }
+
+    if (!(old = get_gl_drawable( hwnd, 0 )) || old->format != fmt)
+    {
+        if (!(gl = create_gl_drawable( hwnd, fmt, FALSE, internal )))
         {
             release_gl_drawable( old );
             return FALSE;
         }
 
         TRACE( "created GL drawable %lx for win %p %s\n",
-               gl->drawable, hwnd, debugstr_fbconfig( format->fbconfig ));
+               gl->drawable, hwnd, debugstr_fbconfig( fmt->fbconfig ));
 
         if (old)
             mark_drawable_dirty( old, gl );
@@ -1225,49 +1231,7 @@ static BOOL set_win_format( HWND hwnd, const struct glx_pixel_format *format, BO
     }
 
     release_gl_drawable( old );
-
-    win32u_set_window_pixel_format( hwnd, pixel_format_index( format ), internal );
     return TRUE;
-}
-
-
-static BOOL set_pixel_format( HDC hdc, int format, BOOL internal )
-{
-    const struct glx_pixel_format *fmt;
-    int value;
-    HWND hwnd = NtUserWindowFromDC( hdc );
-    int prev;
-
-    TRACE("(%p,%d)\n", hdc, format);
-
-    if (!hwnd || hwnd == NtUserGetDesktopWindow())
-    {
-        WARN( "not a valid window DC %p/%p\n", hdc, hwnd );
-        return FALSE;
-    }
-
-    fmt = get_pixel_format(gdi_display, format, FALSE /* Offscreen */);
-    if (!fmt)
-    {
-        ERR( "Invalid format %d\n", format );
-        return FALSE;
-    }
-
-    pglXGetFBConfigAttrib(gdi_display, fmt->fbconfig, GLX_DRAWABLE_TYPE, &value);
-    if (!(value & GLX_WINDOW_BIT))
-    {
-        WARN( "Pixel format %d is not compatible for window rendering\n", format );
-        return FALSE;
-    }
-
-    /* Even for internal pixel format fail setting it if the app has already set a
-     * different pixel format. Let wined3d create a backup GL context instead.
-     * Switching pixel format involves drawable recreation and is much more expensive
-     * than blitting from backup context. */
-    if ((prev = win32u_get_window_pixel_format( hwnd )))
-        return prev == format;
-
-    return set_win_format( hwnd, fmt, internal );
 }
 
 static void update_gl_drawable_size( struct gl_drawable *gl )
@@ -1362,11 +1326,6 @@ void set_gl_drawable_parent( HWND hwnd, HWND parent )
     {
         mark_drawable_dirty( old, new );
         release_gl_drawable( new );
-    }
-    else
-    {
-        destroy_gl_drawable( hwnd );
-        win32u_set_window_pixel_format( hwnd, 0, FALSE );
     }
     release_gl_drawable( old );
 }
@@ -1590,39 +1549,6 @@ static int describe_pixel_format( int iPixelFormat, struct wgl_pixel_format *pf 
     if (TRACE_ON(wgl)) dump_PIXELFORMATDESCRIPTOR( &pf->pfd );
 
     return nb_onscreen_formats;
-}
-
-
-/***********************************************************************
- *		glxdrv_wglGetPixelFormat
- */
-static int glxdrv_wglGetPixelFormat( HDC hdc )
-{
-    struct gl_drawable *gl;
-    int ret = 0;
-    HWND hwnd;
-
-    if ((hwnd = NtUserWindowFromDC( hdc )))
-        return win32u_get_window_pixel_format( hwnd );
-
-    if ((gl = get_gl_drawable( NULL, hdc )))
-    {
-        ret = pixel_format_index( gl->format );
-        /* Offscreen formats can't be used with traditional WGL calls.
-         * As has been verified on Windows GetPixelFormat doesn't fail but returns iPixelFormat=1. */
-        if (!is_onscreen_pixel_format( ret )) ret = 1;
-        release_gl_drawable( gl );
-    }
-    TRACE( "%p -> %d\n", hdc, ret );
-    return ret;
-}
-
-/***********************************************************************
- *		glxdrv_wglSetPixelFormat
- */
-static BOOL glxdrv_wglSetPixelFormat( HDC hdc, int iPixelFormat, const PIXELFORMATDESCRIPTOR *ppfd )
-{
-    return set_pixel_format(hdc, iPixelFormat, FALSE);
 }
 
 /***********************************************************************
@@ -2056,17 +1982,6 @@ static struct wgl_context *X11DRV_wglCreateContextAttribsARB( HDC hdc, struct wg
 }
 
 /**
- * X11DRV_wglGetExtensionsStringARB
- *
- * WGL_ARB_extensions_string: wglGetExtensionsStringARB
- */
-static const char *X11DRV_wglGetExtensionsStringARB(HDC hdc)
-{
-    TRACE("() returning \"%s\"\n", wglExtensions);
-    return wglExtensions;
-}
-
-/**
  * X11DRV_wglCreatePbufferARB
  *
  * WGL_ARB_pbuffer: wglCreatePbufferARB
@@ -2096,6 +2011,7 @@ static struct wgl_pbuffer *X11DRV_wglCreatePbufferARB( HDC hdc, int iPixelFormat
     }
     object->width = iWidth;
     object->height = iHeight;
+    object->pixel_format = iPixelFormat;
     object->fmt = fmt;
 
     PUSH2(attribs, GLX_PBUFFER_WIDTH,  iWidth);
@@ -2309,6 +2225,7 @@ static HDC X11DRV_wglGetPbufferDCARB( struct wgl_pbuffer *object )
     escape.visual = default_visual;
     NtGdiExtEscape( hdc, NULL, 0, X11DRV_ESCAPE, sizeof(escape), (LPSTR)&escape, 0, NULL );
 
+    NtGdiSetPixelFormat( hdc, object->pixel_format );
     TRACE( "(%p)->(%p)\n", object, hdc );
     return hdc;
 }
@@ -2530,17 +2447,6 @@ static BOOL X11DRV_wglReleaseTexImageARB( struct wgl_pbuffer *object, int iBuffe
 }
 
 /**
- * X11DRV_wglGetExtensionsStringEXT
- *
- * WGL_EXT_extensions_string: wglGetExtensionsStringEXT
- */
-static const char *X11DRV_wglGetExtensionsStringEXT(void)
-{
-    TRACE("() returning \"%s\"\n", wglExtensions);
-    return wglExtensions;
-}
-
-/**
  * X11DRV_wglGetSwapIntervalEXT
  *
  * WGL_EXT_swap_control: wglGetSwapIntervalEXT
@@ -2610,17 +2516,6 @@ static BOOL X11DRV_wglSwapIntervalEXT(int interval)
     return ret;
 }
 
-/**
- * X11DRV_wglSetPixelFormatWINE
- *
- * WGL_WINE_pixel_format_passthrough: wglSetPixelFormatWINE
- * This is a WINE-specific wglSetPixelFormat which can set the pixel format multiple times.
- */
-static BOOL X11DRV_wglSetPixelFormatWINE(HDC hdc, int format)
-{
-    return set_pixel_format(hdc, format, TRUE);
-}
-
 static BOOL X11DRV_wglQueryCurrentRendererIntegerWINE( GLenum attribute, GLuint *value )
 {
     return pglXQueryCurrentRendererIntegerMESA( attribute, value );
@@ -2661,10 +2556,7 @@ static void register_extension(const char *ext)
     TRACE("'%s'\n", ext);
 }
 
-/**
- * X11DRV_WineGL_LoadExtensions
- */
-static void X11DRV_WineGL_LoadExtensions(void)
+static const char *x11drv_init_wgl_extensions(void)
 {
     wglExtensions[0] = 0;
 
@@ -2680,10 +2572,6 @@ static void X11DRV_WineGL_LoadExtensions(void)
         if (has_extension( glxExtensions, "GLX_ARB_create_context_profile"))
             register_extension("WGL_ARB_create_context_profile");
     }
-
-
-    register_extension( "WGL_ARB_extensions_string" );
-    opengl_funcs.p_wglGetExtensionsStringARB = X11DRV_wglGetExtensionsStringARB;
 
     if (glxRequireVersion(3))
     {
@@ -2704,11 +2592,6 @@ static void X11DRV_WineGL_LoadExtensions(void)
         opengl_funcs.p_wglReleasePbufferDCARB = X11DRV_wglReleasePbufferDCARB;
         opengl_funcs.p_wglSetPbufferAttribARB = X11DRV_wglSetPbufferAttribARB;
     }
-
-    register_extension( "WGL_ARB_pixel_format" );
-    opengl_funcs.p_wglChoosePixelFormatARB      = (void *)1; /* never called */
-    opengl_funcs.p_wglGetPixelFormatAttribfvARB = (void *)1; /* never called */
-    opengl_funcs.p_wglGetPixelFormatAttribivARB = (void *)1; /* never called */
 
     if (has_extension( glxExtensions, "GLX_ARB_fbconfig_float"))
     {
@@ -2734,9 +2617,6 @@ static void X11DRV_WineGL_LoadExtensions(void)
     }
 
     /* EXT Extensions */
-
-    register_extension( "WGL_EXT_extensions_string" );
-    opengl_funcs.p_wglGetExtensionsStringEXT = X11DRV_wglGetExtensionsStringEXT;
 
     /* Load this extension even when it isn't backed by a GLX extension because it is has been around for ages.
      * Games like Call of Duty and K.O.T.O.R. rely on it. Further our emulation is good enough. */
@@ -2781,12 +2661,6 @@ static void X11DRV_WineGL_LoadExtensions(void)
 
     /* WINE-specific WGL Extensions */
 
-    /* In WineD3D we need the ability to set the pixel format more than once (e.g. after a device reset).
-     * The default wglSetPixelFormat doesn't allow this, so add our own which allows it.
-     */
-    register_extension( "WGL_WINE_pixel_format_passthrough" );
-    opengl_funcs.p_wglSetPixelFormatWINE = X11DRV_wglSetPixelFormatWINE;
-
     if (has_extension( glxExtensions, "GLX_MESA_query_renderer" ))
     {
         register_extension( "WGL_WINE_query_renderer" );
@@ -2795,6 +2669,8 @@ static void X11DRV_WineGL_LoadExtensions(void)
         opengl_funcs.p_wglQueryRendererIntegerWINE = X11DRV_wglQueryRendererIntegerWINE;
         opengl_funcs.p_wglQueryRendererStringWINE = X11DRV_wglQueryRendererStringWINE;
     }
+
+    return wglExtensions;
 }
 
 /**
@@ -2888,15 +2764,19 @@ static void glxdrv_get_pixel_formats( struct wgl_pixel_format *formats,
     *num_onscreen_formats = nb_onscreen_formats;
 }
 
+static const struct opengl_driver_funcs x11drv_driver_funcs =
+{
+    .p_init_wgl_extensions = x11drv_init_wgl_extensions,
+    .p_set_pixel_format = x11drv_set_pixel_format,
+};
+
 static struct opengl_funcs opengl_funcs =
 {
     .p_wglCopyContext = glxdrv_wglCopyContext,
     .p_wglCreateContext = glxdrv_wglCreateContext,
     .p_wglDeleteContext = glxdrv_wglDeleteContext,
-    .p_wglGetPixelFormat = glxdrv_wglGetPixelFormat,
     .p_wglGetProcAddress = glxdrv_wglGetProcAddress,
     .p_wglMakeCurrent = glxdrv_wglMakeCurrent,
-    .p_wglSetPixelFormat = glxdrv_wglSetPixelFormat,
     .p_wglShareLists = glxdrv_wglShareLists,
     .p_wglSwapBuffers = glxdrv_wglSwapBuffers,
     .p_get_pixel_formats = glxdrv_get_pixel_formats,
@@ -2905,11 +2785,11 @@ static struct opengl_funcs opengl_funcs =
 #else  /* no OpenGL includes */
 
 /**********************************************************************
- *           X11DRV_wine_get_wgl_driver
+ *           X11DRV_OpenglInit
  */
-struct opengl_funcs *X11DRV_wine_get_wgl_driver(UINT version)
+UINT X11DRV_OpenGLInit( UINT version, struct opengl_funcs **funcs, const struct opengl_driver_funcs **driver_funcs )
 {
-    return NULL;
+    return STATUS_NOT_IMPLEMENTED;
 }
 
 void sync_gl_drawable( HWND hwnd, BOOL known_child )
