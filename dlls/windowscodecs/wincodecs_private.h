@@ -192,6 +192,20 @@ extern HRESULT IcoDibDecoder_CreateInstance(BmpDecoder **ppDecoder);
 extern void BmpDecoder_GetWICDecoder(BmpDecoder *This, IWICBitmapDecoder **ppDecoder);
 extern void BmpDecoder_FindIconMask(BmpDecoder *This, ULONG *mask_offset, int *topdown);
 
+static inline HRESULT init_propvar_from_string(const WCHAR *str, PROPVARIANT *var)
+{
+    size_t size = (wcslen(str) + 1) * sizeof(*str);
+    WCHAR *s;
+
+    if (!(s = CoTaskMemAlloc(size)))
+        return E_OUTOFMEMORY;
+    memcpy(s, str, size);
+
+    var->pwszVal = s;
+    var->vt = VT_LPWSTR;
+    return S_OK;
+}
+
 typedef struct _MetadataItem
 {
     PROPVARIANT schema;
@@ -205,19 +219,34 @@ enum metadatahandler_flags
     METADATAHANDLER_FIXED_ITEMS = 0x2, /* Items cannot be added or removed. */
 };
 
+typedef struct MetadataHandler MetadataHandler;
+
 typedef struct _MetadataHandlerVtbl
 {
     DWORD flags;
     const CLSID *clsid;
-    HRESULT (*fnLoad)(IStream *stream, const GUID *preferred_vendor,
-        DWORD persist_options, MetadataItem **items, DWORD *item_count);
-    HRESULT (*fnSave)(IStream *stream, DWORD persist_options,
-        const MetadataItem *items, DWORD item_count);
-    HRESULT (*fnGetSizeMax)(const MetadataItem *items, DWORD item_count,
-        ULARGE_INTEGER *size);
+    HRESULT (*fnLoad)(MetadataHandler *handler, IStream *stream, const GUID *preferred_vendor,
+        DWORD persist_options);
+    HRESULT (*fnCreate)(MetadataHandler *handler);
 } MetadataHandlerVtbl;
 
+typedef struct MetadataHandler
+{
+    IWICMetadataWriter IWICMetadataWriter_iface;
+    LONG ref;
+    IWICPersistStream IWICPersistStream_iface;
+    IWICStreamProvider IWICStreamProvider_iface;
+    const MetadataHandlerVtbl *vtable;
+    MetadataItem *items;
+    DWORD item_count;
+    DWORD persist_options;
+    IStream *stream;
+    ULARGE_INTEGER origin;
+    CRITICAL_SECTION lock;
+} MetadataHandler;
+
 extern HRESULT MetadataReader_Create(const MetadataHandlerVtbl *vtable, REFIID iid, void** ppv);
+extern void MetadataHandler_FreeItems(MetadataHandler *handler);
 
 extern HRESULT UnknownMetadataReader_CreateInstance(REFIID iid, void** ppv);
 extern HRESULT UnknownMetadataWriter_CreateInstance(REFIID iid, void** ppv);

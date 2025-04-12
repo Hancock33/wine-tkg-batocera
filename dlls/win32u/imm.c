@@ -39,6 +39,7 @@ struct ime_update
     struct list entry;
     WORD vkey;
     WORD scan;
+    BOOL key_consumed;
     DWORD cursor_pos;
     WCHAR *comp_str;
     WCHAR *result_str;
@@ -440,7 +441,8 @@ static void post_ime_update( HWND hwnd, UINT cursor_pos, WCHAR *comp_str, WCHAR 
     static UINT ime_update_count;
 
     struct imm_thread_data *data = get_imm_thread_data();
-    UINT id = -1, comp_len, result_len;
+    UINT id = -1, comp_len, result_len, prev_result_len;
+    WCHAR *prev_result_str, *tmp;
     struct ime_update *update;
 
     TRACE( "hwnd %p, cursor_pos %u, comp_str %s, result_str %s\n", hwnd, cursor_pos,
@@ -449,7 +451,25 @@ static void post_ime_update( HWND hwnd, UINT cursor_pos, WCHAR *comp_str, WCHAR 
     comp_len = comp_str ? wcslen( comp_str ) + 1 : 0;
     result_len = result_str ? wcslen( result_str ) + 1 : 0;
 
-    if (!(update = malloc( offsetof(struct ime_update, buffer[comp_len + result_len]) ))) return;
+    /* prepend or keep the previous result string, if there was any */
+    if (!data->ime_process_vkey || !data->update) prev_result_str = NULL;
+    else prev_result_str = data->update->result_str;
+    prev_result_len = prev_result_str ? wcslen( prev_result_str ) + 1 : 0;
+
+    if (!prev_result_len && !result_len) tmp = NULL;
+    else if (!(tmp = malloc( (prev_result_len + result_len) * sizeof(WCHAR) ))) return;
+
+    if (prev_result_len && result_len) prev_result_len -= 1; /* concat both strings */
+    if (prev_result_len) memcpy( tmp, prev_result_str, prev_result_len * sizeof(WCHAR) );
+    if (result_len) memcpy( tmp + prev_result_len, result_str, result_len * sizeof(WCHAR) );
+    result_len += prev_result_len;
+    result_str = tmp;
+
+    if (!(update = malloc( offsetof(struct ime_update, buffer[comp_len + result_len]) )))
+    {
+        free( tmp );
+        return;
+    }
     update->cursor_pos = cursor_pos;
     update->comp_str = comp_str ? memcpy( update->buffer, comp_str, comp_len * sizeof(WCHAR) ) : NULL;
     update->result_str = result_str ? memcpy( update->buffer + comp_len, result_str, result_len * sizeof(WCHAR) ) : NULL;
@@ -459,6 +479,7 @@ static void post_ime_update( HWND hwnd, UINT cursor_pos, WCHAR *comp_str, WCHAR 
         pthread_mutex_lock( &imm_mutex );
         id = update->scan = ++ime_update_count;
         update->vkey = VK_PROCESSKEY;
+        update->key_consumed = TRUE;
         list_add_tail( &ime_updates, &update->entry );
         pthread_mutex_unlock( &imm_mutex );
 
@@ -470,6 +491,8 @@ static void post_ime_update( HWND hwnd, UINT cursor_pos, WCHAR *comp_str, WCHAR 
         free( data->update );
         data->update = update;
     }
+
+    free( tmp );
 }
 
 static struct ime_update *find_ime_update( WORD vkey, WORD scan )
@@ -482,7 +505,8 @@ static struct ime_update *find_ime_update( WORD vkey, WORD scan )
     return NULL;
 }
 
-UINT ime_to_tascii_ex( UINT vkey, UINT lparam, const BYTE *state, COMPOSITIONSTRING *compstr, HIMC himc )
+static UINT ime_to_tascii_ex( UINT vkey, UINT lparam, const BYTE *state, COMPOSITIONSTRING *compstr,
+                              BOOL *key_consumed, HIMC himc )
 {
     UINT needed = sizeof(COMPOSITIONSTRING), comp_len, result_len;
     struct ime_update *update;
@@ -497,6 +521,8 @@ UINT ime_to_tascii_ex( UINT vkey, UINT lparam, const BYTE *state, COMPOSITIONSTR
         pthread_mutex_unlock( &imm_mutex );
         return STATUS_NOT_FOUND;
     }
+
+    *key_consumed = update->key_consumed;
 
     if (!update->comp_str) comp_len = 0;
     else
@@ -590,6 +616,7 @@ LRESULT ime_driver_call( HWND hwnd, enum wine_ime_call call, WPARAM wparam, LPAR
 
         if (data->update)
         {
+            data->update->key_consumed = res;
             pthread_mutex_lock( &imm_mutex );
             list_add_tail( &ime_updates, &data->update->entry );
             pthread_mutex_unlock( &imm_mutex );
@@ -601,7 +628,7 @@ LRESULT ime_driver_call( HWND hwnd, enum wine_ime_call call, WPARAM wparam, LPAR
         return res;
     }
     case WINE_IME_TO_ASCII_EX:
-        return ime_to_tascii_ex( wparam, lparam, params->state, params->compstr, params->himc );
+        return ime_to_tascii_ex( wparam, lparam, params->state, params->compstr, params->key_consumed, params->himc );
     case WINE_IME_POST_UPDATE:
         post_ime_update( hwnd, wparam, (WCHAR *)lparam, (WCHAR *)params );
         return 0;

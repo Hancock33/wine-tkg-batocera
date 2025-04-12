@@ -6407,7 +6407,9 @@ static void allocate_semantic_register(struct hlsl_ctx *ctx, struct hlsl_ir_var 
                 || semantic == VKD3D_SHADER_SV_PRIMITIVE_ID)
             vip_allocation = true;
 
-        if (semantic == VKD3D_SHADER_SV_IS_FRONT_FACE || semantic == VKD3D_SHADER_SV_SAMPLE_INDEX)
+        if (semantic == VKD3D_SHADER_SV_IS_FRONT_FACE || semantic == VKD3D_SHADER_SV_SAMPLE_INDEX
+                || (version.type == VKD3D_SHADER_TYPE_DOMAIN && !output && !is_primitive)
+                || (ctx->is_patch_constant_func && output))
             special_interpolation = true;
     }
 
@@ -6443,6 +6445,8 @@ static void allocate_semantic_registers(struct hlsl_ctx *ctx, struct hlsl_ir_fun
     bool is_pixel_shader = ctx->profile->type == VKD3D_SHADER_TYPE_PIXEL;
     struct hlsl_ir_var *var;
 
+    in_prim_allocator.prioritize_smaller_writemasks = true;
+    patch_constant_out_patch_allocator.prioritize_smaller_writemasks = true;
     input_allocator.prioritize_smaller_writemasks = true;
     output_allocator.prioritize_smaller_writemasks = true;
 
@@ -6470,6 +6474,8 @@ static void allocate_semantic_registers(struct hlsl_ctx *ctx, struct hlsl_ir_fun
             allocate_semantic_register(ctx, var, &output_allocator, true, !is_pixel_shader);
     }
 
+    vkd3d_free(in_prim_allocator.allocations);
+    vkd3d_free(patch_constant_out_patch_allocator.allocations);
     vkd3d_free(input_allocator.allocations);
     vkd3d_free(output_allocator.allocations);
 }
@@ -9770,7 +9776,7 @@ static void sm4_generate_vsir_instr_dcl_semantic(struct hlsl_ctx *ctx, struct vs
     else
     {
         if (semantic == VKD3D_SHADER_SV_NONE || version->type == VKD3D_SHADER_TYPE_PIXEL
-                || version->type == VKD3D_SHADER_TYPE_HULL)
+                || (version->type == VKD3D_SHADER_TYPE_HULL && !ctx->is_patch_constant_func))
             opcode = VKD3DSIH_DCL_OUTPUT;
         else
             opcode = VKD3DSIH_DCL_OUTPUT_SIV;

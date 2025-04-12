@@ -1522,7 +1522,8 @@ if 1 == 0 (
 @tab@
 ) else echo block containing two lines with just tab seems to work
 ::
-echo @if 1 == 1 (> blockclosing.cmd
+set WINE_IDONTEXIST=
+echo @if [%%WINE_IDONTEXIST%%] == [] (@tab@> blockclosing.cmd
 echo   echo with closing bracket>> blockclosing.cmd
 echo )>> blockclosing.cmd
 cmd.exe /Q /C blockclosing.cmd

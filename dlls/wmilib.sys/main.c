@@ -1,7 +1,7 @@
 /*
- * Resources for gdiplus test suite.
+ * WMI driver
  *
- * Copyright 2017 Fabian Maurer
+ * Copyright 2025 Alexandre Julliard
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,19 +18,15 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-/* @makedep: wine_longname.ttf */
-1 RCDATA wine_longname.ttf
+#include <stdarg.h>
 
-/* @makedep: wine_testfont0.ttf */
-2 RCDATA wine_testfont0.ttf
+#include "ntstatus.h"
+#define WIN32_NO_STATUS
+#include "windef.h"
+#include "winternl.h"
+#include "ddk/wdm.h"
 
-/* Generated with: fonttools ttx wine_mac_win.ttx */
-/* @makedep: wine_mac_win.ttf */
-3 RCDATA wine_mac_win.ttf
-
-/* Generated with: fonttools ttx wine_unicode_mac.ttx */
-/* @makedep: wine_unicode_mac.ttf */
-4 RCDATA wine_unicode_mac.ttf
-
-/* Copied from shell32/blank.ico */
-5 RCDATA wine_test.ico
+NTSTATUS WINAPI DriverEntry( DRIVER_OBJECT *driver, UNICODE_STRING *path )
+{
+    return STATUS_SUCCESS;
+}

@@ -694,7 +694,7 @@ struct symt_custom* symt_new_custom(struct module* module, const char* name,
 }
 
 /* expect sym_info->MaxNameLen to be set before being called */
-static void symt_fill_sym_info(struct module_pair* pair,
+static BOOL symt_fill_sym_info(struct module_pair* pair,
                                const struct symt_function* func,
                                const struct symt* sym, SYMBOL_INFO* sym_info)
 {
@@ -708,13 +708,14 @@ static void symt_fill_sym_info(struct module_pair* pair,
     sym_info->Reserved[0] = sym_info->Reserved[1] = 0;
     if (!symt_get_info(pair->effective, sym, TI_GET_LENGTH, &size) &&
         (!sym_info->TypeIndex ||
-         !symt_get_info(pair->effective, symt_index2ptr(pair->effective, sym_info->TypeIndex),
-                         TI_GET_LENGTH, &size)))
+         !symt_get_info_from_index(pair->effective, sym_info->TypeIndex, TI_GET_LENGTH, &size)))
         size = 0;
     sym_info->Size = (DWORD)size;
     sym_info->ModBase = pair->requested->module.BaseOfImage;
     sym_info->Flags = 0;
     sym_info->Value = 0;
+    sym_info->Address = 0;
+    sym_info->Register = 0;
 
     switch (sym->tag)
     {
@@ -739,6 +740,7 @@ static void symt_fill_sym_info(struct module_pair* pair,
                                                                    MODULE_FORMAT_VTABLE_INDEX(loc_compute))))
                         {
                             iter.modfmt->vtable->loc_compute(iter.modfmt, func, &loc);
+                            if (loc.kind == loc_error && loc.reg == loc_err_out_of_scope) return FALSE;
                             break;
                         }
                     }
@@ -750,7 +752,6 @@ static void symt_fill_sym_info(struct module_pair* pair,
                     case loc_register:
                         sym_info->Flags |= SYMFLAG_REGISTER;
                         sym_info->Register = loc.reg;
-                        sym_info->Address = 0;
                         break;
                     case loc_regrel:
                         sym_info->Flags |= SYMFLAG_REGREL;
@@ -779,7 +780,6 @@ static void symt_fill_sym_info(struct module_pair* pair,
                     /* fall through */
                 case loc_absolute:
                     symt_get_address(sym, &sym_info->Address);
-                    sym_info->Register = 0;
                     break;
                 default:
                     FIXME("Shouldn't happen (kind=%d), debug reader backend is broken\n", data->u.var.kind);
@@ -839,7 +839,6 @@ static void symt_fill_sym_info(struct module_pair* pair,
         break;
     default:
         symt_get_address(sym, &sym_info->Address);
-        sym_info->Register = 0;
         break;
     }
     sym_info->Scope = 0; /* FIXME */
@@ -857,6 +856,7 @@ static void symt_fill_sym_info(struct module_pair* pair,
 
     TRACE_(dbghelp_symt)("%p => %s %lu %I64x\n",
                          sym, debugstr_a(sym_info->Name), sym_info->Size, sym_info->Address);
+    return TRUE;
 }
 
 struct sym_enum
@@ -873,7 +873,7 @@ struct sym_enum
 static BOOL send_symbol(const struct sym_enum* se, struct module_pair* pair,
                         const struct symt_function* func, const struct symt* sym)
 {
-    symt_fill_sym_info(pair, func, sym, se->sym_info);
+    if (!symt_fill_sym_info(pair, func, sym, se->sym_info)) return FALSE;
     if (se->index && se->sym_info->Index != se->index) return FALSE;
     if (se->tag && se->sym_info->Tag != se->tag) return FALSE;
     if (se->addr && !(se->addr >= se->sym_info->Address && se->addr < se->sym_info->Address + se->sym_info->Size)) return FALSE;
@@ -990,7 +990,7 @@ static void symt_get_length(struct module* module, const struct symt* symt, ULON
         return;
 
     if (symt_get_info(module, symt, TI_GET_TYPE, &type_index) &&
-        symt_get_info(module, symt_index2ptr(module, type_index), TI_GET_LENGTH, size)) return;
+        symt_get_info_from_index(module, type_index, TI_GET_LENGTH, size)) return;
     *size = 1; /* no size info */
 }
 

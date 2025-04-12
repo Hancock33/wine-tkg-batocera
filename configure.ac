@@ -2002,7 +2002,7 @@ then
         *) AC_CACHE_CHECK([for working -mabi=ms], ac_cv_mabi_ms,
                [CFLAGS="$CFLAGS -mabi=ms"
                 AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <stdarg.h>
-int a(int b, ...) { __builtin_ms_va_list list; __builtin_ms_va_start(list,b); }]])],
+void a(int b, ...) { __builtin_ms_va_list list; __builtin_ms_va_start(list,b); }]])],
                    [ac_cv_mabi_ms=yes],[ac_cv_mabi_ms=no])
                 CFLAGS=$saved_CFLAGS])
            AS_VAR_IF([ac_cv_mabi_ms],[yes],
@@ -3729,7 +3729,7 @@ dnl Rules for generated source files
 
 WINE_APPEND_RULE(
 [dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-10.5.r0.g835c92a2\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging Esync Fsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
+	@version=\`(echo \"wine-10.5.r4.gaa0c8391\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging Esync Fsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$[@]) || echo \$\$build >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.nfo:
