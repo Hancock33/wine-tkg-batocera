@@ -247,6 +247,7 @@ typedef struct MetadataHandler
 
 extern HRESULT MetadataReader_Create(const MetadataHandlerVtbl *vtable, REFIID iid, void** ppv);
 extern void MetadataHandler_FreeItems(MetadataHandler *handler);
+extern void clear_metadata_item(MetadataItem *item);
 
 extern HRESULT UnknownMetadataReader_CreateInstance(REFIID iid, void** ppv);
 extern HRESULT UnknownMetadataWriter_CreateInstance(REFIID iid, void** ppv);
@@ -258,11 +259,14 @@ extern HRESULT ExifMetadataReader_CreateInstance(REFIID iid, void **ppv);
 extern HRESULT ExifMetadataWriter_CreateInstance(REFIID iid, void **ppv);
 extern HRESULT App1MetadataReader_CreateInstance(REFIID iid, void **ppv);
 extern HRESULT App1MetadataWriter_CreateInstance(REFIID iid, void **ppv);
+extern HRESULT PngBkgdReader_CreateInstance(REFIID iid, void** ppv);
+extern HRESULT PngBkgdWriter_CreateInstance(REFIID iid, void** ppv);
 extern HRESULT PngChrmReader_CreateInstance(REFIID iid, void** ppv);
 extern HRESULT PngGamaReader_CreateInstance(REFIID iid, void** ppv);
 extern HRESULT PngHistReader_CreateInstance(REFIID iid, void** ppv);
 extern HRESULT PngTextReader_CreateInstance(REFIID iid, void** ppv);
 extern HRESULT PngTimeReader_CreateInstance(REFIID iid, void** ppv);
+extern HRESULT PngTimeWriter_CreateInstance(REFIID iid, void** ppv);
 extern HRESULT LSDReader_CreateInstance(REFIID iid, void **ppv);
 extern HRESULT IMDReader_CreateInstance(REFIID iid, void **ppv);
 extern HRESULT GCEReader_CreateInstance(REFIID iid, void **ppv);

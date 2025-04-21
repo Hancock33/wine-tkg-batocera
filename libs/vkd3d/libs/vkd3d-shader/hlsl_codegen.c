@@ -6368,7 +6368,7 @@ static void allocate_semantic_register(struct hlsl_ctx *ctx, struct hlsl_ir_var 
             return;
 
         builtin = sm1_register_from_semantic_name(&version,
-                var->semantic.name, var->semantic.index, output, &type, &reg);
+                var->semantic.name, var->semantic.index, output, NULL, &type, &reg);
         if (!builtin && !sm1_usage_from_semantic_name(var->semantic.name, var->semantic.index, &usage, &usage_idx))
         {
             hlsl_error(ctx, &var->loc, VKD3D_SHADER_ERROR_HLSL_INVALID_SEMANTIC,
@@ -7763,7 +7763,7 @@ static void generate_vsir_signature_entry(struct hlsl_ctx *ctx, struct vsir_prog
             return;
 
         if (!sm1_register_from_semantic_name(&program->shader_version,
-                var->semantic.name, var->semantic.index, output, &type, &register_index))
+                var->semantic.name, var->semantic.index, output, &sysval, &type, &register_index))
         {
             enum vkd3d_decl_usage usage;
             unsigned int usage_idx;
@@ -7780,6 +7780,8 @@ static void generate_vsir_signature_entry(struct hlsl_ctx *ctx, struct vsir_prog
             if (program->shader_version.type == VKD3D_SHADER_TYPE_VERTEX
                     && output && usage == VKD3D_DECL_USAGE_POSITION)
                 sysval = VKD3D_SHADER_SV_POSITION;
+            else
+                sysval = VKD3D_SHADER_SV_NONE;
         }
 
         mask = (1 << var->data_type->e.numeric.dimx) - 1;
@@ -7826,7 +7828,12 @@ static void generate_vsir_signature_entry(struct hlsl_ctx *ctx, struct vsir_prog
     element->mask = mask;
     element->used_mask = use_mask;
     if (program->shader_version.type == VKD3D_SHADER_TYPE_PIXEL && !output)
-        element->interpolation_mode = VKD3DSIM_LINEAR;
+    {
+        if (program->shader_version.major >= 4)
+            element->interpolation_mode = sm4_get_interpolation_mode(var->data_type, var->storage_modifiers);
+        else
+            element->interpolation_mode = VKD3DSIM_LINEAR;
+    }
 
     switch (var->data_type->e.numeric.type)
     {
@@ -8880,7 +8887,7 @@ static void sm1_generate_vsir_init_dst_param_from_deref(struct hlsl_ctx *ctx,
             register_index = 0;
         }
         else if (!sm1_register_from_semantic_name(&version, semantic_name,
-                deref->var->semantic.index, true, &type, &register_index))
+                deref->var->semantic.index, true, NULL, &type, &register_index))
         {
             VKD3D_ASSERT(reg.allocated);
             type = VKD3DSPR_OUTPUT;
@@ -9006,7 +9013,7 @@ static void sm1_generate_vsir_init_src_param_from_deref(struct hlsl_ctx *ctx,
         version.minor = ctx->profile->minor_version;
         version.type = ctx->profile->type;
         if (sm1_register_from_semantic_name(&version, deref->var->semantic.name,
-                deref->var->semantic.index, false, &type, &register_index))
+                deref->var->semantic.index, false, NULL, &type, &register_index))
         {
             writemask = (1 << deref->var->data_type->e.numeric.dimx) - 1;
         }
@@ -10012,8 +10019,8 @@ static bool sm4_generate_vsir_instr_expr_cast(struct hlsl_ctx *ctx,
 static void sm4_generate_vsir_expr_with_two_destinations(struct hlsl_ctx *ctx, struct vsir_program *program,
         enum vkd3d_shader_opcode opcode, const struct hlsl_ir_expr *expr, unsigned int dst_idx)
 {
-    struct vkd3d_shader_dst_param *dst_param, *null_param;
     const struct hlsl_ir_node *instr = &expr->node;
+    struct vkd3d_shader_dst_param *dst_param;
     struct vkd3d_shader_instruction *ins;
     unsigned int i, src_count;
 
@@ -10031,9 +10038,7 @@ static void sm4_generate_vsir_expr_with_two_destinations(struct hlsl_ctx *ctx, s
     dst_param = &ins->dst[dst_idx];
     vsir_dst_from_hlsl_node(dst_param, ctx, instr);
 
-    null_param = &ins->dst[1 - dst_idx];
-    vsir_dst_param_init(null_param, VKD3DSPR_NULL, VKD3D_DATA_FLOAT, 0);
-    null_param->reg.dimension = VSIR_DIMENSION_NONE;
+    vsir_dst_param_init_null(&ins->dst[1 - dst_idx]);
 
     for (i = 0; i < src_count; ++i)
         vsir_src_from_hlsl_node(&ins->src[i], ctx, expr->operands[i].node, dst_param->write_mask);
