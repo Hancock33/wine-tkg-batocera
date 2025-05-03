@@ -1,6 +1,6 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at 42a307df Updated odbc32-fixes patchset
+HEAD is now at edfe4935 Release v10.7
 HEAD is now at 71c6c3dd6dc Release 10.7.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )

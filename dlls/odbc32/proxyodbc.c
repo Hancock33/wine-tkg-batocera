@@ -5569,10 +5569,9 @@ static SQLRETURN bind_parameter_win32( struct statement *stmt, SQLUSMALLINT para
                                        SQLSMALLINT value_type, SQLSMALLINT param_type, SQLULEN size,
                                        SQLSMALLINT digits, SQLPOINTER value, SQLLEN buflen, SQLLEN *len )
 {
-    if (stmt->hdr.win32_funcs->SQLBindParameter)
-        return stmt->hdr.win32_funcs->SQLBindParameter( stmt->hdr.win32_handle, param, io_type, value_type,
-                                                        param_type, size, digits, value, buflen, len );
-    else if(stmt->hdr.win32_funcs->SQLBindParam)
+    struct environment *env = (struct environment *)find_object_type(SQL_HANDLE_ENV, stmt->hdr.parent);
+
+    if (env && env->attr_version == SQL_OV_ODBC3 && env->driver_ver == SQL_OV_ODBC2)
     {
         /* ODBC v2 */
         /* TODO: Make function */
@@ -5589,8 +5588,14 @@ static SQLRETURN bind_parameter_win32( struct statement *stmt, SQLUSMALLINT para
         else if (param_type == SQL_DATE)
             param_type = SQL_TYPE_DATE;
         else if (param_type == SQL_TIMESTAMP)
-            param_type = SQL_TYPE_TIMESTAMP;;;
+            param_type = SQL_TYPE_TIMESTAMP;
+    }
 
+    if (stmt->hdr.win32_funcs->SQLBindParameter)
+        return stmt->hdr.win32_funcs->SQLBindParameter( stmt->hdr.win32_handle, param, io_type, value_type,
+                                                        param_type, size, digits, value, buflen, len );
+    else if(stmt->hdr.win32_funcs->SQLBindParam)
+    {
         return stmt->hdr.win32_funcs->SQLBindParam( stmt->hdr.win32_handle, param, value_type, param_type,
                                                  size, digits, value, len);
     }
