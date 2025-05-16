@@ -21172,6 +21172,7 @@ wine_fn_config_makefile dlls/concrt140 enable_concrt140
 wine_fn_config_makefile dlls/concrt140/tests enable_tests
 wine_fn_config_makefile dlls/connect enable_connect
 wine_fn_config_makefile dlls/coremessaging enable_coremessaging
+wine_fn_config_makefile dlls/coremessaging/tests enable_tests
 wine_fn_config_makefile dlls/credui enable_credui
 wine_fn_config_makefile dlls/credui/tests enable_tests
 wine_fn_config_makefile dlls/crtdll enable_crtdll
@@ -22355,7 +22356,7 @@ fi
 
 as_fn_append wine_rules "
 dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-10.7.r0.gedfe4935\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
+	@version=\`(echo \"wine-10.7.r11.g4adf6139\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$@) || echo \$\$build >\$@ || (rm -f \$@ && exit 1)
 programs/winetest/build.nfo:
