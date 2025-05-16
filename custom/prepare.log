@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
 HEAD is now at 4adf6139 Rebase against 0ac1033f04074339de5cae9ffd9f4f45baaef92e.
-HEAD is now at 0ac1033f040 dbghelp: Load compilands on demand (new PDB).
+HEAD is now at 7f833db11ff Release 10.8.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
@@ -374,7 +374,7 @@ Hunk #1 succeeded at 1069 (offset -1035 lines).
 patching file dlls/ntdll/unix/unix_private.h
 Hunk #1 succeeded at 366 with fuzz 1 (offset 44 lines).
 patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 3471 with fuzz 1 (offset -37 lines).
+Hunk #1 succeeded at 3472 with fuzz 1 (offset -36 lines).
 patching file dlls/ntdll/unixlib.h
 
 ntsync-config.h.in-org.patch -- ( Using original config.h.in patchset for ntsync5 )
@@ -407,7 +407,7 @@ Hunk #5 succeeded at 385 (offset 1 line).
 Hunk #6 succeeded at 395 (offset 1 line).
 Hunk #7 succeeded at 461 (offset 1 line).
 patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 4041 (offset 18 lines).
+Hunk #1 succeeded at 4040 (offset 17 lines).
 patching file dlls/rpcrt4/rpc_server.c
 patching file include/config.h.in
 Hunk #2 succeeded at 537 (offset -6 lines).
@@ -531,7 +531,7 @@ patching file loader/Makefile.in
 Applying hotfix wine-tkg-patches/hotfixes/GetMappedFileName/Return_nt_filename_and_resolve_DOS_drive_path.mypatch
 patching file dlls/ntdll/unix/virtual.c
 Hunk #1 succeeded at 131 with fuzz 2 (offset -2 lines).
-Hunk #2 succeeded at 5796 (offset 1521 lines).
+Hunk #2 succeeded at 5795 (offset 1520 lines).
 
 Applying hotfix wine-tkg-patches/hotfixes/08cccb5/a608ef1.mypatch
 patching file dlls/dxgi/dxgi_main.c

@@ -1,8 +1,8 @@
-# Last wine-tkg-staging-ntsync-git configuration - Fri 16 May 18:33:53 BST 2025 :
+# Last wine-tkg-staging-ntsync-git configuration - Fri 16 May 21:33:30 BST 2025 :
 
 Local cfg files used
 
-Wine (plain) version: 10.7.r219.g0ac1033f040
+Wine (plain) version: 10.8.r0.g7f833db11ff
 Using wine-staging patchset (version 10.7.r11.g4adf6139)
 
 Disabled the local Esync patchset to use Staging impl instead.
