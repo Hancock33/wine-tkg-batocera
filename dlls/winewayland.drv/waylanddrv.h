@@ -246,6 +246,7 @@ struct wayland_shm_buffer
     struct wl_list link;
     struct wl_buffer *wl_buffer;
     int width, height;
+    uint32_t format;
     void *map_data;
     size_t map_size;
     BOOL busy;
@@ -329,6 +330,11 @@ void wayland_client_surface_detach(struct wayland_client_surface *client);
 void wayland_surface_ensure_contents(struct wayland_surface *surface);
 void wayland_surface_set_title(struct wayland_surface *surface, LPCWSTR title);
 void wayland_surface_set_icon(struct wayland_surface *surface, UINT type, ICONINFO *ii);
+
+static inline BOOL wayland_surface_is_toplevel(struct wayland_surface *surface)
+{
+    return surface->role == WAYLAND_SURFACE_ROLE_TOPLEVEL && surface->xdg_toplevel;
+}
 
 /**********************************************************************
  *          Wayland SHM buffer

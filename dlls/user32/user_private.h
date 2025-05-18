@@ -100,7 +100,7 @@ extern void SPY_EnterMessage( INT iFlag, HWND hwnd, UINT msg, WPARAM wParam, LPA
 extern void SPY_ExitMessage( INT iFlag, HWND hwnd, UINT msg,
                              LRESULT lReturn, WPARAM wParam, LPARAM lParam );
 
-#include "pshpack1.h"
+#pragma pack(push,1)
 
 typedef struct
 {
@@ -154,7 +154,7 @@ typedef struct
     CURSORICONFILEDIRENTRY  idEntries[1];
 } CURSORICONFILEDIR;
 
-#include "poppack.h"
+#pragma pack(pop)
 
 extern int bitmap_info_size( const BITMAPINFO * info, WORD coloruse );
 extern BOOL get_icon_size( HICON handle, SIZE *size );
@@ -173,7 +173,6 @@ BOOL is_desktop_window( HWND hwnd );
 HWND WIN_GetFullHandle( HWND hwnd );
 HWND WIN_IsCurrentProcess( HWND hwnd );
 HWND WIN_IsCurrentThread( HWND hwnd );
-ULONG WIN_SetStyle( HWND hwnd, ULONG set_bits, ULONG clear_bits );
 HWND WIN_CreateWindowEx( CREATESTRUCTW *cs, LPCWSTR className, HINSTANCE module, BOOL unicode );
 HWND *WIN_ListChildren( HWND hwnd );
 void MDI_CalcDefaultChildPos( HWND hwndClient, INT total, LPPOINT lpPos, INT delta, UINT *id );

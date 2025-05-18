@@ -574,13 +574,14 @@ static struct hlsl_default_value evaluate_static_expression(struct hlsl_ctx *ctx
                 /* fall-through */
             case HLSL_IR_CALL:
             case HLSL_IR_IF:
+            case HLSL_IR_INTERLOCKED:
             case HLSL_IR_LOOP:
             case HLSL_IR_JUMP:
             case HLSL_IR_RESOURCE_LOAD:
             case HLSL_IR_RESOURCE_STORE:
             case HLSL_IR_SWITCH:
-            case HLSL_IR_INTERLOCKED:
             case HLSL_IR_STATEBLOCK_CONSTANT:
+            case HLSL_IR_SYNC:
                 hlsl_error(ctx, &node->loc, VKD3D_SHADER_ERROR_HLSL_INVALID_SYNTAX,
                         "Expected literal expression.");
                 break;
@@ -1182,6 +1183,7 @@ static bool add_typedef(struct hlsl_ctx *ctx, struct hlsl_type *const orig_type,
 
         vkd3d_free((void *)type->name);
         type->name = v->name;
+        type->is_typedef = true;
 
         ret = hlsl_scope_add_type(ctx->cur_scope, type);
         if (!ret)
@@ -2115,7 +2117,7 @@ static bool add_assignment(struct hlsl_ctx *ctx, struct hlsl_block *block, struc
         VKD3D_ASSERT(coords->data_type->e.numeric.type == HLSL_TYPE_UINT);
         VKD3D_ASSERT(coords->data_type->e.numeric.dimx == dim_count);
 
-        hlsl_block_add_resource_store(ctx, block, &resource_deref, coords, rhs, &lhs->loc);
+        hlsl_block_add_resource_store(ctx, block, HLSL_RESOURCE_STORE, &resource_deref, coords, rhs, &lhs->loc);
         hlsl_cleanup_deref(&resource_deref);
     }
     else if (matrix_writemask)
@@ -3188,6 +3190,11 @@ static bool elementwise_intrinsic_uint_convert_args(struct hlsl_ctx *ctx,
 static bool intrinsic_abs(struct hlsl_ctx *ctx,
         const struct parse_initializer *params, const struct vkd3d_shader_location *loc)
 {
+    const struct hlsl_type *type = params->args[0]->data_type;
+
+    if (!hlsl_type_is_floating_point(type) && !hlsl_type_is_signed_integer(type))
+        return true;
+
     return !!add_unary_arithmetic_expr(ctx, params->instrs, HLSL_OP1_ABS, params->args[0], loc);
 }
 
@@ -4931,7 +4938,7 @@ static bool intrinsic_GetRenderTargetSampleCount(struct hlsl_ctx *ctx,
                 "GetRenderTargetSampleCount() can only be used from a pixel shader using version 4.1 or higher.");
 
     hlsl_block_add_expr(ctx, params->instrs, HLSL_OP0_RASTERIZER_SAMPLE_COUNT,
-            operands, hlsl_get_scalar_type(ctx, HLSL_TYPE_UINT), loc);
+            operands, hlsl_get_vector_type(ctx, HLSL_TYPE_UINT, 1), loc);
     return true;
 }
 
@@ -5110,6 +5117,67 @@ static bool intrinsic_InterlockedXor(struct hlsl_ctx *ctx,
     return intrinsic_interlocked(ctx, HLSL_INTERLOCKED_XOR, params, loc, "InterlockedXor");
 }
 
+static void validate_group_barrier_profile(struct hlsl_ctx *ctx, const struct vkd3d_shader_location *loc)
+{
+    if (ctx->profile->type != VKD3D_SHADER_TYPE_COMPUTE || hlsl_version_lt(ctx, 5, 0))
+    {
+        hlsl_error(ctx, loc, VKD3D_SHADER_ERROR_HLSL_INCOMPATIBLE_PROFILE,
+                "Group barriers can only be used in compute shaders 5.0 or higher.");
+    }
+}
+
+static bool intrinsic_AllMemoryBarrier(struct hlsl_ctx *ctx,
+        const struct parse_initializer *params, const struct vkd3d_shader_location *loc)
+{
+    validate_group_barrier_profile(ctx, loc);
+    return !!hlsl_block_add_sync(ctx, params->instrs, VKD3DSSF_GLOBAL_UAV
+            | VKD3DSSF_GROUP_SHARED_MEMORY, loc);
+}
+
+static bool intrinsic_AllMemoryBarrierWithGroupSync(struct hlsl_ctx *ctx,
+        const struct parse_initializer *params, const struct vkd3d_shader_location *loc)
+{
+    validate_group_barrier_profile(ctx, loc);
+    return !!hlsl_block_add_sync(ctx, params->instrs, VKD3DSSF_GLOBAL_UAV
+            | VKD3DSSF_GROUP_SHARED_MEMORY | VKD3DSSF_THREAD_GROUP, loc);
+}
+
+static bool intrinsic_DeviceMemoryBarrier(struct hlsl_ctx *ctx,
+        const struct parse_initializer *params, const struct vkd3d_shader_location *loc)
+{
+    if ((ctx->profile->type != VKD3D_SHADER_TYPE_COMPUTE && ctx->profile->type != VKD3D_SHADER_TYPE_PIXEL)
+            || hlsl_version_lt(ctx, 5, 0))
+    {
+        hlsl_error(ctx, loc, VKD3D_SHADER_ERROR_HLSL_INCOMPATIBLE_PROFILE,
+                "DeviceMemoryBarrier() can only be used in pixel and compute shaders 5.0 or higher.");
+    }
+    return !!hlsl_block_add_sync(ctx, params->instrs, VKD3DSSF_GLOBAL_UAV, loc);
+}
+
+static bool intrinsic_DeviceMemoryBarrierWithGroupSync(struct hlsl_ctx *ctx,
+        const struct parse_initializer *params, const struct vkd3d_shader_location *loc)
+{
+    validate_group_barrier_profile(ctx, loc);
+    return !!hlsl_block_add_sync(ctx, params->instrs, VKD3DSSF_GLOBAL_UAV
+            | VKD3DSSF_THREAD_GROUP, loc);
+}
+
+static bool intrinsic_GroupMemoryBarrier(struct hlsl_ctx *ctx,
+        const struct parse_initializer *params, const struct vkd3d_shader_location *loc)
+{
+    validate_group_barrier_profile(ctx, loc);
+    return !!hlsl_block_add_sync(ctx, params->instrs,
+            VKD3DSSF_GROUP_SHARED_MEMORY, loc);
+}
+
+static bool intrinsic_GroupMemoryBarrierWithGroupSync(struct hlsl_ctx *ctx,
+        const struct parse_initializer *params, const struct vkd3d_shader_location *loc)
+{
+    validate_group_barrier_profile(ctx, loc);
+    return !!hlsl_block_add_sync(ctx, params->instrs,
+            VKD3DSSF_GROUP_SHARED_MEMORY | VKD3DSSF_THREAD_GROUP, loc);
+}
+
 static const struct intrinsic_function
 {
     const char *name;
@@ -5121,8 +5189,14 @@ static const struct intrinsic_function
 intrinsic_functions[] =
 {
     /* Note: these entries should be kept in alphabetical order. */
+    {"AllMemoryBarrier",                    0, true,  intrinsic_AllMemoryBarrier},
+    {"AllMemoryBarrierWithGroupSync",       0, true,  intrinsic_AllMemoryBarrierWithGroupSync},
     {"D3DCOLORtoUBYTE4",                    1, true,  intrinsic_d3dcolor_to_ubyte4},
+    {"DeviceMemoryBarrier",                 0, true,  intrinsic_DeviceMemoryBarrier},
+    {"DeviceMemoryBarrierWithGroupSync",    0, true,  intrinsic_DeviceMemoryBarrierWithGroupSync},
     {"GetRenderTargetSampleCount",          0, true,  intrinsic_GetRenderTargetSampleCount},
+    {"GroupMemoryBarrier",                  0, true,  intrinsic_GroupMemoryBarrier},
+    {"GroupMemoryBarrierWithGroupSync",     0, true,  intrinsic_GroupMemoryBarrierWithGroupSync},
     {"InterlockedAdd",                     -1, true,  intrinsic_InterlockedAdd},
     {"InterlockedAnd",                     -1, true,  intrinsic_InterlockedAnd},
     {"InterlockedCompareExchange",          4, true,  intrinsic_InterlockedCompareExchange},
@@ -6220,8 +6294,54 @@ static bool add_store_method_call(struct hlsl_ctx *ctx, struct hlsl_block *block
     if (!hlsl_init_deref_from_index_chain(ctx, &resource_deref, object))
         return false;
 
-    hlsl_block_add_resource_store(ctx, block, &resource_deref, offset, rhs, loc);
+    hlsl_block_add_resource_store(ctx, block, HLSL_RESOURCE_STORE, &resource_deref, offset, rhs, loc);
     hlsl_cleanup_deref(&resource_deref);
+
+    return true;
+}
+
+static bool add_so_append_method_call(struct hlsl_ctx *ctx, struct hlsl_block *block, struct hlsl_ir_node *object,
+        const char *name, const struct parse_initializer *params, const struct vkd3d_shader_location *loc)
+{
+    struct hlsl_deref so_deref;
+    struct hlsl_ir_node *rhs;
+
+    if (params->args_count != 1)
+    {
+        hlsl_error(ctx, loc, VKD3D_SHADER_ERROR_HLSL_WRONG_PARAMETER_COUNT,
+                "Wrong number of arguments to method '%s': expected 1.", name);
+        return false;
+    }
+
+    if (!hlsl_init_deref_from_index_chain(ctx, &so_deref, object))
+        return false;
+
+    if (!(rhs = add_implicit_conversion(ctx, block, params->args[0], object->data_type->e.so.type, loc)))
+        return false;
+
+    hlsl_block_add_resource_store(ctx, block, HLSL_RESOURCE_STREAM_APPEND, &so_deref, NULL, rhs, loc);
+    hlsl_cleanup_deref(&so_deref);
+
+    return true;
+}
+
+static bool add_so_restartstrip_method_call(struct hlsl_ctx *ctx, struct hlsl_block *block, struct hlsl_ir_node *object,
+        const char *name, const struct parse_initializer *params, const struct vkd3d_shader_location *loc)
+{
+    struct hlsl_deref so_deref;
+
+    if (params->args_count)
+    {
+        hlsl_error(ctx, loc, VKD3D_SHADER_ERROR_HLSL_WRONG_PARAMETER_COUNT,
+                "Wrong number of arguments to method '%s': expected 0.", name);
+        return false;
+    }
+
+    if (!hlsl_init_deref_from_index_chain(ctx, &so_deref, object))
+        return false;
+
+    hlsl_block_add_resource_store(ctx, block, HLSL_RESOURCE_STREAM_RESTART, &so_deref, NULL, NULL, loc);
+    hlsl_cleanup_deref(&so_deref);
 
     return true;
 }
@@ -6269,6 +6389,12 @@ static const struct method_function uav_methods[] =
     { "Store4", add_store_method_call, "00000000000001" },
 };
 
+static const struct method_function so_methods[] =
+{
+    { "Append",       add_so_append_method_call,       "" },
+    { "RestartStrip", add_so_restartstrip_method_call, "" },
+};
+
 static int object_method_function_name_compare(const void *a, const void *b)
 {
     const struct method_function *func = b;
@@ -6280,8 +6406,7 @@ static bool add_method_call(struct hlsl_ctx *ctx, struct hlsl_block *block, stru
         const char *name, const struct parse_initializer *params, const struct vkd3d_shader_location *loc)
 {
     const struct hlsl_type *object_type = object->data_type;
-    const struct method_function *method, *methods;
-    unsigned int count;
+    const struct method_function *method;
 
     if (object_type->class == HLSL_CLASS_ERROR)
     {
@@ -6300,13 +6425,24 @@ static bool add_method_call(struct hlsl_ctx *ctx, struct hlsl_block *block, stru
 
     if (object_type->class == HLSL_CLASS_TEXTURE)
     {
-        count = ARRAY_SIZE(texture_methods);
-        methods = texture_methods;
+        method = bsearch(name, texture_methods, ARRAY_SIZE(texture_methods), sizeof(*method),
+                object_method_function_name_compare);
+
+        if (method && method->valid_dims[object_type->sampler_dim] != '1')
+            method = NULL;
     }
     else if (object_type->class == HLSL_CLASS_UAV)
     {
-        count = ARRAY_SIZE(uav_methods);
-        methods = uav_methods;
+        method = bsearch(name, uav_methods, ARRAY_SIZE(uav_methods), sizeof(*method),
+                object_method_function_name_compare);
+
+        if (method && method->valid_dims[object_type->sampler_dim] != '1')
+            method = NULL;
+    }
+    else if (object_type->class == HLSL_CLASS_STREAM_OUTPUT)
+    {
+        method = bsearch(name, so_methods, ARRAY_SIZE(so_methods), sizeof(*method),
+                object_method_function_name_compare);
     }
     else
     {
@@ -6319,17 +6455,10 @@ static bool add_method_call(struct hlsl_ctx *ctx, struct hlsl_block *block, stru
         return false;
     }
 
-    method = bsearch(name, methods, count, sizeof(*method),
-            object_method_function_name_compare);
-
-    if (method && method->valid_dims[object_type->sampler_dim] == '1')
-    {
+    if (method)
         return method->handler(ctx, block, object, name, params, loc);
-    }
     else
-    {
         return raise_invalid_method_object_type(ctx, object_type, name, loc);
-    }
 }
 
 static bool add_object_property_access(struct hlsl_ctx *ctx,
@@ -8054,14 +8183,14 @@ type_no_void:
     | TYPE_IDENTIFIER
         {
             $$ = hlsl_get_type(ctx->cur_scope, $1, true, true);
-            if ($$->is_minimum_precision)
+            if ($$->is_minimum_precision || hlsl_type_is_minimum_precision($$))
             {
                 if (hlsl_version_lt(ctx, 4, 0))
                 {
                     hlsl_error(ctx, &@1, VKD3D_SHADER_ERROR_HLSL_INVALID_TYPE,
                             "Target profile doesn't support minimum-precision types.");
                 }
-                else
+                else if ($$->is_minimum_precision)
                 {
                     FIXME("Reinterpreting type %s.\n", $$->name);
                 }
@@ -8091,8 +8220,8 @@ type_no_void:
     | KW_STRUCT TYPE_IDENTIFIER
         {
             $$ = hlsl_get_type(ctx->cur_scope, $2, true, true);
-            if ($$->class != HLSL_CLASS_STRUCT)
-                hlsl_error(ctx, &@1, VKD3D_SHADER_ERROR_HLSL_REDEFINED, "\"%s\" redefined as a structure.", $2);
+            if ($$->class != HLSL_CLASS_STRUCT || $$->is_typedef)
+                hlsl_error(ctx, &@1, VKD3D_SHADER_ERROR_HLSL_REDEFINED, "\"%s\" is not a structure.", $2);
             vkd3d_free($2);
         }
     | KW_RENDERTARGETVIEW

@@ -39,8 +39,8 @@ void *__wine_syscall_dispatcher = NULL;
 #ifdef __arm64ec__
 enum syscall_ids
 {
-#define SYSCALL_ENTRY(id,name,args) __id_##name = id + 0x1000,
-ALL_SYSCALLS64
+#define SYSCALL_ENTRY(id,name,args) __id_##name = id,
+ALL_SYSCALLS
 #undef SYSCALL_ENTRY
 };
 
@@ -1110,6 +1110,11 @@ HKL SYSCALL_API NtUserActivateKeyboardLayout( HKL layout, UINT flags )
 BOOL SYSCALL_API NtUserAddClipboardFormatListener( HWND hwnd )
 {
     SYSCALL_FUNC( NtUserAddClipboardFormatListener );
+}
+
+ULONG SYSCALL_API NtUserAlterWindowStyle( HWND hwnd, UINT mask, UINT style )
+{
+    SYSCALL_FUNC( NtUserAlterWindowStyle );
 }
 
 UINT SYSCALL_API NtUserArrangeIconicWindows( HWND parent )
@@ -2463,13 +2468,12 @@ BOOL SYSCALL_API __wine_get_icm_profile( HDC hdc, BOOL allow_default, DWORD *siz
 #else /*  __arm64ec__ */
 
 #ifdef _WIN64
-#define SYSCALL_ENTRY(id,name,args) __ASM_SYSCALL_FUNC( id + 0x1000, name )
-ALL_SYSCALLS64
+#define SYSCALL_ENTRY(id,name,args) __ASM_SYSCALL_FUNC( id, name )
 #else
-#define SYSCALL_ENTRY(id,name,args) __ASM_SYSCALL_FUNC( id + 0x1000, name, args )
+#define SYSCALL_ENTRY(id,name,args) __ASM_SYSCALL_FUNC( id, name, args )
 DEFINE_SYSCALL_HELPER32()
-ALL_SYSCALLS32
 #endif
+ALL_SYSCALLS
 #undef SYSCALL_ENTRY
 
 #endif /*  __arm64ec__ */

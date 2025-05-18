@@ -230,7 +230,6 @@ struct gl_drawable
     Pixmap                         pixmap;       /* base pixmap if drawable is a GLXPixmap */
     const struct glx_pixel_format *format;       /* pixel format for the drawable */
     int                            swap_interval;
-    BOOL                           refresh_swap_interval;
     BOOL                           mutable_pf;
     HDC                            hdc_src;
     HDC                            hdc_dst;
@@ -270,7 +269,7 @@ static BOOL glxRequireVersion(int requiredVersion);
 static void dump_PIXELFORMATDESCRIPTOR(const PIXELFORMATDESCRIPTOR *ppfd) {
   TRACE( "size %u version %u flags %u type %u color %u %u,%u,%u,%u "
          "accum %u depth %u stencil %u aux %u ",
-         ppfd->nSize, ppfd->nVersion, (int)ppfd->dwFlags, ppfd->iPixelType,
+         ppfd->nSize, ppfd->nVersion, ppfd->dwFlags, ppfd->iPixelType,
          ppfd->cColorBits, ppfd->cRedBits, ppfd->cGreenBits, ppfd->cBlueBits, ppfd->cAlphaBits,
          ppfd->cAccumBits, ppfd->cDepthBits, ppfd->cStencilBits, ppfd->cAuxBuffers );
 #define TEST_AND_DUMP(t,tv) if ((t) & (tv)) TRACE(#tv " ")
@@ -357,9 +356,6 @@ static INT64 (*pglXSwapBuffersMscOML)( Display *dpy, GLXDrawable drawable,
 static void (*pglFinish)(void);
 static void (*pglFlush)(void);
 static const GLubyte *(*pglGetString)(GLenum name);
-
-static void wglFinish(void);
-static void wglFlush(void);
 static const GLubyte *wglGetString(GLenum name);
 
 /* check if the extension is present in the list */
@@ -440,9 +436,9 @@ static BOOL X11DRV_WineGL_InitOpenglInfo(void)
                         "installed correctly\n", is_win64 ? "64-bit" : "32-bit" );
         goto done;
     }
-    gl_renderer = (const char *)opengl_funcs.p_glGetString(GL_RENDERER);
-    gl_version  = (const char *)opengl_funcs.p_glGetString(GL_VERSION);
-    str = (const char *) opengl_funcs.p_glGetString(GL_EXTENSIONS);
+    gl_renderer = (const char *)pglGetString(GL_RENDERER);
+    gl_version  = (const char *)pglGetString(GL_VERSION);
+    str = (const char *) pglGetString(GL_EXTENSIONS);
     glExtensions = malloc( strlen(str) + sizeof(legacy_extensions) );
     strcpy(glExtensions, str);
     strcat(glExtensions, legacy_extensions);
@@ -534,22 +530,17 @@ UINT X11DRV_OpenGLInit( UINT version, struct opengl_funcs **funcs, const struct 
         return STATUS_NOT_SUPPORTED;
     }
 
-#define USE_GL_FUNC(func) \
-        if (!(opengl_funcs.p_##func = dlsym( opengl_handle, #func ))) \
+    /* redirect some standard OpenGL functions */
+#define LOAD_FUNCPTR(func) \
+        if (!(p##func = dlsym( opengl_handle, #func ))) \
         { \
             ERR( "%s not found in libGL, disabling OpenGL.\n", #func ); \
             goto failed; \
         }
-    ALL_GL_FUNCS
-#undef USE_GL_FUNC
-
-    /* redirect some standard OpenGL functions */
-#define REDIRECT(func) \
-    do { p##func = opengl_funcs.p_##func; opengl_funcs.p_##func = w##func; } while(0)
-    REDIRECT( glFinish );
-    REDIRECT( glFlush );
-    REDIRECT( glGetString );
-#undef REDIRECT
+    LOAD_FUNCPTR( glFinish );
+    LOAD_FUNCPTR( glFlush );
+    LOAD_FUNCPTR( glGetString );
+#undef LOAD_FUNCPTR
 
     pglXGetProcAddressARB = dlsym(opengl_handle, "glXGetProcAddressARB");
     if (pglXGetProcAddressARB == NULL) {
@@ -990,15 +981,18 @@ static inline void sync_context(struct x11drv_context *context)
     pthread_mutex_unlock( &context_mutex );
 }
 
-static BOOL set_swap_interval(GLXDrawable drawable, int interval)
+static BOOL set_swap_interval( struct gl_drawable *gl, int interval )
 {
     BOOL ret = TRUE;
+
+    if (interval < 0 && !has_swap_control_tear) interval = -interval;
+    if (gl->swap_interval == interval) return TRUE;
 
     switch (swap_control_method)
     {
     case GLX_SWAP_CONTROL_EXT:
         X11DRV_expect_error(gdi_display, GLXErrorHandler, NULL);
-        pglXSwapIntervalEXT(gdi_display, drawable, interval);
+        pglXSwapIntervalEXT( gdi_display, gl->drawable, interval );
         XSync(gdi_display, False);
         ret = !X11DRV_check_error();
         break;
@@ -1080,11 +1074,8 @@ static struct gl_drawable *create_gl_drawable( HWND hwnd, const struct glx_pixel
 
     if (!(gl = calloc( 1, sizeof(*gl) ))) return NULL;
 
-    /* Default GLX and WGL swap interval is 1, but in case of glXSwapIntervalSGI
-     * there is no way to query it, so we have to store it here.
-     */
-    gl->swap_interval = 1;
-    gl->refresh_swap_interval = TRUE;
+    /* Default GLX and WGL swap interval is 1, but in case of glXSwapIntervalSGI there is no way to query it. */
+    gl->swap_interval = INT_MIN;
     gl->format = format;
     gl->ref = 1;
     gl->hwnd = hwnd;
@@ -1160,10 +1151,7 @@ static struct gl_drawable *create_gl_drawable( HWND hwnd, const struct glx_pixel
 
     pthread_mutex_lock( &context_mutex );
     if (!XFindContext( gdi_display, (XID)hwnd, gl_hwnd_context, (char **)&prev ))
-    {
-        gl->swap_interval = prev->swap_interval;
         release_gl_drawable( prev );
-    }
     XSaveContext( gdi_display, (XID)hwnd, gl_hwnd_context, (char *)grab_gl_drawable(gl) );
     pthread_mutex_unlock( &context_mutex );
     return gl;
@@ -1567,13 +1555,15 @@ static BOOL x11drv_context_destroy(void *private)
     return TRUE;
 }
 
-/***********************************************************************
- *		glxdrv_wglGetProcAddress
- */
-static PROC glxdrv_wglGetProcAddress(LPCSTR lpszProc)
+static void *x11drv_get_proc_address( const char *name )
 {
-    if (!strncmp(lpszProc, "wgl", 3)) return NULL;
-    return pglXGetProcAddressARB((const GLubyte*)lpszProc);
+    void *ptr;
+
+    /* redirect some standard OpenGL functions */
+    if (!strcmp( name, "glGetString" )) return wglGetString;
+
+    if ((ptr = dlsym( opengl_handle, name ))) return ptr;
+    return pglXGetProcAddressARB( (const GLubyte *)name );
 }
 
 static void set_context_drawables( struct x11drv_context *ctx, struct gl_drawable *draw,
@@ -1724,36 +1714,24 @@ static void present_gl_drawable( HWND hwnd, HDC hdc, struct gl_drawable *gl, BOO
     if (region) NtGdiDeleteObjectApp( region );
 }
 
-static void wglFinish(void)
+static BOOL x11drv_context_flush( void *private, HWND hwnd, HDC hdc, int interval, BOOL finish )
 {
     struct gl_drawable *gl;
-    struct x11drv_context *ctx = NtCurrentTeb()->glReserved2;
-    HWND hwnd = NtUserWindowFromDC( ctx->hdc );
+    struct x11drv_context *ctx = private;
 
-    if (!(gl = get_gl_drawable( hwnd, 0 ))) pglFinish();
-    else
-    {
-        sync_context(ctx);
-        pglFinish();
-        present_gl_drawable( hwnd, ctx->hdc, gl, TRUE, FALSE );
-        release_gl_drawable( gl );
-    }
-}
+    if (!(gl = get_gl_drawable( hwnd, 0 ))) return FALSE;
+    sync_context( ctx );
 
-static void wglFlush(void)
-{
-    struct gl_drawable *gl;
-    struct x11drv_context *ctx = NtCurrentTeb()->glReserved2;
-    HWND hwnd = NtUserWindowFromDC( ctx->hdc );
+    pthread_mutex_lock( &context_mutex );
+    set_swap_interval( gl, interval );
+    pthread_mutex_unlock( &context_mutex );
 
-    if (!(gl = get_gl_drawable( hwnd, 0 ))) pglFlush();
-    else
-    {
-        sync_context(ctx);
-        pglFlush();
-        present_gl_drawable( hwnd, ctx->hdc, gl, TRUE, TRUE );
-        release_gl_drawable( gl );
-    }
+    if (finish) pglFinish();
+    else pglFlush();
+
+    present_gl_drawable( hwnd, ctx->hdc, gl, TRUE, !finish );
+    release_gl_drawable( gl );
+    return TRUE;
 }
 
 static const GLubyte *wglGetString(GLenum name)
@@ -1932,76 +1910,6 @@ static UINT x11drv_pbuffer_bind( HDC hdc, void *private, GLenum buffer )
     return -1; /* use default implementation */
 }
 
-/**
- * X11DRV_wglGetSwapIntervalEXT
- *
- * WGL_EXT_swap_control: wglGetSwapIntervalEXT
- */
-static int X11DRV_wglGetSwapIntervalEXT(void)
-{
-    struct x11drv_context *ctx = NtCurrentTeb()->glReserved2;
-    struct gl_drawable *gl;
-    int swap_interval;
-
-    TRACE("()\n");
-
-    if (!(gl = get_gl_drawable( NtUserWindowFromDC( ctx->hdc ), ctx->hdc )))
-    {
-        /* This can't happen because a current WGL context is required to get
-         * here. Likely the application is buggy.
-         */
-        WARN("No GL drawable found, returning swap interval 0\n");
-        return 0;
-    }
-
-    swap_interval = gl->swap_interval;
-    release_gl_drawable(gl);
-
-    return swap_interval;
-}
-
-/**
- * X11DRV_wglSwapIntervalEXT
- *
- * WGL_EXT_swap_control: wglSwapIntervalEXT
- */
-static BOOL X11DRV_wglSwapIntervalEXT(int interval)
-{
-    struct x11drv_context *ctx = NtCurrentTeb()->glReserved2;
-    struct gl_drawable *gl;
-    BOOL ret;
-
-    TRACE("(%d)\n", interval);
-
-    /* Without WGL/GLX_EXT_swap_control_tear a negative interval
-     * is invalid.
-     */
-    if (interval < 0 && !has_swap_control_tear)
-    {
-        RtlSetLastWin32Error(ERROR_INVALID_DATA);
-        return FALSE;
-    }
-
-    if (!(gl = get_gl_drawable( NtUserWindowFromDC( ctx->hdc ), ctx->hdc )))
-    {
-        RtlSetLastWin32Error(ERROR_DC_NOT_FOUND);
-        return FALSE;
-    }
-
-    pthread_mutex_lock( &context_mutex );
-    ret = set_swap_interval(gl->drawable, interval);
-    gl->refresh_swap_interval = FALSE;
-    if (ret)
-        gl->swap_interval = interval;
-    else
-        RtlSetLastWin32Error(ERROR_DC_NOT_FOUND);
-
-    pthread_mutex_unlock( &context_mutex );
-    release_gl_drawable(gl);
-
-    return ret;
-}
-
 static BOOL X11DRV_wglQueryCurrentRendererIntegerWINE( GLenum attribute, GLuint *value )
 {
     return pglXQueryCurrentRendererIntegerMESA( attribute, value );
@@ -2070,12 +1978,6 @@ static const char *x11drv_init_wgl_extensions(void)
 
     /* EXT Extensions */
 
-    /* Load this extension even when it isn't backed by a GLX extension because it is has been around for ages.
-     * Games like Call of Duty and K.O.T.O.R. rely on it. Further our emulation is good enough. */
-    register_extension( "WGL_EXT_swap_control" );
-    opengl_funcs.p_wglSwapIntervalEXT = X11DRV_wglSwapIntervalEXT;
-    opengl_funcs.p_wglGetSwapIntervalEXT = X11DRV_wglGetSwapIntervalEXT;
-
     if (has_extension( glxExtensions, "GLX_EXT_framebuffer_sRGB"))
         register_extension("WGL_EXT_framebuffer_sRGB");
 
@@ -2085,11 +1987,7 @@ static const char *x11drv_init_wgl_extensions(void)
     if (has_extension( glxExtensions, "GLX_EXT_swap_control"))
     {
         swap_control_method = GLX_SWAP_CONTROL_EXT;
-        if (has_extension( glxExtensions, "GLX_EXT_swap_control_tear"))
-        {
-            register_extension("WGL_EXT_swap_control_tear");
-            has_swap_control_tear = TRUE;
-        }
+        has_swap_control_tear = has_extension( glxExtensions, "GLX_EXT_swap_control_tear" );
     }
     else if (has_extension( glxExtensions, "GLX_MESA_swap_control"))
     {
@@ -2130,12 +2028,11 @@ static const char *x11drv_init_wgl_extensions(void)
  *
  * Swap the buffers of this DC
  */
-static BOOL glxdrv_wglSwapBuffers( HDC hdc )
+static BOOL x11drv_swap_buffers( void *private, HWND hwnd, HDC hdc, int interval )
 {
     struct gl_drawable *gl;
-    struct x11drv_context *ctx = NtCurrentTeb()->glReserved2;
+    struct x11drv_context *ctx = private;
     INT64 ust, msc, sbc, target_sbc = 0;
-    HWND hwnd = NtUserWindowFromDC( hdc );
     Drawable drawable = 0;
 
     TRACE("(%p)\n", hdc);
@@ -2147,11 +2044,7 @@ static BOOL glxdrv_wglSwapBuffers( HDC hdc )
     }
 
     pthread_mutex_lock( &context_mutex );
-    if (gl->refresh_swap_interval)
-    {
-        set_swap_interval(gl->drawable, gl->swap_interval);
-        gl->refresh_swap_interval = FALSE;
-    }
+    set_swap_interval( gl, interval );
     pthread_mutex_unlock( &context_mutex );
 
     switch (gl->type)
@@ -2203,25 +2096,22 @@ static BOOL glxdrv_wglSwapBuffers( HDC hdc )
 
 static const struct opengl_driver_funcs x11drv_driver_funcs =
 {
+    .p_get_proc_address = x11drv_get_proc_address,
     .p_init_pixel_formats = x11drv_init_pixel_formats,
     .p_describe_pixel_format = x11drv_describe_pixel_format,
     .p_init_wgl_extensions = x11drv_init_wgl_extensions,
     .p_set_pixel_format = x11drv_set_pixel_format,
+    .p_swap_buffers = x11drv_swap_buffers,
     .p_context_create = x11drv_context_create,
     .p_context_destroy = x11drv_context_destroy,
     .p_context_copy = x11drv_context_copy,
     .p_context_share = x11drv_context_share,
+    .p_context_flush = x11drv_context_flush,
     .p_context_make_current = x11drv_context_make_current,
     .p_pbuffer_create = x11drv_pbuffer_create,
     .p_pbuffer_destroy = x11drv_pbuffer_destroy,
     .p_pbuffer_updated = x11drv_pbuffer_updated,
     .p_pbuffer_bind = x11drv_pbuffer_bind,
-};
-
-static struct opengl_funcs opengl_funcs =
-{
-    .p_wglGetProcAddress = glxdrv_wglGetProcAddress,
-    .p_wglSwapBuffers = glxdrv_wglSwapBuffers,
 };
 
 #else  /* no OpenGL includes */

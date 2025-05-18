@@ -1023,6 +1023,11 @@ typedef volatile struct
     object_shm_t         shm;              /* object shared data */
 } shared_object_t;
 
+typedef volatile struct
+{
+    struct user_entry user_entries[MAX_USER_HANDLES];
+} session_shm_t;
+
 struct obj_locator
 {
     object_id_t          id;               /* object unique id, object data is valid if != 0 */
@@ -1201,14 +1206,16 @@ struct obj_locator
 /* Set a process information */
 @REQ(set_process_info)
     obj_handle_t handle;       /* process handle */
-    int          mask;         /* setting mask (see below) */
     int          priority;     /* priority class */
+    int          base_priority; /* process base priority */
     affinity_t   affinity;     /* affinity mask */
     obj_handle_t token;        /* primary token */
+    int          mask;         /* setting mask (see below) */
 @END
-#define SET_PROCESS_INFO_PRIORITY 0x01
-#define SET_PROCESS_INFO_AFFINITY 0x02
-#define SET_PROCESS_INFO_TOKEN    0x04
+#define SET_PROCESS_INFO_PRIORITY      0x01
+#define SET_PROCESS_INFO_BASE_PRIORITY 0x02
+#define SET_PROCESS_INFO_AFFINITY      0x04
+#define SET_PROCESS_INFO_TOKEN         0x08
 
 
 /* Retrieve information about a thread */
@@ -2595,11 +2602,7 @@ enum message_type
 @REQ(get_window_info)
     user_handle_t  handle;      /* handle to the window */
 @REPLY
-    user_handle_t  full_handle; /* full 32-bit handle */
     user_handle_t  last_active; /* last active popup */
-    process_id_t   pid;         /* process owning the window */
-    thread_id_t    tid;         /* thread owning the window */
-    atom_t         atom;        /* class atom */
     int            is_unicode;  /* ANSI or unicode */
     unsigned int   dpi_context; /* window DPI context */
 @END
@@ -3799,7 +3802,8 @@ struct handle_info
     unsigned int   session_id;    /* token session id */
     int            primary;       /* is the token primary or impersonation? */
     int            impersonation_level; /* level of impersonation */
-    int            elevation;     /* elevation type */
+    int            elevation_type; /* elevation type (TokenElevation*) */
+    int            is_elevated;   /* is the token elevated as per GetTokenInformation(TokenElevation) */
     int            group_count;   /* the number of groups the token is a member of */
     int            privilege_count; /* the number of privileges the token has */
 @END
@@ -3948,6 +3952,7 @@ struct handle_info
 
 /* Allocate an arbitrary user handle */
 @REQ(alloc_user_handle)
+    unsigned short type;          /* user object type */
 @REPLY
     user_handle_t  handle;        /* allocated handle */
 @END
@@ -3955,6 +3960,7 @@ struct handle_info
 
 /* Free an arbitrary user handle */
 @REQ(free_user_handle)
+    unsigned short type;          /* user object type */
     user_handle_t  handle;        /* handle to free*/
 @END
 
