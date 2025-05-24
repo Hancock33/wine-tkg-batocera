@@ -5765,25 +5765,6 @@ void get_texture_matrix(const struct wined3d_stateblock_state *state,
             generated, get_texcoord_format(state->vertex_declaration, coord_idx), mat);
 }
 
-void get_pointsize_minmax(const struct wined3d_context *context, const struct wined3d_state *state,
-        float *out_min, float *out_max)
-{
-    union
-    {
-        DWORD d;
-        float f;
-    } min, max;
-
-    min.d = state->render_states[WINED3D_RS_POINTSIZE_MIN];
-    max.d = state->render_states[WINED3D_RS_POINTSIZE_MAX];
-
-    if (min.f > max.f)
-        min.f = max.f;
-
-    *out_min = min.f;
-    *out_max = max.f;
-}
-
 static BOOL wined3d_get_primary_display(WCHAR *display)
 {
     DISPLAY_DEVICEW display_device;
@@ -6503,7 +6484,7 @@ void wined3d_ffp_get_vs_settings(const struct wined3d_state *state, const struct
         settings->diffuse = vdecl->diffuse;
         if (!state->render_states[WINED3D_RS_FOGENABLE])
             settings->fog_mode = WINED3D_FFP_VS_FOG_OFF;
-        else if (state->render_states[WINED3D_RS_FOGTABLEMODE] != WINED3D_FOG_NONE)
+        else if (state->extra_vs_args.pixel_fog)
             settings->fog_mode = WINED3D_FFP_VS_FOG_DEPTH;
         else
             settings->fog_mode = WINED3D_FFP_VS_FOG_FOGCOORD;
@@ -6519,7 +6500,7 @@ void wined3d_ffp_get_vs_settings(const struct wined3d_state *state, const struct
             settings->texcoords = wined3d_mask_from_size(WINED3D_MAX_FFP_TEXTURES);
 
         if (d3d_info->emulated_flatshading)
-            settings->flatshading = state->render_states[WINED3D_RS_SHADEMODE] == WINED3D_SHADE_FLAT;
+            settings->flatshading = state->extra_vs_args.flat_shading;
         else
             settings->flatshading = FALSE;
 
@@ -6595,15 +6576,10 @@ void wined3d_ffp_get_vs_settings(const struct wined3d_state *state, const struct
 
     if (!state->render_states[WINED3D_RS_FOGENABLE])
         settings->fog_mode = WINED3D_FFP_VS_FOG_OFF;
-    else if (state->render_states[WINED3D_RS_FOGTABLEMODE] != WINED3D_FOG_NONE)
+    else if (state->extra_vs_args.pixel_fog)
     {
         settings->fog_mode = WINED3D_FFP_VS_FOG_DEPTH;
-
-        if (state->transforms[WINED3D_TS_PROJECTION]._14 == 0.0f
-                && state->transforms[WINED3D_TS_PROJECTION]._24 == 0.0f
-                && state->transforms[WINED3D_TS_PROJECTION]._34 == 0.0f
-                && state->transforms[WINED3D_TS_PROJECTION]._44 == 1.0f)
-            settings->ortho_fog = 1;
+        settings->ortho_fog = state->extra_vs_args.ortho_fog;
     }
     else if (state->render_states[WINED3D_RS_FOGVERTEXMODE] == WINED3D_FOG_NONE)
         settings->fog_mode = WINED3D_FFP_VS_FOG_FOGCOORD;
@@ -6613,7 +6589,7 @@ void wined3d_ffp_get_vs_settings(const struct wined3d_state *state, const struct
         settings->fog_mode = WINED3D_FFP_VS_FOG_DEPTH;
 
     if (d3d_info->emulated_flatshading)
-        settings->flatshading = state->render_states[WINED3D_RS_SHADEMODE] == WINED3D_SHADE_FLAT;
+        settings->flatshading = state->extra_vs_args.flat_shading;
     else
         settings->flatshading = FALSE;
 

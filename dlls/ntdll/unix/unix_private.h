@@ -101,25 +101,42 @@ static inline BOOL is_arm64ec(void)
 /* thread private data, stored in NtCurrentTeb()->GdiTebBatch */
 struct ntdll_thread_data
 {
-    void              *cpu_data[16];  /* reserved for CPU-specific data */
-    void              *kernel_stack;  /* stack for thread startup and kernel syscalls */
-    int                request_fd;    /* fd for sending server requests */
-    int                reply_fd;      /* fd for receiving server replies */
-    int                wait_fd[2];    /* fd for sleeping server requests */
-    BOOL               allow_writes;  /* ThreadAllowWrites flags */
-    pthread_t          pthread_id;    /* pthread thread id */
-    struct list        entry;         /* entry in TEB list */
-    PRTL_THREAD_START_ROUTINE start;  /* thread entry point */
-    void              *param;         /* thread entry point parameter */
-    void              *jmp_buf;       /* setjmp buffer for exception handling */
-    int                linux_alert_obj; /* fd for the linux in-process alert event */
+    void                     *cpu_data[16];  /* 1d4/02f0 reserved for CPU-specific data */
+    SYSTEM_SERVICE_TABLE     *syscall_table; /* 214/0370 syscall table */
+    struct syscall_frame     *syscall_frame; /* 218/0378 current syscall frame */
+    int                       syscall_trace; /* 21c/0380 syscall trace flag */
+    int                       request_fd;    /* fd for sending server requests */
+    int                       reply_fd;      /* fd for receiving server replies */
+    int                       wait_fd[2];    /* fd for sleeping server requests */
+    BOOL                      allow_writes;  /* ThreadAllowWrites flags */
+    pthread_t                 pthread_id;    /* pthread thread id */
+    void                     *kernel_stack;  /* stack for thread startup and kernel syscalls */
+    struct list               entry;         /* entry in TEB list */
+    PRTL_THREAD_START_ROUTINE start;         /* thread entry point */
+    void                     *param;         /* thread entry point parameter */
+    void                     *jmp_buf;       /* setjmp buffer for exception handling */
+    int                       linux_alert_obj; /* fd for the linux in-process alert event */
 };
 
 C_ASSERT( sizeof(struct ntdll_thread_data) <= sizeof(((TEB *)0)->GdiTebBatch) );
+#ifdef _WIN64
+C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct ntdll_thread_data, syscall_table ) == 0x370 );
+C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct ntdll_thread_data, syscall_frame ) == 0x378 );
+C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct ntdll_thread_data, syscall_trace ) == 0x380 );
+#else
+C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct ntdll_thread_data, syscall_table ) == 0x214 );
+C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct ntdll_thread_data, syscall_frame ) == 0x218 );
+C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct ntdll_thread_data, syscall_trace ) == 0x21c );
+#endif
 
 static inline struct ntdll_thread_data *ntdll_get_thread_data(void)
 {
     return (struct ntdll_thread_data *)&NtCurrentTeb()->GdiTebBatch;
+}
+
+static inline struct syscall_frame *get_syscall_frame(void)
+{
+    return ntdll_get_thread_data()->syscall_frame;
 }
 
 /* returns TRUE if the async is complete; FALSE if it should be restarted */
@@ -324,7 +341,7 @@ extern void DECLSPEC_NORETURN signal_start_thread( PRTL_THREAD_START_ROUTINE ent
                                                    BOOL suspend, TEB *teb );
 extern SYSTEM_SERVICE_TABLE KeServiceDescriptorTable[4];
 extern void __wine_syscall_dispatcher(void);
-extern void DECLSPEC_NORETURN __wine_syscall_dispatcher_return( void *frame, ULONG_PTR retval );
+extern void __wine_syscall_dispatcher_return(void);
 extern void __wine_unix_call_dispatcher(void);
 extern NTSTATUS signal_set_full_context( CONTEXT *context );
 extern NTSTATUS get_thread_wow64_context( HANDLE handle, void *ctx, ULONG size );
@@ -427,6 +444,12 @@ static inline BOOL is_inside_signal_stack( void *ptr )
 {
     return ((char *)ptr >= (char *)get_signal_stack() &&
             (char *)ptr < (char *)get_signal_stack() + signal_stack_size);
+}
+
+static inline BOOL is_inside_syscall( ULONG_PTR sp )
+{
+    return ((char *)sp >= (char *)ntdll_get_thread_data()->kernel_stack &&
+            (char *)sp <= (char *)get_syscall_frame());
 }
 
 static inline BOOL is_ec_code( ULONG_PTR ptr )

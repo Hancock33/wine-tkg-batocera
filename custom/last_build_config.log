@@ -1,9 +1,9 @@
-# Last wine-tkg-staging-ntsync-git configuration - Sun 18 May 07:04:49 BST 2025 :
+# Last wine-tkg-staging-ntsync-git configuration - Sat 24 May 18:44:36 BST 2025 :
 
 Local cfg files used
 
-Wine (plain) version: 10.8.r0.g7f833db11ff
-Using wine-staging patchset (version 10.8.r0.g47f77594)
+Wine (plain) version: 10.8.r145.g22af42ac222
+Using wine-staging patchset (version 10.8.r3.ga3738434)
 
 Disabled the local Esync patchset to use Staging impl instead.
 Not using vkd3d native library for d3d12 translation (allows using vkd3d-proton)
@@ -27,8 +27,8 @@ wow64_loader_hack.patch -- ( Hack around loader name for EAC on 10.2+ )
 
 Applied hotfix Return_nt_filename_and_resolve_DOS_drive_path.mypatch
 Applied hotfix a608ef1.mypatch
-Applied hotfix opencl-fixup.mypatch
 Applied hotfix nostale_mouse_fix.mypatch
+Applied hotfix opencl-fixup.mypatch
 
 wine-tkg-staging.patch -- ( Please don't report bugs about this wine build on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead. )
 

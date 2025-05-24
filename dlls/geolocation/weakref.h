@@ -1,5 +1,6 @@
-/*
- * Copyright (C) 2023 Mohamad Al-Jaf
+/* WinRT weak reference helpers
+ *
+ * Copyright 2025 Zhiyi Zhang for CodeWeavers
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,13 +17,22 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include "dxcore.h"
-#include "wine/debug.h"
+#ifndef __WINE_WEAKREF_H
+#define __WINE_WEAKREF_H
 
-WINE_DEFAULT_DEBUG_CHANNEL(dxcore);
+#include "weakreference.h"
 
-HRESULT WINAPI DXCoreCreateAdapterFactory( REFIID riid, void **ppv )
+struct weak_reference_source
 {
-    FIXME( "riid %s, ppv %p stub!\n", debugstr_guid(riid), ppv );
-    return E_NOINTERFACE;
-}
+    IWeakReferenceSource IWeakReferenceSource_iface;
+    IWeakReference *weak_reference;
+};
+
+/* Initialize a IWeakReferenceSource with the object to manage */
+HRESULT weak_reference_source_init( struct weak_reference_source *source, IUnknown *object );
+/* Add a strong reference to the managed object */
+ULONG weak_reference_strong_add_ref( struct weak_reference_source *source );
+/* Release a strong reference to the managed object */
+ULONG weak_reference_strong_release( struct weak_reference_source *source );
+
+#endif /* __WINE_WEAKREF_H */
