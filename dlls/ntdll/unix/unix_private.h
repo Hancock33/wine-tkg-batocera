@@ -202,7 +202,6 @@ extern HANDLE keyed_event;
 extern timeout_t server_start_time;
 extern sigset_t server_block_set;
 extern struct _KUSER_SHARED_DATA *user_shared_data;
-extern SYSTEM_CPU_INFORMATION cpu_info;
 #ifdef __i386__
 extern struct ldt_copy __wine_ldt_copy;
 #endif
@@ -261,16 +260,8 @@ static inline void set_context_exception_reporting_flags( DWORD *context_flags, 
                      | CONTEXT_EXCEPTION_REPORTING | reporting_flag;
 }
 
-extern BOOL xstate_compaction_enabled;
-extern UINT xstate_features_size;
-extern UINT64 xstate_supported_features_mask;
 extern unsigned int xstate_get_size( UINT64 compaction_mask, UINT64 mask );
 extern void copy_xstate( XSAVE_AREA_HEADER *dst, XSAVE_AREA_HEADER *src, UINT64 mask );
-
-static inline UINT64 xstate_extended_features(void)
-{
-    return xstate_supported_features_mask & ~(UINT64)3;
-}
 
 extern void set_process_instrumentation_callback( void *callback );
 
@@ -309,6 +300,7 @@ extern NTSTATUS virtual_clear_tls_index( ULONG index );
 extern NTSTATUS virtual_alloc_thread_stack( INITIAL_TEB *stack, ULONG_PTR limit_low, ULONG_PTR limit_high,
                                             SIZE_T reserve_size, SIZE_T commit_size, BOOL guard_page );
 extern void virtual_map_user_shared_data(void);
+extern void virtual_init_user_shared_data(void);
 extern NTSTATUS virtual_handle_fault( EXCEPTION_RECORD *rec, void *stack );
 extern unsigned int virtual_locked_server_call( void *req_ptr );
 extern ssize_t virtual_locked_read( int fd, void *addr, size_t size );
@@ -381,6 +373,7 @@ extern NTSTATUS open_unix_file( HANDLE *handle, const char *unix_name, ACCESS_MA
 extern NTSTATUS get_device_info( int fd, struct _FILE_FS_DEVICE_INFORMATION *info );
 extern void init_files(void);
 extern void init_cpu_info(void);
+extern void init_shared_data_cpuinfo( struct _KUSER_SHARED_DATA *data );
 extern void file_complete_async( HANDLE handle, unsigned int options, HANDLE event, PIO_APC_ROUTINE apc, void *apc_user,
                                  IO_STATUS_BLOCK *io, NTSTATUS status, ULONG_PTR information );
 extern void set_async_direct_result( HANDLE *async_handle, unsigned int options, IO_STATUS_BLOCK *io,

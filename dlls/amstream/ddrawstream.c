@@ -553,16 +553,29 @@ static unsigned int align(unsigned int n, unsigned int alignment)
     return (n + alignment - 1) & ~(alignment - 1);
 }
 
-static void set_mt_from_desc(AM_MEDIA_TYPE *mt, const DDSURFACEDESC *format)
+static void set_mt_from_desc(AM_MEDIA_TYPE *mt, const DDSURFACEDESC *format, unsigned int pitch)
 {
-    VIDEOINFO *videoinfo = (VIDEOINFO *)mt->pbFormat;
+    VIDEOINFO *videoinfo = CoTaskMemAlloc(sizeof(VIDEOINFO));
 
-    videoinfo->bmiHeader.biWidth = format->dwWidth;
-    videoinfo->bmiHeader.biHeight = format->dwHeight;
+    memset(mt, 0, sizeof(*mt));
+    mt->majortype = MEDIATYPE_Video;
+    mt->formattype = FORMAT_VideoInfo;
+    mt->cbFormat = sizeof(VIDEOINFO);
+    mt->pbFormat = (BYTE *)videoinfo;
+
+    memset(videoinfo, 0, sizeof(*videoinfo));
+    SetRect(&videoinfo->rcSource, 0, 0, format->dwWidth, format->dwHeight);
+    SetRect(&videoinfo->rcTarget, 0, 0, format->dwWidth, format->dwHeight);
+    videoinfo->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    videoinfo->bmiHeader.biWidth = pitch * 8 / format->ddpfPixelFormat.dwRGBBitCount;
+    videoinfo->bmiHeader.biHeight = -format->dwHeight;
     videoinfo->bmiHeader.biBitCount = format->ddpfPixelFormat.dwRGBBitCount;
     videoinfo->bmiHeader.biCompression = BI_RGB;
-    videoinfo->bmiHeader.biSizeImage =
-            align(format->dwWidth * format->dwHeight * format->ddpfPixelFormat.dwRGBBitCount / 8, 4);
+    videoinfo->bmiHeader.biPlanes = 1;
+    videoinfo->bmiHeader.biSizeImage = align(pitch * format->dwHeight, 4);
+
+    mt->lSampleSize = videoinfo->bmiHeader.biSizeImage;
+    mt->bFixedSizeSamples = TRUE;
 
     if (format->ddpfPixelFormat.dwRGBBitCount == 16 && format->ddpfPixelFormat.dwRBitMask == 0x7c00)
     {
@@ -571,9 +584,6 @@ static void set_mt_from_desc(AM_MEDIA_TYPE *mt, const DDSURFACEDESC *format)
     else if (format->ddpfPixelFormat.dwRGBBitCount == 16 && format->ddpfPixelFormat.dwRBitMask == 0xf800)
     {
         mt->subtype = MEDIASUBTYPE_RGB565;
-        mt->cbFormat = offsetof(VIDEOINFO, dwBitMasks[3]);
-        /* Note that we have to allocate the entire VIDEOINFO to satisfy C rules. */
-        mt->pbFormat = CoTaskMemRealloc(mt->pbFormat, sizeof(VIDEOINFO));
         videoinfo = (VIDEOINFO *)mt->pbFormat;
         videoinfo->bmiHeader.biCompression = BI_BITFIELDS;
         videoinfo->dwBitMasks[iRED]   = 0xf800;
@@ -588,6 +598,12 @@ static void set_mt_from_desc(AM_MEDIA_TYPE *mt, const DDSURFACEDESC *format)
     {
         mt->subtype = MEDIASUBTYPE_RGB32;
     }
+    else if (format->ddpfPixelFormat.dwRGBBitCount == 8 && (format->ddpfPixelFormat.dwFlags & DDPF_PALETTEINDEXED8))
+    {
+        mt->subtype = MEDIASUBTYPE_RGB8;
+        videoinfo->bmiHeader.biClrUsed = 256;
+        /* FIXME: Translate the palette. */
+    }
     else
     {
         FIXME("Unknown flags %#lx, bit count %lu.\n",
@@ -599,7 +615,6 @@ static HRESULT WINAPI ddraw_IDirectDrawMediaStream_SetFormat(IDirectDrawMediaStr
         const DDSURFACEDESC *format, IDirectDrawPalette *palette)
 {
     struct ddraw_stream *stream = impl_from_IDirectDrawMediaStream(iface);
-    AM_MEDIA_TYPE old_media_type;
     struct format old_format;
     IPin *old_peer;
     HRESULT hr;
@@ -684,6 +699,8 @@ static HRESULT WINAPI ddraw_IDirectDrawMediaStream_SetFormat(IDirectDrawMediaStr
 
     if (stream->peer && !is_format_compatible(stream, old_format.width, old_format.height, &old_format.pf))
     {
+        AM_MEDIA_TYPE new_mt;
+
         if (stream->sample_refs > 0)
         {
             stream->format = old_format;
@@ -691,36 +708,34 @@ static HRESULT WINAPI ddraw_IDirectDrawMediaStream_SetFormat(IDirectDrawMediaStr
             return MS_E_SAMPLEALLOC;
         }
 
-        if (FAILED(hr = CopyMediaType(&old_media_type, &stream->mt)))
-        {
-            stream->format = old_format;
-            LeaveCriticalSection(&stream->cs);
-            return hr;
-        }
+        set_mt_from_desc(&new_mt, format, format->dwWidth * format->ddpfPixelFormat.dwRGBBitCount / 8);
 
-        set_mt_from_desc(&stream->mt, format);
-
-        if (!stream->using_private_allocator || IPin_QueryAccept(stream->peer, &stream->mt) != S_OK)
+        if (!stream->using_private_allocator || IPin_QueryAccept(stream->peer, &new_mt) != S_OK)
         {
+            AM_MEDIA_TYPE old_mt;
+
             /* Reconnect. */
             old_peer = stream->peer;
             IPin_AddRef(old_peer);
+            CopyMediaType(&old_mt, &stream->mt);
 
             IFilterGraph_Disconnect(stream->graph, stream->peer);
             IFilterGraph_Disconnect(stream->graph, &stream->IPin_iface);
             if (FAILED(hr = IFilterGraph_ConnectDirect(stream->graph, old_peer, &stream->IPin_iface, NULL)))
             {
                 stream->format = old_format;
-                IFilterGraph_ConnectDirect(stream->graph, old_peer, &stream->IPin_iface, &old_media_type);
+                IFilterGraph_ConnectDirect(stream->graph, old_peer, &stream->IPin_iface, &old_mt);
                 IPin_Release(old_peer);
-                FreeMediaType(&old_media_type);
+                FreeMediaType(&old_mt);
+                FreeMediaType(&new_mt);
                 LeaveCriticalSection(&stream->cs);
                 return DDERR_INVALIDSURFACETYPE;
             }
+            FreeMediaType(&old_mt);
             IPin_Release(old_peer);
         }
 
-        FreeMediaType(&old_media_type);
+        FreeMediaType(&new_mt);
     }
 
     LeaveCriticalSection(&stream->cs);
@@ -2227,8 +2242,9 @@ static HRESULT WINAPI media_sample_GetMediaType(IMediaSample *iface, AM_MEDIA_TY
 
     TRACE("sample %p, ret_mt %p.\n", sample, ret_mt);
 
-    if (!(*ret_mt = CreateMediaType(&sample->parent->mt)))
+    if (!(*ret_mt = CoTaskMemAlloc(sizeof(AM_MEDIA_TYPE))))
         return E_OUTOFMEMORY;
+    set_mt_from_desc(*ret_mt, &sample->surface_desc, sample->surface_desc.lPitch);
     return S_OK;
 }
 

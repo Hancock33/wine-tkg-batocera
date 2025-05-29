@@ -622,14 +622,21 @@ enum x11drv_net_wm_state
     NB_NET_WM_STATES
 };
 
+struct monitor_indices
+{
+    unsigned int generation;
+    long indices[4];
+};
+
 struct window_state
 {
     UINT wm_state;
     BOOL activate;
     UINT net_wm_state;
     MwmHints mwm_hints;
-    long monitors[4];
+    struct monitor_indices monitors;
     RECT rect;
+    BOOL above;
 };
 
 /* x11drv private window data */
@@ -654,6 +661,7 @@ struct x11drv_win_data
     UINT        is_fullscreen : 1; /* is the window visible rect fullscreen */
     UINT        is_offscreen : 1; /* has been moved offscreen by the window manager */
     UINT        parent_invalid : 1; /* is the parent host window possibly invalid */
+    UINT        reparenting : 1; /* window is being reparented, likely from a decoration change */
     Window      embedder;       /* window id of embedder */
     Pixmap         icon_pixmap;
     Pixmap         icon_mask;
@@ -681,6 +689,7 @@ extern void set_gl_drawable_parent( HWND hwnd, HWND parent );
 extern void destroy_gl_drawable( HWND hwnd );
 extern void destroy_vk_surface( HWND hwnd );
 
+extern BOOL window_is_reparenting( HWND hwnd );
 extern BOOL window_should_take_focus( HWND hwnd, Time time );
 extern BOOL window_has_pending_wm_state( HWND hwnd, UINT state );
 extern void window_wm_state_notify( struct x11drv_win_data *data, unsigned long serial, UINT value, Time time );
@@ -741,7 +750,7 @@ extern POINT virtual_screen_to_root( INT x, INT y );
 extern POINT root_to_virtual_screen( INT x, INT y );
 extern RECT get_host_primary_monitor_rect(void);
 extern RECT get_work_area( const RECT *monitor_rect );
-extern void xinerama_get_fullscreen_monitors( const RECT *rect, long *indices );
+extern void xinerama_get_fullscreen_monitors( const RECT *rect, unsigned int *generation, long *indices );
 extern void xinerama_init( unsigned int width, unsigned int height );
 extern void init_recursive_mutex( pthread_mutex_t *mutex );
 
