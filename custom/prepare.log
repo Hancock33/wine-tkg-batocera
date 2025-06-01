@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
 HEAD is now at ef72380f Rebase against e0bb1dba3d6fdff61a6f98a4ca7d6af4438e21d4.
-HEAD is now at e0bb1dba3d6 wined3d/spirv: Implement point sprite.
+HEAD is now at ffcbbf8f015 Release 10.9.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
