@@ -20,10 +20,11 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-#include "windef.h"
-#include "winnt.h"
-
 #include "widl.h"
+#include "windef.h"
+#include "winbase.h"
+#include "wincrypt.h"
+#include "winnt.h"
 #include "utils.h"
 #include "typetree.h"
 
@@ -177,13 +178,87 @@ static void write_headers( UINT image_size )
     }
 }
 
+enum table
+{
+    TABLE_MODULE                 = 0x00,
+    TABLE_TYPEREF                = 0x01,
+    TABLE_TYPEDEF                = 0x02,
+    TABLE_FIELD                  = 0x04,
+    TABLE_METHODDEF              = 0x06,
+    TABLE_PARAM                  = 0x08,
+    TABLE_INTERFACEIMPL          = 0x09,
+    TABLE_MEMBERREF              = 0x0a,
+    TABLE_CONSTANT               = 0x0b,
+    TABLE_CUSTOMATTRIBUTE        = 0x0c,
+    TABLE_FIELDMARSHAL           = 0x0d,
+    TABLE_DECLSECURITY           = 0x0e,
+    TABLE_CLASSLAYOUT            = 0x0f,
+    TABLE_FIELDLAYOUT            = 0x10,
+    TABLE_STANDALONESIG          = 0x11,
+    TABLE_EVENTMAP               = 0x12,
+    TABLE_EVENT                  = 0x14,
+    TABLE_PROPERTYMAP            = 0x15,
+    TABLE_PROPERTY               = 0x17,
+    TABLE_METHODSEMANTICS        = 0x18,
+    TABLE_METHODIMPL             = 0x19,
+    TABLE_MODULEREF              = 0x1a,
+    TABLE_TYPESPEC               = 0x1b,
+    TABLE_IMPLMAP                = 0x1c,
+    TABLE_FIELDRVA               = 0x1d,
+    TABLE_ASSEMBLY               = 0x20,
+    TABLE_ASSEMBLYPROCESSOR      = 0x21,
+    TABLE_ASSEMBLYOS             = 0x22,
+    TABLE_ASSEMBLYREF            = 0x23,
+    TABLE_ASSEMBLYREFPROCESSOR   = 0x24,
+    TABLE_ASSEMBLYREFOS          = 0x25,
+    TABLE_FILE                   = 0x26,
+    TABLE_EXPORTEDTYPE           = 0x27,
+    TABLE_MANIFESTRESOURCE       = 0x28,
+    TABLE_NESTEDCLASS            = 0x29,
+    TABLE_GENERICPARAM           = 0x2a,
+    TABLE_METHODSPEC             = 0x2b,
+    TABLE_GENERICPARAMCONSTRAINT = 0x2c,
+    TABLE_MAX                    = 0x2d
+};
+
+#define SORTED_TABLES \
+    1ull << TABLE_INTERFACEIMPL |\
+    1ull << TABLE_CONSTANT |\
+    1ull << TABLE_CUSTOMATTRIBUTE |\
+    1ull << TABLE_FIELDMARSHAL |\
+    1ull << TABLE_DECLSECURITY |\
+    1ull << TABLE_CLASSLAYOUT |\
+    1ull << TABLE_FIELDLAYOUT |\
+    1ull << TABLE_EVENTMAP |\
+    1ull << TABLE_PROPERTYMAP |\
+    1ull << TABLE_METHODSEMANTICS |\
+    1ull << TABLE_METHODIMPL |\
+    1ull << TABLE_IMPLMAP |\
+    1ull << TABLE_FIELDRVA |\
+    1ull << TABLE_NESTEDCLASS |\
+    1ull << TABLE_GENERICPARAM |\
+    1ull << TABLE_GENERICPARAMCONSTRAINT
+
+static struct
+{
+    UINT   reserved;
+    BYTE   majorversion;
+    BYTE   minor_version;
+    BYTE   heap_sizes;
+    BYTE   reserved2;
+    UINT64 valid;
+    UINT64 sorted;
+}
+tables_header = { 0, 2, 0, 0, 1, 0, SORTED_TABLES };
+
 static struct buffer
 {
     UINT  offset;        /* write position */
     UINT  allocated;     /* allocated size in bytes */
     UINT  count;         /* number of entries written */
     BYTE *ptr;
-} strings, strings_idx, userstrings, userstrings_idx, blobs, blobs_idx, guids;
+} strings, strings_idx, userstrings, userstrings_idx, blobs, blobs_idx, guids, tables[TABLE_MAX],
+  tables_idx[TABLE_MAX], tables_disk;
 
 static void *grow_buffer( struct buffer *buf, UINT size )
 {
@@ -378,6 +453,25 @@ static UINT add_guid( const GUID *guid )
     return ++guids.count;
 }
 
+/* returns row number */
+static UINT add_row( enum table table, const BYTE *row, UINT row_size )
+{
+    const struct index *idx;
+    UINT insert_idx, offset = tables[table].offset;
+    BOOL sort = (table != TABLE_PARAM && table != TABLE_FIELD);
+
+    if (sort && (idx = find_index( &tables_idx[table], &tables[table], row, row_size, FALSE, &insert_idx )))
+        return idx->offset / row_size + 1;
+
+    grow_buffer( &tables[table], row_size );
+    memcpy( tables[table].ptr + offset, row, row_size );
+    tables[table].offset += row_size;
+    tables[table].count++;
+
+    if (sort) insert_index( &tables_idx[table], insert_idx, offset, row_size );
+    return tables[table].count;
+}
+
 static void add_bytes( struct buffer *buf, const BYTE *data, UINT size )
 {
     grow_buffer( buf, size );
@@ -385,16 +479,232 @@ static void add_bytes( struct buffer *buf, const BYTE *data, UINT size )
     buf->offset += size;
 }
 
+static void serialize_ushort( USHORT value )
+{
+    add_bytes( &tables_disk, (const BYTE *)&value, sizeof(value) );
+}
+
+static void serialize_uint( UINT value )
+{
+    add_bytes( &tables_disk, (const BYTE *)&value, sizeof(value) );
+}
+
+static void serialize_string_idx( UINT idx )
+{
+    UINT size = strings.offset >> 16 ? sizeof(UINT) : sizeof(USHORT);
+    add_bytes( &tables_disk, (const BYTE *)&idx, size );
+}
+
+static void serialize_guid_idx( UINT idx )
+{
+    UINT size = guids.offset >> 16 ? sizeof(UINT) : sizeof(USHORT);
+    add_bytes( &tables_disk, (const BYTE *)&idx, size );
+}
+
+static void serialize_blob_idx( UINT idx )
+{
+    UINT size = blobs.offset >> 16 ? sizeof(UINT) : sizeof(USHORT);
+    add_bytes( &tables_disk, (const BYTE *)&idx, size );
+}
+
+static void serialize_table_idx( UINT idx, enum table target )
+{
+    UINT size = tables[target].count >> 16 ? sizeof(UINT) : sizeof(USHORT);
+    add_bytes( &tables_disk, (const BYTE *)&idx, size );
+}
+
+static enum table typedef_or_ref_to_table( UINT token )
+{
+    switch (token & 0x3)
+    {
+    case 0: return TABLE_TYPEDEF;
+    case 1: return TABLE_TYPEREF;
+    case 2: return TABLE_TYPESPEC;
+    default: assert( 0 );
+    }
+}
+
+struct module_row
+{
+    USHORT generation;
+    UINT   name;
+    UINT   mvid;
+    UINT   encid;
+    UINT   encbaseid;
+};
+
+static UINT add_module_row( UINT name, UINT mvid )
+{
+    struct module_row row = { 0, name, mvid, 0, 0 };
+    return add_row( TABLE_MODULE, (const BYTE *)&row, sizeof(row) );
+}
+
+static void serialize_module_table( void )
+{
+    const struct module_row *row = (const struct module_row *)tables[TABLE_MODULE].ptr;
+
+    serialize_ushort( row->generation );
+    serialize_string_idx( row->name );
+    serialize_guid_idx( row->mvid );
+    serialize_guid_idx( row->encid );
+    serialize_guid_idx( row->encbaseid );
+}
+
+struct typedef_row
+{
+    UINT flags;
+    UINT name;
+    UINT namespace;
+    UINT extends;
+    UINT fieldlist;
+    UINT methodlist;
+};
+
+static UINT add_typedef_row( UINT flags, UINT name, UINT namespace, UINT extends, UINT fieldlist, UINT methodlist )
+{
+    struct typedef_row row = { flags, name, namespace, extends, fieldlist, methodlist };
+
+    if (!row.fieldlist) row.fieldlist = tables[TABLE_FIELD].count + 1;
+    if (!row.methodlist) row.methodlist = tables[TABLE_METHODDEF].count + 1;
+    return add_row( TABLE_TYPEDEF, (const BYTE *)&row, sizeof(row) );
+}
+
+/* FIXME: enclosing classes should come before enclosed classes */
+static void serialize_typedef_table( void )
+{
+    const struct typedef_row *row = (const struct typedef_row *)tables[TABLE_TYPEDEF].ptr;
+    UINT i;
+
+    for (i = 0; i < tables[TABLE_TYPEDEF].count; i++)
+    {
+        serialize_uint( row->flags );
+        serialize_string_idx( row->name );
+        serialize_string_idx( row->namespace );
+        serialize_table_idx( row->extends, typedef_or_ref_to_table(row->extends) );
+        serialize_table_idx( row->fieldlist, TABLE_FIELD );
+        serialize_table_idx( row->methodlist, TABLE_METHODDEF );
+        row++;
+    }
+}
+
+struct assembly_row
+{
+    UINT   hashalgid;
+    USHORT majorversion;
+    USHORT minorversion;
+    USHORT buildnumber;
+    USHORT revisionnumber;
+    UINT   flags;
+    UINT   publickey;
+    UINT   name;
+    UINT   culture;
+};
+
+static UINT add_assembly_row( UINT name )
+{
+    struct assembly_row row = { CALG_SHA, 255, 255, 255, 255, 0x200, 0, name, 0 };
+    return add_row( TABLE_ASSEMBLY, (const BYTE *)&row, sizeof(row) );
+}
+
+static void serialize_assembly_table( void )
+{
+    const struct assembly_row *row = (const struct assembly_row *)tables[TABLE_ASSEMBLY].ptr;
+
+    serialize_uint( row->hashalgid );
+    serialize_ushort( row->majorversion );
+    serialize_ushort( row->minorversion );
+    serialize_ushort( row->buildnumber );
+    serialize_ushort( row->revisionnumber );
+    serialize_uint( row->flags );
+    serialize_blob_idx( row->publickey );
+    serialize_string_idx( row->name );
+    serialize_string_idx( row->culture );
+}
+
+struct assemblyref_row
+{
+    USHORT majorversion;
+    USHORT minorversion;
+    USHORT buildnumber;
+    USHORT revisionnumber;
+    UINT   flags;
+    UINT   publickey;
+    UINT   name;
+    UINT   culture;
+    UINT   hashvalue;
+};
+
+static UINT add_assemblyref_row( UINT flags, UINT publickey, UINT name )
+{
+    struct assemblyref_row row = { 255, 255, 255, 255, flags, publickey, name, 0, 0 };
+    return add_row( TABLE_ASSEMBLYREF, (const BYTE *)&row, sizeof(row) );
+}
+
+static void serialize_assemblyref_table( void )
+{
+    const struct assemblyref_row *row = (const struct assemblyref_row *)tables[TABLE_ASSEMBLYREF].ptr;
+    UINT i;
+
+    for (i = 0; i < tables[TABLE_ASSEMBLYREF].count; i++)
+    {
+        serialize_ushort( row->majorversion );
+        serialize_ushort( row->minorversion );
+        serialize_ushort( row->buildnumber );
+        serialize_ushort( row->revisionnumber );
+        serialize_uint( row->flags );
+        serialize_blob_idx( row->publickey );
+        serialize_string_idx( row->name );
+        serialize_string_idx( row->culture );
+        serialize_blob_idx( row->hashvalue );
+        row++;
+    }
+}
+
+enum
+{
+    LARGE_STRING_HEAP = 0x01,
+    LARGE_GUID_HEAP   = 0x02,
+    LARGE_BLOB_HEAP   = 0x04
+};
+
+static char *assembly_name;
+
 static void build_table_stream( const statement_list_t *stmts )
 {
     static const GUID guid = { 0x9ddc04c6, 0x04ca, 0x04cc, { 0x52, 0x85, 0x4b, 0x50, 0xb2, 0x60, 0x1d, 0xa8 } };
+    static const BYTE token[] = { 0xb7, 0x7a, 0x5c, 0x56, 0x19, 0x34, 0xe0, 0x89 };
     static const USHORT space = 0x20;
+    char *ptr;
+    UINT i;
 
     add_string( "" );
     add_userstring( NULL, 0 );
     add_userstring( &space, sizeof(space) );
     add_blob( NULL, 0 );
-    add_guid( &guid );
+
+    assembly_name = xstrdup( metadata_name );
+    if ((ptr = strrchr( assembly_name, '.' ))) *ptr = 0;
+
+    add_typedef_row( 0, add_string("<Module>"), 0, 0, 1, 1 );
+    add_assembly_row( add_string(assembly_name) );
+    add_module_row( add_string(metadata_name), add_guid(&guid) );
+    add_assemblyref_row( 0, add_blob(token, sizeof(token)), add_string("mscorlib") );
+
+    for (i = 0; i < TABLE_MAX; i++) if (tables[i].count) tables_header.valid |= (1ull << i);
+
+    if (strings.offset >> 16) tables_header.heap_sizes |= LARGE_STRING_HEAP;
+    if (guids.offset >> 16) tables_header.heap_sizes |= LARGE_GUID_HEAP;
+    if (blobs.offset >> 16) tables_header.heap_sizes |= LARGE_BLOB_HEAP;
+
+    add_bytes( &tables_disk, (const BYTE *)&tables_header, sizeof(tables_header) );
+
+    for (i = 0; i < TABLE_MAX; i++)
+        if (tables[i].count) add_bytes( &tables_disk, (const BYTE *)&tables[i].count, sizeof(tables[i].count) );
+
+    serialize_module_table();
+    serialize_typedef_table();
+    serialize_assembly_table();
+    serialize_assemblyref_table();
 }
 
 static void build_streams( const statement_list_t *stmts )
@@ -403,6 +713,12 @@ static void build_streams( const statement_list_t *stmts )
     UINT i, len, offset = sizeof(metadata_header);
 
     build_table_stream( stmts );
+
+    len = (tables_disk.offset + 3) & ~3;
+    add_bytes( &tables_disk, pad, len - tables_disk.offset );
+
+    streams[STREAM_TABLE].data_size = tables_disk.offset;
+    streams[STREAM_TABLE].data = tables_disk.ptr;
 
     len = (strings.offset + 3) & ~3;
     add_bytes( &strings, pad, len - strings.offset );
