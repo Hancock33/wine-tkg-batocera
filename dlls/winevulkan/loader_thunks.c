@@ -215,6 +215,18 @@ VkResult WINAPI vkBindOpticalFlowSessionImageNV(VkDevice device, VkOpticalFlowSe
     return params.result;
 }
 
+VkResult WINAPI vkBindTensorMemoryARM(VkDevice device, uint32_t bindInfoCount, const VkBindTensorMemoryInfoARM *pBindInfos)
+{
+    struct vkBindTensorMemoryARM_params params;
+    NTSTATUS status;
+    params.device = device;
+    params.bindInfoCount = bindInfoCount;
+    params.pBindInfos = pBindInfos;
+    status = UNIX_CALL(vkBindTensorMemoryARM, &params);
+    assert(!status && "vkBindTensorMemoryARM");
+    return params.result;
+}
+
 VkResult WINAPI vkBindVideoSessionMemoryKHR(VkDevice device, VkVideoSessionKHR videoSession, uint32_t bindSessionMemoryInfoCount, const VkBindVideoSessionMemoryInfoKHR *pBindSessionMemoryInfos)
 {
     struct vkBindVideoSessionMemoryKHR_params params;
@@ -906,6 +918,14 @@ void WINAPI vkCmdCopyQueryPoolResults(VkCommandBuffer commandBuffer, VkQueryPool
     UNIX_CALL(vkCmdCopyQueryPoolResults, &params);
 }
 
+void WINAPI vkCmdCopyTensorARM(VkCommandBuffer commandBuffer, const VkCopyTensorInfoARM *pCopyTensorInfo)
+{
+    struct vkCmdCopyTensorARM_params params;
+    params.commandBuffer = commandBuffer;
+    params.pCopyTensorInfo = pCopyTensorInfo;
+    UNIX_CALL(vkCmdCopyTensorARM, &params);
+}
+
 void WINAPI vkCmdCuLaunchKernelNVX(VkCommandBuffer commandBuffer, const VkCuLaunchInfoNVX *pLaunchInfo)
 {
     struct vkCmdCuLaunchKernelNVX_params params;
@@ -1009,10 +1029,11 @@ void WINAPI vkCmdDispatchIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer
     UNIX_CALL(vkCmdDispatchIndirect, &params);
 }
 
-void WINAPI vkCmdDispatchTileQCOM(VkCommandBuffer commandBuffer)
+void WINAPI vkCmdDispatchTileQCOM(VkCommandBuffer commandBuffer, const VkDispatchTileInfoQCOM *pDispatchTileInfo)
 {
     struct vkCmdDispatchTileQCOM_params params;
     params.commandBuffer = commandBuffer;
+    params.pDispatchTileInfo = pDispatchTileInfo;
     UNIX_CALL(vkCmdDispatchTileQCOM, &params);
 }
 
@@ -3527,6 +3548,32 @@ VkResult WINAPI vkCreateSwapchainKHR(VkDevice device, const VkSwapchainCreateInf
     return params.result;
 }
 
+VkResult WINAPI vkCreateTensorARM(VkDevice device, const VkTensorCreateInfoARM *pCreateInfo, const VkAllocationCallbacks *pAllocator, VkTensorARM *pTensor)
+{
+    struct vkCreateTensorARM_params params;
+    NTSTATUS status;
+    params.device = device;
+    params.pCreateInfo = pCreateInfo;
+    params.pAllocator = pAllocator;
+    params.pTensor = pTensor;
+    status = UNIX_CALL(vkCreateTensorARM, &params);
+    assert(!status && "vkCreateTensorARM");
+    return params.result;
+}
+
+VkResult WINAPI vkCreateTensorViewARM(VkDevice device, const VkTensorViewCreateInfoARM *pCreateInfo, const VkAllocationCallbacks *pAllocator, VkTensorViewARM *pView)
+{
+    struct vkCreateTensorViewARM_params params;
+    NTSTATUS status;
+    params.device = device;
+    params.pCreateInfo = pCreateInfo;
+    params.pAllocator = pAllocator;
+    params.pView = pView;
+    status = UNIX_CALL(vkCreateTensorViewARM, &params);
+    assert(!status && "vkCreateTensorViewARM");
+    return params.result;
+}
+
 VkResult WINAPI vkCreateValidationCacheEXT(VkDevice device, const VkValidationCacheCreateInfoEXT *pCreateInfo, const VkAllocationCallbacks *pAllocator, VkValidationCacheEXT *pValidationCache)
 {
     struct vkCreateValidationCacheEXT_params params;
@@ -4055,6 +4102,28 @@ void WINAPI vkDestroySwapchainKHR(VkDevice device, VkSwapchainKHR swapchain, con
     params.pAllocator = pAllocator;
     status = UNIX_CALL(vkDestroySwapchainKHR, &params);
     assert(!status && "vkDestroySwapchainKHR");
+}
+
+void WINAPI vkDestroyTensorARM(VkDevice device, VkTensorARM tensor, const VkAllocationCallbacks *pAllocator)
+{
+    struct vkDestroyTensorARM_params params;
+    NTSTATUS status;
+    params.device = device;
+    params.tensor = tensor;
+    params.pAllocator = pAllocator;
+    status = UNIX_CALL(vkDestroyTensorARM, &params);
+    assert(!status && "vkDestroyTensorARM");
+}
+
+void WINAPI vkDestroyTensorViewARM(VkDevice device, VkTensorViewARM tensorView, const VkAllocationCallbacks *pAllocator)
+{
+    struct vkDestroyTensorViewARM_params params;
+    NTSTATUS status;
+    params.device = device;
+    params.tensorView = tensorView;
+    params.pAllocator = pAllocator;
+    status = UNIX_CALL(vkDestroyTensorViewARM, &params);
+    assert(!status && "vkDestroyTensorViewARM");
 }
 
 void WINAPI vkDestroyValidationCacheEXT(VkDevice device, VkValidationCacheEXT validationCache, const VkAllocationCallbacks *pAllocator)
@@ -4760,6 +4829,17 @@ VkResult WINAPI vkGetDeviceSubpassShadingMaxWorkgroupSizeHUAWEI(VkDevice device,
     return params.result;
 }
 
+void WINAPI vkGetDeviceTensorMemoryRequirementsARM(VkDevice device, const VkDeviceTensorMemoryRequirementsARM *pInfo, VkMemoryRequirements2 *pMemoryRequirements)
+{
+    struct vkGetDeviceTensorMemoryRequirementsARM_params params;
+    NTSTATUS status;
+    params.device = device;
+    params.pInfo = pInfo;
+    params.pMemoryRequirements = pMemoryRequirements;
+    status = UNIX_CALL(vkGetDeviceTensorMemoryRequirementsARM, &params);
+    assert(!status && "vkGetDeviceTensorMemoryRequirementsARM");
+}
+
 VkResult WINAPI vkGetDynamicRenderingTilePropertiesQCOM(VkDevice device, const VkRenderingInfo *pRenderingInfo, VkTilePropertiesQCOM *pProperties)
 {
     struct vkGetDynamicRenderingTilePropertiesQCOM_params params;
@@ -5029,6 +5109,31 @@ void WINAPI vkGetLatencyTimingsNV(VkDevice device, VkSwapchainKHR swapchain, VkG
     assert(!status && "vkGetLatencyTimingsNV");
 }
 
+VkResult WINAPI vkGetMemoryFdKHR(VkDevice device, const VkMemoryGetFdInfoKHR *pGetFdInfo, int *pFd)
+{
+    struct vkGetMemoryFdKHR_params params;
+    NTSTATUS status;
+    params.device = device;
+    params.pGetFdInfo = pGetFdInfo;
+    params.pFd = pFd;
+    status = UNIX_CALL(vkGetMemoryFdKHR, &params);
+    assert(!status && "vkGetMemoryFdKHR");
+    return params.result;
+}
+
+VkResult WINAPI vkGetMemoryFdPropertiesKHR(VkDevice device, VkExternalMemoryHandleTypeFlagBits handleType, int fd, VkMemoryFdPropertiesKHR *pMemoryFdProperties)
+{
+    struct vkGetMemoryFdPropertiesKHR_params params;
+    NTSTATUS status;
+    params.device = device;
+    params.handleType = handleType;
+    params.fd = fd;
+    params.pMemoryFdProperties = pMemoryFdProperties;
+    status = UNIX_CALL(vkGetMemoryFdPropertiesKHR, &params);
+    assert(!status && "vkGetMemoryFdPropertiesKHR");
+    return params.result;
+}
+
 VkResult WINAPI vkGetMemoryHostPointerPropertiesEXT(VkDevice device, VkExternalMemoryHandleTypeFlagBits handleType, const void *pHostPointer, VkMemoryHostPointerPropertiesEXT *pMemoryHostPointerProperties)
 {
     struct vkGetMemoryHostPointerPropertiesEXT_params params;
@@ -5039,6 +5144,31 @@ VkResult WINAPI vkGetMemoryHostPointerPropertiesEXT(VkDevice device, VkExternalM
     params.pMemoryHostPointerProperties = pMemoryHostPointerProperties;
     status = UNIX_CALL(vkGetMemoryHostPointerPropertiesEXT, &params);
     assert(!status && "vkGetMemoryHostPointerPropertiesEXT");
+    return params.result;
+}
+
+VkResult WINAPI vkGetMemoryWin32HandleKHR(VkDevice device, const VkMemoryGetWin32HandleInfoKHR *pGetWin32HandleInfo, HANDLE *pHandle)
+{
+    struct vkGetMemoryWin32HandleKHR_params params;
+    NTSTATUS status;
+    params.device = device;
+    params.pGetWin32HandleInfo = pGetWin32HandleInfo;
+    params.pHandle = pHandle;
+    status = UNIX_CALL(vkGetMemoryWin32HandleKHR, &params);
+    assert(!status && "vkGetMemoryWin32HandleKHR");
+    return params.result;
+}
+
+VkResult WINAPI vkGetMemoryWin32HandlePropertiesKHR(VkDevice device, VkExternalMemoryHandleTypeFlagBits handleType, HANDLE handle, VkMemoryWin32HandlePropertiesKHR *pMemoryWin32HandleProperties)
+{
+    struct vkGetMemoryWin32HandlePropertiesKHR_params params;
+    NTSTATUS status;
+    params.device = device;
+    params.handleType = handleType;
+    params.handle = handle;
+    params.pMemoryWin32HandleProperties = pMemoryWin32HandleProperties;
+    status = UNIX_CALL(vkGetMemoryWin32HandlePropertiesKHR, &params);
+    assert(!status && "vkGetMemoryWin32HandlePropertiesKHR");
     return params.result;
 }
 
@@ -5213,6 +5343,17 @@ void WINAPI vkGetPhysicalDeviceExternalSemaphorePropertiesKHR(VkPhysicalDevice p
     params.pExternalSemaphoreProperties = pExternalSemaphoreProperties;
     status = UNIX_CALL(vkGetPhysicalDeviceExternalSemaphorePropertiesKHR, &params);
     assert(!status && "vkGetPhysicalDeviceExternalSemaphorePropertiesKHR");
+}
+
+void WINAPI vkGetPhysicalDeviceExternalTensorPropertiesARM(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceExternalTensorInfoARM *pExternalTensorInfo, VkExternalTensorPropertiesARM *pExternalTensorProperties)
+{
+    struct vkGetPhysicalDeviceExternalTensorPropertiesARM_params params;
+    NTSTATUS status;
+    params.physicalDevice = physicalDevice;
+    params.pExternalTensorInfo = pExternalTensorInfo;
+    params.pExternalTensorProperties = pExternalTensorProperties;
+    status = UNIX_CALL(vkGetPhysicalDeviceExternalTensorPropertiesARM, &params);
+    assert(!status && "vkGetPhysicalDeviceExternalTensorPropertiesARM");
 }
 
 void WINAPI vkGetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice, VkPhysicalDeviceFeatures *pFeatures)
@@ -5955,6 +6096,30 @@ VkResult WINAPI vkGetSemaphoreCounterValueKHR(VkDevice device, VkSemaphore semap
     return params.result;
 }
 
+VkResult WINAPI vkGetSemaphoreFdKHR(VkDevice device, const VkSemaphoreGetFdInfoKHR *pGetFdInfo, int *pFd)
+{
+    struct vkGetSemaphoreFdKHR_params params;
+    NTSTATUS status;
+    params.device = device;
+    params.pGetFdInfo = pGetFdInfo;
+    params.pFd = pFd;
+    status = UNIX_CALL(vkGetSemaphoreFdKHR, &params);
+    assert(!status && "vkGetSemaphoreFdKHR");
+    return params.result;
+}
+
+VkResult WINAPI vkGetSemaphoreWin32HandleKHR(VkDevice device, const VkSemaphoreGetWin32HandleInfoKHR *pGetWin32HandleInfo, HANDLE *pHandle)
+{
+    struct vkGetSemaphoreWin32HandleKHR_params params;
+    NTSTATUS status;
+    params.device = device;
+    params.pGetWin32HandleInfo = pGetWin32HandleInfo;
+    params.pHandle = pHandle;
+    status = UNIX_CALL(vkGetSemaphoreWin32HandleKHR, &params);
+    assert(!status && "vkGetSemaphoreWin32HandleKHR");
+    return params.result;
+}
+
 VkResult WINAPI vkGetShaderBinaryDataEXT(VkDevice device, VkShaderEXT shader, size_t *pDataSize, void *pData)
 {
     struct vkGetShaderBinaryDataEXT_params params;
@@ -6018,6 +6183,41 @@ VkResult WINAPI vkGetSwapchainImagesKHR(VkDevice device, VkSwapchainKHR swapchai
     return params.result;
 }
 
+void WINAPI vkGetTensorMemoryRequirementsARM(VkDevice device, const VkTensorMemoryRequirementsInfoARM *pInfo, VkMemoryRequirements2 *pMemoryRequirements)
+{
+    struct vkGetTensorMemoryRequirementsARM_params params;
+    NTSTATUS status;
+    params.device = device;
+    params.pInfo = pInfo;
+    params.pMemoryRequirements = pMemoryRequirements;
+    status = UNIX_CALL(vkGetTensorMemoryRequirementsARM, &params);
+    assert(!status && "vkGetTensorMemoryRequirementsARM");
+}
+
+VkResult WINAPI vkGetTensorOpaqueCaptureDescriptorDataARM(VkDevice device, const VkTensorCaptureDescriptorDataInfoARM *pInfo, void *pData)
+{
+    struct vkGetTensorOpaqueCaptureDescriptorDataARM_params params;
+    NTSTATUS status;
+    params.device = device;
+    params.pInfo = pInfo;
+    params.pData = pData;
+    status = UNIX_CALL(vkGetTensorOpaqueCaptureDescriptorDataARM, &params);
+    assert(!status && "vkGetTensorOpaqueCaptureDescriptorDataARM");
+    return params.result;
+}
+
+VkResult WINAPI vkGetTensorViewOpaqueCaptureDescriptorDataARM(VkDevice device, const VkTensorViewCaptureDescriptorDataInfoARM *pInfo, void *pData)
+{
+    struct vkGetTensorViewOpaqueCaptureDescriptorDataARM_params params;
+    NTSTATUS status;
+    params.device = device;
+    params.pInfo = pInfo;
+    params.pData = pData;
+    status = UNIX_CALL(vkGetTensorViewOpaqueCaptureDescriptorDataARM, &params);
+    assert(!status && "vkGetTensorViewOpaqueCaptureDescriptorDataARM");
+    return params.result;
+}
+
 VkResult WINAPI vkGetValidationCacheDataEXT(VkDevice device, VkValidationCacheEXT validationCache, size_t *pDataSize, void *pData)
 {
     struct vkGetValidationCacheDataEXT_params params;
@@ -6041,6 +6241,28 @@ VkResult WINAPI vkGetVideoSessionMemoryRequirementsKHR(VkDevice device, VkVideoS
     params.pMemoryRequirements = pMemoryRequirements;
     status = UNIX_CALL(vkGetVideoSessionMemoryRequirementsKHR, &params);
     assert(!status && "vkGetVideoSessionMemoryRequirementsKHR");
+    return params.result;
+}
+
+VkResult WINAPI vkImportSemaphoreFdKHR(VkDevice device, const VkImportSemaphoreFdInfoKHR *pImportSemaphoreFdInfo)
+{
+    struct vkImportSemaphoreFdKHR_params params;
+    NTSTATUS status;
+    params.device = device;
+    params.pImportSemaphoreFdInfo = pImportSemaphoreFdInfo;
+    status = UNIX_CALL(vkImportSemaphoreFdKHR, &params);
+    assert(!status && "vkImportSemaphoreFdKHR");
+    return params.result;
+}
+
+VkResult WINAPI vkImportSemaphoreWin32HandleKHR(VkDevice device, const VkImportSemaphoreWin32HandleInfoKHR *pImportSemaphoreWin32HandleInfo)
+{
+    struct vkImportSemaphoreWin32HandleKHR_params params;
+    NTSTATUS status;
+    params.device = device;
+    params.pImportSemaphoreWin32HandleInfo = pImportSemaphoreWin32HandleInfo;
+    status = UNIX_CALL(vkImportSemaphoreWin32HandleKHR, &params);
+    assert(!status && "vkImportSemaphoreWin32HandleKHR");
     return params.result;
 }
 
@@ -6703,6 +6925,18 @@ VkResult WINAPI vkWaitForFences(VkDevice device, uint32_t fenceCount, const VkFe
     return params.result;
 }
 
+VkResult WINAPI vkWaitForPresent2KHR(VkDevice device, VkSwapchainKHR swapchain, const VkPresentWait2InfoKHR *pPresentWait2Info)
+{
+    struct vkWaitForPresent2KHR_params params;
+    NTSTATUS status;
+    params.device = device;
+    params.swapchain = swapchain;
+    params.pPresentWait2Info = pPresentWait2Info;
+    status = UNIX_CALL(vkWaitForPresent2KHR, &params);
+    assert(!status && "vkWaitForPresent2KHR");
+    return params.result;
+}
+
 VkResult WINAPI vkWaitForPresentKHR(VkDevice device, VkSwapchainKHR swapchain, uint64_t presentId, uint64_t timeout)
 {
     struct vkWaitForPresentKHR_params params;
@@ -6772,6 +7006,31 @@ VkResult WINAPI vkWriteMicromapsPropertiesEXT(VkDevice device, uint32_t micromap
     return params.result;
 }
 
+VkResult WINAPI wine_vkAcquireKeyedMutex(VkDevice device, VkDeviceMemory memory, uint64_t key, uint32_t timeout_ms)
+{
+    struct wine_vkAcquireKeyedMutex_params params;
+    NTSTATUS status;
+    params.device = device;
+    params.memory = memory;
+    params.key = key;
+    params.timeout_ms = timeout_ms;
+    status = UNIX_CALL(wine_vkAcquireKeyedMutex, &params);
+    assert(!status && "wine_vkAcquireKeyedMutex");
+    return params.result;
+}
+
+VkResult WINAPI wine_vkReleaseKeyedMutex(VkDevice device, VkDeviceMemory memory, uint64_t key)
+{
+    struct wine_vkReleaseKeyedMutex_params params;
+    NTSTATUS status;
+    params.device = device;
+    params.memory = memory;
+    params.key = key;
+    status = UNIX_CALL(wine_vkReleaseKeyedMutex, &params);
+    assert(!status && "wine_vkReleaseKeyedMutex");
+    return params.result;
+}
+
 static const struct vulkan_func vk_device_dispatch_table[] =
 {
     {"vkAcquireNextImage2KHR", vkAcquireNextImage2KHR},
@@ -6791,6 +7050,7 @@ static const struct vulkan_func vk_device_dispatch_table[] =
     {"vkBindImageMemory2", vkBindImageMemory2},
     {"vkBindImageMemory2KHR", vkBindImageMemory2KHR},
     {"vkBindOpticalFlowSessionImageNV", vkBindOpticalFlowSessionImageNV},
+    {"vkBindTensorMemoryARM", vkBindTensorMemoryARM},
     {"vkBindVideoSessionMemoryKHR", vkBindVideoSessionMemoryKHR},
     {"vkBuildAccelerationStructuresKHR", vkBuildAccelerationStructuresKHR},
     {"vkBuildMicromapsEXT", vkBuildMicromapsEXT},
@@ -6861,6 +7121,7 @@ static const struct vulkan_func vk_device_dispatch_table[] =
     {"vkCmdCopyMicromapEXT", vkCmdCopyMicromapEXT},
     {"vkCmdCopyMicromapToMemoryEXT", vkCmdCopyMicromapToMemoryEXT},
     {"vkCmdCopyQueryPoolResults", vkCmdCopyQueryPoolResults},
+    {"vkCmdCopyTensorARM", vkCmdCopyTensorARM},
     {"vkCmdCuLaunchKernelNVX", vkCmdCuLaunchKernelNVX},
     {"vkCmdDebugMarkerBeginEXT", vkCmdDebugMarkerBeginEXT},
     {"vkCmdDebugMarkerEndEXT", vkCmdDebugMarkerEndEXT},
@@ -7119,6 +7380,8 @@ static const struct vulkan_func vk_device_dispatch_table[] =
     {"vkCreateShaderModule", vkCreateShaderModule},
     {"vkCreateShadersEXT", vkCreateShadersEXT},
     {"vkCreateSwapchainKHR", vkCreateSwapchainKHR},
+    {"vkCreateTensorARM", vkCreateTensorARM},
+    {"vkCreateTensorViewARM", vkCreateTensorViewARM},
     {"vkCreateValidationCacheEXT", vkCreateValidationCacheEXT},
     {"vkCreateVideoSessionKHR", vkCreateVideoSessionKHR},
     {"vkCreateVideoSessionParametersKHR", vkCreateVideoSessionParametersKHR},
@@ -7163,6 +7426,8 @@ static const struct vulkan_func vk_device_dispatch_table[] =
     {"vkDestroyShaderEXT", vkDestroyShaderEXT},
     {"vkDestroyShaderModule", vkDestroyShaderModule},
     {"vkDestroySwapchainKHR", vkDestroySwapchainKHR},
+    {"vkDestroyTensorARM", vkDestroyTensorARM},
+    {"vkDestroyTensorViewARM", vkDestroyTensorViewARM},
     {"vkDestroyValidationCacheEXT", vkDestroyValidationCacheEXT},
     {"vkDestroyVideoSessionKHR", vkDestroyVideoSessionKHR},
     {"vkDestroyVideoSessionParametersKHR", vkDestroyVideoSessionParametersKHR},
@@ -7220,6 +7485,7 @@ static const struct vulkan_func vk_device_dispatch_table[] =
     {"vkGetDeviceQueue", vkGetDeviceQueue},
     {"vkGetDeviceQueue2", vkGetDeviceQueue2},
     {"vkGetDeviceSubpassShadingMaxWorkgroupSizeHUAWEI", vkGetDeviceSubpassShadingMaxWorkgroupSizeHUAWEI},
+    {"vkGetDeviceTensorMemoryRequirementsARM", vkGetDeviceTensorMemoryRequirementsARM},
     {"vkGetDynamicRenderingTilePropertiesQCOM", vkGetDynamicRenderingTilePropertiesQCOM},
     {"vkGetEncodedVideoSessionParametersKHR", vkGetEncodedVideoSessionParametersKHR},
     {"vkGetEventStatus", vkGetEventStatus},
@@ -7243,7 +7509,11 @@ static const struct vulkan_func vk_device_dispatch_table[] =
     {"vkGetImageViewHandleNVX", vkGetImageViewHandleNVX},
     {"vkGetImageViewOpaqueCaptureDescriptorDataEXT", vkGetImageViewOpaqueCaptureDescriptorDataEXT},
     {"vkGetLatencyTimingsNV", vkGetLatencyTimingsNV},
+    {"vkGetMemoryFdKHR", vkGetMemoryFdKHR},
+    {"vkGetMemoryFdPropertiesKHR", vkGetMemoryFdPropertiesKHR},
     {"vkGetMemoryHostPointerPropertiesEXT", vkGetMemoryHostPointerPropertiesEXT},
+    {"vkGetMemoryWin32HandleKHR", vkGetMemoryWin32HandleKHR},
+    {"vkGetMemoryWin32HandlePropertiesKHR", vkGetMemoryWin32HandlePropertiesKHR},
     {"vkGetMicromapBuildSizesEXT", vkGetMicromapBuildSizesEXT},
     {"vkGetPartitionedAccelerationStructuresBuildSizesNV", vkGetPartitionedAccelerationStructuresBuildSizesNV},
     {"vkGetPerformanceParameterINTEL", vkGetPerformanceParameterINTEL},
@@ -7271,13 +7541,20 @@ static const struct vulkan_func vk_device_dispatch_table[] =
     {"vkGetSamplerOpaqueCaptureDescriptorDataEXT", vkGetSamplerOpaqueCaptureDescriptorDataEXT},
     {"vkGetSemaphoreCounterValue", vkGetSemaphoreCounterValue},
     {"vkGetSemaphoreCounterValueKHR", vkGetSemaphoreCounterValueKHR},
+    {"vkGetSemaphoreFdKHR", vkGetSemaphoreFdKHR},
+    {"vkGetSemaphoreWin32HandleKHR", vkGetSemaphoreWin32HandleKHR},
     {"vkGetShaderBinaryDataEXT", vkGetShaderBinaryDataEXT},
     {"vkGetShaderInfoAMD", vkGetShaderInfoAMD},
     {"vkGetShaderModuleCreateInfoIdentifierEXT", vkGetShaderModuleCreateInfoIdentifierEXT},
     {"vkGetShaderModuleIdentifierEXT", vkGetShaderModuleIdentifierEXT},
     {"vkGetSwapchainImagesKHR", vkGetSwapchainImagesKHR},
+    {"vkGetTensorMemoryRequirementsARM", vkGetTensorMemoryRequirementsARM},
+    {"vkGetTensorOpaqueCaptureDescriptorDataARM", vkGetTensorOpaqueCaptureDescriptorDataARM},
+    {"vkGetTensorViewOpaqueCaptureDescriptorDataARM", vkGetTensorViewOpaqueCaptureDescriptorDataARM},
     {"vkGetValidationCacheDataEXT", vkGetValidationCacheDataEXT},
     {"vkGetVideoSessionMemoryRequirementsKHR", vkGetVideoSessionMemoryRequirementsKHR},
+    {"vkImportSemaphoreFdKHR", vkImportSemaphoreFdKHR},
+    {"vkImportSemaphoreWin32HandleKHR", vkImportSemaphoreWin32HandleKHR},
     {"vkInitializePerformanceApiINTEL", vkInitializePerformanceApiINTEL},
     {"vkInvalidateMappedMemoryRanges", vkInvalidateMappedMemoryRanges},
     {"vkLatencySleepNV", vkLatencySleepNV},
@@ -7334,11 +7611,14 @@ static const struct vulkan_func vk_device_dispatch_table[] =
     {"vkUpdateIndirectExecutionSetShaderEXT", vkUpdateIndirectExecutionSetShaderEXT},
     {"vkUpdateVideoSessionParametersKHR", vkUpdateVideoSessionParametersKHR},
     {"vkWaitForFences", vkWaitForFences},
+    {"vkWaitForPresent2KHR", vkWaitForPresent2KHR},
     {"vkWaitForPresentKHR", vkWaitForPresentKHR},
     {"vkWaitSemaphores", vkWaitSemaphores},
     {"vkWaitSemaphoresKHR", vkWaitSemaphoresKHR},
     {"vkWriteAccelerationStructuresPropertiesKHR", vkWriteAccelerationStructuresPropertiesKHR},
     {"vkWriteMicromapsPropertiesEXT", vkWriteMicromapsPropertiesEXT},
+    {"wine_vkAcquireKeyedMutex", wine_vkAcquireKeyedMutex},
+    {"wine_vkReleaseKeyedMutex", wine_vkReleaseKeyedMutex},
 };
 
 static const struct vulkan_func vk_phys_dev_dispatch_table[] =
@@ -7359,6 +7639,7 @@ static const struct vulkan_func vk_phys_dev_dispatch_table[] =
     {"vkGetPhysicalDeviceExternalFencePropertiesKHR", vkGetPhysicalDeviceExternalFencePropertiesKHR},
     {"vkGetPhysicalDeviceExternalSemaphoreProperties", vkGetPhysicalDeviceExternalSemaphoreProperties},
     {"vkGetPhysicalDeviceExternalSemaphorePropertiesKHR", vkGetPhysicalDeviceExternalSemaphorePropertiesKHR},
+    {"vkGetPhysicalDeviceExternalTensorPropertiesARM", vkGetPhysicalDeviceExternalTensorPropertiesARM},
     {"vkGetPhysicalDeviceFeatures", vkGetPhysicalDeviceFeatures},
     {"vkGetPhysicalDeviceFeatures2", vkGetPhysicalDeviceFeatures2},
     {"vkGetPhysicalDeviceFeatures2KHR", vkGetPhysicalDeviceFeatures2KHR},

@@ -207,6 +207,7 @@ AddService=Winmgmt,0,WinmgmtService
 AddService=wuauserv,0,wuauService
 AddService=NDIS,0x800,NDISService
 AddService=nsiproxy,0x800,NsiProxyService
+AddService=SharedGpuResources,0x800,SharedGpuResourcesService
 
 [DefaultInstall.NT.Services]
 AddService=BITS,0,BITSService
@@ -227,6 +228,7 @@ AddService=Winmgmt,0,WinmgmtService
 AddService=wuauserv,0,wuauService
 AddService=NDIS,0x800,NDISService
 AddService=nsiproxy,0x800,NsiProxyService
+AddService=SharedGpuResources,0x800,SharedGpuResourcesService
 
 [DefaultInstall.ntamd64.Services]
 AddService=BITS,0,BITSService
@@ -247,6 +249,7 @@ AddService=Winmgmt,0,WinmgmtService
 AddService=wuauserv,0,wuauService
 AddService=NDIS,0x800,NDISService
 AddService=nsiproxy,0x800,NsiProxyService
+AddService=SharedGpuResources,0x800,SharedGpuResourcesService
 
 [DefaultInstall.ntarm64.Services]
 AddService=BITS,0,BITSService
@@ -267,6 +270,7 @@ AddService=Winmgmt,0,WinmgmtService
 AddService=wuauserv,0,wuauService
 AddService=NDIS,0x800,NDISService
 AddService=nsiproxy,0x800,NsiProxyService
+AddService=SharedGpuResources,0x800,SharedGpuResourcesService
 
 [Strings]
 MciExtStr="Software\Microsoft\Windows NT\CurrentVersion\MCI Extensions"
@@ -2695,6 +2699,15 @@ LoadOrderGroup="System Bus Extender"
 [NsiProxyServiceKeys]
 HKR,,"Tag",0x10001,1
 
+[SharedGpuResourcesService]
+Description="Shared GPU Resources Manager Service"
+DisplayName="Shared GPU Resources Manager"
+ServiceBinary="%12%\sharedgpures.sys"
+ServiceType=1
+StartType=2
+ErrorControl=1
+LoadOrderGroup="System Bus Extender"
+
 [RpcSsService]
 Description="RPC service"
 DisplayName="Remote Procedure Call (RPC)"
@@ -2840,9 +2853,11 @@ ErrorControl=1
 
 [Services]
 HKLM,%CurrentVersion%\RunServices,"winemenubuilder",2,"%11%\winemenubuilder.exe -a -r"
+HKLM,"System\CurrentControlSet\Services\Dnscache\Parameters",,16
 HKLM,"System\CurrentControlSet\Services\Eventlog\Application",,16
 HKLM,"System\CurrentControlSet\Services\Eventlog\System","Sources",0x10000,""
 HKLM,"System\CurrentControlSet\Services\Tcpip\Parameters","DataBasePath",,"%12%\etc"
+HKLM,"System\CurrentControlSet\Services\Tcpip6\Parameters",,16
 HKLM,"System\CurrentControlSet\Services\VxD\MSTCP",,16
 HKLM,"System\CurrentControlSet\Services\Winsock\Parameters",,16
 HKLM,"System\CurrentControlSet\Services\Winsock2\Parameters\Protocol_Catalog9\Catalog_Entries",,16
