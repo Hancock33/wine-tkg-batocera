@@ -1,9 +1,9 @@
-# Last wine-tkg-staging-ntsync-git configuration - Mon  2 Jun 07:06:05 BST 2025 :
+# Last wine-tkg-staging-ntsync-git configuration - Sat 14 Jun 07:41:33 BST 2025 :
 
 Local cfg files used
 
-Wine (plain) version: 10.9.r0.gffcbbf8f015
-Using wine-staging patchset (version 10.9.r0.gb4006fc0)
+Wine (plain) version: 10.10.r0.g885446556ce
+Using wine-staging patchset (version 10.10.r0.gc37f9f50)
 
 Disabled the local Esync patchset to use Staging impl instead.
 Not using vkd3d native library for d3d12 translation (allows using vkd3d-proton)
@@ -17,6 +17,8 @@ Staging overrides, if any: -W winedevice-Default_Drivers
 
 
 LAA-unix-staging.patch -- ( Applied large address aware override support (legacy) )
+vulkan-1-Prefer-builtin.patch -- ( Prefer build vulkan-1 patch )
+proton10-winevulkan.patch -- ( Using Proton 10 winevulkan patches )
 
 ntsync-config.h.in-org.patch -- ( Using original config.h.in patchset for ntsync5 )
 ntsync5-staging.patch -- ( Using ntsync patchset )
@@ -34,10 +36,10 @@ wine-tkg-staging.patch -- ( Please don't report bugs about this wine build on wi
 
 
 With predefined optimizations:
-CFLAGS = -O2 -ftree-vectorize -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types
+CFLAGS = -O2 -pipe -msse3 -mfpmath=sse -ftree-vectorize -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types
 LDFLAGS = -Wl,-O1,--sort-common,--as-needed
-CROSSCFLAGS = -O2 -ftree-vectorize -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types
+CROSSCFLAGS = -O2 -pipe -msse3 -mfpmath=sse -ftree-vectorize -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types
 CROSSLDFLAGS = -Wl,-O1,--sort-common,--as-needed
 
-configure arguments: --disable-tests --without-vkd3d
+configure arguments: --disable-tests --without-vkd3d --without-wayland
 
