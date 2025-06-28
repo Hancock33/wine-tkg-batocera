@@ -248,19 +248,20 @@ static BOOL get_so_file_info( int fd, struct pe_image_info *info )
 /***********************************************************************
  *           get_pe_file_info
  */
-static unsigned int get_pe_file_info( OBJECT_ATTRIBUTES *attr, UNICODE_STRING *nt_name,
-                                      char **unix_name, HANDLE *handle, struct pe_image_info *info )
+static unsigned int get_pe_file_info( OBJECT_ATTRIBUTES *attr, HANDLE *handle, struct pe_image_info *info )
 {
     unsigned int status;
     HANDLE mapping;
+    char *unix_name;
 
     *handle = 0;
     memset( info, 0, sizeof(*info) );
-    if (!(status = get_nt_and_unix_names( attr, nt_name, unix_name, FILE_OPEN )))
+    if (!(status = nt_to_unix_file_name( attr, &unix_name, FILE_OPEN )))
     {
-        status = open_unix_file( handle, *unix_name, GENERIC_READ, attr, 0,
+        status = open_unix_file( handle, unix_name, GENERIC_READ, attr, 0,
                                  FILE_SHARE_READ | FILE_SHARE_DELETE,
                                  FILE_OPEN, FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0 );
+        free( unix_name );
     }
     if (status)
     {
@@ -358,7 +359,7 @@ static WCHAR *get_nt_pathname( const UNICODE_STRING *str )
  */
 static int get_unix_curdir( const RTL_USER_PROCESS_PARAMETERS *params )
 {
-    UNICODE_STRING nt_name, true_nt_name;
+    UNICODE_STRING nt_name, redir;
     OBJECT_ATTRIBUTES attr;
     NTSTATUS status;
     HANDLE handle;
@@ -369,19 +370,20 @@ static int get_unix_curdir( const RTL_USER_PROCESS_PARAMETERS *params )
     nt_name.Length = wcslen( nt_name.Buffer ) * sizeof(WCHAR);
 
     InitializeObjectAttributes( &attr, &nt_name, OBJ_CASE_INSENSITIVE, 0, NULL );
-    status = get_nt_and_unix_names( &attr, &true_nt_name, &unix_name, FILE_OPEN );
+    get_redirect( &attr, &redir );
+    status = nt_to_unix_file_name( &attr, &unix_name, FILE_OPEN );
     if (status) goto done;
     status = open_unix_file( &handle, unix_name, FILE_TRAVERSE | SYNCHRONIZE, &attr, 0,
                              FILE_SHARE_READ | FILE_SHARE_DELETE,
                              FILE_OPEN, FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0 );
+    free( unix_name );
     if (status) goto done;
     wine_server_handle_to_fd( handle, FILE_TRAVERSE, &fd, NULL );
     NtClose( handle );
 
 done:
-    free( unix_name );
     free( nt_name.Buffer );
-    free( true_nt_name.Buffer );
+    free( redir.Buffer );
     return fd;
 }
 
@@ -578,19 +580,27 @@ NTSTATUS wow64_wine_spawnvp( void *args )
  *
  * Fork and exec a new Unix binary, checking for errors.
  */
-static NTSTATUS fork_and_exec( OBJECT_ATTRIBUTES *attr, const char *unix_name, int unixdir,
+static NTSTATUS fork_and_exec( OBJECT_ATTRIBUTES *attr, int unixdir,
                                const RTL_USER_PROCESS_PARAMETERS *params )
 {
     pid_t pid;
     int fd[2], stdin_fd = -1, stdout_fd = -1;
     char **argv, **envp;
+    char *unix_name;
     NTSTATUS status;
+
+    status = nt_to_unix_file_name( attr, &unix_name, FILE_OPEN );
+    if (status) return status;
 
 #ifdef HAVE_PIPE2
     if (pipe2( fd, O_CLOEXEC ) == -1)
 #endif
     {
-        if (pipe(fd) == -1) return STATUS_TOO_MANY_OPENED_FILES;
+        if (pipe(fd) == -1)
+        {
+            status = STATUS_TOO_MANY_OPENED_FILES;
+            goto done;
+        }
         fcntl( fd[0], F_SETFD, FD_CLOEXEC );
         fcntl( fd[1], F_SETFD, FD_CLOEXEC );
     }
@@ -669,6 +679,8 @@ static NTSTATUS fork_and_exec( OBJECT_ATTRIBUTES *attr, const char *unix_name, i
     close( fd[0] );
     if (stdin_fd != -1 && stdin_fd != 0) close( stdin_fd );
     if (stdout_fd != -1 && stdout_fd != 1) close( stdout_fd );
+done:
+    free( unix_name );
     return status;
 }
 
@@ -711,7 +723,6 @@ NTSTATUS WINAPI NtCreateUserProcess( HANDLE *process_handle_ptr, HANDLE *thread_
     struct object_attributes *objattr;
     data_size_t attr_len;
     char *winedebug = NULL;
-    char *unix_name = NULL;
     struct startup_info_data *startup_info = NULL;
     ULONG startup_info_size, env_size;
     int unixdir, socketfd[2] = { -1, -1 };
@@ -719,7 +730,7 @@ NTSTATUS WINAPI NtCreateUserProcess( HANDLE *process_handle_ptr, HANDLE *thread_
     CLIENT_ID id;
     USHORT machine = 0;
     HANDLE parent = 0, debug = 0, token = 0;
-    UNICODE_STRING nt_name, path = {0};
+    UNICODE_STRING redir, path = {0};
     OBJECT_ATTRIBUTES attr, empty_attr = { sizeof(empty_attr) };
     SIZE_T i, attr_count = (ps_attr->TotalLength - sizeof(ps_attr->TotalLength)) / sizeof(PS_ATTRIBUTE);
     const PS_ATTRIBUTE *handles_attr = NULL, *jobs_attr = NULL;
@@ -777,13 +788,14 @@ NTSTATUS WINAPI NtCreateUserProcess( HANDLE *process_handle_ptr, HANDLE *thread_
     unixdir = get_unix_curdir( params );
 
     InitializeObjectAttributes( &attr, &path, OBJ_CASE_INSENSITIVE, 0, 0 );
-    if ((status = get_pe_file_info( &attr, &nt_name, &unix_name, &file_handle, &pe_info )))
+    get_redirect( &attr, &redir );
+
+    if ((status = get_pe_file_info( &attr, &file_handle, &pe_info )))
     {
-        if (status == STATUS_INVALID_IMAGE_NOT_MZ && !fork_and_exec( &attr, unix_name, unixdir, params ))
+        if (status == STATUS_INVALID_IMAGE_NOT_MZ && !fork_and_exec( &attr, unixdir, params ))
         {
             memset( info, 0, sizeof(*info) );
-            free( unix_name );
-            free( nt_name.Buffer );
+            free( redir.Buffer );
             return STATUS_SUCCESS;
         }
         goto done;
@@ -971,8 +983,7 @@ done:
     if (unixdir != -1) close( unixdir );
     free( startup_info );
     free( winedebug );
-    free( unix_name );
-    free( nt_name.Buffer );
+    free( redir.Buffer );
     return status;
 }
 

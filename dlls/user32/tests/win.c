@@ -11313,7 +11313,6 @@ static DWORD WINAPI set_foreground_thread(void *params)
             {
                 SetForegroundWindow(p->thread_window);
                 check_wnd_state(p->thread_window, p->thread_window, p->thread_window, 0);
-                flush_events(TRUE);
             }
             if (msg.wParam & SET_FOREGROUND_INJECT)
             {
@@ -11323,19 +11322,16 @@ static DWORD WINAPI set_foreground_thread(void *params)
             {
                 SetForegroundWindow(p->window1);
                 check_wnd_state(0, p->window1, 0, 0);
-                flush_events(TRUE);
             }
             if (msg.wParam & SET_FOREGROUND_STEAL_2)
             {
                 SetForegroundWindow(p->thread_window);
                 check_wnd_state(p->thread_window, p->thread_window, p->thread_window, 0);
-                flush_events(TRUE);
             }
             if (msg.wParam & SET_FOREGROUND_SET_2)
             {
                 SetForegroundWindow(p->window2);
                 check_wnd_state(0, p->window2, 0, 0);
-                flush_events(TRUE);
             }
 
             SetEvent(p->command_executed);
@@ -11371,7 +11367,7 @@ static void test_activateapp(HWND window1)
 
     SetForegroundWindow(window1);
     check_wnd_state(window1, window1, window1, 0);
-    flush_events(TRUE);
+    while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE)) DispatchMessageA(&msg);
 
     /* Steal foreground: WM_ACTIVATEAPP(0) is delivered. */
     app_activated = app_deactivated = FALSE;
@@ -11449,8 +11445,6 @@ static void test_activateapp(HWND window1)
     ok(app_deactivated, "Expected WM_ACTIVATEAPP(0), did not receive it.\n");
 
     SetForegroundWindow(thread_params.thread_window);
-    check_wnd_state(0, thread_params.thread_window, 0, 0);
-    flush_events(TRUE);
 
     /* Set foreground then remove: Both messages are delivered. */
     app_activated = app_deactivated = FALSE;
@@ -11474,8 +11468,10 @@ static void test_activateapp(HWND window1)
     todo_wine ok(app_deactivated, "Expected WM_ACTIVATEAPP(0), did not receive it.\n");
 
     SetForegroundWindow(window1);
+    test_window = GetForegroundWindow();
+    ok(test_window == window1, "Expected foreground window %p, got %p\n",
+            window1, test_window);
     check_wnd_state(window1, window1, window1, 0);
-    flush_events(TRUE);
 
     /* Switch to a different window from the same thread? No messages. */
     app_activated = app_deactivated = FALSE;

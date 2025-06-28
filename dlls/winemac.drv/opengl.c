@@ -76,19 +76,9 @@ struct macdrv_context
     CGLPBufferObj           read_pbuffer;
     int                     swap_interval;
     LONG                    view_moved;
+    unsigned int            last_flush_time;
     UINT                    major;
 };
-
-struct gl_drawable
-{
-    struct opengl_drawable  base;
-    CGLPBufferObj           pbuffer;
-};
-
-static struct gl_drawable *impl_from_opengl_drawable(struct opengl_drawable *base)
-{
-    return CONTAINING_RECORD(base, struct gl_drawable, base);
-}
 
 static struct list context_list = LIST_INIT(context_list);
 static pthread_mutex_t context_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -99,16 +89,16 @@ static pthread_mutex_t dc_pbuffers_mutex = PTHREAD_MUTEX_INITIALIZER;
 static void *opengl_handle;
 static const struct opengl_funcs *funcs;
 static const struct opengl_driver_funcs macdrv_driver_funcs;
-static const struct opengl_drawable_funcs macdrv_surface_funcs;
-static const struct opengl_drawable_funcs macdrv_pbuffer_funcs;
 
 static void (*pglCopyColorTable)(GLenum target, GLenum internalformat, GLint x, GLint y,
                                  GLsizei width);
 static void (*pglCopyPixels)(GLint x, GLint y, GLsizei width, GLsizei height, GLenum type);
+static void (*pglFlushRenderAPPLE)(void);
 static const GLubyte *(*pglGetString)(GLenum name);
 static PFN_glGetIntegerv pglGetIntegerv;
 static void (*pglReadPixels)(GLint x, GLint y, GLsizei width, GLsizei height,
                              GLenum format, GLenum type, void *pixels);
+static void (*pglViewport)(GLint x, GLint y, GLsizei width, GLsizei height);
 
 
 struct color_mode {
@@ -1471,12 +1461,11 @@ static BOOL create_context(struct macdrv_context *context, CGLContextObj share, 
     return TRUE;
 }
 
-static BOOL macdrv_surface_create(HWND hwnd, HDC hdc, int format, struct opengl_drawable **drawable)
+static BOOL macdrv_set_pixel_format(HWND hwnd, int old_format, int new_format, BOOL internal)
 {
     struct macdrv_win_data *data;
-    struct gl_drawable *gl;
 
-    TRACE("hwnd %p, hdc %p, format %d, drawable %p\n", hwnd, hdc, format, drawable);
+    TRACE("hwnd %p, old_format %d, new_format %d, internal %u\n", hwnd, old_format, new_format, internal);
 
     if (!(data = get_win_data(hwnd)))
     {
@@ -1484,19 +1473,11 @@ static BOOL macdrv_surface_create(HWND hwnd, HDC hdc, int format, struct opengl_
         return FALSE;
     }
 
-    data->pixel_format = format;
+    data->pixel_format = new_format;
     release_win_data(data);
-
-    if (!(gl = opengl_drawable_create(sizeof(*gl), &macdrv_surface_funcs, format, hwnd, hdc))) return FALSE;
-    *drawable = &gl->base;
-
     return TRUE;
 }
 
-static void macdrv_surface_destroy(struct opengl_drawable *base)
-{
-    TRACE("drawable %s\n", debugstr_opengl_drawable(base));
-}
 
 /**********************************************************************
  *              mark_contexts_for_moved_view
@@ -1585,6 +1566,16 @@ static void make_context_current(struct macdrv_context *context, BOOL read)
         CGLSetPBuffer(context->cglcontext, pbuffer, context->draw_pbuffer_face, context->draw_pbuffer_level, 0);
         CGLSetCurrentContext(context->cglcontext);
     }
+}
+
+
+/**********************************************************************
+ *              sync_context
+ */
+static void sync_context(struct macdrv_context *context)
+{
+    if (sync_context_rect(context))
+        make_context_current(context, FALSE);
 }
 
 
@@ -2075,13 +2066,34 @@ static void macdrv_glCopyPixels(GLint x, GLint y, GLsizei width, GLsizei height,
 }
 
 
-static void macdrv_surface_flush(struct opengl_drawable *base, UINT flags)
+static BOOL macdrv_context_flush( void *private, HWND hwnd, HDC hdc, int interval, void (*flush)(void) )
 {
-    struct macdrv_context *context = NtCurrentTeb()->glReserved2;
+    struct macdrv_context *context = private;
 
-    TRACE("%s flags %#x\n", debugstr_opengl_drawable(base), flags);
+    set_swap_interval(context, interval);
+    sync_context(context);
 
-    if (flags & GL_FLUSH_INTERVAL) set_swap_interval(context, base->interval);
+    if (skip_single_buffer_flushes)
+    {
+        const pixel_format *pf = &pixel_formats[context->format - 1];
+        unsigned int now = NtGetTickCount();
+
+        TRACE("double buffer %d last flush time %d now %d\n", pf->double_buffer,
+              context->last_flush_time, now);
+        if (pglFlushRenderAPPLE && !pf->double_buffer && (now - context->last_flush_time) < 17)
+        {
+            TRACE("calling glFlushRenderAPPLE()\n");
+            pglFlushRenderAPPLE();
+            return TRUE;
+        }
+        else
+        {
+            TRACE("calling glFlush()\n");
+            context->last_flush_time = now;
+        }
+    }
+
+    return FALSE;
 }
 
 
@@ -2129,19 +2141,35 @@ static void macdrv_glReadPixels(GLint x, GLint y, GLsizei width, GLsizei height,
 }
 
 
+/**********************************************************************
+ *              macdrv_glViewport
+ *
+ * Hook into glViewport as an opportunity to update the OpenGL context
+ * if necessary.  This is modeled after what Mesa GLX's Apple
+ * implementation does.
+ */
+static void macdrv_glViewport(GLint x, GLint y, GLsizei width, GLsizei height)
+{
+    struct macdrv_context *context = NtCurrentTeb()->glReserved2;
+
+    sync_context(context);
+    macdrv_update_opengl_context(context->context);
+    pglViewport(x, y, width, height);
+}
+
+
 /***********************************************************************
  *              macdrv_wglBindTexImageARB
  *
  * WGL_ARB_render_texture: wglBindTexImageARB
  */
-static UINT macdrv_pbuffer_bind(HDC hdc, struct opengl_drawable *base, GLenum source)
+static UINT macdrv_pbuffer_bind(HDC hdc, void *private, GLenum source)
 {
     struct macdrv_context *context = NtCurrentTeb()->glReserved2;
-    struct gl_drawable *gl = impl_from_opengl_drawable(base);
-    CGLPBufferObj pbuffer = gl->pbuffer;
+    CGLPBufferObj pbuffer = private;
     CGLError err;
 
-    TRACE("hdc %p drawable %s source 0x%x\n", hdc, debugstr_opengl_drawable(base), source);
+    TRACE("hdc %p pbuffer %p source 0x%x\n", hdc, pbuffer, source);
 
     if (!context->draw_view && context->draw_pbuffer == pbuffer && source != GL_NONE)
         funcs->p_glFlush();
@@ -2162,7 +2190,7 @@ static UINT macdrv_pbuffer_bind(HDC hdc, struct opengl_drawable *base, GLenum so
  *
  * WGL_ARB_create_context: wglCreateContextAttribsARB
  */
-static BOOL macdrv_context_create(int format, void *shared, const int *attrib_list, void **private)
+static BOOL macdrv_context_create(HDC hdc, int format, void *shared, const int *attrib_list, void **private)
 {
     struct macdrv_context *share_context = shared;
     struct macdrv_context *context;
@@ -2171,7 +2199,7 @@ static BOOL macdrv_context_create(int format, void *shared, const int *attrib_li
     BOOL core = FALSE;
     GLint renderer_id = 0;
 
-    TRACE("format %d, share_context %p, attrib_list %p\n", format, share_context, attrib_list);
+    TRACE("hdc %p, format %d, share_context %p, attrib_list %p\n", hdc, format, share_context, attrib_list);
 
     for (iptr = attrib_list; iptr && *iptr; iptr += 2)
     {
@@ -2327,13 +2355,12 @@ static BOOL macdrv_context_create(int format, void *shared, const int *attrib_li
 }
 
 static BOOL macdrv_pbuffer_create(HDC hdc, int format, BOOL largest, GLenum texture_format, GLenum texture_target,
-                                  GLint max_level, GLsizei *width, GLsizei *height, struct opengl_drawable **drawable)
+                                  GLint max_level, GLsizei *width, GLsizei *height, void **private)
 {
-    struct gl_drawable *gl;
     CGLError err;
 
-    TRACE("hdc %p, format %d, largest %u, texture_format %#x, texture_target %#x, max_level %#x, width %d, height %d, drawable %p\n",
-          hdc, format, largest, texture_format, texture_target, max_level, *width, *height, drawable);
+    TRACE("hdc %p, format %d, largest %u, texture_format %#x, texture_target %#x, max_level %#x, width %d, height %d, private %p\n",
+          hdc, format, largest, texture_format, texture_target, max_level, *width, *height, private);
 
     if (!texture_target || !texture_format)
     {
@@ -2342,55 +2369,42 @@ static BOOL macdrv_pbuffer_create(HDC hdc, int format, BOOL largest, GLenum text
         texture_format = GL_RGB;
     }
 
-    if (!(gl = opengl_drawable_create(sizeof(*gl), &macdrv_pbuffer_funcs, format, 0, hdc))) return FALSE;
-
-    err = CGLCreatePBuffer(*width, *height, texture_target, texture_format, max_level, &gl->pbuffer);
+    err = CGLCreatePBuffer(*width, *height, texture_target, texture_format, max_level, (CGLPBufferObj *)private);
     if (err != kCGLNoError)
     {
         WARN("CGLCreatePBuffer failed; err %d %s\n", err, CGLErrorString(err));
-        opengl_drawable_release(&gl->base);
         return FALSE;
     }
 
     pthread_mutex_lock(&dc_pbuffers_mutex);
-    CFDictionarySetValue(dc_pbuffers, hdc, gl->pbuffer);
+    CFDictionarySetValue(dc_pbuffers, hdc, private);
     pthread_mutex_unlock(&dc_pbuffers_mutex);
 
-    *drawable = &gl->base;
-    TRACE(" -> %p\n", gl);
+    TRACE(" -> %p\n", *private);
     return TRUE;
 }
 
-static void macdrv_pbuffer_destroy(struct opengl_drawable *base)
+static BOOL macdrv_pbuffer_destroy(HDC hdc, void *private)
 {
-    struct gl_drawable *gl = impl_from_opengl_drawable(base);
-
-    TRACE("drawable %s\n", debugstr_opengl_drawable(base));
+    TRACE("private %p\n", private);
 
     pthread_mutex_lock(&dc_pbuffers_mutex);
-    CFDictionaryRemoveValue(dc_pbuffers, gl->pbuffer);
+    CFDictionaryRemoveValue(dc_pbuffers, hdc);
     pthread_mutex_unlock(&dc_pbuffers_mutex);
 
-    CGLReleasePBuffer(gl->pbuffer);
+    CGLReleasePBuffer(private);
+    return GL_TRUE;
 }
 
-static void macdrv_pbuffer_flush(struct opengl_drawable *base, UINT flags)
-{
-}
 
-static BOOL macdrv_pbuffer_swap(struct opengl_drawable *base)
+static BOOL macdrv_context_make_current(HDC draw_hdc, HDC read_hdc, void *private)
 {
-    return FALSE;
-}
-
-static BOOL macdrv_make_current(struct opengl_drawable *draw_base, struct opengl_drawable *read_base, void *private)
-{
-    struct gl_drawable *draw = impl_from_opengl_drawable(draw_base), *read = impl_from_opengl_drawable(read_base);
     struct macdrv_context *context = private;
     struct macdrv_win_data *data;
     HWND hwnd;
 
-    TRACE("draw %s, read %s, context %p\n", debugstr_opengl_drawable(draw_base), debugstr_opengl_drawable(read_base), private);
+    TRACE("draw_hdc %p read_hdc %p context %p/%p/%p\n", draw_hdc, read_hdc, context,
+          (context ? context->context : NULL), (context ? context->cglcontext : NULL));
 
     if (!private)
     {
@@ -2399,7 +2413,7 @@ static BOOL macdrv_make_current(struct opengl_drawable *draw_base, struct opengl
         return TRUE;
     }
 
-    if ((hwnd = draw->base.hwnd))
+    if ((hwnd = NtUserWindowFromDC(draw_hdc)))
     {
         if (!(data = get_win_data(hwnd)))
         {
@@ -2420,7 +2434,7 @@ static BOOL macdrv_make_current(struct opengl_drawable *draw_base, struct opengl
         CGLPBufferObj pbuffer;
 
         pthread_mutex_lock(&dc_pbuffers_mutex);
-        pbuffer = (CGLPBufferObj)CFDictionaryGetValue(dc_pbuffers, draw->base.hdc);
+        pbuffer = (CGLPBufferObj)CFDictionaryGetValue(dc_pbuffers, draw_hdc);
         if (!pbuffer)
         {
             WARN("no window or pbuffer for DC\n");
@@ -2437,9 +2451,9 @@ static BOOL macdrv_make_current(struct opengl_drawable *draw_base, struct opengl
 
     context->read_view = NULL;
     context->read_pbuffer = NULL;
-    if (read != draw)
+    if (read_hdc && read_hdc != draw_hdc)
     {
-        if ((hwnd = read->base.hwnd))
+        if ((hwnd = NtUserWindowFromDC(read_hdc)))
         {
             if ((data = get_win_data(hwnd)))
             {
@@ -2455,7 +2469,7 @@ static BOOL macdrv_make_current(struct opengl_drawable *draw_base, struct opengl
         else
         {
             pthread_mutex_lock(&dc_pbuffers_mutex);
-            context->read_pbuffer = (CGLPBufferObj)CFDictionaryGetValue(dc_pbuffers, read->base.hdc);
+            context->read_pbuffer = (CGLPBufferObj)CFDictionaryGetValue(dc_pbuffers, read_hdc);
             pthread_mutex_unlock(&dc_pbuffers_mutex);
         }
     }
@@ -2681,13 +2695,13 @@ done:
     return ret;
 }
 
-static BOOL macdrv_pbuffer_updated(HDC hdc, struct opengl_drawable *base, GLenum cube_face, GLint mipmap_level)
+
+static BOOL macdrv_pbuffer_updated(HDC hdc, void *private, GLenum cube_face, GLint mipmap_level)
 {
     struct macdrv_context *context = NtCurrentTeb()->glReserved2;
-    struct gl_drawable *gl = impl_from_opengl_drawable(base);
-    CGLPBufferObj pbuffer = gl->pbuffer;
+    CGLPBufferObj pbuffer = private;
 
-    TRACE("hdc %p drawable %s cube_face %#x mipmap_level %d\n", hdc, debugstr_opengl_drawable(base), cube_face, mipmap_level);
+    TRACE("hdc %p pbuffer %p cube_face %#x mipmap_level %d\n", hdc, pbuffer, cube_face, mipmap_level);
 
     if (context && context->draw_pbuffer == pbuffer)
     {
@@ -2793,11 +2807,14 @@ UINT macdrv_OpenGLInit(UINT version, const struct opengl_funcs *opengl_funcs, co
     LOAD_FUNCPTR(glGetIntegerv);
     LOAD_FUNCPTR(glGetString);
     LOAD_FUNCPTR(glReadPixels);
+    LOAD_FUNCPTR(glViewport);
     LOAD_FUNCPTR(glCopyColorTable);
 
     if (!init_gl_info())
         goto failed;
 
+    if (gluCheckExtension((GLubyte*)"GL_APPLE_flush_render", (GLubyte*)gl_info.glExtensions))
+        LOAD_FUNCPTR(glFlushRenderAPPLE);
 #undef LOAD_FUNCPTR
 
     *driver_funcs = &macdrv_driver_funcs;
@@ -2944,21 +2961,26 @@ static void *macdrv_get_proc_address(const char *name)
     if (!strcmp(name, "glCopyPixels")) return macdrv_glCopyPixels;
     if (!strcmp(name, "glGetString")) return macdrv_glGetString;
     if (!strcmp(name, "glReadPixels")) return macdrv_glReadPixels;
+    if (!strcmp(name, "glViewport")) return macdrv_glViewport;
 
     /* redirect some OpenGL extension functions */
     if (!strcmp(name, "glCopyColorTable")) return macdrv_glCopyColorTable;
     return dlsym(opengl_handle, name);
 }
 
-static BOOL macdrv_surface_swap(struct opengl_drawable *base)
+static BOOL macdrv_swap_buffers(void *private, HWND hwnd, HDC hdc, int interval)
 {
-    struct macdrv_context *context = NtCurrentTeb()->glReserved2;
-    HWND hwnd = base->hwnd;
-    HDC hdc = base->hdc;
+    struct macdrv_context *context = private;
     BOOL match = FALSE;
 
     TRACE("hdc %p context %p/%p/%p\n", hdc, context, (context ? context->context : NULL),
           (context ? context->cglcontext : NULL));
+
+    if (context)
+    {
+        set_swap_interval(context, interval);
+        sync_context(context);
+    }
 
     if (hwnd)
     {
@@ -3009,25 +3031,14 @@ static const struct opengl_driver_funcs macdrv_driver_funcs =
     .p_init_pixel_formats = macdrv_init_pixel_formats,
     .p_describe_pixel_format = macdrv_describe_pixel_format,
     .p_init_wgl_extensions = macdrv_init_wgl_extensions,
-    .p_surface_create = macdrv_surface_create,
+    .p_set_pixel_format = macdrv_set_pixel_format,
+    .p_swap_buffers = macdrv_swap_buffers,
     .p_context_create = macdrv_context_create,
     .p_context_destroy = macdrv_context_destroy,
-    .p_make_current = macdrv_make_current,
+    .p_context_flush = macdrv_context_flush,
+    .p_context_make_current = macdrv_context_make_current,
     .p_pbuffer_create = macdrv_pbuffer_create,
+    .p_pbuffer_destroy = macdrv_pbuffer_destroy,
     .p_pbuffer_updated = macdrv_pbuffer_updated,
     .p_pbuffer_bind = macdrv_pbuffer_bind,
-};
-
-static const struct opengl_drawable_funcs macdrv_surface_funcs =
-{
-    .destroy = macdrv_surface_destroy,
-    .flush = macdrv_surface_flush,
-    .swap = macdrv_surface_swap,
-};
-
-static const struct opengl_drawable_funcs macdrv_pbuffer_funcs =
-{
-    .destroy = macdrv_pbuffer_destroy,
-    .flush = macdrv_pbuffer_flush,
-    .swap = macdrv_pbuffer_swap,
 };

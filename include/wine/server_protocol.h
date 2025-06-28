@@ -127,7 +127,7 @@ struct context_data
     union
     {
         struct { unsigned int eip, ebp, esp, eflags, cs, ss; } i386_regs;
-        struct { unsigned __int64 rip, rsp;
+        struct { unsigned __int64 rip, rbp, rsp;
                  unsigned int cs, ss, flags, __pad; } x86_64_regs;
         struct { unsigned int sp, lr, pc, cpsr; } arm_regs;
         struct { unsigned __int64 sp, pc, pstate; } arm64_regs;
@@ -135,7 +135,7 @@ struct context_data
     union
     {
         struct { unsigned int eax, ebx, ecx, edx, esi, edi; } i386_regs;
-        struct { unsigned __int64 rax, rbx, rcx, rdx, rbp, rsi, rdi,
+        struct { unsigned __int64 rax,rbx, rcx, rdx, rsi, rdi,
                                   r8, r9, r10, r11, r12, r13, r14, r15; } x86_64_regs;
         struct { unsigned int r[13]; } arm_regs;
         struct { unsigned __int64 x[31]; } arm64_regs;
@@ -2934,36 +2934,6 @@ struct get_atom_information_reply
     data_size_t  total;
     /* VARARG(name,unicode_str); */
     char __pad_20[4];
-};
-
-
-
-struct add_user_atom_request
-{
-    struct request_header __header;
-    /* VARARG(name,unicode_str); */
-    char __pad_12[4];
-};
-struct add_user_atom_reply
-{
-    struct reply_header __header;
-    atom_t        atom;
-    char __pad_12[4];
-};
-
-
-
-struct get_user_atom_name_request
-{
-    struct request_header __header;
-    atom_t       atom;
-};
-struct get_user_atom_name_reply
-{
-    struct reply_header __header;
-    data_size_t  total;
-    /* VARARG(name,unicode_str); */
-    char __pad_12[4];
 };
 
 
@@ -5951,6 +5921,78 @@ struct get_next_thread_reply
     char __pad_12[4];
 };
 
+enum esync_type
+{
+    ESYNC_SEMAPHORE = 1,
+    ESYNC_AUTO_EVENT,
+    ESYNC_MANUAL_EVENT,
+    ESYNC_MUTEX,
+    ESYNC_AUTO_SERVER,
+    ESYNC_MANUAL_SERVER,
+    ESYNC_QUEUE,
+};
+
+
+struct create_esync_request
+{
+    struct request_header __header;
+    unsigned int access;
+    int          initval;
+    int          type;
+    int          max;
+    /* VARARG(objattr,object_attributes); */
+    char __pad_28[4];
+};
+struct create_esync_reply
+{
+    struct reply_header __header;
+    obj_handle_t handle;
+    int          type;
+    unsigned int shm_idx;
+    char __pad_20[4];
+};
+
+struct open_esync_request
+{
+    struct request_header __header;
+    unsigned int access;
+    unsigned int attributes;
+    obj_handle_t rootdir;
+    int          type;
+    /* VARARG(name,unicode_str); */
+    char __pad_28[4];
+};
+struct open_esync_reply
+{
+    struct reply_header __header;
+    obj_handle_t handle;
+    int          type;
+    unsigned int shm_idx;
+    char __pad_20[4];
+};
+
+
+struct get_esync_fd_request
+{
+    struct request_header __header;
+    obj_handle_t handle;
+};
+struct get_esync_fd_reply
+{
+    struct reply_header __header;
+    int          type;
+    unsigned int shm_idx;
+};
+
+struct esync_msgwait_request
+{
+    struct request_header __header;
+    int          in_msgwait;
+};
+struct esync_msgwait_reply
+{
+    struct reply_header __header;
+};
 
 
 struct set_keyboard_repeat_request
@@ -5965,6 +6007,17 @@ struct set_keyboard_repeat_reply
     struct reply_header __header;
     int enable;
     char __pad_12[4];
+};
+
+
+struct get_esync_apc_fd_request
+{
+    struct request_header __header;
+    char __pad_12[4];
+};
+struct get_esync_apc_fd_reply
+{
+    struct reply_header __header;
 };
 
 enum fsync_type
@@ -6169,8 +6222,6 @@ enum request
     REQ_delete_atom,
     REQ_find_atom,
     REQ_get_atom_information,
-    REQ_add_user_atom,
-    REQ_get_user_atom_name,
     REQ_get_msg_queue_handle,
     REQ_get_msg_queue,
     REQ_set_queue_fd,
@@ -6352,7 +6403,12 @@ enum request
     REQ_resume_process,
     REQ_get_next_process,
     REQ_get_next_thread,
+    REQ_create_esync,
+    REQ_open_esync,
+    REQ_get_esync_fd,
+    REQ_esync_msgwait,
     REQ_set_keyboard_repeat,
+    REQ_get_esync_apc_fd,
     REQ_create_fsync,
     REQ_open_fsync,
     REQ_get_fsync_idx,
@@ -6478,8 +6534,6 @@ union generic_request
     struct delete_atom_request delete_atom_request;
     struct find_atom_request find_atom_request;
     struct get_atom_information_request get_atom_information_request;
-    struct add_user_atom_request add_user_atom_request;
-    struct get_user_atom_name_request get_user_atom_name_request;
     struct get_msg_queue_handle_request get_msg_queue_handle_request;
     struct get_msg_queue_request get_msg_queue_request;
     struct set_queue_fd_request set_queue_fd_request;
@@ -6661,7 +6715,12 @@ union generic_request
     struct resume_process_request resume_process_request;
     struct get_next_process_request get_next_process_request;
     struct get_next_thread_request get_next_thread_request;
+    struct create_esync_request create_esync_request;
+    struct open_esync_request open_esync_request;
+    struct get_esync_fd_request get_esync_fd_request;
+    struct esync_msgwait_request esync_msgwait_request;
     struct set_keyboard_repeat_request set_keyboard_repeat_request;
+    struct get_esync_apc_fd_request get_esync_apc_fd_request;
     struct create_fsync_request create_fsync_request;
     struct open_fsync_request open_fsync_request;
     struct get_fsync_idx_request get_fsync_idx_request;
@@ -6785,8 +6844,6 @@ union generic_reply
     struct delete_atom_reply delete_atom_reply;
     struct find_atom_reply find_atom_reply;
     struct get_atom_information_reply get_atom_information_reply;
-    struct add_user_atom_reply add_user_atom_reply;
-    struct get_user_atom_name_reply get_user_atom_name_reply;
     struct get_msg_queue_handle_reply get_msg_queue_handle_reply;
     struct get_msg_queue_reply get_msg_queue_reply;
     struct set_queue_fd_reply set_queue_fd_reply;
@@ -6968,7 +7025,12 @@ union generic_reply
     struct resume_process_reply resume_process_reply;
     struct get_next_process_reply get_next_process_reply;
     struct get_next_thread_reply get_next_thread_reply;
+    struct create_esync_reply create_esync_reply;
+    struct open_esync_reply open_esync_reply;
+    struct get_esync_fd_reply get_esync_fd_reply;
+    struct esync_msgwait_reply esync_msgwait_reply;
     struct set_keyboard_repeat_reply set_keyboard_repeat_reply;
+    struct get_esync_apc_fd_reply get_esync_apc_fd_reply;
     struct create_fsync_reply create_fsync_reply;
     struct open_fsync_reply open_fsync_reply;
     struct get_fsync_idx_reply get_fsync_idx_reply;
@@ -6976,6 +7038,6 @@ union generic_reply
     struct get_fsync_apc_idx_reply get_fsync_apc_idx_reply;
 };
 
-#define SERVER_PROTOCOL_VERSION 882
+#define SERVER_PROTOCOL_VERSION 879
 
 #endif /* __WINE_WINE_SERVER_PROTOCOL_H */

@@ -31,7 +31,6 @@
 #include "winbase.h"
 #include "wingdi.h"
 #include "ntgdi_private.h"
-#include "wine/opengl_driver.h"
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(bitmap);
@@ -371,7 +370,6 @@ LONG WINAPI NtGdiSetBitmapBits(
  */
 HGDIOBJ WINAPI NtGdiSelectBitmap( HDC hdc, HGDIOBJ handle )
 {
-    struct opengl_drawable *drawable = NULL;
     HGDIOBJ ret;
     BITMAPOBJ *bitmap;
     DC *dc;
@@ -421,8 +419,6 @@ HGDIOBJ WINAPI NtGdiSelectBitmap( HDC hdc, HGDIOBJ handle )
     }
     else
     {
-        drawable = dc->opengl_drawable;
-        dc->opengl_drawable = NULL;
         dc->hBitmap = handle;
         GDI_inc_ref_count( handle );
         dc->dirty = 0;
@@ -438,7 +434,6 @@ HGDIOBJ WINAPI NtGdiSelectBitmap( HDC hdc, HGDIOBJ handle )
 
  done:
     release_dc_ptr( dc );
-    if (ret && drawable) opengl_drawable_release( drawable );
     return ret;
 }
 

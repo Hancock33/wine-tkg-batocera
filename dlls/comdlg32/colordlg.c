@@ -848,8 +848,7 @@ static BOOL CC_HookCallChk( const CHOOSECOLORW *lpcc )
 static LRESULT CC_WMInitDialog( HWND hDlg, WPARAM wParam, LPARAM lParam )
 {
    CHOOSECOLORW *cc = (CHOOSECOLORW*)lParam;
-   int i;
-   LRESULT res;
+   int i, res;
    int r, g, b;
    HWND hwnd;
    RECT rect;
@@ -1199,7 +1198,7 @@ static INT_PTR CALLBACK ColorDlgProc( HWND hDlg, UINT message,
                                    WPARAM wParam, LPARAM lParam )
 {
 
- INT_PTR res;
+ int res;
  CCPRIV *lpp = GetPropW( hDlg, L"colourdialogprop" );
 
  if (message != WM_INITDIALOG)

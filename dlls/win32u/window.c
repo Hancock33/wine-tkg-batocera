@@ -29,7 +29,6 @@
 #define WIN32_NO_STATUS
 #include "ntgdi_private.h"
 #include "ntuser_private.h"
-#include "wine/opengl_driver.h"
 #include "wine/server.h"
 #include "wine/debug.h"
 
@@ -5057,7 +5056,6 @@ LRESULT destroy_window( HWND hwnd )
     }
 
     vulkan_detach_surfaces( &vulkan_surfaces );
-    if (win->opengl_drawable) opengl_drawable_release( win->opengl_drawable );
     user_driver->pDestroyWindow( hwnd );
 
     free_window_handle( hwnd );
@@ -5163,7 +5161,6 @@ void destroy_thread_windows(void)
         HWND handle;
         HMENU menu;
         HMENU sys_menu;
-        struct opengl_drawable *opengl_drawable;
         struct window_surface *surface;
         struct destroy_entry *next;
     } *entry, *free_list = NULL;
@@ -5190,7 +5187,6 @@ void destroy_thread_windows(void)
         list_move_tail( &vulkan_surfaces, &win->vulkan_surfaces );
         if (!is_child) tmp.menu = (HMENU)win->wIDmenu;
         tmp.sys_menu = win->hSysMenu;
-        tmp.opengl_drawable = win->opengl_drawable;
         tmp.surface = win->surface;
         *entry = tmp;
 
@@ -5214,7 +5210,6 @@ void destroy_thread_windows(void)
         TRACE( "destroying %p\n", entry );
 
         user_driver->pDestroyWindow( entry->handle );
-        if (entry->opengl_drawable) opengl_drawable_release( entry->opengl_drawable );
 
         NtUserDestroyMenu( entry->menu );
         NtUserDestroyMenu( entry->sys_menu );

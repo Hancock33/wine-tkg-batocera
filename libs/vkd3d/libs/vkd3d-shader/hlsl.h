@@ -59,7 +59,8 @@ static inline unsigned int hlsl_swizzle_get_component(uint32_t swizzle, unsigned
 
 static inline void hlsl_swizzle_set_component(uint32_t *swizzle, unsigned int idx, unsigned int component)
 {
-    vsir_swizzle_set_component(swizzle, idx, component);
+    *swizzle &= ~(VKD3D_SHADER_SWIZZLE_MASK << VKD3D_SHADER_SWIZZLE_SHIFT(idx));
+    *swizzle |= component << VKD3D_SHADER_SWIZZLE_SHIFT(idx);
 }
 
 enum hlsl_type_class
@@ -125,7 +126,7 @@ enum hlsl_sampler_dim
     HLSL_SAMPLER_DIM_STRUCTURED_BUFFER,
     HLSL_SAMPLER_DIM_RAW_BUFFER,
     HLSL_SAMPLER_DIM_MAX = HLSL_SAMPLER_DIM_RAW_BUFFER,
-    /* NOTE: Remember to update texture_methods[] and uav_methods[] in hlsl.y if this is modified. */
+    /* NOTE: Remember to update object_methods[] in hlsl.y if this enum is modified. */
 };
 
 enum hlsl_so_object_type
@@ -308,8 +309,6 @@ struct hlsl_reg
     unsigned int writemask;
     /* Whether the register has been allocated. */
     bool allocated;
-    /* Currently only used for numeric registers. */
-    enum vkd3d_shader_register_type type;
 };
 
 /* Types of instruction nodes for the IR.
@@ -735,7 +734,6 @@ enum hlsl_ir_expr_op
     HLSL_OP1_ISINF,
     HLSL_OP1_LOG2,
     HLSL_OP1_LOGIC_NOT,
-    HLSL_OP1_NOISE,
     HLSL_OP1_NEG,
     HLSL_OP1_RCP,
     HLSL_OP1_REINTERPRET,
@@ -1188,8 +1186,6 @@ struct hlsl_ctx
     } constant_defs;
     /* 'c' registers where the constants expected by SM2 sincos are stored. */
     struct hlsl_reg d3dsincosconst1, d3dsincosconst2;
-    /* Number of allocated SSA IDs, used in translation to vsir. */
-    unsigned int ssa_count;
 
     /* Number of threads to be executed (on the X, Y, and Z dimensions) in a single thread group in
      *   compute shader profiles. It is set using the numthreads() attribute in the entry point. */

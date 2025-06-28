@@ -74,7 +74,7 @@ IV50_DecompressQuery( LPBITMAPINFO in, LPBITMAPINFO out )
     TRACE("in->width   = %ld\n", in->bmiHeader.biWidth);
     TRACE("in->compr   = %#lx\n", in->bmiHeader.biCompression);
 
-    if (compare_fourcc(in->bmiHeader.biCompression, IV50_MAGIC))
+    if ( in->bmiHeader.biCompression != IV50_MAGIC )
     {
         TRACE("can't do %#lx compression\n", in->bmiHeader.biCompression);
         return ICERR_BADFORMAT;
@@ -89,29 +89,24 @@ IV50_DecompressQuery( LPBITMAPINFO in, LPBITMAPINFO out )
         TRACE("out->width  = %ld\n", out->bmiHeader.biWidth);
         TRACE("out->compr  = %#lx\n", out->bmiHeader.biCompression);
 
-        if (out->bmiHeader.biCompression == BI_RGB)
+        if ( out->bmiHeader.biCompression != BI_RGB )
         {
-            if (out->bmiHeader.biBitCount != 32 && out->bmiHeader.biBitCount != 24 && out->bmiHeader.biBitCount != 16)
-                return ICERR_BADFORMAT;
-        }
-        else if (out->bmiHeader.biCompression == BI_BITFIELDS)
-        {
-            const DWORD *masks = (const DWORD *)(&out->bmiColors[0]);
-
-            if (out->bmiHeader.biBitCount != 16
-                    || masks[0] != 0xf800 || masks[1] != 0x07e0 || masks[2] != 0x001f)
-                return ICERR_BADFORMAT;
-        }
-        else
-        {
+            TRACE("incompatible compression requested\n");
             return ICERR_BADFORMAT;
         }
 
-        if (in->bmiHeader.biHeight != abs(out->bmiHeader.biHeight)
-                || in->bmiHeader.biWidth != out->bmiHeader.biWidth)
+        if ( out->bmiHeader.biBitCount != 32 && out->bmiHeader.biBitCount != 24 && out->bmiHeader.biBitCount != 16 )
+        {
+            TRACE("incompatible depth requested\n");
+            return ICERR_BADFORMAT;
+        }
+
+        if ( in->bmiHeader.biPlanes != out->bmiHeader.biPlanes ||
+             in->bmiHeader.biHeight != abs(out->bmiHeader.biHeight) ||
+             in->bmiHeader.biWidth  != out->bmiHeader.biWidth )
         {
             TRACE("incompatible output dimensions requested\n");
-            return ICERR_BADPARAM;
+            return ICERR_BADFORMAT;
         }
     }
 
@@ -121,25 +116,28 @@ IV50_DecompressQuery( LPBITMAPINFO in, LPBITMAPINFO out )
 static LRESULT
 IV50_DecompressGetFormat( LPBITMAPINFO in, LPBITMAPINFO out )
 {
+    DWORD size;
+
     TRACE("ICM_DECOMPRESS_GETFORMAT %p %p\n", in, out);
 
-    if (compare_fourcc(in->bmiHeader.biCompression, IV50_MAGIC))
+    if ( !in )
+        return ICERR_BADPARAM;
+
+    if ( in->bmiHeader.biCompression != IV50_MAGIC )
         return ICERR_BADFORMAT;
 
+    size = in->bmiHeader.biSize;
     if ( out )
     {
-        memset(&out->bmiHeader, 0, sizeof(out->bmiHeader));
-        out->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-        out->bmiHeader.biWidth = in->bmiHeader.biWidth;
+        memcpy( out, in, size );
         out->bmiHeader.biHeight = abs(in->bmiHeader.biHeight);
         out->bmiHeader.biCompression = BI_RGB;
-        out->bmiHeader.biPlanes = 1;
-        out->bmiHeader.biBitCount = 24;
-        out->bmiHeader.biSizeImage = out->bmiHeader.biWidth * out->bmiHeader.biHeight * 3;
+        out->bmiHeader.biBitCount = 32;
+        out->bmiHeader.biSizeImage = out->bmiHeader.biWidth * out->bmiHeader.biHeight * 4;
         return ICERR_OK;
     }
 
-    return offsetof(BITMAPINFO, bmiColors[256]);
+    return size;
 }
 
 static LRESULT IV50_DecompressBegin( IMFTransform *decoder, LPBITMAPINFO in, LPBITMAPINFO out )
@@ -154,9 +152,7 @@ static LRESULT IV50_DecompressBegin( IMFTransform *decoder, LPBITMAPINFO in, LPB
     if ( !decoder )
         return ICERR_BADPARAM;
 
-    if (out->bmiHeader.biCompression == BI_BITFIELDS)
-        output_subtype = &MFVideoFormat_RGB565;
-    else if (out->bmiHeader.biBitCount == 32)
+    if ( out->bmiHeader.biBitCount == 32 )
         output_subtype = &MFVideoFormat_RGB32;
     else if ( out->bmiHeader.biBitCount == 24 )
         output_subtype = &MFVideoFormat_RGB24;
@@ -373,7 +369,7 @@ LRESULT WINAPI IV50_DriverProc( DWORD_PTR dwDriverId, HDRVR hdrvr, UINT msg,
         break;
 
     case ICM_DECOMPRESS_END:
-        r = ICERR_OK;
+        r = ICERR_UNSUPPORTED;
         break;
 
     case ICM_DECOMPRESSEX_QUERY:

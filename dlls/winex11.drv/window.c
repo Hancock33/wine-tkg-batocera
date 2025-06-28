@@ -1379,7 +1379,7 @@ static void window_set_config( struct x11drv_win_data *data, RECT rect, BOOL abo
     data->desired_state.rect = *new_rect;
     data->desired_state.above = above;
     if (!data->whole_window) return; /* no window, nothing to update */
-    if (EqualRect( old_rect, new_rect ) && (old_above || !above || data->managed)) return; /* rects are the same, no need to be raised, nothing to update */
+    if (EqualRect( old_rect, new_rect ) && (old_above || !above)) return; /* rects are the same, no need to be raised, nothing to update */
     if (window_needs_config_change_delay( data ))
     {
         TRACE( "window %p/%lx is updating _NET_WM_STATE/_MOTIF_WM_HINTS, delaying request\n", data->hwnd, data->whole_window );
@@ -2783,7 +2783,11 @@ static struct x11drv_win_data *X11DRV_create_win_data( HWND hwnd, const struct w
     if (parent != NtUserGetDesktopWindow() && !NtUserGetAncestor( parent, GA_PARENT )) return NULL;
 
     if (NtUserGetWindowThread( hwnd, NULL ) != GetCurrentThreadId()) return NULL;
-    sync_gl_drawable( parent );
+
+    /* Recreate the parent gl_drawable now that we know there are child windows
+     * that will need clipping support.
+     */
+    sync_gl_drawable( parent, TRUE );
 
     display = thread_init_display();
     init_clip_window();  /* make sure the clip window is initialized in this thread */
@@ -3099,7 +3103,12 @@ void X11DRV_SetParent( HWND hwnd, HWND parent, HWND old_parent )
     }
 done:
     release_win_data( data );
-    sync_gl_drawable( parent );
+    set_gl_drawable_parent( hwnd, parent );
+
+    /* Recreate the parent gl_drawable now that we know there are child windows
+     * that will need clipping support.
+     */
+    sync_gl_drawable( parent, TRUE );
 
     fetch_icon_data( hwnd, 0, 0 );
 }
@@ -3187,7 +3196,7 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
     struct window_rects old_rects;
     BOOL was_fullscreen, activate = !(swp_flags & SWP_NOACTIVATE);
 
-    sync_gl_drawable( hwnd );
+    sync_gl_drawable( hwnd, FALSE );
 
     if (!(data = get_win_data( hwnd ))) return;
     if (is_window_managed( hwnd, swp_flags, fullscreen )) window_set_managed( data, TRUE );

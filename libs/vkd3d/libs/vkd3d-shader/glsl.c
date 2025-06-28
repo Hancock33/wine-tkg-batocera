@@ -851,7 +851,7 @@ static void shader_glsl_ld(struct vkd3d_glsl_generator *gen, const struct vkd3d_
     if (resource_type != VKD3D_SHADER_RESOURCE_BUFFER)
     {
         vkd3d_string_buffer_printf(fetch, ", ");
-        if (ins->opcode != VSIR_OP_LD2DMS)
+        if (ins->opcode != VKD3DSIH_LD2DMS)
             shader_glsl_print_src(fetch, gen, &ins->src[0], VKD3DSP_WRITEMASK_3, ins->src[0].reg.data_type);
         else if (sample_count == 1)
             /* If the resource isn't a true multisample resource, this is the
@@ -915,14 +915,14 @@ static void shader_glsl_sample(struct vkd3d_glsl_generator *gen, const struct vk
     enum vkd3d_data_type data_type;
     struct glsl_dst dst;
 
-    bias = ins->opcode == VSIR_OP_SAMPLE_B;
-    dynamic_offset = ins->opcode == VSIR_OP_GATHER4_PO;
-    gather = ins->opcode == VSIR_OP_GATHER4 || ins->opcode == VSIR_OP_GATHER4_PO;
-    grad = ins->opcode == VSIR_OP_SAMPLE_GRAD;
-    lod = ins->opcode == VSIR_OP_SAMPLE_LOD || ins->opcode == VSIR_OP_SAMPLE_C_LZ;
-    lod_zero = ins->opcode == VSIR_OP_SAMPLE_C_LZ;
+    bias = ins->opcode == VKD3DSIH_SAMPLE_B;
+    dynamic_offset = ins->opcode == VKD3DSIH_GATHER4_PO;
+    gather = ins->opcode == VKD3DSIH_GATHER4 || ins->opcode == VKD3DSIH_GATHER4_PO;
+    grad = ins->opcode == VKD3DSIH_SAMPLE_GRAD;
+    lod = ins->opcode == VKD3DSIH_SAMPLE_LOD || ins->opcode == VKD3DSIH_SAMPLE_C_LZ;
+    lod_zero = ins->opcode == VKD3DSIH_SAMPLE_C_LZ;
     offset = dynamic_offset || vkd3d_shader_instruction_has_texel_offset(ins);
-    shadow = ins->opcode == VSIR_OP_SAMPLE_C || ins->opcode == VSIR_OP_SAMPLE_C_LZ;
+    shadow = ins->opcode == VKD3DSIH_SAMPLE_C || ins->opcode == VKD3DSIH_SAMPLE_C_LZ;
 
     resource = &ins->src[1 + dynamic_offset];
     sampler = &ins->src[2 + dynamic_offset];
@@ -1250,6 +1250,37 @@ static void shader_glsl_movc(struct vkd3d_glsl_generator *gen, const struct vkd3
     glsl_dst_cleanup(&dst, &gen->string_buffers);
 }
 
+static void shader_glsl_mul_extended(struct vkd3d_glsl_generator *gen, const struct vkd3d_shader_instruction *ins)
+{
+    struct glsl_src src[2];
+    struct glsl_dst dst;
+    uint32_t mask;
+
+    if (ins->dst[0].reg.type != VKD3DSPR_NULL)
+    {
+        /* FIXME: imulExtended()/umulExtended() from ARB_gpu_shader5/GLSL 4.00+. */
+        mask = glsl_dst_init(&dst, gen, ins, &ins->dst[0]);
+        shader_glsl_print_assignment(gen, &dst, "<unhandled 64-bit multiplication>");
+        glsl_dst_cleanup(&dst, &gen->string_buffers);
+
+        vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
+                "Internal compiler error: Unhandled 64-bit integer multiplication.");
+    }
+
+    if (ins->dst[1].reg.type != VKD3DSPR_NULL)
+    {
+        mask = glsl_dst_init(&dst, gen, ins, &ins->dst[1]);
+        glsl_src_init(&src[0], gen, &ins->src[0], mask);
+        glsl_src_init(&src[1], gen, &ins->src[1], mask);
+
+        shader_glsl_print_assignment(gen, &dst, "%s * %s", src[0].str->buffer, src[1].str->buffer);
+
+        glsl_src_cleanup(&src[1], &gen->string_buffers);
+        glsl_src_cleanup(&src[0], &gen->string_buffers);
+        glsl_dst_cleanup(&dst, &gen->string_buffers);
+    }
+}
+
 static void shader_glsl_print_sysval_name(struct vkd3d_string_buffer *buffer, struct vkd3d_glsl_generator *gen,
         enum vkd3d_shader_sysval_semantic sysval, unsigned int idx)
 {
@@ -1459,177 +1490,177 @@ static void vkd3d_glsl_handle_instruction(struct vkd3d_glsl_generator *gen,
 
     switch (ins->opcode)
     {
-        case VSIR_OP_ADD:
-        case VSIR_OP_IADD:
+        case VKD3DSIH_ADD:
+        case VKD3DSIH_IADD:
             shader_glsl_binop(gen, ins, "+");
             break;
-        case VSIR_OP_AND:
+        case VKD3DSIH_AND:
             shader_glsl_binop(gen, ins, "&");
             break;
-        case VSIR_OP_BREAK:
+        case VKD3DSIH_BREAK:
             shader_glsl_break(gen);
             break;
-        case VSIR_OP_CASE:
+        case VKD3DSIH_CASE:
             shader_glsl_case(gen, ins);
             break;
-        case VSIR_OP_CONTINUE:
+        case VKD3DSIH_CONTINUE:
             shader_glsl_continue(gen);
             break;
-        case VSIR_OP_DCL_INDEXABLE_TEMP:
+        case VKD3DSIH_DCL_INDEXABLE_TEMP:
             shader_glsl_dcl_indexable_temp(gen, ins);
             break;
-        case VSIR_OP_NOP:
+        case VKD3DSIH_NOP:
             break;
-        case VSIR_OP_DEFAULT:
+        case VKD3DSIH_DEFAULT:
             shader_glsl_default(gen);
             break;
-        case VSIR_OP_DIV:
+        case VKD3DSIH_DIV:
             shader_glsl_binop(gen, ins, "/");
             break;
-        case VSIR_OP_DP2:
+        case VKD3DSIH_DP2:
             shader_glsl_dot(gen, ins, vkd3d_write_mask_from_component_count(2));
             break;
-        case VSIR_OP_DP3:
+        case VKD3DSIH_DP3:
             shader_glsl_dot(gen, ins, vkd3d_write_mask_from_component_count(3));
             break;
-        case VSIR_OP_DP4:
+        case VKD3DSIH_DP4:
             shader_glsl_dot(gen, ins, VKD3DSP_WRITEMASK_ALL);
             break;
-        case VSIR_OP_ELSE:
+        case VKD3DSIH_ELSE:
             shader_glsl_else(gen, ins);
             break;
-        case VSIR_OP_ENDIF:
-        case VSIR_OP_ENDLOOP:
-        case VSIR_OP_ENDSWITCH:
+        case VKD3DSIH_ENDIF:
+        case VKD3DSIH_ENDLOOP:
+        case VKD3DSIH_ENDSWITCH:
             shader_glsl_end_block(gen);
             break;
-        case VSIR_OP_EQO:
-        case VSIR_OP_IEQ:
+        case VKD3DSIH_EQO:
+        case VKD3DSIH_IEQ:
             shader_glsl_relop(gen, ins, "==", "equal");
             break;
-        case VSIR_OP_EXP:
+        case VKD3DSIH_EXP:
             shader_glsl_intrinsic(gen, ins, "exp2");
             break;
-        case VSIR_OP_FRC:
+        case VKD3DSIH_FRC:
             shader_glsl_intrinsic(gen, ins, "fract");
             break;
-        case VSIR_OP_FTOI:
+        case VKD3DSIH_FTOI:
             shader_glsl_cast(gen, ins, "int", "ivec");
             break;
-        case VSIR_OP_FTOU:
+        case VKD3DSIH_FTOU:
             shader_glsl_cast(gen, ins, "uint", "uvec");
             break;
-        case VSIR_OP_GATHER4:
-        case VSIR_OP_GATHER4_PO:
-        case VSIR_OP_SAMPLE:
-        case VSIR_OP_SAMPLE_B:
-        case VSIR_OP_SAMPLE_C:
-        case VSIR_OP_SAMPLE_C_LZ:
-        case VSIR_OP_SAMPLE_GRAD:
-        case VSIR_OP_SAMPLE_LOD:
+        case VKD3DSIH_GATHER4:
+        case VKD3DSIH_GATHER4_PO:
+        case VKD3DSIH_SAMPLE:
+        case VKD3DSIH_SAMPLE_B:
+        case VKD3DSIH_SAMPLE_C:
+        case VKD3DSIH_SAMPLE_C_LZ:
+        case VKD3DSIH_SAMPLE_GRAD:
+        case VKD3DSIH_SAMPLE_LOD:
             shader_glsl_sample(gen, ins);
             break;
-        case VSIR_OP_GEO:
-        case VSIR_OP_IGE:
+        case VKD3DSIH_GEO:
+        case VKD3DSIH_IGE:
             shader_glsl_relop(gen, ins, ">=", "greaterThanEqual");
             break;
-        case VSIR_OP_IF:
+        case VKD3DSIH_IF:
             shader_glsl_if(gen, ins);
             break;
-        case VSIR_OP_MAD:
+        case VKD3DSIH_MAD:
             shader_glsl_intrinsic(gen, ins, "fma");
             break;
-        case VSIR_OP_ILT:
-        case VSIR_OP_LTO:
-        case VSIR_OP_ULT:
+        case VKD3DSIH_ILT:
+        case VKD3DSIH_LTO:
+        case VKD3DSIH_ULT:
             shader_glsl_relop(gen, ins, "<", "lessThan");
             break;
-        case VSIR_OP_IMAX:
-        case VSIR_OP_MAX:
-        case VSIR_OP_UMAX:
+        case VKD3DSIH_IMAX:
+        case VKD3DSIH_MAX:
+        case VKD3DSIH_UMAX:
             shader_glsl_intrinsic(gen, ins, "max");
             break;
-        case VSIR_OP_MIN:
-        case VSIR_OP_UMIN:
+        case VKD3DSIH_MIN:
+        case VKD3DSIH_UMIN:
             shader_glsl_intrinsic(gen, ins, "min");
             break;
-        case VSIR_OP_IMUL_LOW:
-            shader_glsl_binop(gen, ins, "*");
+        case VKD3DSIH_IMUL:
+            shader_glsl_mul_extended(gen, ins);
             break;
-        case VSIR_OP_INE:
-        case VSIR_OP_NEU:
+        case VKD3DSIH_INE:
+        case VKD3DSIH_NEU:
             shader_glsl_relop(gen, ins, "!=", "notEqual");
             break;
-        case VSIR_OP_INEG:
+        case VKD3DSIH_INEG:
             shader_glsl_unary_op(gen, ins, "-");
             break;
-        case VSIR_OP_ISHL:
+        case VKD3DSIH_ISHL:
             shader_glsl_binop(gen, ins, "<<");
             break;
-        case VSIR_OP_ISHR:
-        case VSIR_OP_USHR:
+        case VKD3DSIH_ISHR:
+        case VKD3DSIH_USHR:
             shader_glsl_binop(gen, ins, ">>");
             break;
-        case VSIR_OP_ITOF:
-        case VSIR_OP_UTOF:
+        case VKD3DSIH_ITOF:
+        case VKD3DSIH_UTOF:
             shader_glsl_cast(gen, ins, "float", "vec");
             break;
-        case VSIR_OP_LD:
-        case VSIR_OP_LD2DMS:
+        case VKD3DSIH_LD:
+        case VKD3DSIH_LD2DMS:
             shader_glsl_ld(gen, ins);
             break;
-        case VSIR_OP_LD_UAV_TYPED:
+        case VKD3DSIH_LD_UAV_TYPED:
             shader_glsl_load_uav_typed(gen, ins);
             break;
-        case VSIR_OP_LOG:
+        case VKD3DSIH_LOG:
             shader_glsl_intrinsic(gen, ins, "log2");
             break;
-        case VSIR_OP_LOOP:
+        case VKD3DSIH_LOOP:
             shader_glsl_loop(gen);
             break;
-        case VSIR_OP_MOV:
+        case VKD3DSIH_MOV:
             shader_glsl_mov(gen, ins);
             break;
-        case VSIR_OP_MOVC:
+        case VKD3DSIH_MOVC:
             shader_glsl_movc(gen, ins);
             break;
-        case VSIR_OP_MUL:
+        case VKD3DSIH_MUL:
             shader_glsl_binop(gen, ins, "*");
             break;
-        case VSIR_OP_NOT:
+        case VKD3DSIH_NOT:
             shader_glsl_unary_op(gen, ins, "~");
             break;
-        case VSIR_OP_OR:
+        case VKD3DSIH_OR:
             shader_glsl_binop(gen, ins, "|");
             break;
-        case VSIR_OP_RET:
+        case VKD3DSIH_RET:
             shader_glsl_ret(gen, ins);
             break;
-        case VSIR_OP_ROUND_NE:
+        case VKD3DSIH_ROUND_NE:
             shader_glsl_intrinsic(gen, ins, "roundEven");
             break;
-        case VSIR_OP_ROUND_NI:
+        case VKD3DSIH_ROUND_NI:
             shader_glsl_intrinsic(gen, ins, "floor");
             break;
-        case VSIR_OP_ROUND_PI:
+        case VKD3DSIH_ROUND_PI:
             shader_glsl_intrinsic(gen, ins, "ceil");
             break;
-        case VSIR_OP_ROUND_Z:
+        case VKD3DSIH_ROUND_Z:
             shader_glsl_intrinsic(gen, ins, "trunc");
             break;
-        case VSIR_OP_RSQ:
+        case VKD3DSIH_RSQ:
             shader_glsl_intrinsic(gen, ins, "inversesqrt");
             break;
-        case VSIR_OP_SQRT:
+        case VKD3DSIH_SQRT:
             shader_glsl_intrinsic(gen, ins, "sqrt");
             break;
-        case VSIR_OP_STORE_UAV_TYPED:
+        case VKD3DSIH_STORE_UAV_TYPED:
             shader_glsl_store_uav_typed(gen, ins);
             break;
-        case VSIR_OP_SWITCH:
+        case VKD3DSIH_SWITCH:
             shader_glsl_switch(gen, ins);
             break;
-        case VSIR_OP_XOR:
+        case VKD3DSIH_XOR:
             shader_glsl_binop(gen, ins, "^");
             break;
         default:

@@ -265,7 +265,7 @@ msgstr "無法執行移除程式 '%s'。您想將這個移除程式從登錄中�
 msgid "Not specified"
 msgstr "未指定"
 
-#: dlls/appwiz.cpl/appwiz.rc:38 dlls/oledb32/version.rc:35
+#: dlls/appwiz.cpl/appwiz.rc:38 dlls/oledb32/version.rc:38
 #: dlls/shell32/shell32.rc:141 dlls/shell32/shell32.rc:243
 #: programs/regedit/regedit.rc:150 programs/winefile/winefile.rc:106
 msgid "Name"
@@ -437,7 +437,7 @@ msgstr "精靈"
 msgid "< &Back"
 msgstr "< 上一步(&B)"
 
-#: dlls/comctl32/comctl32.rc:85 dlls/oledb32/version.rc:58
+#: dlls/comctl32/comctl32.rc:85 dlls/oledb32/version.rc:61
 msgid "&Next >"
 msgstr "下一步(&N) >"
 
@@ -1396,7 +1396,7 @@ msgid "&User name:"
 msgstr "使用者名稱(&U):"
 
 #: dlls/credui/credui.rc:48 dlls/cryptui/cryptui.rc:402
-#: dlls/oledb32/version.rc:78
+#: dlls/oledb32/version.rc:81
 msgid "&Password:"
 msgstr "密碼(&P):"
 
@@ -2714,7 +2714,7 @@ msgstr "這個憑證已確認。"
 msgid "Field"
 msgstr "欄位"
 
-#: dlls/cryptui/cryptui.rc:48 dlls/oledb32/version.rc:36
+#: dlls/cryptui/cryptui.rc:48 dlls/oledb32/version.rc:39
 msgid "Value"
 msgstr "值"
 
@@ -3311,7 +3311,7 @@ msgstr "符號"
 msgid "OEM/DOS"
 msgstr "OEM/DOS"
 
-#: dlls/gdi32/gdi32.rc:45 dlls/oledb32/version.rc:97
+#: dlls/gdi32/gdi32.rc:45 dlls/oledb32/version.rc:100
 #: dlls/wldap32/wldap32.rc:112
 msgid "Other"
 msgstr "其他"
@@ -3379,7 +3379,7 @@ msgid "&Stop"
 msgstr "停止(&S)"
 
 #: dlls/hhctrl.ocx/hhctrl.rc:66 dlls/hhctrl.ocx/hhctrl.rc:83
-#: dlls/oledb32/version.rc:70 dlls/shdoclc/shdoclc.rc:59
+#: dlls/oledb32/version.rc:73 dlls/shdoclc/shdoclc.rc:59
 msgid "&Refresh"
 msgstr "重新整理(&R)"
 
@@ -4189,11 +4189,11 @@ msgstr "預期為陣列物件"
 msgid "Property cannot have both accessors and a value"
 msgstr "屬性不可同時有存取子和值"
 
-#: include/wine/wine_common_ver.rc:123
+#: include/wine/wine_common_ver.rc:138
 msgid "Wine kernel DLL"
 msgstr "Wine 核心 DLL"
 
-#: include/wine/wine_common_ver.rc:128 dlls/winemac.drv/winemac.rc:32
+#: include/wine/wine_common_ver.rc:143 dlls/winemac.drv/winemac.rc:32
 #: programs/wineboot/wineboot.rc:42 programs/winecfg/winecfg.rc:143
 msgid "Wine"
 msgstr "Wine"
@@ -9249,156 +9249,156 @@ msgstr "開"
 msgid "Off"
 msgstr "關"
 
-#: dlls/oledb32/version.rc:53
+#: dlls/oledb32/version.rc:56
 msgid "Provider"
 msgstr "提供者"
 
-#: dlls/oledb32/version.rc:56
+#: dlls/oledb32/version.rc:59
 msgid "Select the data you want to connect to:"
 msgstr "選擇您要連線的資料:"
 
-#: dlls/oledb32/version.rc:63
+#: dlls/oledb32/version.rc:66
 msgid "Connection"
 msgstr "連線"
 
-#: dlls/oledb32/version.rc:66
+#: dlls/oledb32/version.rc:69
 msgid "Specify the following to connect to ODBC data:"
 msgstr "指定下列項目以連接至 ODBC 資料:"
 
-#: dlls/oledb32/version.rc:67
+#: dlls/oledb32/version.rc:70
 msgid "1. Specify the source of data:"
 msgstr "1. 指定資料來源:"
 
-#: dlls/oledb32/version.rc:68
+#: dlls/oledb32/version.rc:71
 msgid "Use &data source name"
 msgstr "使用資料來源名稱(&D)"
 
-#: dlls/oledb32/version.rc:71
+#: dlls/oledb32/version.rc:74
 msgid "Use c&onnection string"
 msgstr "使用連線字串(&O)"
 
-#: dlls/oledb32/version.rc:72
+#: dlls/oledb32/version.rc:75
 msgid "&Connection string:"
 msgstr "連線字串(&C):"
 
-#: dlls/oledb32/version.rc:74
+#: dlls/oledb32/version.rc:77
 msgid "B&uild..."
 msgstr "建立(&U)..."
 
-#: dlls/oledb32/version.rc:75
+#: dlls/oledb32/version.rc:78
 msgid "2. Enter information to log on to the server"
 msgstr "2. 輸入資訊以登入至伺服器"
 
-#: dlls/oledb32/version.rc:76
+#: dlls/oledb32/version.rc:79
 msgid "User &name:"
 msgstr "使用者名稱(&N):"
 
-#: dlls/oledb32/version.rc:80
+#: dlls/oledb32/version.rc:83
 msgid "&Blank password"
 msgstr "空白密碼(&B)"
 
-#: dlls/oledb32/version.rc:81
+#: dlls/oledb32/version.rc:84
 msgid "Allow &saving password"
 msgstr "允許儲存密碼(&S)"
 
-#: dlls/oledb32/version.rc:82
+#: dlls/oledb32/version.rc:85
 msgid "3. Enter the &initial catalog to use:"
 msgstr "3. 輸入要使用的初始目錄(&I):"
 
-#: dlls/oledb32/version.rc:84
+#: dlls/oledb32/version.rc:87
 msgid "&Test Connection"
 msgstr "測試連線(&T)"
 
-#: dlls/oledb32/version.rc:89
+#: dlls/oledb32/version.rc:92
 msgid "Advanced"
 msgstr "進階"
 
-#: dlls/oledb32/version.rc:92
+#: dlls/oledb32/version.rc:95
 msgid "Network settings"
 msgstr "網路設定"
 
-#: dlls/oledb32/version.rc:93
+#: dlls/oledb32/version.rc:96
 msgid "&Impersonation level:"
 msgstr "模擬等級(&I):"
 
-#: dlls/oledb32/version.rc:95
+#: dlls/oledb32/version.rc:98
 msgid "P&rotection level:"
 msgstr "保護等級(&R):"
 
-#: dlls/oledb32/version.rc:98
+#: dlls/oledb32/version.rc:101
 msgid "Connect:"
 msgstr "連線:"
 
-#: dlls/oledb32/version.rc:100
+#: dlls/oledb32/version.rc:103
 msgid "seconds."
 msgstr "秒。"
 
-#: dlls/oledb32/version.rc:101
+#: dlls/oledb32/version.rc:104
 msgid "A&ccess:"
 msgstr "存取(&C):"
 
-#: dlls/oledb32/version.rc:107
+#: dlls/oledb32/version.rc:110
 msgid "All"
 msgstr "全部"
 
-#: dlls/oledb32/version.rc:111
+#: dlls/oledb32/version.rc:114
 msgid ""
 "These are the initialization properties for this type of data. To edit a "
 "value, select a property, then choose Edit Value below."
 msgstr ""
 "這些是此類型資料的初始化內容。要編輯值，請選擇內容，然後選擇下方的 [編輯值]。"
 
-#: dlls/oledb32/version.rc:112
+#: dlls/oledb32/version.rc:115
 msgid "&Edit Value..."
 msgstr "編輯值(&E)..."
 
-#: dlls/oledb32/version.rc:46
+#: dlls/oledb32/version.rc:49
 msgid "Data Link Error"
 msgstr "資料連結錯誤"
 
-#: dlls/oledb32/version.rc:47
+#: dlls/oledb32/version.rc:50
 msgid "Please select a provider."
 msgstr "請選取提供者。"
 
-#: dlls/oledb32/version.rc:48
+#: dlls/oledb32/version.rc:51
 msgid ""
 "Provider is no longer available. Ensure that the provider is installed "
 "properly."
 msgstr "無法再使用提供者。請確保提供者已正確安裝。"
 
-#: dlls/oledb32/version.rc:33
+#: dlls/oledb32/version.rc:36
 msgid "Data Link Properties"
 msgstr "資料連結內容"
 
-#: dlls/oledb32/version.rc:34
+#: dlls/oledb32/version.rc:37
 msgid "OLE DB Provider(s)"
 msgstr "OLE 資料庫提供者"
 
-#: dlls/oledb32/version.rc:38
+#: dlls/oledb32/version.rc:41
 msgid "Read"
 msgstr "讀取"
 
-#: dlls/oledb32/version.rc:39
+#: dlls/oledb32/version.rc:42
 msgid "ReadWrite"
 msgstr "讀取與寫入"
 
-#: dlls/oledb32/version.rc:40
+#: dlls/oledb32/version.rc:43
 msgid "Share Deny None"
 msgstr "共享，不拒絕"
 
-#: dlls/oledb32/version.rc:41
+#: dlls/oledb32/version.rc:44
 msgid "Share Deny Read"
 msgstr "共享，拒絕讀取"
 
-#: dlls/oledb32/version.rc:42
+#: dlls/oledb32/version.rc:45
 msgid "Share Deny Write"
 msgstr "共享，拒絕寫入"
 
-#: dlls/oledb32/version.rc:43
+#: dlls/oledb32/version.rc:46
 msgid "Share Exclusive"
 msgstr "共享，排除"
 
-#: dlls/oledb32/version.rc:44
+#: dlls/oledb32/version.rc:47
 msgid "Write"
 msgstr "寫入"
 
@@ -17460,7 +17460,7 @@ msgid ""
 "Sent termination signal to process with PID %1!u!, child of PID %2!u!.\n"
 msgstr ""
 
-#: include/wine/wine_common_ver.rc:123
+#: include/wine/wine_common_ver.rc:138
 #, fuzzy
 #| msgid "page tab list"
 msgid "Wine tasklist"

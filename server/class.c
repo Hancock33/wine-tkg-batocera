@@ -75,10 +75,8 @@ static struct window_class *create_class( struct process *process, int extra_byt
 
 static void destroy_class( struct window_class *class )
 {
-    struct atom_table *table = get_user_atom_table();
-
-    release_atom( table, class->atom );
-    release_atom( table, class->base_atom );
+    release_global_atom( NULL, class->atom );
+    release_global_atom( NULL, class->base_atom );
     list_remove( &class->entry );
     release_object( class->process );
     free( class );
@@ -139,9 +137,8 @@ int is_hwnd_message_class( struct window_class *class )
 {
     static const WCHAR messageW[] = {'M','e','s','s','a','g','e'};
     static const struct unicode_str name = { messageW, sizeof(messageW) };
-    struct atom_table *table = get_user_atom_table();
 
-    return (!class->local && class->atom == find_atom( table, &name ));
+    return (!class->local && class->atom == find_global_atom( NULL, &name ));
 }
 
 int get_class_style( struct window_class *class )
@@ -164,59 +161,58 @@ DECL_HANDLER(create_class)
 {
     struct window_class *class;
     struct unicode_str name = get_req_unicode_str();
-    struct atom_table *table = get_user_atom_table();
     atom_t atom, base_atom;
 
     if (name.len)
     {
-        atom = add_atom( table, &name );
+        atom = add_global_atom( NULL, &name );
         if (!atom) return;
         if (req->name_offset && req->name_offset < name.len / sizeof(WCHAR))
         {
             name.str += req->name_offset;
             name.len -= req->name_offset * sizeof(WCHAR);
 
-            base_atom = add_atom( table, &name );
+            base_atom = add_global_atom( NULL, &name );
             if (!base_atom)
             {
-                release_atom( table, atom );
+                release_global_atom( NULL, atom );
                 return;
             }
         }
         else
         {
             base_atom = atom;
-            grab_atom( table, atom );
+            grab_global_atom( NULL, atom );
         }
     }
     else
     {
         base_atom = atom = req->atom;
-        if (!grab_atom( table, atom )) return;
-        grab_atom( table, base_atom );
+        if (!grab_global_atom( NULL, atom )) return;
+        grab_global_atom( NULL, base_atom );
     }
 
     class = find_class( current->process, atom, req->instance );
     if (class && !class->local == !req->local)
     {
         set_win32_error( ERROR_CLASS_ALREADY_EXISTS );
-        release_atom( table, atom );
-        release_atom( table, base_atom );
+        release_global_atom( NULL, atom );
+        release_global_atom( NULL, base_atom );
         return;
     }
     if (req->extra < 0 || req->extra > 4096 || req->win_extra < 0 || req->win_extra > 4096)
     {
         /* don't allow stupid values here */
         set_error( STATUS_INVALID_PARAMETER );
-        release_atom( table, atom );
-        release_atom( table, base_atom );
+        release_global_atom( NULL, atom );
+        release_global_atom( NULL, base_atom );
         return;
     }
 
     if (!(class = create_class( current->process, req->extra, req->local )))
     {
-        release_atom( table, atom );
-        release_atom( table, base_atom );
+        release_global_atom( NULL, atom );
+        release_global_atom( NULL, base_atom );
         return;
     }
     class->atom       = atom;
@@ -233,10 +229,9 @@ DECL_HANDLER(destroy_class)
 {
     struct window_class *class;
     struct unicode_str name = get_req_unicode_str();
-    struct atom_table *table = get_user_atom_table();
     atom_t atom = req->atom;
 
-    if (name.len) atom = find_atom( table, &name );
+    if (name.len) atom = find_global_atom( NULL, &name );
 
     if (!(class = find_class( current->process, atom, req->instance )))
         set_win32_error( ERROR_CLASS_DOES_NOT_EXIST );
@@ -254,7 +249,6 @@ DECL_HANDLER(destroy_class)
 DECL_HANDLER(set_class_info)
 {
     struct window_class *class = get_window_class( req->window );
-    struct atom_table *table = get_user_atom_table();
 
     if (!class) return;
 
@@ -295,8 +289,8 @@ DECL_HANDLER(set_class_info)
 
     if (req->flags & SET_CLASS_ATOM)
     {
-        if (!grab_atom( table, req->atom )) return;
-        release_atom( table, class->atom );
+        if (!grab_global_atom( NULL, req->atom )) return;
+        release_global_atom( NULL, class->atom );
         class->atom = req->atom;
     }
     if (req->flags & SET_CLASS_STYLE) class->style = req->style;

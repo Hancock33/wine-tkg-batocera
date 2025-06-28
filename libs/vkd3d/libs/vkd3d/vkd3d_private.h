@@ -436,7 +436,7 @@ struct d3d12_heap
 {
     ID3D12Heap ID3D12Heap_iface;
     unsigned int refcount;
-    unsigned int internal_refcount;
+    unsigned int resource_count;
 
     bool is_private;
     D3D12_HEAP_DESC desc;

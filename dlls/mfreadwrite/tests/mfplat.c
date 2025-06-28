@@ -89,7 +89,6 @@ struct attribute_desc
     BOOL required;
     BOOL todo;
     BOOL todo_value;
-    BOOL not_present;
 };
 
 #define ATTR_GUID(k, g, ...)      {.key = &k, .name = #k, {.vt = VT_CLSID, .puuid = (GUID *)&g}, __VA_ARGS__ }
@@ -112,10 +111,7 @@ void check_attributes_(const char *file, int line, IMFAttributes *attributes,
     {
         hr = IMFAttributes_GetItem(attributes, desc[i].key, &value);
         todo_wine_if(desc[i].todo)
-        if (desc[i].not_present)
-            ok_(file, line)(hr == MF_E_ATTRIBUTENOTFOUND, "%s present, hr %#lx\n", debugstr_a(desc[i].name), hr);
-        else
-            ok_(file, line)(hr == S_OK, "%s missing, hr %#lx\n", debugstr_a(desc[i].name), hr);
+        ok_(file, line)(hr == S_OK, "%s missing, hr %#lx\n", debugstr_a(desc[i].name), hr);
         if (hr != S_OK) continue;
 
         switch (value.vt)
@@ -2056,7 +2052,6 @@ static void test_source_reader_transforms(BOOL enable_processing, BOOL enable_ad
         ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1, .todo = TRUE),
         ATTR_UINT32(MF_MT_COMPRESSED, 0, .todo = TRUE),
         ATTR_UINT32(MF_MT_INTERLACE_MODE, 2, .todo = TRUE),
-        ATTR_UINT32(MF_MT_DEFAULT_STRIDE, 96, .not_present = TRUE),
         {0},
     };
     static const struct attribute_desc yuy2_stream_type_desc[] =
@@ -2091,7 +2086,6 @@ static void test_source_reader_transforms(BOOL enable_processing, BOOL enable_ad
         ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1, .todo = TRUE),
         ATTR_UINT32(MF_MT_COMPRESSED, 0, .todo = TRUE),
         ATTR_UINT32(MF_MT_INTERLACE_MODE, 2, .todo = TRUE),
-        ATTR_UINT32(MF_MT_DEFAULT_STRIDE, 96, .not_present = TRUE),
         {0},
     };
     static const struct attribute_desc rgb32_stream_type_desc[] =
@@ -2120,7 +2114,6 @@ static void test_source_reader_transforms(BOOL enable_processing, BOOL enable_ad
         ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1, .todo = TRUE),
         ATTR_UINT32(MF_MT_COMPRESSED, 0, .todo = TRUE),
         ATTR_UINT32(MF_MT_INTERLACE_MODE, 2, .todo = TRUE),
-        ATTR_UINT32(MF_MT_DEFAULT_STRIDE, 96, .not_present = TRUE),
         {0},
     };
     static const struct attribute_desc rgb32_expect_advanced_desc_todo2[] =
@@ -2131,7 +2124,6 @@ static void test_source_reader_transforms(BOOL enable_processing, BOOL enable_ad
         ATTR_UINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, 1),
         ATTR_UINT32(MF_MT_COMPRESSED, 0, .todo = TRUE),
         ATTR_UINT32(MF_MT_INTERLACE_MODE, 2, .todo_value = TRUE),
-        ATTR_UINT32(MF_MT_DEFAULT_STRIDE, 96, .not_present = TRUE),
         {0},
     };
     IMFStreamDescriptor *video_stream;

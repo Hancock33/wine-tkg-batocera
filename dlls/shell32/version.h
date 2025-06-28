@@ -1,5 +1,7 @@
 /*
- * Copyright 2023 Rémi Bernon for CodeWeavers
+ * Shared Resource/DllGetVersion version information
+ *
+ * Copyright (C) 2004 Robert Shearman
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,11 +18,8 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include "windef.h"
-
-/* @makedep: rgb24frame.bmp */
-rgb24frame.bmp RCDATA rgb24frame.bmp
-
-/* The above frame, encoded using native ir50_32.dll. */
-/* @makedep: iv50frame.bin */
-iv50frame.bin RCDATA iv50frame.bin
+/* please keep in sync with shell32.rc values */
+#define WINE_FILEVERSION_MAJOR         6
+#define WINE_FILEVERSION_MINOR         0
+#define WINE_FILEVERSION_BUILD      2900
+#define WINE_FILEVERSION_PLATFORMID 6242

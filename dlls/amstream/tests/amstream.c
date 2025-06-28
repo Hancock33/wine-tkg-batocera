@@ -8900,8 +8900,7 @@ static void test_ddrawstream_mem_allocator(void)
     hr = IDirectDrawMediaStream_SetFormat(ddraw_stream, &rgb555_format, NULL);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
 
-    hr = IDirectDrawMediaStream_GetDirectDraw(ddraw_stream, &ddraw);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    IDirectDrawMediaStream_GetDirectDraw(ddraw_stream, &ddraw);
     surface_desc.ddpfPixelFormat = rgb555_format.ddpfPixelFormat;
     hr = IDirectDraw_CreateSurface(ddraw, &surface_desc, &surface, NULL);
     ok(hr == S_OK, "got hr %#lx\n", hr);
@@ -9314,8 +9313,7 @@ static void test_ddrawstream_set_format_dynamic(void)
     hr = IDirectDrawMediaStream_SetFormat(ddraw_stream, &rgb8_format, NULL);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
 
-    hr = IDirectDrawMediaStream_GetDirectDraw(ddraw_stream, &ddraw);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    IDirectDrawMediaStream_GetDirectDraw(ddraw_stream, &ddraw);
     palette_entries[0].peRed = 0x12;
     palette_entries[1].peBlue = 0x34;
     palette_entries[2].peGreen = 0x56;
