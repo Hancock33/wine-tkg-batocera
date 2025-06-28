@@ -1,9 +1,9 @@
-# Last wine-tkg-staging-fsync-git configuration - Sat 14 Jun 07:43:00 BST 2025 :
+# Last wine-tkg-staging-esync-git configuration - Sat 28 Jun 12:09:05 BST 2025 :
 
 Local cfg files used
 
-Wine (plain) version: 10.10.r0.g885446556ce
-Using wine-staging patchset (version 10.10.r0.gc37f9f50)
+Wine (plain) version: 10.11.r0.gcad35b3c811
+Using wine-staging patchset (version 10.11.r0.g3e94d124)
 
 Disabled the local Esync patchset to use Staging impl instead.
 Not using vkd3d native library for d3d12 translation (allows using vkd3d-proton)
@@ -15,8 +15,6 @@ CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 
 Staging overrides, if any: -W winedevice-Default_Drivers
 
-fsync-unix-staging.patch -- ( Applied fsync patches (unix, staging) )
-fsync_futex_waitv.patch -- ( Applied patches for fsync to support futex_waitv )
 
 LAA-unix-staging.patch -- ( Applied large address aware override support (legacy) )
 vulkan-1-Prefer-builtin.patch -- ( Prefer build vulkan-1 patch )
@@ -30,7 +28,6 @@ wow64_loader_hack.patch -- ( Hack around loader name for EAC on 10.2+ )
 Applied hotfix Return_nt_filename_and_resolve_DOS_drive_path.mypatch
 Applied hotfix a608ef1.mypatch
 Applied hotfix nostale_mouse_fix.mypatch
-Applied hotfix HACK-user32-Always-call-get_message-request-after-waiting.mypatch
 Applied hotfix opencl-fixup.mypatch
 
 wine-tkg-staging.patch -- ( Please don't report bugs about this wine build on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead. )
