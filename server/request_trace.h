@@ -1362,6 +1362,27 @@ static void dump_get_atom_information_reply( const struct get_atom_information_r
     dump_varargs_unicode_str( ", name=", cur_size );
 }
 
+static void dump_add_user_atom_request( const struct add_user_atom_request *req )
+{
+    dump_varargs_unicode_str( " name=", cur_size );
+}
+
+static void dump_add_user_atom_reply( const struct add_user_atom_reply *req )
+{
+    fprintf( stderr, " atom=%04x", req->atom );
+}
+
+static void dump_get_user_atom_name_request( const struct get_user_atom_name_request *req )
+{
+    fprintf( stderr, " atom=%04x", req->atom );
+}
+
+static void dump_get_user_atom_name_reply( const struct get_user_atom_name_reply *req )
+{
+    fprintf( stderr, " total=%u", req->total );
+    dump_varargs_unicode_str( ", name=", cur_size );
+}
+
 static void dump_get_msg_queue_handle_request( const struct get_msg_queue_handle_request *req )
 {
 }
@@ -3364,54 +3385,6 @@ static void dump_get_next_thread_reply( const struct get_next_thread_reply *req 
     fprintf( stderr, " handle=%04x", req->handle );
 }
 
-static void dump_create_esync_request( const struct create_esync_request *req )
-{
-    fprintf( stderr, " access=%08x", req->access );
-    fprintf( stderr, ", initval=%d", req->initval );
-    fprintf( stderr, ", type=%d", req->type );
-    fprintf( stderr, ", max=%d", req->max );
-    dump_varargs_object_attributes( ", objattr=", cur_size );
-}
-
-static void dump_create_esync_reply( const struct create_esync_reply *req )
-{
-    fprintf( stderr, " handle=%04x", req->handle );
-    fprintf( stderr, ", type=%d", req->type );
-    fprintf( stderr, ", shm_idx=%08x", req->shm_idx );
-}
-
-static void dump_open_esync_request( const struct open_esync_request *req )
-{
-    fprintf( stderr, " access=%08x", req->access );
-    fprintf( stderr, ", attributes=%08x", req->attributes );
-    fprintf( stderr, ", rootdir=%04x", req->rootdir );
-    fprintf( stderr, ", type=%d", req->type );
-    dump_varargs_unicode_str( ", name=", cur_size );
-}
-
-static void dump_open_esync_reply( const struct open_esync_reply *req )
-{
-    fprintf( stderr, " handle=%04x", req->handle );
-    fprintf( stderr, ", type=%d", req->type );
-    fprintf( stderr, ", shm_idx=%08x", req->shm_idx );
-}
-
-static void dump_get_esync_fd_request( const struct get_esync_fd_request *req )
-{
-    fprintf( stderr, " handle=%04x", req->handle );
-}
-
-static void dump_get_esync_fd_reply( const struct get_esync_fd_reply *req )
-{
-    fprintf( stderr, " type=%d", req->type );
-    fprintf( stderr, ", shm_idx=%08x", req->shm_idx );
-}
-
-static void dump_esync_msgwait_request( const struct esync_msgwait_request *req )
-{
-    fprintf( stderr, " in_msgwait=%d", req->in_msgwait );
-}
-
 static void dump_set_keyboard_repeat_request( const struct set_keyboard_repeat_request *req )
 {
     fprintf( stderr, " enable=%d", req->enable );
@@ -3422,10 +3395,6 @@ static void dump_set_keyboard_repeat_request( const struct set_keyboard_repeat_r
 static void dump_set_keyboard_repeat_reply( const struct set_keyboard_repeat_reply *req )
 {
     fprintf( stderr, " enable=%d", req->enable );
-}
-
-static void dump_get_esync_apc_fd_request( const struct get_esync_apc_fd_request *req )
-{
 }
 
 static void dump_create_fsync_request( const struct create_fsync_request *req )
@@ -3602,6 +3571,8 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] =
     (dump_func)dump_delete_atom_request,
     (dump_func)dump_find_atom_request,
     (dump_func)dump_get_atom_information_request,
+    (dump_func)dump_add_user_atom_request,
+    (dump_func)dump_get_user_atom_name_request,
     (dump_func)dump_get_msg_queue_handle_request,
     (dump_func)dump_get_msg_queue_request,
     (dump_func)dump_set_queue_fd_request,
@@ -3783,12 +3754,7 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] =
     (dump_func)dump_resume_process_request,
     (dump_func)dump_get_next_process_request,
     (dump_func)dump_get_next_thread_request,
-    (dump_func)dump_create_esync_request,
-    (dump_func)dump_open_esync_request,
-    (dump_func)dump_get_esync_fd_request,
-    (dump_func)dump_esync_msgwait_request,
     (dump_func)dump_set_keyboard_repeat_request,
-    (dump_func)dump_get_esync_apc_fd_request,
     (dump_func)dump_create_fsync_request,
     (dump_func)dump_open_fsync_request,
     (dump_func)dump_get_fsync_idx_request,
@@ -3911,6 +3877,8 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] =
     NULL,
     (dump_func)dump_find_atom_reply,
     (dump_func)dump_get_atom_information_reply,
+    (dump_func)dump_add_user_atom_reply,
+    (dump_func)dump_get_user_atom_name_reply,
     (dump_func)dump_get_msg_queue_handle_reply,
     (dump_func)dump_get_msg_queue_reply,
     NULL,
@@ -4092,12 +4060,7 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] =
     NULL,
     (dump_func)dump_get_next_process_reply,
     (dump_func)dump_get_next_thread_reply,
-    (dump_func)dump_create_esync_reply,
-    (dump_func)dump_open_esync_reply,
-    (dump_func)dump_get_esync_fd_reply,
-    NULL,
     (dump_func)dump_set_keyboard_repeat_reply,
-    NULL,
     (dump_func)dump_create_fsync_reply,
     (dump_func)dump_open_fsync_reply,
     (dump_func)dump_get_fsync_idx_reply,
@@ -4220,6 +4183,8 @@ static const char * const req_names[REQ_NB_REQUESTS] =
     "delete_atom",
     "find_atom",
     "get_atom_information",
+    "add_user_atom",
+    "get_user_atom_name",
     "get_msg_queue_handle",
     "get_msg_queue",
     "set_queue_fd",
@@ -4401,12 +4366,7 @@ static const char * const req_names[REQ_NB_REQUESTS] =
     "resume_process",
     "get_next_process",
     "get_next_thread",
-    "create_esync",
-    "open_esync",
-    "get_esync_fd",
-    "esync_msgwait",
     "set_keyboard_repeat",
-    "get_esync_apc_fd",
     "create_fsync",
     "open_fsync",
     "get_fsync_idx",
@@ -4548,7 +4508,6 @@ static const struct
     { "USER_APC",                    STATUS_USER_APC },
     { "USER_MAPPED_FILE",            STATUS_USER_MAPPED_FILE },
     { "VOLUME_DISMOUNTED",           STATUS_VOLUME_DISMOUNTED },
-    { "WAS_LOCKED",                  STATUS_WAS_LOCKED },
     { "WSAEACCES",                   0xc0010000 | WSAEACCES },
     { "WSAEADDRINUSE",               0xc0010000 | WSAEADDRINUSE },
     { "WSAEADDRNOTAVAIL",            0xc0010000 | WSAEADDRNOTAVAIL },
