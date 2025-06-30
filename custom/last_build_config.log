@@ -1,9 +1,9 @@
-# Last wine-tkg-staging-ntsync-git configuration - Sat 14 Jun 07:41:33 BST 2025 :
+# Last wine-tkg-staging-ntsync-git configuration - Mon 30 Jun 21:52:33 BST 2025 :
 
 Local cfg files used
 
-Wine (plain) version: 10.10.r0.g885446556ce
-Using wine-staging patchset (version 10.10.r0.gc37f9f50)
+Wine (plain) version: 10.11.r0.gcad35b3c811
+Using wine-staging patchset (version 10.11.r0.g3e94d124)
 
 Disabled the local Esync patchset to use Staging impl instead.
 Not using vkd3d native library for d3d12 translation (allows using vkd3d-proton)
@@ -20,7 +20,6 @@ LAA-unix-staging.patch -- ( Applied large address aware override support (legacy
 vulkan-1-Prefer-builtin.patch -- ( Prefer build vulkan-1 patch )
 proton10-winevulkan.patch -- ( Using Proton 10 winevulkan patches )
 
-ntsync-config.h.in-org.patch -- ( Using original config.h.in patchset for ntsync5 )
 ntsync5-staging.patch -- ( Using ntsync patchset )
 proton-win10-default.patch -- ( Enforce win10 as default wine version )
 proton_battleye.patch -- ( Add support for Proton's Battleye runtime )
