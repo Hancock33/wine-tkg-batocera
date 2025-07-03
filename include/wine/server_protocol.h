@@ -5988,9 +5988,8 @@ struct get_inproc_sync_fd_reply
 {
     struct reply_header __header;
     unsigned char type;
-    unsigned char queue;
     unsigned char internal;
-    char __pad_11[1];
+    char __pad_10[2];
     unsigned int access;
 };
 

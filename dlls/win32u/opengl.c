@@ -163,6 +163,48 @@ static void register_extension( char *list, size_t size, const char *name )
     }
 }
 
+static pthread_mutex_t drawables_lock = PTHREAD_MUTEX_INITIALIZER;
+static struct list drawables = LIST_INIT( drawables );
+
+/* drawables_lock must be held */
+static void opengl_drawable_detach( struct opengl_drawable *drawable )
+{
+    drawable->funcs->detach( drawable );
+    list_remove( &drawable->entry );
+    list_init( &drawable->entry );
+}
+
+void detach_opengl_drawables( HWND hwnd )
+{
+    struct opengl_drawable *drawable, *next;
+
+    pthread_mutex_lock( &drawables_lock );
+
+    LIST_FOR_EACH_ENTRY_SAFE( drawable, next, &drawables, struct opengl_drawable, entry )
+    {
+        if (drawable->hwnd != hwnd) continue;
+        opengl_drawable_detach( drawable );
+    }
+
+    pthread_mutex_unlock( &drawables_lock );
+}
+
+void update_opengl_drawables( HWND hwnd )
+{
+    struct opengl_drawable *drawable, *next;
+
+    pthread_mutex_lock( &drawables_lock );
+
+    LIST_FOR_EACH_ENTRY_SAFE( drawable, next, &drawables, struct opengl_drawable, entry )
+    {
+        if (drawable->hwnd != hwnd) continue;
+        drawable->funcs->update( drawable );
+        InterlockedExchange( &drawable->updated, 1 );
+    }
+
+    pthread_mutex_unlock( &drawables_lock );
+}
+
 void *opengl_drawable_create( UINT size, const struct opengl_drawable_funcs *funcs, int format, HWND hwnd, HDC hdc )
 {
     struct opengl_drawable *drawable;
@@ -175,6 +217,14 @@ void *opengl_drawable_create( UINT size, const struct opengl_drawable_funcs *fun
     drawable->interval = INT_MIN;
     drawable->hwnd = hwnd;
     drawable->hdc = hdc;
+
+    if (!hwnd) list_init( &drawable->entry ); /* pbuffer, keep it unlinked */
+    else
+    {
+        pthread_mutex_lock( &drawables_lock );
+        list_add_tail( &drawables, &drawable->entry );
+        pthread_mutex_unlock( &drawables_lock );
+    }
 
     TRACE( "created %s\n", debugstr_opengl_drawable( drawable ) );
     return drawable;
@@ -193,9 +243,29 @@ void opengl_drawable_release( struct opengl_drawable *drawable )
 
     if (!ref)
     {
+        const struct opengl_funcs *funcs = &display_funcs;
+        const struct egl_platform *egl = &display_egl;
+
+        pthread_mutex_lock( &drawables_lock );
+        opengl_drawable_detach( drawable );
+        pthread_mutex_unlock( &drawables_lock );
+
         drawable->funcs->destroy( drawable );
+        if (drawable->surface) funcs->p_eglDestroySurface( egl->display, drawable->surface );
         free( drawable );
     }
+}
+
+static void opengl_drawable_flush( struct opengl_drawable *drawable, int interval, UINT flags )
+{
+    if (InterlockedCompareExchange( &drawable->updated, 0, 1 )) flags |= GL_FLUSH_UPDATED;
+    if (interval != drawable->interval)
+    {
+        drawable->interval = interval;
+        flags = GL_FLUSH_INTERVAL;
+    }
+
+    if (flags) drawable->funcs->flush( drawable, flags );
 }
 
 #ifdef SONAME_LIBEGL
@@ -424,22 +494,95 @@ static UINT egldrv_pbuffer_bind( HDC hdc, struct opengl_drawable *drawable, GLen
     return -1; /* use default implementation */
 }
 
-static BOOL egldrv_context_create( int format, void *share, const int *attribs, void **private )
+static BOOL egldrv_context_create( int format, void *share, const int *attribs, void **context )
 {
-    FIXME( "stub!\n" );
+    const struct opengl_funcs *funcs = &display_funcs;
+    const struct egl_platform *egl = &display_egl;
+    EGLint egl_attribs[16], *attribs_end = egl_attribs;
+
+    TRACE( "format %d, share %p, attribs %p\n", format, share, attribs );
+
+    for (; attribs && attribs[0] != 0; attribs += 2)
+    {
+        EGLint name;
+
+        TRACE( "%#x %#x\n", attribs[0], attribs[1] );
+
+        /* Find the EGL attribute names corresponding to the WGL names.
+         * For all of the attributes below, the values match between the two
+         * systems, so we can use them directly. */
+        switch (attribs[0])
+        {
+        case WGL_CONTEXT_MAJOR_VERSION_ARB:
+            name = EGL_CONTEXT_MAJOR_VERSION_KHR;
+            break;
+        case WGL_CONTEXT_MINOR_VERSION_ARB:
+            name = EGL_CONTEXT_MINOR_VERSION_KHR;
+            break;
+        case WGL_CONTEXT_FLAGS_ARB:
+            name = EGL_CONTEXT_FLAGS_KHR;
+            break;
+        case WGL_CONTEXT_OPENGL_NO_ERROR_ARB:
+            name = EGL_CONTEXT_OPENGL_NO_ERROR_KHR;
+            break;
+        case WGL_CONTEXT_PROFILE_MASK_ARB:
+            if (attribs[1] & WGL_CONTEXT_ES2_PROFILE_BIT_EXT)
+            {
+                ERR( "OpenGL ES contexts are not supported\n" );
+                return FALSE;
+            }
+            name = EGL_CONTEXT_OPENGL_PROFILE_MASK_KHR;
+            break;
+        default:
+            name = EGL_NONE;
+            FIXME( "Unhandled attributes: %#x %#x\n", attribs[0], attribs[1] );
+        }
+
+        if (name != EGL_NONE)
+        {
+            EGLint *dst = egl_attribs;
+            /* Check if we have already set the same attribute and replace it. */
+            for (; dst != attribs_end && *dst != name; dst += 2) continue;
+            /* Our context attribute array should have enough space for all the
+             * attributes we support (we merge repetitions), plus EGL_NONE. */
+            assert( dst - egl_attribs <= ARRAY_SIZE(egl_attribs) - 3 );
+            dst[0] = name;
+            dst[1] = attribs[1];
+            if (dst == attribs_end) attribs_end += 2;
+        }
+    }
+    *attribs_end = EGL_NONE;
+
+    /* For now only OpenGL is supported. It's enough to set the API only for
+     * context creation, since:
+     * 1. the default API is EGL_OPENGL_ES_API
+     * 2. the EGL specification says in section 3.7:
+     *    > EGL_OPENGL_API and EGL_OPENGL_ES_API are interchangeable for all
+     *    > purposes except eglCreateContext.
+     */
+    funcs->p_eglBindAPI( EGL_OPENGL_API );
+    *context = funcs->p_eglCreateContext( egl->display, EGL_NO_CONFIG_KHR, share, attribs ? egl_attribs : NULL );
+    TRACE( "Created context %p\n", *context );
     return TRUE;
 }
 
-static BOOL egldrv_context_destroy( void *private )
+static BOOL egldrv_context_destroy( void *context )
 {
-    FIXME( "stub!\n" );
-    return FALSE;
+    const struct opengl_funcs *funcs = &display_funcs;
+    const struct egl_platform *egl = &display_egl;
+
+    funcs->p_eglDestroyContext( egl->display, context );
+    return TRUE;
 }
 
-static BOOL egldrv_make_current( struct opengl_drawable *draw_base, struct opengl_drawable *read_base, void *private )
+static BOOL egldrv_make_current( struct opengl_drawable *draw, struct opengl_drawable *read, void *context )
 {
-    FIXME( "stub!\n" );
-    return FALSE;
+    const struct opengl_funcs *funcs = &display_funcs;
+    const struct egl_platform *egl = &display_egl;
+
+    TRACE( "draw %s, read %s, context %p\n", debugstr_opengl_drawable( draw ), debugstr_opengl_drawable( read ), context );
+
+    return funcs->p_eglMakeCurrent( egl->display, context ? draw->surface : EGL_NO_SURFACE, context ? read->surface : EGL_NO_SURFACE, context );
 }
 
 static const struct opengl_driver_funcs egldrv_funcs =
@@ -652,12 +795,14 @@ static char wgl_extensions[4096];
 
 static const char *win32u_wglGetExtensionsStringARB( HDC hdc )
 {
+    TRACE( "hdc %p\n", hdc );
     if (TRACE_ON(wgl)) dump_extensions( wgl_extensions );
     return wgl_extensions;
 }
 
 static const char *win32u_wglGetExtensionsStringEXT(void)
 {
+    TRACE( "\n" );
     if (TRACE_ON(wgl)) dump_extensions( wgl_extensions );
     return wgl_extensions;
 }
@@ -965,16 +1110,21 @@ static BOOL context_set_drawables( struct wgl_context *context, void *private, H
         WARN( "Unexpected drawables with NULL context\n" );
     else if (!force && new_draw == context->draw && new_read == context->read)
         TRACE( "Drawables didn't change, nothing to do\n" );
-    else if (driver_funcs->p_make_current( new_draw, new_read, private ))
+    else
     {
-        if ((context->draw = new_draw)) opengl_drawable_add_ref( new_draw );
-        if ((context->read = new_read)) opengl_drawable_add_ref( new_read );
-        if (old_draw) opengl_drawable_release( old_draw );
-        if (old_read) opengl_drawable_release( old_read );
+        if (new_draw) opengl_drawable_flush( new_draw, new_draw->interval, 0 );
+        if (new_read) opengl_drawable_flush( new_read, new_read->interval, 0 );
 
-        /* update the current window drawable to the last used draw surface */
-        if ((hwnd = NtUserWindowFromDC( draw_hdc ))) set_window_opengl_drawable( hwnd, new_draw );
-        ret = TRUE;
+        if ((ret = driver_funcs->p_make_current( new_draw, new_read, private )))
+        {
+            if ((context->draw = new_draw)) opengl_drawable_add_ref( new_draw );
+            if ((context->read = new_read)) opengl_drawable_add_ref( new_read );
+            if (old_draw) opengl_drawable_release( old_draw );
+            if (old_read) opengl_drawable_release( old_read );
+
+            /* update the current window drawable to the last used draw surface */
+            if ((hwnd = NtUserWindowFromDC( draw_hdc ))) set_window_opengl_drawable( hwnd, new_draw );
+        }
     }
 
     if (new_draw) opengl_drawable_release( new_draw );
@@ -1480,17 +1630,11 @@ static BOOL win32u_wgl_context_flush( struct wgl_context *context, void (*flush)
     context_set_drawables( context, context->driver_private, draw_hdc, read_hdc, FALSE );
     if (flush_memory_dc( context, draw_hdc, FALSE, flush )) return TRUE;
 
-    if (!(draw = get_dc_opengl_drawable( draw_hdc, FALSE ))) return FALSE;
-    if (interval != draw->interval)
-    {
-        draw->interval = interval;
-        flags = GL_FLUSH_INTERVAL;
-    }
-
     if (flush) flush();
     if (flush == funcs->p_glFinish) flags |= GL_FLUSH_FINISHED;
 
-    if (flags) draw->funcs->flush( draw, flags );
+    if (!(draw = get_dc_opengl_drawable( draw_hdc, FALSE ))) return FALSE;
+    opengl_drawable_flush( draw, interval, flags );
     opengl_drawable_release( draw );
 
     return TRUE;
@@ -1502,7 +1646,6 @@ static BOOL win32u_wglSwapBuffers( HDC hdc )
     struct wgl_context *context = NtCurrentTeb()->glContext;
     const struct opengl_funcs *funcs = &display_funcs;
     struct opengl_drawable *draw;
-    UINT flags = 0;
     int interval;
     HWND hwnd;
     BOOL ret;
@@ -1514,18 +1657,8 @@ static BOOL win32u_wglSwapBuffers( HDC hdc )
     if (flush_memory_dc( context, hdc, FALSE, funcs->p_glFlush )) return TRUE;
 
     if (!(draw = get_dc_opengl_drawable( draw_hdc, FALSE ))) return FALSE;
-    if (interval != draw->interval)
-    {
-        draw->interval = interval;
-        flags = GL_FLUSH_INTERVAL;
-    }
-
-    if (!draw->hwnd || !draw->funcs->swap) ret = TRUE; /* pbuffer, nothing to do */
-    else
-    {
-        if (flags) draw->funcs->flush( draw, flags );
-        ret = draw->funcs->swap( draw );
-    }
+    opengl_drawable_flush( draw, interval, 0 );
+    ret = draw->funcs->swap( draw );
     opengl_drawable_release( draw );
 
     return ret;

@@ -3408,7 +3408,6 @@ static void dump_get_inproc_sync_fd_request( const struct get_inproc_sync_fd_req
 static void dump_get_inproc_sync_fd_reply( const struct get_inproc_sync_fd_reply *req )
 {
     fprintf( stderr, " type=%02x", req->type );
-    fprintf( stderr, ", queue=%02x", req->queue );
     fprintf( stderr, ", internal=%02x", req->internal );
     fprintf( stderr, ", access=%08x", req->access );
 }

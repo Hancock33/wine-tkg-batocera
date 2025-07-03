@@ -234,7 +234,6 @@ DECL_HANDLER(get_inproc_sync_fd)
 
     if (!(obj = get_handle_obj( current->process, req->handle, 0, NULL ))) return;
 
-    reply->queue = obj == (struct object *)current->queue;
     reply->access = get_handle_access( current->process, req->handle );
     reply->internal = check_signal_access( obj, reply->access ) == STATUS_OBJECT_TYPE_MISMATCH;
 

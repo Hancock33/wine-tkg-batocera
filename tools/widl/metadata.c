@@ -1555,6 +1555,20 @@ static UINT make_member_sig2( UINT type, UINT token, BYTE *buf )
     return len;
 }
 
+static UINT make_member_sig3( UINT token, BYTE *buf )
+{
+    UINT len = 4;
+
+    buf[0] = SIG_TYPE_HASTHIS;
+    buf[1] = 3;
+    buf[2] = ELEMENT_TYPE_VOID;
+    buf[3] = ELEMENT_TYPE_CLASS;
+    len += encode_int( token, buf + 4 );
+    buf[len++] = ELEMENT_TYPE_U4;
+    buf[len++] = ELEMENT_TYPE_STRING;
+    return len;
+}
+
 static UINT make_type_sig( const type_t *type, BYTE *buf )
 {
     UINT len = 0;
@@ -2567,6 +2581,23 @@ static void add_runtimeclass_type_step1( type_t *type )
     type->md.ref = add_typeref_row( resolution_scope(TABLE_MODULE, MODULE_ROW), name, namespace );
 }
 
+static void add_default_attr( const type_t *type, UINT interfaceimpl_ref )
+{
+    static const BYTE sig[] = { SIG_TYPE_HASTHIS, 0, ELEMENT_TYPE_VOID };
+    static const BYTE value[] = { 0x01, 0x00, 0x00, 0x00 };
+    UINT assemblyref, scope, typeref, class, memberref, parent, attr_type;
+
+    assemblyref = add_assemblyref_row( 0x200, 0, add_string("Windows.Foundation") );
+    scope = resolution_scope( TABLE_ASSEMBLYREF, assemblyref );
+    typeref = add_typeref_row( scope, add_string("DefaultAttribute"), add_string("Windows.Foundation.Metadata") );
+    class = memberref_parent( TABLE_TYPEREF, typeref );
+    memberref = add_memberref_row( class, add_string(".ctor"), add_blob(sig, sizeof(sig)) );
+
+    parent = has_customattribute( TABLE_INTERFACEIMPL, interfaceimpl_ref );
+    attr_type = customattribute_type( TABLE_MEMBERREF, memberref );
+    add_customattribute_row( parent, attr_type, add_blob(value, sizeof(value)) );
+}
+
 static void add_method_impl( const type_t *class, const type_t *iface, const var_t *method )
 {
     UINT parent, memberref, body, decl, sig_size;
@@ -2609,9 +2640,269 @@ static void add_method_contract_attrs( const type_t *class, const type_t *iface,
     }
 }
 
+static UINT make_static_value( const expr_t *attr, BYTE *buf )
+{
+    const expr_t *contract = attr->ref;
+    char *name_iface = format_namespace( attr->u.tref.type->namespace, "", ".", attr->u.tref.type->name, NULL );
+    char *name_contract = format_namespace( contract->u.tref.type->namespace, "", ".", contract->u.tref.type->name, NULL );
+    UINT len_iface = strlen( name_iface ), len_contract = strlen( name_contract );
+    BYTE *ptr = buf;
+
+    ptr[0] = 1;
+    ptr[1] = 0;
+    ptr[2] = len_iface;
+    memcpy( ptr + 3, name_iface, len_iface );
+    ptr += len_iface + 3;
+    ptr[0] = ptr[1] = 0;
+
+    ptr += 2;
+    ptr[0] = 1;
+    ptr[1] = 0;
+    ptr[2] = len_contract;
+    memcpy( ptr + 3, name_contract, len_contract );
+    ptr += len_contract + 3;
+    ptr[0] = ptr[1] = 0;
+
+    free( name_iface );
+    free( name_contract );
+    return len_iface + len_contract + 10;
+}
+
+static void add_static_attr_step1( type_t *type )
+{
+    UINT assemblyref, scope, typeref, typeref_type, class, sig_size;
+    BYTE sig[32];
+
+    if (!is_attr( type->attrs, ATTR_STATIC )) return;
+
+    assemblyref = add_assemblyref_row( 0x200, 0, add_string("Windows.Foundation") );
+    scope = resolution_scope( TABLE_ASSEMBLYREF, assemblyref );
+    typeref = add_typeref_row( scope, add_string("StaticAttribute"), add_string("Windows.Foundation.Metadata") );
+
+    scope = resolution_scope( TABLE_ASSEMBLYREF, MSCORLIB_ROW );
+    typeref_type = add_typeref_row( scope, add_string("Type"), add_string("System") );
+
+    class = memberref_parent( TABLE_TYPEREF, typeref );
+    sig_size = make_member_sig3( typedef_or_ref(TABLE_TYPEREF, typeref_type), sig );
+    type->md.member[MD_ATTR_STATIC] = add_memberref_row( class, add_string(".ctor"), add_blob(sig, sig_size) );
+}
+
+static void add_static_attr_step2( type_t *type )
+{
+    const attr_t *attr;
+
+    if (type->attrs) LIST_FOR_EACH_ENTRY_REV( attr, type->attrs, const attr_t, entry )
+    {
+        UINT parent, attr_type, value_size;
+        BYTE value[MAX_NAME * 2 + 10];
+
+        if (attr->type != ATTR_STATIC) continue;
+
+        parent = has_customattribute( TABLE_TYPEDEF, type->md.def );
+        attr_type = customattribute_type( TABLE_MEMBERREF, type->md.member[MD_ATTR_STATIC] );
+        value_size = make_static_value( attr->u.pval, value );
+        add_customattribute_row( parent, attr_type, add_blob(value, value_size) );
+    }
+}
+
+static UINT make_activatable_value( const expr_t *attr, BYTE *buf )
+{
+    char *name_iface = NULL, *name_contract;
+    UINT len_iface = 0, len_contract, len_extra = 5;
+    const type_t *contract;
+    BYTE *ptr = buf;
+
+    if (attr->u.tref.type->type_type != TYPE_INTERFACE) contract = attr->u.tref.type;
+    else
+    {
+        name_iface = format_namespace( attr->u.tref.type->namespace, "", ".", attr->u.tref.type->name, NULL );
+        len_iface = strlen( name_iface );
+        contract = attr->ref->u.tref.type;
+    }
+
+    name_contract = format_namespace( contract->namespace, "", ".", contract->name, NULL );
+    len_contract = strlen( name_contract );
+
+    if (len_iface)
+    {
+        ptr[0] = 1;
+        ptr[1] = 0;
+        ptr[2] = len_iface;
+        memcpy( ptr + 3, name_iface, len_iface );
+        ptr += len_iface + 3;
+        ptr[0] = ptr[1] = 0;
+        ptr += 2;
+        len_extra += 5;
+    }
+    ptr[0] = 1;
+    ptr[1] = 0;
+    ptr[2] = len_contract;
+    memcpy( ptr + 3, name_contract, len_contract );
+    ptr += len_contract + 3;
+    ptr[0] = ptr[1] = 0;
+
+    free( name_iface );
+    free( name_contract );
+    return len_iface + len_contract + len_extra;
+}
+
+static void add_activatable_attr_step1( type_t *type )
+{
+    static const BYTE sig_default[] = { SIG_TYPE_HASTHIS, 2, ELEMENT_TYPE_VOID, ELEMENT_TYPE_U4, ELEMENT_TYPE_STRING };
+    attr_t *attr;
+
+    if (type->attrs) LIST_FOR_EACH_ENTRY_REV( attr, type->attrs, attr_t, entry )
+    {
+        UINT assemblyref, scope, typeref, typeref_type, class, sig_size;
+        const expr_t *value = attr->u.pval;
+        BYTE sig[32];
+
+        if (attr->type != ATTR_ACTIVATABLE) continue;
+
+        assemblyref = add_assemblyref_row( 0x200, 0, add_string("Windows.Foundation") );
+        scope = resolution_scope( TABLE_ASSEMBLYREF, assemblyref );
+        typeref = add_typeref_row( scope, add_string("ActivatableAttribute"), add_string("Windows.Foundation.Metadata") );
+
+        scope = resolution_scope( TABLE_ASSEMBLYREF, MSCORLIB_ROW );
+        typeref_type = add_typeref_row( scope, add_string("Type"), add_string("System") );
+
+        class = memberref_parent( TABLE_TYPEREF, typeref );
+
+        if (value->u.tref.type->type_type == TYPE_INTERFACE)
+            sig_size = make_member_sig3( typedef_or_ref(TABLE_TYPEREF, typeref_type), sig );
+        else
+        {
+            memcpy( sig, sig_default, sizeof(sig_default) );
+            sig_size = sizeof(sig_default);
+        }
+
+        attr->md_member = add_memberref_row( class, add_string(".ctor"), add_blob(sig, sig_size) );
+    }
+}
+
+static void add_activatable_attr_step2( type_t *type )
+{
+    const attr_t *attr;
+
+    if (type->attrs) LIST_FOR_EACH_ENTRY_REV( attr, type->attrs, const attr_t, entry )
+    {
+        UINT parent, attr_type, value_size;
+        BYTE value[MAX_NAME * 2 + 10];
+
+        if (attr->type != ATTR_ACTIVATABLE) continue;
+
+        parent = has_customattribute( TABLE_TYPEDEF, type->md.def );
+        attr_type = customattribute_type( TABLE_MEMBERREF, attr->md_member );
+        value_size = make_activatable_value( attr->u.pval, value );
+        add_customattribute_row( parent, attr_type, add_blob(value, value_size) );
+    }
+}
+
+static UINT make_threading_value( const type_t *type, BYTE *buf )
+{
+    UINT value, model = get_attrv( type->attrs, ATTR_THREADING );
+
+    switch (model)
+    {
+    case THREADING_SINGLE:
+        value = 1;
+        break;
+    case THREADING_FREE:
+        value = 2;
+        break;
+    case THREADING_BOTH:
+        value = 3;
+        break;
+    default:
+        fprintf( stderr, "Unhandled model %u.\n", model );
+        return 0;
+    }
+
+    buf[0] = 1;
+    buf[1] = 0;
+    memcpy( buf + 2, &value, sizeof(value) );
+    buf[6] = buf[7] = 0;
+    return 8;
+}
+
+static void add_threading_attr_step1( type_t *type )
+{
+    UINT assemblyref, scope, typeref, typeref_attr, class, sig_size;
+    BYTE sig[32];
+
+    if (!is_attr( type->attrs, ATTR_THREADING )) return;
+
+    assemblyref = add_assemblyref_row( 0x200, 0, add_string("Windows.Foundation") );
+    scope = resolution_scope( TABLE_ASSEMBLYREF, assemblyref );
+    typeref = add_typeref_row( scope, add_string("ThreadingModel"), add_string("Windows.Foundation.Metadata") );
+
+    scope = resolution_scope( TABLE_ASSEMBLYREF, assemblyref );
+    typeref_attr = add_typeref_row( scope, add_string("ThreadingAttribute"), add_string("Windows.Foundation.Metadata") );
+
+    class = memberref_parent( TABLE_TYPEREF, typeref_attr );
+    sig_size = make_member_sig2( ELEMENT_TYPE_VALUETYPE, typedef_or_ref(TABLE_TYPEREF, typeref), sig );
+    type->md.member[MD_ATTR_THREADING] = add_memberref_row( class, add_string(".ctor"), add_blob(sig, sig_size) );
+}
+
+static void add_threading_attr_step2( type_t *type )
+{
+    UINT parent, attr_type, value_size;
+    BYTE value[8];
+
+    if (!is_attr( type->attrs, ATTR_THREADING )) return;
+
+    parent = has_customattribute( TABLE_TYPEDEF, type->md.def );
+    attr_type = customattribute_type( TABLE_MEMBERREF, type->md.member[MD_ATTR_THREADING] );
+    value_size = make_threading_value( type, value );
+    add_customattribute_row( parent, attr_type, add_blob(value, value_size) );
+}
+
+static UINT make_marshalingbehavior_value( const type_t *type, BYTE *buf )
+{
+    UINT marshaling = get_attrv( type->attrs, ATTR_MARSHALING_BEHAVIOR );
+
+    buf[0] = 1;
+    buf[1] = 0;
+    memcpy( buf + 2, &marshaling, sizeof(marshaling) );
+    buf[6] = buf[7] = 0;
+    return 8;
+}
+
+static void add_marshalingbehavior_attr_step1( type_t *type )
+{
+    UINT assemblyref, scope, typeref, typeref_attr, class, sig_size;
+    BYTE sig[32];
+
+    if (!is_attr( type->attrs, ATTR_MARSHALING_BEHAVIOR )) return;
+
+    assemblyref = add_assemblyref_row( 0x200, 0, add_string("Windows.Foundation") );
+    scope = resolution_scope( TABLE_ASSEMBLYREF, assemblyref );
+    typeref = add_typeref_row( scope, add_string("MarshalingType"), add_string("Windows.Foundation.Metadata") );
+
+    scope = resolution_scope( TABLE_ASSEMBLYREF, assemblyref );
+    typeref_attr = add_typeref_row( scope, add_string("MarshalingBehaviorAttribute"), add_string("Windows.Foundation.Metadata") );
+
+    class = memberref_parent( TABLE_TYPEREF, typeref_attr );
+    sig_size = make_member_sig2( ELEMENT_TYPE_VALUETYPE, typedef_or_ref(TABLE_TYPEREF, typeref), sig );
+    type->md.member[MD_ATTR_MARSHALINGBEHAVIOR] = add_memberref_row( class, add_string(".ctor"), add_blob(sig, sig_size) );
+}
+
+static void add_marshalingbehavior_attr_step2( type_t *type )
+{
+    UINT parent, attr_type, value_size;
+    BYTE value[8];
+
+    if (!is_attr( type->attrs, ATTR_MARSHALING_BEHAVIOR )) return;
+
+    parent = has_customattribute( TABLE_TYPEDEF, type->md.def );
+    attr_type = customattribute_type( TABLE_MEMBERREF, type->md.member[MD_ATTR_MARSHALINGBEHAVIOR] );
+    value_size = make_marshalingbehavior_value( type, value );
+    add_customattribute_row( parent, attr_type, add_blob(value, value_size) );
+}
+
 static void add_runtimeclass_type_step2( type_t *type )
 {
-    UINT name, namespace, scope, extends, typeref, interface, flags;
+    UINT name, namespace, scope, extends, typeref, interface, interfaceimpl_ref, flags;
     typeref_list_t *iface_list = type_runtimeclass_get_ifaces( type );
     typeref_t *iface;
     const statement_t *stmt;
@@ -2623,12 +2914,16 @@ static void add_runtimeclass_type_step2( type_t *type )
 
     extends = typedef_or_ref( TABLE_TYPEREF, typeref );
     flags = TYPE_ATTR_PUBLIC | TYPE_ATTR_SEALED | TYPE_ATTR_UNKNOWN;
+    if (!iface_list) flags |= TYPE_ATTR_ABSTRACT;
+
     type->md.def = add_typedef_row( flags, name, namespace, extends, 0, 0 );
 
     if (iface_list) LIST_FOR_EACH_ENTRY( iface, iface_list, typeref_t, entry )
     {
         interface = typedef_or_ref( TABLE_TYPEREF, iface->type->md.ref );
-        add_interfaceimpl_row( type->md.def, interface );
+        interfaceimpl_ref = add_interfaceimpl_row( type->md.def, interface );
+
+        if (is_attr( iface->attrs, ATTR_DEFAULT )) add_default_attr( type, interfaceimpl_ref );
 
         /* add properties in reverse order like midlrt */
         STATEMENTS_FOR_EACH_FUNC_REV( stmt, type_iface_get_stmts(iface->type) )
@@ -2650,7 +2945,16 @@ static void add_runtimeclass_type_step2( type_t *type )
     }
 
     add_contract_attr_step1( type );
+    add_static_attr_step1( type );
+    add_activatable_attr_step1( type );
+    add_threading_attr_step1( type );
+    add_marshalingbehavior_attr_step1( type );
+
     add_contract_attr_step2( type );
+    add_static_attr_step2( type );
+    add_activatable_attr_step2( type );
+    add_threading_attr_step2( type );
+    add_marshalingbehavior_attr_step2( type );
 }
 
 static void add_delegate_type_step1( type_t *type )

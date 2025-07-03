@@ -1838,11 +1838,14 @@ void server_init_thread( struct ntdll_thread_data *data, BOOL *suspend )
         req->entry     = wine_server_client_ptr( data->start );
         req->reply_fd  = reply_pipe;
         req->wait_fd   = ntdll_get_thread_data()->wait_fd[1];
-        if (!wine_server_call( req ) && reply->alert_handle)
+        if (!wine_server_call( req ))
         {
             obj_handle_t handle;
-            data->alert_fd = wine_server_receive_fd( &handle );
-            assert( handle == reply->alert_handle );
+            if (reply->alert_handle)
+            {
+                data->alert_fd = wine_server_receive_fd( &handle );
+                assert( handle == reply->alert_handle );
+            }
         }
         *suspend = reply->suspend;
     }

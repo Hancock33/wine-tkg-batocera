@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
 HEAD is now at 3e94d124 Release v10.11
-HEAD is now at cad35b3c811 Release 10.11.
+HEAD is now at 54238a0646c winex11: Add an option to use the new EGL OpenGL backend.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
@@ -252,6 +252,10 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wined3d-wined3d_guess_gl_vendor/0001-wined3d-Also-check-for-Brian-Paul-to-detect-Mesa-gl_.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wined3d-zero-inf-shaders/0001-wined3d-Add-a-setting-to-workaround-0-inf-problem-in.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winedbg-Process_Arguments/0001-programs-winedbg-Print-process-arguments-in-info-thr.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winedevice-Default_Drivers/0001-win32k.sys-Add-stub-driver.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winedevice-Default_Drivers/0002-dxgkrnl.sys-Add-stub-driver.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winedevice-Default_Drivers/0003-dxgmms1.sys-Add-stub-driver.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winedevice-Default_Drivers/0004-programs-winedevice-Load-some-common-drivers-and-fix.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winemac.drv-no-flicker-patch/0001-winemac.drv-No-Flicker-patch.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winepulse-PulseAudio_Support/0001-winepulse.drv-Use-a-separate-mainloop-and-ctx-for-pu.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winepulse-aux_channels/0001-winepulse-Add-aux0-and-aux1-channels.patch
@@ -284,15 +288,15 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ws2_32-af_unix/0004-server-Introduce-error-when-attempting-to-create-a-S.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ws2_32-af_unix/0005-server-Fix-getsockname-and-accept-on-AF_UNIX-sockets.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ws2_32-af_unix/0006-ws2_32-tests-Add-test-for-AF_UNIX-sockets.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wscript-support-d-u-switches/0001-wscript-return-TRUE-for-d-and-u-stub-switches.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/xactengine-initial/0001-x3daudio1_7-Create-import-library.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/xactengine-initial/0003-xactengine3_7-tests-Add-Global-settings-test.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/xactengine3_7-PrepareWave/0002-xactengine3_7-Implement-IXACT3Engine-PrepareStreamin.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < include/wine/server_protocol.h updated
 include/wine/server_protocol.h updated
 server/request_trace.h updated
 server/request_handlers.h updated
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/xactengine3_7-PrepareWave/0003-xactengine3_7-Implement-IXACT3Engine-PrepareInMemory.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/wscript-support-d-u-switches/0001-wscript-return-TRUE-for-d-and-u-stub-switches.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/xactengine-initial/0001-x3daudio1_7-Create-import-library.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/xactengine-initial/0003-xactengine3_7-tests-Add-Global-settings-test.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/xactengine3_7-PrepareWave/0002-xactengine3_7-Implement-IXACT3Engine-PrepareStreamin.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/xactengine3_7-PrepareWave/0003-xactengine3_7-Implement-IXACT3Engine-PrepareInMemory.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/xactengine3_7-PrepareWave/0004-xactengine-Implement-IXACT3Cue-SetOutputVoiceMatrix.patch
 autoreconf -f
 ./tools/make_requests
@@ -330,8 +334,8 @@ patching file dlls/winevulkan/vulkan.c
 patching file dlls/winevulkan/vulkan.c
 patching file dlls/winevulkan/vulkan.c
 patching file dlls/winevulkan/make_vulkan
-Hunk #1 succeeded at 2494 (offset 1 line).
-Hunk #2 succeeded at 3160 (offset 1 line).
+Hunk #1 succeeded at 2496 (offset 3 lines).
+Hunk #2 succeeded at 3162 (offset 3 lines).
 patching file dlls/winevulkan/vulkan.c
 patching file dlls/winevulkan/vulkan.c
 patching file dlls/winevulkan/vulkan_private.h
@@ -354,9 +358,9 @@ Hunk #6 succeeded at 816 (offset -1 lines).
 Hunk #7 succeeded at 910 (offset -1 lines).
 Hunk #8 succeeded at 990 (offset -1 lines).
 Hunk #9 succeeded at 1586 (offset -1 lines).
-Hunk #10 succeeded at 2459 (offset -1 lines).
-Hunk #11 succeeded at 2474 (offset -1 lines).
-Hunk #12 succeeded at 3048 (offset -1 lines).
+Hunk #10 succeeded at 2461 (offset 1 line).
+Hunk #11 succeeded at 2476 (offset 1 line).
+Hunk #12 succeeded at 3050 (offset 1 line).
 patching file dlls/winevulkan/vulkan.c
 Hunk #4 succeeded at 1480 (offset -22 lines).
 Hunk #5 succeeded at 1815 (offset -22 lines).
@@ -378,7 +382,7 @@ patching file dlls/winevulkan/vulkan.c
 Hunk #1 succeeded at 1551 (offset -22 lines).
 Hunk #2 succeeded at 2248 (offset -22 lines).
 patching file configure.ac
-Hunk #1 succeeded at 3138 with fuzz 1 (offset 11 lines).
+Hunk #1 succeeded at 3143 with fuzz 1 (offset 16 lines).
 patching file dlls/sharedgpures.sys/Makefile.in
 patching file dlls/sharedgpures.sys/shared_resource.c
 patching file dlls/sharedgpures.sys/sharedgpures.sys.spec
@@ -404,7 +408,7 @@ Hunk #1 succeeded at 207 (offset -11 lines).
 Hunk #2 succeeded at 228 (offset -11 lines).
 Hunk #3 succeeded at 249 (offset -11 lines).
 Hunk #4 succeeded at 270 (offset -11 lines).
-Hunk #5 succeeded at 2699 (offset 214 lines).
+Hunk #5 succeeded at 2700 (offset 215 lines).
 patching file dlls/sharedgpures.sys/shared_resource.c
 patching file dlls/sharedgpures.sys/shared_resource.c
 patching file dlls/sharedgpures.sys/shared_resource.c
@@ -459,13 +463,13 @@ Hunk #2 succeeded at 334 (offset -1 lines).
 Hunk #3 succeeded at 1474 (offset -1 lines).
 Hunk #4 succeeded at 1599 (offset -1 lines).
 Hunk #5 succeeded at 1657 (offset -1 lines).
-Hunk #6 succeeded at 2386 (offset -1 lines).
-Hunk #7 succeeded at 2432 (offset -1 lines).
-Hunk #8 succeeded at 2442 (offset -1 lines).
-Hunk #9 succeeded at 2463 (offset -1 lines).
-Hunk #10 succeeded at 2505 (offset -1 lines).
-Hunk #11 succeeded at 2564 (offset -1 lines).
-Hunk #12 succeeded at 2599 (offset -1 lines).
+Hunk #6 succeeded at 2388 (offset 1 line).
+Hunk #7 succeeded at 2434 (offset 1 line).
+Hunk #8 succeeded at 2444 (offset 1 line).
+Hunk #9 succeeded at 2465 (offset 1 line).
+Hunk #10 succeeded at 2507 (offset 1 line).
+Hunk #11 succeeded at 2566 (offset 1 line).
+Hunk #12 succeeded at 2601 (offset 1 line).
 patching file dlls/winevulkan/vulkan.c
 Hunk #1 succeeded at 3382 (offset -22 lines).
 patching file dlls/winevulkan/vulkan_private.h
@@ -542,7 +546,7 @@ Hunk #6 succeeded at 4474 (offset -22 lines).
 Hunk #7 succeeded at 4484 (offset -22 lines).
 patching file dlls/winevulkan/make_vulkan
 Hunk #1 succeeded at 211 (offset 1 line).
-Hunk #3 succeeded at 3357 (offset -6 lines).
+Hunk #3 succeeded at 3359 (offset -4 lines).
 patching file dlls/winevulkan/vk_custom.xml
 patching file dlls/winevulkan/vulkan.c
 Hunk #1 succeeded at 3166 (offset -22 lines).
@@ -565,7 +569,7 @@ ntsync5-staging.patch -- ( Using ntsync patchset )
 patching file dlls/ntdll/unix/sync.c
 patching file dlls/ntdll/unix/sync.c
 patching file configure.ac
-Hunk #1 succeeded at 680 with fuzz 2 (offset 3 lines).
+Hunk #1 succeeded at 682 with fuzz 2 (offset 2 lines).
 patching file dlls/ntdll/unix/server.c
 Hunk #1 succeeded at 981 (offset 20 lines).
 Hunk #2 succeeded at 1176 (offset 20 lines).
@@ -602,16 +606,14 @@ patching file server/inproc_sync.c
 patching file server/object.h
 Hunk #1 succeeded at 242 (offset 3 lines).
 patching file server/protocol.def
-Hunk #1 succeeded at 4137 (offset 37 lines).
+Hunk #1 succeeded at 4137 (offset 20 lines).
 patching file server/queue.c
 Hunk #1 succeeded at 1501 (offset 11 lines).
-patching file server/thread.h
-Hunk #1 succeeded at 116 (offset 1 line).
 patching file server/user.h
 patching file dlls/ntdll/unix/sync.c
 patching file server/inproc_sync.c
 patching file server/protocol.def
-Hunk #1 succeeded at 4150 (offset 37 lines).
+Hunk #1 succeeded at 4150 (offset 20 lines).
 patching file server/async.c
 patching file server/atom.c
 patching file server/change.c
@@ -662,7 +664,7 @@ patching file server/winstation.c
 patching file dlls/ntdll/unix/sync.c
 patching file server/inproc_sync.c
 patching file server/protocol.def
-Hunk #1 succeeded at 4150 (offset 37 lines).
+Hunk #1 succeeded at 4150 (offset 20 lines).
 patching file server/thread.c
 Hunk #1 succeeded at 1245 (offset 2 lines).
 patching file server/thread.h
@@ -689,10 +691,15 @@ Hunk #7 succeeded at 1742 (offset 27 lines).
 Hunk #8 succeeded at 1772 (offset 27 lines).
 Hunk #9 succeeded at 1804 (offset 27 lines).
 patching file server/thread.h
+patching file dlls/win32u/message.c
+patching file dlls/win32u/ntuser_private.h
+Hunk #1 succeeded at 102 (offset 1 line).
+patching file dlls/win32u/sysparams.c
+patching file include/ntuser.h
 patching file dlls/ntdll/unix/sync.c
 patching file server/inproc_sync.c
 patching file server/protocol.def
-Hunk #1 succeeded at 4152 (offset 37 lines).
+Hunk #1 succeeded at 4155 (offset 20 lines).
 patching file server/queue.c
 Hunk #1 succeeded at 1368 (offset 11 lines).
 patching file server/user.h
@@ -764,6 +771,8 @@ Hunk #3 succeeded at 1025 (offset 2 lines).
 Hunk #4 succeeded at 1470 (offset 2 lines).
 Hunk #5 succeeded at 1505 (offset 2 lines).
 Hunk #6 succeeded at 1521 (offset 2 lines).
+Hunk #7 succeeded at 1799 (offset 27 lines).
+Hunk #8 succeeded at 1832 (offset 27 lines).
 patching file server/thread.h
 patching file server/timer.c
 patching file dlls/ntdll/unix/sync.c
@@ -775,12 +784,12 @@ patching file server/mutex.c
 patching file server/object.h
 Hunk #1 succeeded at 242 (offset 3 lines).
 patching file server/protocol.def
-Hunk #1 succeeded at 4145 (offset 37 lines).
+Hunk #1 succeeded at 4145 (offset 20 lines).
 patching file server/semaphore.c
 patching file dlls/ntdll/unix/sync.c
 patching file dlls/ntdll/unix/server.c
-Hunk #1 succeeded at 1912 (offset 44 lines).
-Hunk #2 succeeded at 1988 (offset 44 lines).
+Hunk #1 succeeded at 1915 (offset 44 lines).
+Hunk #2 succeeded at 1991 (offset 44 lines).
 patching file dlls/ntdll/unix/sync.c
 patching file dlls/ntdll/unix/unix_private.h
 Hunk #1 succeeded at 394 (offset 2 lines).
@@ -792,14 +801,14 @@ Hunk #2 succeeded at 1811 with fuzz 2 (offset 278 lines).
 patching file programs/wineboot/wineboot.c
 Hunk #1 succeeded at 1722 (offset 16 lines).
 patching file loader/wine.inf.in
-Hunk #1 succeeded at 2880 with fuzz 2 (offset 457 lines).
+Hunk #1 succeeded at 2881 with fuzz 2 (offset 458 lines).
 patching file loader/wine.inf.in
-Hunk #1 succeeded at 2877 with fuzz 2 (offset 411 lines).
+Hunk #1 succeeded at 2878 with fuzz 2 (offset 412 lines).
 patching file loader/wine.inf.in
 Hunk #1 succeeded at 380 (offset -169 lines).
 Hunk #2 succeeded at 406 with fuzz 1 (offset -167 lines).
 patching file loader/wine.inf.in
-Hunk #1 succeeded at 2870 with fuzz 2 (offset 414 lines).
+Hunk #1 succeeded at 2871 with fuzz 2 (offset 415 lines).
 patching file programs/wineboot/wineboot.c
 Hunk #1 succeeded at 68 with fuzz 2.
 Hunk #2 succeeded at 1914 (offset 308 lines).
@@ -816,7 +825,7 @@ patching file dlls/kernelbase/process.c
 Hunk #2 succeeded at 503 (offset -3 lines).
 Hunk #3 succeeded at 735 (offset -60 lines).
 patching file configure.ac
-Hunk #1 succeeded at 3499 (offset 37 lines).
+Hunk #1 succeeded at 3505 (offset 43 lines).
 patching file dlls/kernelbase/process.c
 Hunk #1 succeeded at 505 (offset -3 lines).
 Hunk #2 succeeded at 554 (offset -3 lines).
@@ -854,8 +863,8 @@ Hunk #3 succeeded at 428 with fuzz 1 (offset 1 line).
 
 wow64_loader_hack.patch -- ( Hack around loader name for EAC on 10.2+ )
 patching file configure.ac
-Hunk #1 succeeded at 2071 (offset 38 lines).
-Hunk #2 succeeded at 2090 (offset 38 lines).
+Hunk #1 succeeded at 2073 (offset 40 lines).
+Hunk #2 succeeded at 2092 (offset 40 lines).
 patching file dlls/ntdll/unix/loader.c
 Hunk #1 succeeded at 494 (offset 18 lines).
 Hunk #2 succeeded at 506 (offset 18 lines).
@@ -877,9 +886,14 @@ patching file dlls/user32/Makefile.in
 Applying hotfix wine-tkg-patches/hotfixes/autoconf-opencl-hotfix/opencl-fixup.mypatch
 patching file configure.ac
 Hunk #1 succeeded at 45 with fuzz 2 (offset -5 lines).
-Hunk #2 succeeded at 662 (offset 232 lines).
-Hunk #3 succeeded at 742 (offset 228 lines).
-Hunk #4 succeeded at 971 with fuzz 2 (offset 216 lines).
+Hunk #2 succeeded at 664 (offset 234 lines).
+Hunk #3 succeeded at 744 (offset 230 lines).
+Hunk #4 succeeded at 973 with fuzz 2 (offset 218 lines).
+
+Applying hotfix wine-tkg-patches/hotfixes/winedevice-Default_Drivers/0001-wine-staging-Fix-build.mypatch
+patching file dlls/dxgkrnl.sys/Makefile.in
+patching file dlls/dxgmms1.sys/Makefile.in
+patching file dlls/win32k.sys/Makefile.in
 
 wine-tkg-staging.patch -- ( Please don't report bugs about this wine build on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead. )
 patching file dlls/ntdll/loader.c

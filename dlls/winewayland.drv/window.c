@@ -403,7 +403,6 @@ void WAYLAND_DestroyWindow(HWND hwnd)
 
     if (!(data = wayland_win_data_get(hwnd))) return;
     wayland_win_data_destroy(data);
-    wayland_destroy_gl_drawable(hwnd);
 }
 
 /***********************************************************************
@@ -786,15 +785,18 @@ void set_client_surface(HWND hwnd, struct wayland_client_surface *new_client)
 
     if (!(data = wayland_win_data_get(hwnd))) return;
 
-    if ((old_client = data->client_surface))
-        wayland_client_surface_detach(old_client);
-
-    if ((data->client_surface = new_client))
+    if (new_client != data->client_surface)
     {
-        if (toplevel && NtUserIsWindowVisible(hwnd))
-            wayland_client_surface_attach(new_client, toplevel);
-        else
-            wayland_client_surface_detach(new_client);
+        if ((old_client = data->client_surface))
+            wayland_client_surface_detach(old_client);
+
+        if ((data->client_surface = new_client))
+        {
+            if (toplevel && NtUserIsWindowVisible(hwnd))
+                wayland_client_surface_attach(new_client, toplevel);
+            else
+                wayland_client_surface_detach(new_client);
+        }
     }
 
     wayland_win_data_release(data);

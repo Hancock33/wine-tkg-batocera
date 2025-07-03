@@ -541,8 +541,8 @@ struct inproc_sync
     int fd;
     unsigned int access;
     unsigned int type : 2;
-    unsigned int queue : 1;
     unsigned int internal : 1;
+    unsigned int queue : 1;
     unsigned int closed : 1;
 };
 
@@ -704,7 +704,6 @@ static NTSTATUS get_inproc_sync( HANDLE handle, enum inproc_sync_type desired_ty
             assert( wine_server_ptr_handle(fd_handle) == handle );
             sync->access = reply->access;
             sync->type = reply->type;
-            sync->queue = reply->queue;
             sync->internal = reply->internal;
             sync->closed = 0;
         }
@@ -886,9 +885,10 @@ static NTSTATUS inproc_query_mutex( HANDLE handle, MUTANT_BASIC_INFORMATION *inf
 static NTSTATUS inproc_wait( DWORD count, const HANDLE *handles, BOOLEAN wait_any,
                              BOOLEAN alertable, const LARGE_INTEGER *timeout )
 {
+    HANDLE server_queue = UlongToHandle( NtUserGetThreadInfo()->server_queue );
     struct inproc_sync *syncs[64], cache[ARRAY_SIZE(syncs)];
     int objs[ARRAY_SIZE(syncs)];
-    HANDLE queue = NULL;
+    UINT queue = -1;
     NTSTATUS ret;
 
     if (inproc_device_fd < 0) return STATUS_NOT_IMPLEMENTED;
@@ -898,10 +898,10 @@ static NTSTATUS inproc_wait( DWORD count, const HANDLE *handles, BOOLEAN wait_an
     {
         if ((ret = get_inproc_sync( handles[i], INPROC_SYNC_UNKNOWN, SYNCHRONIZE, cache + i, &syncs[i] )))
         {
-            while (i--) release_inproc_sync( syncs[i - 1] );
+            while (i--) release_inproc_sync( syncs[i] );
             return ret;
         }
-        if (syncs[i]->queue) queue = handles[i];
+        if (handles[i] == server_queue) queue = i;
         objs[i] = syncs[i]->fd;
     }
 
@@ -910,15 +910,15 @@ static NTSTATUS inproc_wait( DWORD count, const HANDLE *handles, BOOLEAN wait_an
      * instead of one when going through inproc_wait(), and since we only need
      * to go through that path if we're waiting on other objects, just delegate
      * to the server if we're only waiting on the message queue. */
-    if (count == 1 && queue)
+    if (count == 1 && queue != -1)
     {
         release_inproc_sync( syncs[0] );
         return server_wait_for_object( handles[0], alertable, timeout );
     }
 
-    if (queue) select_queue();
+    if (queue != -1) select_queue();
     ret = linux_wait_objs( inproc_device_fd, count, objs, wait_any, alertable, timeout );
-    if (queue) unselect_queue( ret < count && handles[ret] == queue );
+    if (queue != -1) unselect_queue( ret == queue );
 
     while (count--) release_inproc_sync( syncs[count] );
     return ret;
@@ -927,8 +927,8 @@ static NTSTATUS inproc_wait( DWORD count, const HANDLE *handles, BOOLEAN wait_an
 static NTSTATUS inproc_signal_and_wait( HANDLE signal, HANDLE wait,
                                         BOOLEAN alertable, const LARGE_INTEGER *timeout )
 {
+    HANDLE server_queue = UlongToHandle( NtUserGetThreadInfo()->server_queue );
     struct inproc_sync cache[2], *signal_sync, *wait_sync;
-    HANDLE queue = NULL;
     NTSTATUS ret;
 
     if (inproc_device_fd < 0) return STATUS_NOT_IMPLEMENTED;
@@ -945,7 +945,6 @@ static NTSTATUS inproc_signal_and_wait( HANDLE signal, HANDLE wait,
         release_inproc_sync( signal_sync );
         return ret;
     }
-    if (wait_sync->queue) queue = wait;
 
     switch (signal_sync->type)
     {
@@ -957,9 +956,9 @@ static NTSTATUS inproc_signal_and_wait( HANDLE signal, HANDLE wait,
 
     if (!ret)
     {
-        if (queue) select_queue();
+        if (wait == server_queue) select_queue();
         ret = linux_wait_objs( inproc_device_fd, 1, &wait_sync->fd, TRUE, alertable, timeout );
-        if (queue) unselect_queue( !ret );
+        if (wait == server_queue) unselect_queue( !ret );
     }
 
     release_inproc_sync( signal_sync );

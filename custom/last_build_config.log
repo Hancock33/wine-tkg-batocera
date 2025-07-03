@@ -1,8 +1,8 @@
-# Last wine-tkg-staging-ntsync-git configuration - Mon 30 Jun 21:52:33 BST 2025 :
+# Last wine-tkg-staging-ntsync-git configuration - Thu  3 Jul 20:25:40 BST 2025 :
 
 Local cfg files used
 
-Wine (plain) version: 10.11.r0.gcad35b3c811
+Wine (plain) version: 10.11.r72.g54238a0646c
 Using wine-staging patchset (version 10.11.r0.g3e94d124)
 
 Disabled the local Esync patchset to use Staging impl instead.
@@ -13,7 +13,7 @@ Done applying reverting hotfixes (if any) - list available in prepare.log
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 
-Staging overrides, if any: -W winedevice-Default_Drivers
+Staging overrides, if any: 
 
 
 LAA-unix-staging.patch -- ( Applied large address aware override support (legacy) )
@@ -30,6 +30,7 @@ Applied hotfix Return_nt_filename_and_resolve_DOS_drive_path.mypatch
 Applied hotfix a608ef1.mypatch
 Applied hotfix nostale_mouse_fix.mypatch
 Applied hotfix opencl-fixup.mypatch
+Applied hotfix 0001-wine-staging-Fix-build.mypatch
 
 wine-tkg-staging.patch -- ( Please don't report bugs about this wine build on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead. )
 

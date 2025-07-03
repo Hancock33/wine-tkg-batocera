@@ -4154,7 +4154,6 @@ enum inproc_sync_type
     obj_handle_t handle;        /* handle to the object */
 @REPLY
     unsigned char type;         /* inproc sync type */
-    unsigned char queue;        /* sync is a message queue sync */
     unsigned char internal;     /* sync is an internal event sync */
     unsigned int access;        /* handle access rights */
 @END

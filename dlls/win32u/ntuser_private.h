@@ -102,7 +102,6 @@ static inline BOOL is_broadcast( HWND hwnd )
 struct user_thread_info
 {
     struct ntuser_thread_info     client_info;            /* Data shared with client */
-    HANDLE                        server_queue;           /* Handle to server-side queue */
     DWORD                         last_getmsg_time;       /* Get/PeekMessage last request time */
     LONGLONG                      last_driver_time;       /* Get/PeekMessage driver event time */
     WORD                          hook_call_depth;        /* Number of recursively called hook procs */
@@ -223,6 +222,10 @@ extern PFN_vkGetInstanceProcAddr p_vkGetInstanceProcAddr;
 
 extern BOOL vulkan_init(void);
 extern void vulkan_detach_surfaces( struct list *surfaces );
+
+/* opengl.c */
+extern void update_opengl_drawables( HWND hwnd );
+extern void detach_opengl_drawables( HWND hwnd );
 
 /* window.c */
 HANDLE alloc_user_handle( void *ptr, unsigned short type );
