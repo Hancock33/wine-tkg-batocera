@@ -3098,10 +3098,10 @@ static void process_sent_messages(void)
  */
 static HANDLE get_server_queue_handle(void)
 {
-    struct ntuser_thread_info *thread_info = NtUserGetThreadInfo();
+    struct user_thread_info *thread_info = get_user_thread_info();
     HANDLE ret;
 
-    if (!(ret = UlongToHandle( thread_info->server_queue )))
+    if (!(ret = thread_info->server_queue))
     {
         SERVER_START_REQ( get_msg_queue_handle )
         {
@@ -3109,7 +3109,7 @@ static HANDLE get_server_queue_handle(void)
             ret = wine_server_ptr_handle( reply->handle );
         }
         SERVER_END_REQ;
-        thread_info->server_queue = HandleToUlong( ret );
+        thread_info->server_queue = ret;
         if (!ret) ERR( "Cannot get server thread queue\n" );
     }
     return ret;

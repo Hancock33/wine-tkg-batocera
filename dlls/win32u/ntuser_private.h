@@ -66,7 +66,6 @@ typedef struct tagWND
     HICON              hIconSmall2;   /* window's secondary small icon, derived from hIcon */
     HIMC               imc;           /* window's input context */
     struct window_surface *surface;   /* Window surface if any */
-    struct list        vulkan_surfaces; /* list of vulkan surfaces created for this window */
     struct opengl_drawable *opengl_drawable; /* last GL client surface for this window */
     struct tagDIALOGINFO *dlgInfo;    /* Dialog additional info (dialogs only) */
     int                swap_interval; /* OpenGL surface swap interval */
@@ -102,6 +101,7 @@ static inline BOOL is_broadcast( HWND hwnd )
 struct user_thread_info
 {
     struct ntuser_thread_info     client_info;            /* Data shared with client */
+    HANDLE                        server_queue;           /* Handle to server-side queue */
     DWORD                         last_getmsg_time;       /* Get/PeekMessage last request time */
     LONGLONG                      last_driver_time;       /* Get/PeekMessage driver event time */
     WORD                          hook_call_depth;        /* Number of recursively called hook procs */
@@ -221,11 +221,6 @@ extern PFN_vkGetDeviceProcAddr p_vkGetDeviceProcAddr;
 extern PFN_vkGetInstanceProcAddr p_vkGetInstanceProcAddr;
 
 extern BOOL vulkan_init(void);
-extern void vulkan_detach_surfaces( struct list *surfaces );
-
-/* opengl.c */
-extern void update_opengl_drawables( HWND hwnd );
-extern void detach_opengl_drawables( HWND hwnd );
 
 /* window.c */
 HANDLE alloc_user_handle( void *ptr, unsigned short type );

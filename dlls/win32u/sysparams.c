@@ -1989,6 +1989,7 @@ static void monitor_get_info( struct monitor *monitor, MONITORINFO *info, UINT d
 {
     info->rcMonitor = monitor_get_rect( monitor, dpi, MDT_DEFAULT );
     info->rcWork = map_monitor_rect( monitor, monitor->rc_work, 0, MDT_RAW_DPI, dpi, MDT_DEFAULT );
+    intersect_rect( &info->rcWork, &info->rcWork, &info->rcMonitor );
     info->dwFlags = is_monitor_primary( monitor ) ? MONITORINFOF_PRIMARY : 0;
 
     if (info->cbSize >= sizeof(MONITORINFOEXW))
@@ -7046,7 +7047,6 @@ BOOL is_exiting_thread( DWORD tid )
 static void thread_detach(void)
 {
     struct user_thread_info *thread_info = get_user_thread_info();
-    HANDLE server_queue = UlongToHandle( thread_info->client_info.server_queue );
 
     destroy_thread_windows();
     user_driver->pThreadDetach();
@@ -7054,11 +7054,7 @@ static void thread_detach(void)
     free( thread_info->rawinput );
 
     cleanup_imm_thread();
-    if (server_queue)
-    {
-        NtClose( server_queue );
-        thread_info->client_info.server_queue = 0;
-    }
+    NtClose( thread_info->server_queue );
     free( thread_info->session_data );
 
     exiting_thread_id = 0;
