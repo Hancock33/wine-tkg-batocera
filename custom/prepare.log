@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
 HEAD is now at caa47e6c Rebase against d1f6b3771376cc8909be712b127125e1b9e4f5d1.
-HEAD is now at d1f6b377137 shell32: Rework FO_MOVE operation for SHFileOperationW.
+HEAD is now at 9ecae7b571f Release 10.12.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
