@@ -74,7 +74,7 @@ static LDT_ENTRY ldt[8192];
 
 static BOOL emulate_idtr( BYTE *data, unsigned int data_size, unsigned int *offset )
 {
-#if defined(__i386__) && defined(__GNUC__)
+#ifdef __i386__
     struct dtr ret;
     __asm__( "sidtl %0" : "=m" (ret) );
     *offset = data - ret.base;
@@ -86,7 +86,7 @@ static BOOL emulate_idtr( BYTE *data, unsigned int data_size, unsigned int *offs
 
 static BOOL emulate_gdtr( BYTE *data, unsigned int data_size, unsigned int *offset )
 {
-#if defined(__i386__) && defined(__GNUC__)
+#ifdef __i386__
     struct dtr ret;
     __asm__( "sgdtl %0" : "=m" (ret) );
     *offset = data - ret.base;
@@ -99,7 +99,7 @@ static BOOL emulate_gdtr( BYTE *data, unsigned int data_size, unsigned int *offs
 static inline WORD get_ldt(void)
 {
     WORD seg = 1;
-#if defined(__i386__) && defined(__GNUC__)
+#ifdef __i386__
     __asm__( "sldt %0" : "=m" (seg) );
 #endif
     return seg;

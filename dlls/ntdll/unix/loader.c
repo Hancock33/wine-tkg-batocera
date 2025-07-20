@@ -112,6 +112,32 @@ void *pRtlUserThreadStart = NULL;
 void *p__wine_ctrl_routine = NULL;
 SYSTEM_DLL_INIT_BLOCK *pLdrSystemDllInitBlock = NULL;
 
+static void stub_syscall( const char *name )
+{
+    CONTEXT context = { .ContextFlags = CONTEXT_FULL };
+    EXCEPTION_RECORD rec =
+    {
+        .ExceptionCode = EXCEPTION_WINE_STUB,
+        .ExceptionFlags = EXCEPTION_NONCONTINUABLE,
+        .NumberParameters = 2,
+        .ExceptionInformation[0] = (ULONG_PTR)"ntdll",
+        .ExceptionInformation[1] = (ULONG_PTR)name,
+    };
+    NtGetContextThread( GetCurrentThread(), &context );
+#ifdef __i386__
+    rec.ExceptionAddress = (void *)context.Eip;
+#elif defined __x86_64__
+    rec.ExceptionAddress = (void *)context.Rip;
+#elif defined __arm__ || defined __aarch64__
+    rec.ExceptionAddress = (void *)context.Pc;
+#endif
+    NtRaiseException( &rec, &context, TRUE );
+}
+
+
+#define SYSCALL_STUB(name) static void name(void) { stub_syscall( #name ); }
+ALL_SYSCALL_STUBS
+
 static void * const syscalls[] =
 {
 #define SYSCALL_ENTRY(id,name,args) name,
@@ -1184,7 +1210,6 @@ static const unixlib_entry_t unix_call_funcs[] =
     load_so_dll,
     unwind_builtin_dll,
     unixcall_wine_dbg_write,
-    unixcall_wine_needs_override_large_address_aware,
     unixcall_wine_server_call,
     unixcall_wine_server_fd_to_handle,
     unixcall_wine_server_handle_to_fd,

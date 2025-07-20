@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at b09545bc Release v10.12
-HEAD is now at 9ecae7b571f Release 10.12.
+HEAD is now at 1db546cd Rebase against e44737278a4487cb8a75f81cedbe7393c5f716cc.
+HEAD is now at e44737278a4 oleaut32: Remove __GNUC__ check.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
@@ -285,15 +285,14 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wintab32-improvements/0004-winex11.drv-Support-multiplex-categories-WTI_DSCTXS-.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wintab32-improvements/0005-winex11-Support-WTI_STATUS-in-WTInfo.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wintrust-WTHelperGetProvCertFromChain/0001-wintrust-Add-parameter-check-in-WTHelperGetProvCertF.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ws2_32-af_unix/0001-ws2_32-Add-afunix.h-header.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ws2_32-af_unix/0002-ws2_32-Add-support-for-AF_UNIX-sockets.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ws2_32-af_unix/0003-server-Allow-for-deletion-of-socket-files.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ws2_32-af_unix/0004-server-Introduce-error-when-attempting-to-create-a-S.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < include/wine/server_protocol.h updated
 include/wine/server_protocol.h updated
 server/request_trace.h updated
 server/request_handlers.h updated
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/ws2_32-af_unix/0004-server-Introduce-error-when-attempting-to-create-a-S.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ws2_32-af_unix/0005-server-Fix-getsockname-and-accept-on-AF_UNIX-sockets.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/ws2_32-af_unix/0005-server-Fix-getsockname-and-accept-on-AF_UNIX-sockets.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ws2_32-af_unix/0006-ws2_32-tests-Add-test-for-AF_UNIX-sockets.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wscript-support-d-u-switches/0001-wscript-return-TRUE-for-d-and-u-stub-switches.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/xactengine-initial/0001-x3daudio1_7-Create-import-library.patch
@@ -304,30 +303,20 @@ server/request_handlers.h updated
 autoreconf -f
 ./tools/make_requests
 
-LAA-unix-staging.patch -- ( Applied large address aware override support (legacy) )
+LAA-unix-staging-wow64.patch -- ( Applied large address aware override support )
 patching file dlls/kernel32/heap.c
-Hunk #1 succeeded at 41 with fuzz 2 (offset -3 lines).
-Hunk #2 succeeded at 427 (offset -119 lines).
-Hunk #3 succeeded at 469 (offset -121 lines).
 patching file dlls/ntdll/ntdll.spec
-Hunk #1 succeeded at 1767 (offset 142 lines).
-patching file dlls/ntdll/unix/server.c
-Hunk #1 succeeded at 1753 (offset 282 lines).
+Hunk #1 succeeded at 1757 (offset -3 lines).
+patching file dlls/ntdll/signal_arm64ec.c
+Hunk #1 succeeded at 596 (offset 16 lines).
 patching file dlls/ntdll/unix/unix_private.h
-Hunk #1 succeeded at 590 with fuzz 2 (offset 120 lines).
+Hunk #1 succeeded at 591 (offset 16 lines).
 patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 3395 with fuzz 1 (offset -25 lines).
-patching file dlls/ntdll/loader.c
-Hunk #1 succeeded at 3483 (offset 8 lines).
-patching file dlls/ntdll/ntdll.spec
-Hunk #1 succeeded at 1768 (offset 54 lines).
-patching file dlls/ntdll/unix/loader.c
-Hunk #1 succeeded at 1127 (offset -977 lines).
-patching file dlls/ntdll/unix/unix_private.h
-Hunk #1 succeeded at 374 with fuzz 1 (offset 52 lines).
-patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 3484 with fuzz 1 (offset -24 lines).
-patching file dlls/ntdll/unixlib.h
+Hunk #1 succeeded at 4905 (offset 1 line).
+Hunk #2 succeeded at 4934 (offset 1 line).
+Hunk #3 succeeded at 4943 (offset 1 line).
+patching file dlls/wow64/system.c
+Hunk #1 succeeded at 857 (offset 2 lines).
 
 vulkan-1-Prefer-builtin.patch -- ( Prefer build vulkan-1 patch )
 patching file dlls/vulkan-1/Makefile.in
@@ -948,9 +937,9 @@ Hunk #6 succeeded at 2311 (offset 21 lines).
 patching file server/thread.h
 Hunk #1 succeeded at 96 (offset 1 line).
 patching file dlls/ntdll/unix/file.c
-Hunk #1 succeeded at 7690 (offset 1151 lines).
+Hunk #1 succeeded at 7697 (offset 1158 lines).
 patching file dlls/ntdll/unix/process.c
-Hunk #1 succeeded at 908 (offset -12 lines).
+Hunk #1 succeeded at 879 (offset -41 lines).
 patching file dlls/ntdll/unix/server.c
 Hunk #1 succeeded at 838 (offset 49 lines).
 Hunk #2 succeeded at 929 (offset 49 lines).
@@ -965,12 +954,12 @@ patching file dlls/ntdll/unix/unix_private.h
 Hunk #1 succeeded at 115 (offset 3 lines).
 Hunk #2 succeeded at 402 (offset 11 lines).
 patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 4054 (offset 217 lines).
+Hunk #1 succeeded at 4036 (offset 199 lines).
 patching file server/inproc_sync.c
 patching file dlls/ntdll/unix/sync.c
 patching file dlls/ntdll/unix/server.c
-Hunk #1 succeeded at 1884 (offset 76 lines).
-Hunk #2 succeeded at 1960 (offset 76 lines).
+Hunk #1 succeeded at 1883 (offset 75 lines).
+Hunk #2 succeeded at 1959 (offset 75 lines).
 patching file dlls/ntdll/unix/sync.c
 patching file dlls/ntdll/unix/unix_private.h
 Hunk #1 succeeded at 394 (offset 11 lines).
@@ -1014,8 +1003,8 @@ Hunk #3 succeeded at 570 (offset -3 lines).
 patching file programs/belauncher/Makefile.in
 patching file programs/belauncher/main.c
 patching file dlls/ntdll/unix/loader.c
-Hunk #1 succeeded at 357 (offset 17 lines).
-Hunk #2 succeeded at 377 (offset 17 lines).
+Hunk #1 succeeded at 383 (offset 43 lines).
+Hunk #2 succeeded at 403 (offset 43 lines).
 patching file programs/belauncher/Makefile.in
 patching file programs/belauncher/main.c
 patching file programs/belauncher/main.c
@@ -1029,9 +1018,9 @@ Hunk #4 succeeded at 1129 (offset 2 lines).
 
 proton-eac_bridge.patch -- ( Add support for Proton's EAC bridge )
 patching file dlls/ntdll/unix/loader.c
-Hunk #1 succeeded at 357 (offset 17 lines).
-Hunk #2 succeeded at 365 (offset 17 lines).
-Hunk #3 succeeded at 398 (offset 17 lines).
+Hunk #1 succeeded at 383 (offset 43 lines).
+Hunk #2 succeeded at 391 (offset 43 lines).
+Hunk #3 succeeded at 424 (offset 43 lines).
 patching file dlls/ntdll/unix/loadorder.c
 patching file dlls/kernelbase/process.c
 Hunk #1 succeeded at 503 (offset -3 lines).
@@ -1047,9 +1036,9 @@ patching file configure.ac
 Hunk #1 succeeded at 2073 (offset 40 lines).
 Hunk #2 succeeded at 2092 (offset 40 lines).
 patching file dlls/ntdll/unix/loader.c
-Hunk #1 succeeded at 494 (offset 18 lines).
-Hunk #2 succeeded at 506 (offset 18 lines).
-Hunk #3 succeeded at 540 (offset 18 lines).
+Hunk #1 succeeded at 520 (offset 44 lines).
+Hunk #2 succeeded at 532 (offset 44 lines).
+Hunk #3 succeeded at 566 (offset 44 lines).
 patching file loader/Makefile.in
 
 Applying hotfix wine-tkg-patches/hotfixes/GetMappedFileName/Return_nt_filename_and_resolve_DOS_drive_path.mypatch
@@ -1078,6 +1067,6 @@ patching file dlls/win32k.sys/Makefile.in
 
 wine-tkg-staging.patch -- ( Please don't report bugs about this wine build on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead. )
 patching file dlls/ntdll/loader.c
-Hunk #1 succeeded at 4593 with fuzz 1 (offset 1110 lines).
+Hunk #1 succeeded at 4584 with fuzz 1 (offset 1101 lines).
 
 Running make_vulkan

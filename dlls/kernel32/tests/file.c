@@ -5610,6 +5610,48 @@ static void test_SetFileRenameInfo(void)
     ok(!ret && GetLastError() == ERROR_ACCESS_DENIED, "FileRenameInfo unexpected result %ld\n", GetLastError());
     CloseHandle(file);
 
+    DeleteFileW(tempFileFrom);
+    DeleteFileW(tempFileTo1);
+    DeleteFileW(tempFileTo2);
+
+    /* repeat test again with FileRenameInfoEx */
+
+    ret = GetTempFileNameW(tempPath, L"abc", 0, tempFileTo1);
+    ok(ret, "GetTempFileNameW failed, got error %lu.\n", GetLastError());
+
+    ret = GetTempFileNameW(tempPath, L"abc", 1, tempFileTo2);
+    ok(ret, "GetTempFileNameW failed, got error %lu.\n", GetLastError());
+
+    file = CreateFileW(tempFileFrom, GENERIC_READ | GENERIC_WRITE | DELETE, 0, 0, CREATE_ALWAYS, 0, 0);
+    ok(file != INVALID_HANDLE_VALUE, "failed to create temp file, error %lu.\n", GetLastError());
+
+    fri->Flags = 0;
+    fri->RootDirectory = NULL;
+    fri->FileNameLength = wcslen(tempFileTo1) * sizeof(WCHAR);
+    memcpy(fri->FileName, tempFileTo1, fri->FileNameLength + sizeof(WCHAR));
+    ret = pSetFileInformationByHandle(file, FileRenameInfoEx, fri, size);
+    ok(!ret && (GetLastError() == ERROR_ALREADY_EXISTS || GetLastError() == ERROR_INVALID_PARAMETER),
+        "FileRenameInfoEx unexpected result %ld\n", GetLastError());
+    if (GetLastError() != ERROR_INVALID_PARAMETER)
+    {
+        fri->Flags = FILE_RENAME_REPLACE_IF_EXISTS;
+        ret = pSetFileInformationByHandle(file, FileRenameInfoEx, fri, size);
+        ok(ret, "FileRenameInfoEx failed, error %ld\n", GetLastError());
+
+        fri->Flags = 0;
+        fri->FileNameLength = wcslen(tempFileTo2) * sizeof(WCHAR);
+        memcpy(fri->FileName, tempFileTo2, fri->FileNameLength + sizeof(WCHAR));
+        ret = pSetFileInformationByHandle(file, FileRenameInfoEx, fri, size);
+        ok(ret, "FileRenameInfoEx failed, error %ld\n", GetLastError());
+
+        CloseHandle(file);
+
+        file = CreateFileW(tempFileTo2, GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING, 0, 0);
+        ok(file != INVALID_HANDLE_VALUE, "file not renamed, error %ld\n", GetLastError());
+    }
+    else win_skip( "FileRenameInfoEx not supported\n" );
+
+    CloseHandle(file);
     HeapFree(GetProcessHeap(), 0, fri);
     DeleteFileW(tempFileFrom);
     DeleteFileW(tempFileTo1);
@@ -6371,7 +6413,7 @@ static void test_symbolic_link(void)
         return;
 
     ret = GetFileAttributesW( path );
-    ok( ret == (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT), "got attrs %#x\n", ret );
+    ok( (ret & 0xfff) == (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT), "got attrs %#x\n", ret );
 
     file = CreateFileW( path, FILE_READ_DATA, 0, NULL, OPEN_EXISTING,
                         FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL );
@@ -6413,7 +6455,7 @@ static void test_symbolic_link(void)
     ok( !GetLastError(), "got error %lu\n", GetLastError() );
 
     ret = GetFileAttributesW( path );
-    ok( ret == (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT), "got attrs %#x\n", ret );
+    ok( (ret & 0xfff) == (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT), "got attrs %#x\n", ret );
 
     file = CreateFileW( path, FILE_READ_DATA, 0, NULL, OPEN_EXISTING,
                         FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL );
@@ -6455,7 +6497,7 @@ static void test_symbolic_link(void)
     ok( !GetLastError(), "got error %lu\n", GetLastError() );
 
     ret = GetFileAttributesW( path );
-    ok( ret == (FILE_ATTRIBUTE_ARCHIVE | FILE_ATTRIBUTE_REPARSE_POINT), "got attrs %#x\n", ret );
+    ok( (ret & 0xfff) == (FILE_ATTRIBUTE_ARCHIVE | FILE_ATTRIBUTE_REPARSE_POINT), "got attrs %#x\n", ret );
 
     file = CreateFileW( path, FILE_READ_DATA, 0, NULL, OPEN_EXISTING,
                         FILE_FLAG_OPEN_REPARSE_POINT, NULL );
