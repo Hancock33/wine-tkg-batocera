@@ -1473,23 +1473,6 @@ static BOOLEAN get_dir_case_sensitivity_stat( int root_fd, const char *dir )
 #endif
     return TRUE;
 
-#elif defined(__NetBSD__)
-    struct statvfs stfs;
-    int fd;
-
-    if ((fd = openat( root_fd, dir, O_RDONLY )) == -1) return TRUE;
-    if (fstatvfs( fd, &stfs ) == -1)
-    {
-        close( fd );
-        return TRUE;
-    }
-    close( fd );
-    /* Only assume CIOPFS is case insensitive. */
-    if (strcmp( stfs.f_fstypename, "fusefs" ) ||
-        strncmp( stfs.f_mntfromname, "ciopfs", 5 ))
-        return FALSE;
-    return TRUE;
-
 #elif defined(__linux__)
     BOOLEAN sens = TRUE;
     struct statfs stfs;
@@ -4680,6 +4663,51 @@ reparse:
 }
 
 
+/******************************************************************************
+ *           wine_nt_to_unix_file_name
+ *
+ * Convert a file name from NT namespace to Unix namespace.
+ *
+ * If disposition is not FILE_OPEN or FILE_OVERWRITE, the last path
+ * element doesn't have to exist; in that case STATUS_NO_SUCH_FILE is
+ * returned, but the unix name is still filled in properly.
+ */
+NTSTATUS WINAPI wine_nt_to_unix_file_name( const OBJECT_ATTRIBUTES *attr, char *nameA, ULONG *size,
+                                          UINT disposition )
+{
+    char *buffer = NULL;
+    NTSTATUS status;
+    UNICODE_STRING nt_name;
+    OBJECT_ATTRIBUTES new_attr = *attr;
+
+    status = get_nt_and_unix_names( &new_attr, &nt_name, &buffer, disposition );
+    if (!status || status == STATUS_NO_SUCH_FILE)
+    {
+        struct stat st1, st2;
+        char *name = buffer;
+
+        /* remove dosdevices prefix for z: drive if it points to the Unix root */
+        if (!strncmp( buffer, config_dir, strlen(config_dir) ) &&
+            !strncmp( buffer + strlen(config_dir), "/dosdevices/z:/", 15 ))
+        {
+            char *p = buffer + strlen(config_dir) + 14;
+            *p = 0;
+            if (!stat( buffer, &st1 ) && !stat( "/", &st2 ) &&
+                st1.st_dev == st2.st_dev && st1.st_ino == st2.st_ino)
+                name = p;
+            *p = '/';
+        }
+
+        if (*size > strlen(name)) strcpy( nameA, name );
+        else status = STATUS_BUFFER_TOO_SMALL;
+        *size = strlen(name) + 1;
+    }
+    free( buffer );
+    free( nt_name.Buffer );
+    return status;
+}
+
+
 /* read the contents of an NT symlink object */
 static NTSTATUS read_nt_symlink( HANDLE root, UNICODE_STRING *name, WCHAR *target, size_t length )
 {
@@ -4995,6 +5023,31 @@ NTSTATUS ntdll_get_dos_file_name( const char *unix_name, WCHAR **dos, UINT dispo
 }
 
 
+/* remove trailing backslash from NT name; helper for get_nt_and_unix_names */
+static void remove_trailing_backslash( OBJECT_ATTRIBUTES *attr, UNICODE_STRING *nt_name )
+{
+    UNICODE_STRING *obj_name = attr->ObjectName;
+    ULONG len = obj_name->Length / sizeof(WCHAR);
+
+    if (!len || obj_name->Buffer[len - 1] != '\\') return;
+    if (!attr->RootDirectory)
+    {
+        ULONG i, count = 0;
+        for (i = 0; i < len; i++) if (obj_name->Buffer[i] == '\\') count++;
+        if (count <= 3) return;
+    }
+    if (obj_name != nt_name)  /* not already redirected, make a copy */
+    {
+        nt_name->Length = nt_name->MaximumLength = obj_name->Length;
+        if (!(nt_name->Buffer = malloc( nt_name->MaximumLength ))) return;
+        memcpy( nt_name->Buffer, obj_name->Buffer, nt_name->Length );
+        attr->ObjectName = nt_name;
+    }
+
+    nt_name->Length -= sizeof(WCHAR);
+    nt_name->Buffer[len - 1] = 0;
+}
+
 /***********************************************************************
  *           get_nt_and_unix_names
  *
@@ -5044,11 +5097,14 @@ NTSTATUS get_nt_and_unix_names( OBJECT_ATTRIBUTES *attr, UNICODE_STRING *nt_name
 #endif
         status = nt_to_unix_file_name( attr, unix_name_ret, disposition );
     }
-    if (status && status != STATUS_NO_SUCH_FILE)
-        TRACE( "%s -> ret %x\n", debugstr_us(orig), status );
-    else
+
+    if (!status || status == STATUS_NO_SUCH_FILE)
+    {
+        remove_trailing_backslash( attr, nt_name );
         TRACE( "%s -> ret %x nt %s unix %s\n", debugstr_us(orig),
                status, debugstr_us(attr->ObjectName), debugstr_a(*unix_name_ret) );
+    }
+    else TRACE( "%s -> ret %x\n", debugstr_us(orig), status );
     return status;
 }
 
