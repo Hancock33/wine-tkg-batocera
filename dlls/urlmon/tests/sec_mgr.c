@@ -2201,7 +2201,7 @@ static void test_IPersistFile_iface(IPersistFile *persist_file_save, IZoneIdenti
     ok(hres == S_OK,
         "Unexpected Remove result: 0x%08lx, expected result: 0x%08lx\n", hres, S_OK);
 
-    ok(GetTempPathW(sizeof(tmp_dir), tmp_dir),
+    ok(GetTempPathW(ARRAY_SIZE(tmp_dir), tmp_dir),
         "GetTempPathW failed with: 0x%08lx\n", GetLastError());
 
     ok(lstrcatW(tmp_dir, sub_dir) == tmp_dir, "lstrcatW failed\n");
@@ -2352,7 +2352,7 @@ static void test_PersistentZoneIdentifier(void)
 
     test_IZoneIdentifier_iface(zone_id);
 
-    IPersistFile_Release(persist_file);
+    IZoneIdentifier_Release(zone_id);
     IUnknown_Release(unk);
 
 
