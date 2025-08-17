@@ -6969,6 +6969,6 @@ union generic_reply
     struct get_inproc_alert_event_reply get_inproc_alert_event_reply;
 };
 
-#define SERVER_PROTOCOL_VERSION 885
+#define SERVER_PROTOCOL_VERSION 887
 
 #endif /* __WINE_WINE_SERVER_PROTOCOL_H */

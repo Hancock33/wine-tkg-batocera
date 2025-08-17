@@ -93,6 +93,7 @@ struct vulkan_physical_device
 {
     VULKAN_OBJECT_HEADER( VkPhysicalDevice, physical_device );
     struct vulkan_instance *instance;
+    uint32_t api_version;
     bool has_swapchain_maintenance1;
 };
 
@@ -157,7 +158,6 @@ struct vulkan_surface
 {
     VULKAN_OBJECT_HEADER( VkSurfaceKHR, surface );
     struct vulkan_instance *instance;
-    uint32_t api_version;
 };
 
 static inline struct vulkan_surface *vulkan_surface_from_handle( VkSurfaceKHR handle )
