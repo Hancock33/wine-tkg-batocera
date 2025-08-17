@@ -347,19 +347,287 @@ vulkan-1-Prefer-builtin.patch -- ( Prefer build vulkan-1 patch )
 patching file dlls/vulkan-1/Makefile.in
 
 proton10-winevulkan.patch -- ( Using Proton 10 winevulkan patches )
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 697 (offset 9 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 561 (offset 2 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 533 (offset 2 lines).
+Hunk #2 succeeded at 606 (offset 2 lines).
+Hunk #3 succeeded at 650 (offset 9 lines).
+patching file dlls/winevulkan/make_vulkan
+Hunk #1 succeeded at 2496 (offset 3 lines).
+Hunk #2 succeeded at 3162 (offset 3 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 713 (offset 6 lines).
+Hunk #2 succeeded at 931 (offset 6 lines).
+Hunk #3 succeeded at 956 (offset 6 lines).
+Hunk #4 succeeded at 1017 (offset 6 lines).
+Hunk #5 succeeded at 1037 (offset 6 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 489 (offset 2 lines).
+Hunk #2 succeeded at 499 (offset 2 lines).
+Hunk #3 succeeded at 521 (offset 2 lines).
+Hunk #4 succeeded at 1004 (offset 3 lines).
+Hunk #5 succeeded at 1129 (offset 3 lines).
+Hunk #6 succeeded at 1307 (offset 3 lines).
+Hunk #7 succeeded at 1317 (offset 3 lines).
+patching file dlls/winevulkan/vulkan_private.h
+patching file include/wine/vulkan_driver.h
+Hunk #1 succeeded at 119 (offset -2 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 930 (offset 3 lines).
+Hunk #2 succeeded at 951 (offset 3 lines).
+patching file dlls/winevulkan/vulkan_private.h
+patching file dlls/winevulkan/vulkan.c
+Hunk #2 succeeded at 481 (offset 2 lines).
+Hunk #3 succeeded at 523 (offset 2 lines).
+Hunk #4 succeeded at 920 (offset 3 lines).
+Hunk #5 succeeded at 983 (offset 3 lines).
+Hunk #6 succeeded at 1001 (offset 3 lines).
+Hunk #7 succeeded at 1118 (offset 3 lines).
+Hunk #8 succeeded at 1127 (offset 3 lines).
+Hunk #9 succeeded at 1306 (offset 3 lines).
+patching file dlls/winevulkan/vulkan_private.h
+patching file include/wine/vulkan_driver.h
+Hunk #1 succeeded at 107 (offset -2 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 921 (offset 3 lines).
+Hunk #2 succeeded at 946 (offset 3 lines).
+Hunk #3 succeeded at 956 (offset 3 lines).
+Hunk #4 succeeded at 1001 (offset 3 lines).
+patching file include/wine/vulkan_driver.h
+Hunk #1 succeeded at 109 (offset -2 lines).
+patching file dlls/vulkan-1/tests/vulkan.c
+patching file dlls/winevulkan/make_vulkan
+Hunk #3 succeeded at 173 (offset 1 line).
+Hunk #5 succeeded at 294 (offset -1 lines).
+Hunk #6 succeeded at 816 (offset -1 lines).
+Hunk #7 succeeded at 910 (offset -1 lines).
+Hunk #8 succeeded at 990 (offset -1 lines).
+Hunk #9 succeeded at 1586 (offset -1 lines).
+Hunk #10 succeeded at 2461 (offset 1 line).
+Hunk #11 succeeded at 2476 (offset 1 line).
+Hunk #12 succeeded at 3050 (offset 1 line).
+patching file dlls/winevulkan/vulkan.c
+Hunk #3 succeeded at 619 (offset -4 lines).
+Hunk #4 succeeded at 1483 (offset -19 lines).
+Hunk #5 succeeded at 1818 (offset -19 lines).
+Hunk #6 succeeded at 1848 (offset -19 lines).
+Hunk #7 succeeded at 1931 (offset -19 lines).
+Hunk #8 succeeded at 1940 (offset -19 lines).
+Hunk #9 succeeded at 1980 (offset -19 lines).
+Hunk #10 succeeded at 2057 (offset -19 lines).
+Hunk #11 succeeded at 2204 (offset -19 lines).
+Hunk #12 succeeded at 2427 (offset -19 lines).
+Hunk #13 succeeded at 2459 (offset -19 lines).
+patching file dlls/winevulkan/vulkan_private.h
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 1550 (offset -19 lines).
+Hunk #2 succeeded at 1571 (offset -19 lines).
+patching file dlls/winevulkan/make_vulkan
+Hunk #1 succeeded at 297 (offset -1 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 1554 (offset -19 lines).
+Hunk #2 succeeded at 2251 (offset -19 lines).
 patching file configure.ac
+Hunk #1 succeeded at 3143 with fuzz 1 (offset 16 lines).
 patching file dlls/sharedgpures.sys/Makefile.in
 patching file dlls/sharedgpures.sys/shared_resource.c
 patching file dlls/sharedgpures.sys/sharedgpures.sys.spec
-patching file dlls/vulkan-1/tests/vulkan.c
-patching file dlls/win32u/vulkan.c
-patching file dlls/winevulkan/make_vulkan
-patching file dlls/winevulkan/vk_custom.xml
 patching file dlls/winevulkan/vulkan.c
+Hunk #2 succeeded at 1509 (offset -19 lines).
+Hunk #3 succeeded at 1520 (offset -19 lines).
+Hunk #4 succeeded at 1533 (offset -19 lines).
+Hunk #5 succeeded at 1570 (offset -19 lines).
+Hunk #6 succeeded at 1589 (offset -19 lines).
+Hunk #7 succeeded at 1846 (offset -19 lines).
+Hunk #8 succeeded at 2035 (offset -19 lines).
+Hunk #9 succeeded at 2056 (offset -19 lines).
+Hunk #10 succeeded at 2074 (offset -19 lines).
+Hunk #11 succeeded at 2382 (offset -19 lines).
+Hunk #12 succeeded at 2408 (offset -19 lines).
+Hunk #13 succeeded at 2647 (offset -19 lines).
+Hunk #14 succeeded at 2662 (offset -19 lines).
 patching file dlls/winevulkan/vulkan_private.h
 patching file include/ddk/wdm.h
-patching file include/wine/vulkan_driver.h
+Hunk #1 succeeded at 1889 (offset 18 lines).
 patching file loader/wine.inf.in
+Hunk #1 succeeded at 207 (offset -11 lines).
+Hunk #2 succeeded at 228 (offset -11 lines).
+Hunk #3 succeeded at 249 (offset -11 lines).
+Hunk #4 succeeded at 270 (offset -11 lines).
+Hunk #5 succeeded at 2700 (offset 215 lines).
+patching file dlls/sharedgpures.sys/shared_resource.c
+patching file dlls/sharedgpures.sys/shared_resource.c
+patching file dlls/sharedgpures.sys/shared_resource.c
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 1511 (offset -19 lines).
+Hunk #2 succeeded at 2055 (offset -19 lines).
+Hunk #3 succeeded at 2664 (offset -19 lines).
+patching file dlls/winevulkan/make_vulkan
+Hunk #1 succeeded at 97 (offset -1 lines).
+Hunk #3 succeeded at 173 (offset 1 line).
+Hunk #4 succeeded at 187 (offset 1 line).
+Hunk #6 succeeded at 306 (offset -1 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #2 succeeded at 636 (offset -4 lines).
+Hunk #3 succeeded at 1844 (offset -19 lines).
+Hunk #4 succeeded at 2672 (offset -19 lines).
+Hunk #5 succeeded at 2709 (offset -19 lines).
+Hunk #6 succeeded at 2758 (offset -19 lines).
+patching file dlls/winevulkan/make_vulkan
+Hunk #1 succeeded at 1233 (offset -1 lines).
+patching file dlls/win32u/vulkan.c
+Hunk #1 succeeded at 353 (offset -675 lines).
+Hunk #2 succeeded at 362 (offset -675 lines).
+Hunk #3 succeeded at 378 with fuzz 2 (offset -682 lines).
+Hunk #4 succeeded at 407 (offset -858 lines).
+Hunk #5 succeeded at 414 (offset -862 lines).
+Hunk #6 succeeded at 477 (offset -956 lines).
+patching file dlls/winevulkan/make_vulkan
+Hunk #1 succeeded at 178 (offset 1 line).
+Hunk #2 succeeded at 197 (offset 1 line).
+Hunk #4 succeeded at 330 (offset -1 lines).
+Hunk #5 succeeded at 1248 (offset -1 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #4 succeeded at 667 (offset -4 lines).
+Hunk #5 succeeded at 1892 (offset -19 lines).
+Hunk #6 succeeded at 1935 (offset -19 lines).
+Hunk #7 succeeded at 2114 (offset -19 lines).
+Hunk #8 succeeded at 2142 (offset -19 lines).
+Hunk #9 succeeded at 2811 (offset -19 lines).
+Hunk #10 succeeded at 3124 (offset -19 lines).
+Hunk #11 succeeded at 3175 (offset -19 lines).
+patching file dlls/winevulkan/vulkan_private.h
+patching file include/wine/vulkan_driver.h
+Hunk #1 succeeded at 154 (offset -2 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #3 succeeded at 671 (offset -4 lines).
+Hunk #4 succeeded at 1176 (offset -19 lines).
+Hunk #5 succeeded at 1908 (offset -19 lines).
+patching file include/wine/vulkan_driver.h
+Hunk #1 succeeded at 79 (offset -3 lines).
+Hunk #2 succeeded at 92 (offset -3 lines).
+patching file dlls/winevulkan/make_vulkan
+Hunk #1 succeeded at 183 (offset 1 line).
+Hunk #2 succeeded at 334 (offset -1 lines).
+Hunk #3 succeeded at 1474 (offset -1 lines).
+Hunk #4 succeeded at 1599 (offset -1 lines).
+Hunk #5 succeeded at 1657 (offset -1 lines).
+Hunk #6 succeeded at 2388 (offset 1 line).
+Hunk #7 succeeded at 2434 (offset 1 line).
+Hunk #8 succeeded at 2444 (offset 1 line).
+Hunk #9 succeeded at 2465 (offset 1 line).
+Hunk #10 succeeded at 2507 (offset 1 line).
+Hunk #11 succeeded at 2566 (offset 1 line).
+Hunk #12 succeeded at 2601 (offset 1 line).
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 3385 (offset -19 lines).
+patching file dlls/winevulkan/vulkan_private.h
+patching file dlls/winevulkan/vulkan.c
+Hunk #5 succeeded at 1080 (offset 3 lines).
+Hunk #6 succeeded at 1100 (offset -19 lines).
+Hunk #7 succeeded at 1244 (offset -19 lines).
+Hunk #8 succeeded at 1254 (offset -19 lines).
+Hunk #9 succeeded at 2949 (offset -19 lines).
+Hunk #10 succeeded at 3333 (offset -19 lines).
+Hunk #11 succeeded at 3473 (offset -19 lines).
+Hunk #12 succeeded at 3510 (offset -19 lines).
+Hunk #13 succeeded at 3544 (offset -19 lines).
+Hunk #14 succeeded at 3649 (offset -19 lines).
+Hunk #15 succeeded at 3667 (offset -19 lines).
+Hunk #16 succeeded at 3680 (offset -19 lines).
+Hunk #17 succeeded at 3696 (offset -19 lines).
+Hunk #18 succeeded at 3899 (offset -19 lines).
+Hunk #19 succeeded at 3911 (offset -19 lines).
+Hunk #20 succeeded at 3928 (offset -19 lines).
+Hunk #21 succeeded at 3946 (offset -19 lines).
+Hunk #22 succeeded at 3955 (offset -19 lines).
+Hunk #23 succeeded at 4007 (offset -19 lines).
+patching file dlls/winevulkan/vulkan_private.h
+patching file include/wine/vulkan_driver.h
+Hunk #1 succeeded at 45 with fuzz 1 (offset -3 lines).
+Hunk #2 succeeded at 103 (offset -2 lines).
+Hunk #3 succeeded at 119 (offset -2 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #2 succeeded at 3021 (offset -19 lines).
+Hunk #3 succeeded at 3044 (offset -19 lines).
+Hunk #4 succeeded at 3280 (offset -19 lines).
+patching file dlls/winevulkan/vulkan_private.h
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 2797 (offset -19 lines).
+Hunk #2 succeeded at 2827 (offset -19 lines).
+Hunk #3 succeeded at 2841 (offset -19 lines).
+Hunk #4 succeeded at 2860 (offset -19 lines).
+patching file dlls/winevulkan/make_vulkan
+Hunk #1 succeeded at 100 with fuzz 2 (offset -1 lines).
+Hunk #2 succeeded at 333 (offset -1 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #4 succeeded at 482 (offset 2 lines).
+Hunk #5 succeeded at 499 (offset 2 lines).
+Hunk #6 succeeded at 724 (offset -4 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 2920 (offset -19 lines).
+patching file dlls/sharedgpures.sys/shared_resource.c
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 2082 (offset -19 lines).
+Hunk #2 succeeded at 2123 (offset -19 lines).
+Hunk #3 succeeded at 2151 (offset -19 lines).
+Hunk #4 succeeded at 2203 (offset -19 lines).
+Hunk #5 succeeded at 2297 (offset -19 lines).
+Hunk #6 succeeded at 2341 (offset -19 lines).
+Hunk #7 succeeded at 2441 (offset -19 lines).
+Hunk #8 succeeded at 3477 (offset -19 lines).
+Hunk #9 succeeded at 3516 (offset -19 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 687 with fuzz 2 (offset 2 lines).
+Hunk #2 succeeded at 732 (offset -4 lines).
+Hunk #3 succeeded at 1108 with fuzz 1 (offset 3 lines).
+Hunk #4 succeeded at 2252 (offset -19 lines).
+Hunk #5 succeeded at 2548 (offset -19 lines).
+Hunk #6 succeeded at 2637 (offset -19 lines).
+Hunk #7 succeeded at 2679 (offset -19 lines).
+patching file dlls/winevulkan/vulkan_private.h
+patching file include/wine/vulkan_driver.h
+Hunk #1 succeeded at 129 (offset -2 lines).
+patching file dlls/winevulkan/make_vulkan
+Hunk #1 succeeded at 182 (offset 1 line).
+Hunk #2 succeeded at 333 (offset -1 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 2437 (offset -19 lines).
+Hunk #2 succeeded at 4252 (offset -19 lines).
+Hunk #3 succeeded at 4378 (offset -19 lines).
+Hunk #4 succeeded at 4410 (offset -19 lines).
+Hunk #5 succeeded at 4458 (offset -19 lines).
+Hunk #6 succeeded at 4477 (offset -19 lines).
+Hunk #7 succeeded at 4487 (offset -19 lines).
+patching file dlls/winevulkan/make_vulkan
+Hunk #1 succeeded at 211 (offset 1 line).
+Hunk #3 succeeded at 3359 (offset -4 lines).
+patching file dlls/winevulkan/vk_custom.xml
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 3169 (offset -19 lines).
+Hunk #2 succeeded at 4607 (offset -19 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 965 (offset 3 lines).
+Hunk #2 succeeded at 4618 (offset -19 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #5 succeeded at 1279 (offset -19 lines).
+Hunk #6 succeeded at 1352 (offset -19 lines).
+Hunk #7 succeeded at 2579 (offset -19 lines).
+Hunk #8 succeeded at 2757 (offset -19 lines).
+patching file dlls/winevulkan/vulkan_private.h
+patching file dlls/winevulkan/vulkan.c
+Hunk #2 succeeded at 3720 (offset -19 lines).
+patching file dlls/winevulkan/vulkan_private.h
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 1074 (offset 3 lines).
+Hunk #2 succeeded at 1115 (offset 3 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 1074 (offset 3 lines).
+Hunk #2 succeeded at 1092 (offset 3 lines).
+patching file dlls/winevulkan/vulkan.c
 
 proton-win10-default.patch -- ( Enforce win10 as default wine version )
 patching file programs/wineboot/wineboot.c

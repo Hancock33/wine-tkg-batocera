@@ -718,10 +718,10 @@ static VkResult wine_vk_device_convert_create_info(VkPhysicalDevice client_physi
 {
     static const char *wine_xr_extension_name = "VK_WINE_openxr_device_extensions";
     struct wine_phys_dev *phys_dev = wine_phys_dev_from_handle(client_physical_device);
-    const char *extra_extensions[64], * const*extensions = src->ppEnabledExtensionNames;
+    const char *extra_extensions[65], * const*extensions = src->ppEnabledExtensionNames;
     unsigned int i, extra_count = 0, extensions_count = src->enabledExtensionCount;
     unsigned int j, remove_count = 0;
-    const char *remove_extensions[64];
+    const char *remove_extensions[65];
     VkBaseOutStructure *header;
 
     *dst = *src;
