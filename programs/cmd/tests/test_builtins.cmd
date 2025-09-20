@@ -72,6 +72,7 @@ echo@tab@word@tab@@space@
 echo @tab@word
 echo  @tab@word
 echo@tab@@tab@word
+echo(3
 
 echo ------------ Testing mixed echo modes ------------
 echo @echo on> mixedEchoModes.cmd
@@ -128,6 +129,13 @@ type foo.txt | cmd.exe > NUL
 @echo echo^>foo.tmp>>foo.txt
 type foo.txt | cmd.exe > NUL
 @call :showEchoMode foo.tmp
+
+rem labels are not echoed (while all the other commands are)
+echo echo on > callme.cmd
+echo rem itsme >> callme.cmd
+echo :itsmeagain >> callme.cmd
+echo @echo off >> callme.cmd
+call callme.cmd
 
 rem cleanup
 del foo.txt
@@ -664,6 +672,7 @@ call :setError 666 & (erase &&echo SUCCESS !errorlevel!||echo FAILURE !errorleve
 call :setError 666 & (erase fileE &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!)
 call :setError 666 & (erase i\dont\exist\at\all.txt &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!)
 call :setError 666 & (erase file* i\dont\exist\at\all.txt &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!)
+call :setError 666 & (erase *.idontexistatall &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!)
 cd .. && rd /q /s foo
 
 echo --- success/failure for change drive command
@@ -1581,6 +1590,11 @@ echo )>> blockclosing.cmd
 echo echo outside of block without closing bracket>> blockclosing.cmd
 cmd.exe /Q /C blockclosing.cmd
 echo %ERRORLEVEL% nested
+::
+call :setError 666
+echo ^)> blockclosing.cmd
+cmd.exe /Q /C blockclosing.cmd
+echo %ERRORLEVEL% unmatched
 ::
 del blockclosing.cmd
 echo --- case sensitivity with and without /i option
@@ -2627,9 +2641,12 @@ FOR /F "delims=. tokens=1*" %%A IN (testfile) DO @echo 5:%%A,%%B
 FOR /F "delims=. tokens=2*" %%A IN (testfile) DO @echo 6:%%A,%%B
 FOR /F "delims=. tokens=3*" %%A IN (testfile) DO @echo 7:%%A,%%B
 del testfile
-rem file contains NUL, created by the .exe
-for /f %%A in (nul_test_file) DO echo %%A
-for /f "tokens=*" %%A in (nul_test_file) DO echo %%A
+rem generate "a b c\nd e\0f\ng h i"
+echo 61206220630a64206500660a6720682069> a.seq
+call certutil.exe -decodehex a.seq testfile > NUL
+for /f %%A in (testfile) DO echo %%A
+for /f "tokens=*" %%A in (testfile) DO echo %%A
+del a.seq testfile
 
 echo ------------ Testing del ------------
 echo abc > file

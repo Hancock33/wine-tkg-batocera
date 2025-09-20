@@ -20,7 +20,9 @@
 #include "initguid.h"
 #include "d3d10_1.h"
 #include "d3dx10.h"
+#include "wine/wined3d.h"
 #include "wine/test.h"
+#include <stdint.h>
 
 #define D3DERR_INVALIDCALL 0x8876086c
 
@@ -38,19 +40,37 @@
 #define DDS_PIXELFORMAT 0x00001000
 #define DDS_MIPMAPCOUNT 0x00020000
 #define DDS_LINEARSIZE 0x00080000
+#define DDS_DEPTH 0x00800000
 
 /* dds_header.caps */
 #define DDSCAPS_ALPHA    0x00000002
+#define DDS_CAPS_COMPLEX 0x00000008
 #define DDS_CAPS_TEXTURE 0x00001000
+
+/* dds_header.caps2 */
+#define DDS_CAPS2_VOLUME  0x00200000
+#define DDS_CAPS2_CUBEMAP 0x00000200
+#define DDS_CAPS2_CUBEMAP_POSITIVEX 0x00000400
+#define DDS_CAPS2_CUBEMAP_NEGATIVEX 0x00000800
+#define DDS_CAPS2_CUBEMAP_POSITIVEY 0x00001000
+#define DDS_CAPS2_CUBEMAP_NEGATIVEY 0x00002000
+#define DDS_CAPS2_CUBEMAP_POSITIVEZ 0x00004000
+#define DDS_CAPS2_CUBEMAP_NEGATIVEZ 0x00008000
+#define DDS_CAPS2_CUBEMAP_ALL_FACES ( DDS_CAPS2_CUBEMAP_POSITIVEX | DDS_CAPS2_CUBEMAP_NEGATIVEX \
+                                    | DDS_CAPS2_CUBEMAP_POSITIVEY | DDS_CAPS2_CUBEMAP_NEGATIVEY \
+                                    | DDS_CAPS2_CUBEMAP_POSITIVEZ | DDS_CAPS2_CUBEMAP_NEGATIVEZ )
 
 /* dds_pixel_format.flags */
 #define DDS_PF_ALPHA 0x00000001
 #define DDS_PF_ALPHA_ONLY 0x00000002
 #define DDS_PF_FOURCC 0x00000004
+#define DDS_PF_INDEXED 0x00000020
 #define DDS_PF_RGB 0x00000040
 #define DDS_PF_LUMINANCE 0x00020000
 #define DDS_PF_BUMPLUMINANCE 0x00040000
 #define DDS_PF_BUMPDUDV 0x00080000
+
+static bool wined3d_opengl;
 
 struct dds_pixel_format
 {
@@ -82,6 +102,16 @@ struct dds_header
     DWORD reserved2;
 };
 
+#define DDS_RESOURCE_MISC_TEXTURECUBE 0x04
+struct dds_header_dxt10
+{
+    uint32_t dxgi_format;
+    uint32_t resource_dimension;
+    uint32_t misc_flag;
+    uint32_t array_size;
+    uint32_t misc_flags2;
+};
+
 static void fill_dds_header(struct dds_header *header)
 {
     memset(header, 0, sizeof(*header));
@@ -100,6 +130,35 @@ static void fill_dds_header(struct dds_header *header)
     header->pixel_format.bmask = 0x0000ff;
     header->pixel_format.amask = 0;
     header->caps = DDS_CAPS_TEXTURE;
+}
+
+static void set_dxt10_dds_header(struct dds_header *header, uint32_t append_flags, uint32_t width, uint32_t height,
+        uint32_t depth, uint32_t mip_levels, uint32_t pitch, uint32_t caps, uint32_t caps2)
+{
+    memset(header, 0, sizeof(*header));
+
+    header->size = sizeof(*header);
+    header->flags = DDS_CAPS | DDS_PIXELFORMAT | append_flags;
+    header->height = height;
+    header->width = width;
+    header->depth = depth;
+    header->miplevels = mip_levels;
+    header->pitch_or_linear_size = pitch;
+    header->pixel_format.size = sizeof(header->pixel_format);
+    header->pixel_format.flags = DDS_PF_FOURCC;
+    header->pixel_format.fourcc = MAKEFOURCC('D','X','1','0');
+    header->caps = caps;
+    header->caps2 = caps2;
+}
+
+static void set_dds_header_dxt10(struct dds_header_dxt10 *dxt10, DXGI_FORMAT format, uint32_t resource_dimension,
+        uint32_t misc_flag, uint32_t array_size, uint32_t misc_flags2)
+{
+    dxt10->dxgi_format = format;
+    dxt10->resource_dimension = resource_dimension;
+    dxt10->misc_flag = misc_flag;
+    dxt10->array_size = array_size;
+    dxt10->misc_flags2 = misc_flags2;
 }
 
 /* 1x1 1bpp bmp image */
@@ -676,6 +735,68 @@ static const BYTE test_dds_volume_data[] =
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xef, 0x87, 0x0f, 0x78, 0x05, 0x05, 0x50, 0x50,
 };
 
+/*
+ * 4x4x4 24-bit volume dds, 3 mipmaps. Level 0 is red, level 1 is green, level 2 is
+ * blue.
+ */
+static const uint8_t dds_volume_24bit_4_4_4[] =
+{
+    0x44,0x44,0x53,0x20,0x7c,0x00,0x00,0x00,0x0f,0x10,0x82,0x00,0x04,0x00,0x00,0x00,
+    0x04,0x00,0x00,0x00,0x10,0x00,0x00,0x00,0x04,0x00,0x00,0x00,0x03,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x20,0x00,0x00,0x00,
+    0x40,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x18,0x00,0x00,0x00,0x00,0x00,0xff,0x00,
+    0x00,0xff,0x00,0x00,0xff,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x08,0x10,0x40,0x00,
+    0x00,0x00,0x20,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,
+    0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,
+    0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,
+    0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,
+    0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,
+    0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,
+    0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,
+    0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,
+    0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,
+    0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,
+    0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,
+    0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,
+    0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,
+    0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0xff,0x00,0x00
+};
+
+/*
+ * 8x8 24-bit dds, 4 mipmaps. Level 0 is red, level 1 is green, level 2 is
+ * blue, and level 3 is black.
+ */
+static const uint8_t dds_24bit_8_8[] =
+{
+    0x44,0x44,0x53,0x20,0x7c,0x00,0x00,0x00,0x07,0x10,0x0a,0x00,0x08,0x00,0x00,0x00,
+    0x08,0x00,0x00,0x00,0x18,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x04,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x20,0x00,0x00,0x00,
+    0x40,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x18,0x00,0x00,0x00,0x00,0x00,0xff,0x00,
+    0x00,0xff,0x00,0x00,0xff,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x08,0x10,0x40,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,
+    0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,
+    0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,
+    0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,
+    0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,
+    0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,
+    0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,
+    0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,
+    0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,
+    0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,
+    0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,
+    0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,
+    0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,
+    0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,
+    0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,
+    0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0xff,0x00,0x00,0x00,0x00,0x00
+};
+
 /* 1x1 wmp image */
 static const BYTE test_wmp[] =
 {
@@ -865,6 +986,169 @@ test_image[] =
         {1, 1, 1, 1, 1, 0,   DXGI_FORMAT_R8G8B8A8_UNORM,     D3D10_RESOURCE_DIMENSION_TEXTURE2D, D3DX10_IFF_WMP}
     },
 };
+
+static const struct test_image_load_info
+{
+    const uint8_t *data;
+    uint32_t size;
+    D3DX10_IMAGE_LOAD_INFO load_info;
+    HRESULT expected_hr;
+
+    D3D10_RESOURCE_DIMENSION expected_type;
+    union
+    {
+        D3D10_TEXTURE2D_DESC desc_2d;
+        D3D10_TEXTURE3D_DESC desc_3d;
+    } expected_resource_desc;
+    D3DX10_IMAGE_INFO expected_info;
+    BOOL todo_resource_desc;
+}
+test_image_load_info[] =
+{
+    /*
+     * FirstMipLevel set to 1 - Does not match D3DX_SKIP_DDS_MIP_LEVELS
+     * behavior from d3dx9, image info values represent mip level 0, and
+     * texture values are pulled from this. The texture data is loaded
+     * starting from the specified mip level, however.
+     */
+    {
+        dds_volume_24bit_4_4_4, sizeof(dds_volume_24bit_4_4_4),
+        { D3DX10_FROM_FILE, D3DX10_DEFAULT, 0,              1,              D3DX10_DEFAULT, (D3D10_USAGE)D3DX10_DEFAULT,
+          D3DX10_DEFAULT,   D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT },
+        S_OK, D3D10_RESOURCE_DIMENSION_TEXTURE3D,
+        { .desc_3d = { 4, 4, 4, 3, DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_USAGE_DEFAULT, D3D10_BIND_SHADER_RESOURCE, 0, 0 } },
+        { 4, 4, 4, 1, 3, 0, DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE3D, D3DX10_IFF_DDS },
+    },
+    /*
+     * Autogen mips misc flag specified. In the case of a cube texture image,
+     * the autogen mips flag is OR'd against D3D10_RESOURCE_MISC_TEXTURECUBE,
+     * even if it isn't specified.
+     */
+    {
+        test_dds_cube,       sizeof(test_dds_cube),
+        { D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, (D3D10_USAGE)D3DX10_DEFAULT,
+          (D3D10_BIND_SHADER_RESOURCE | D3D10_BIND_RENDER_TARGET),        D3DX10_DEFAULT, D3D10_RESOURCE_MISC_GENERATE_MIPS,
+          DXGI_FORMAT_R8G8B8A8_UNORM, D3DX10_DEFAULT, D3DX10_DEFAULT },
+        S_OK, D3D10_RESOURCE_DIMENSION_TEXTURE2D,
+        { .desc_2d = { 4, 4, 3, 6, DXGI_FORMAT_R8G8B8A8_UNORM, { 1, 0 }, D3D10_USAGE_DEFAULT,
+                       (D3D10_BIND_SHADER_RESOURCE | D3D10_BIND_RENDER_TARGET), 0,
+                       (D3D10_RESOURCE_MISC_GENERATE_MIPS | D3D10_RESOURCE_MISC_TEXTURECUBE) } },
+        { 4, 4, 1, 6, 3, DDS_RESOURCE_MISC_TEXTURECUBE, DXGI_FORMAT_BC1_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE2D,
+          D3DX10_IFF_DDS }
+    },
+    /*
+     * Even with the autogen mips misc flag specified, the mip levels argument
+     * of load info is respected.
+     */
+    {
+        test_dds_cube,       sizeof(test_dds_cube),
+        { D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, 2,              (D3D10_USAGE)D3DX10_DEFAULT,
+          (D3D10_BIND_SHADER_RESOURCE | D3D10_BIND_RENDER_TARGET),        D3DX10_DEFAULT, D3D10_RESOURCE_MISC_GENERATE_MIPS,
+          DXGI_FORMAT_R8G8B8A8_UNORM, D3DX10_DEFAULT, D3DX10_DEFAULT },
+        S_OK, D3D10_RESOURCE_DIMENSION_TEXTURE2D,
+        { .desc_2d = { 4, 4, 2, 6, DXGI_FORMAT_R8G8B8A8_UNORM, { 1, 0 }, D3D10_USAGE_DEFAULT,
+                       (D3D10_BIND_SHADER_RESOURCE | D3D10_BIND_RENDER_TARGET), 0,
+                       (D3D10_RESOURCE_MISC_GENERATE_MIPS | D3D10_RESOURCE_MISC_TEXTURECUBE) } },
+        { 4, 4, 1, 6, 3, DDS_RESOURCE_MISC_TEXTURECUBE, DXGI_FORMAT_BC1_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE2D,
+          D3DX10_IFF_DDS }
+    },
+};
+
+static const struct test_invalid_image_load_info
+{
+    const uint8_t *data;
+    uint32_t size;
+    D3DX10_IMAGE_LOAD_INFO load_info;
+    HRESULT expected_hr;
+    HRESULT expected_process_hr;
+    HRESULT expected_create_device_object_hr;
+    BOOL todo_hr;
+    BOOL todo_process_hr;
+    BOOL todo_create_device_object_hr;
+} test_invalid_image_load_info[] =
+{
+    /*
+     * A depth value that isn't D3DX10_FROM_FILE/D3DX10_DEFAULT/0 on a 2D
+     * texture results in failure.
+     */
+    {
+        test_dds_32bpp, sizeof(test_dds_32bpp),
+        {
+            D3DX10_DEFAULT, D3DX10_DEFAULT, 2,              D3DX10_DEFAULT, D3DX10_DEFAULT, (D3D10_USAGE)D3DX10_DEFAULT,
+            D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT
+        },
+        E_FAIL, E_FAIL
+    },
+    /* Invalid filter value. */
+    {
+        test_dds_32bpp, sizeof(test_dds_32bpp),
+        {
+            D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, (D3D10_USAGE)D3DX10_DEFAULT,
+            D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, 7,              D3DX10_DEFAULT
+        },
+        D3DERR_INVALIDCALL, D3DERR_INVALIDCALL
+    },
+    /* Invalid mipfilter value, only checked if mips are generated. */
+    {
+        test_dds_32bpp, sizeof(test_dds_32bpp),
+        {
+            D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, (D3D10_USAGE)D3DX10_DEFAULT,
+            D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, 7
+        },
+        S_OK, S_OK, S_OK
+    },
+    /* Invalid mipfilter value. */
+    {
+        test_dds_32bpp, sizeof(test_dds_32bpp),
+        {
+            2,              2,              D3DX10_DEFAULT, D3DX10_DEFAULT, 2,              (D3D10_USAGE)D3DX10_DEFAULT,
+            D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, 7
+        },
+        D3DERR_INVALIDCALL, D3DERR_INVALIDCALL
+    },
+    /*
+     * Usage/BindFlags/CpuAccessFlags are validated in the call to
+     * CreateDeviceObject().
+     */
+    {
+        test_dds_32bpp, sizeof(test_dds_32bpp),
+        {
+            D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3D10_CPU_ACCESS_READ, D3D10_USAGE_DYNAMIC,
+            D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT
+        },
+        E_INVALIDARG, S_OK, E_INVALIDARG
+    },
+    {
+        test_dds_32bpp, sizeof(test_dds_32bpp),
+        {
+            D3DX10_DEFAULT,           D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3D10_USAGE_DEFAULT,
+            D3D10_BIND_DEPTH_STENCIL, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT
+        },
+        E_INVALIDARG, S_OK, E_INVALIDARG
+    },
+    /*
+     * D3D10_RESOURCE_MISC_GENERATE_MIPS requires binding as a shader resource
+     * and a render target.
+     */
+    {
+        test_dds_32bpp, sizeof(test_dds_32bpp),
+        {
+            D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT,    D3DX10_DEFAULT, D3D10_USAGE_DEFAULT,
+            D3DX10_DEFAULT, D3DX10_DEFAULT, D3D10_RESOURCE_MISC_GENERATE_MIPS, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT
+        },
+        E_INVALIDARG, S_OK, E_INVALIDARG
+    },
+    /* Can't set the cube texture flag if the image isn't a cube texture. */
+    {
+        test_dds_32bpp, sizeof(test_dds_32bpp),
+        {
+            D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT,    D3DX10_DEFAULT, D3D10_USAGE_DEFAULT,
+            D3DX10_DEFAULT, D3DX10_DEFAULT, D3D10_RESOURCE_MISC_TEXTURECUBE,   D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT
+        },
+        E_INVALIDARG, S_OK, E_INVALIDARG
+    },
+};
+
 
 static WCHAR temp_dir[MAX_PATH];
 
@@ -1276,7 +1560,140 @@ static void check_image_info(D3DX10_IMAGE_INFO *image_info, const struct test_im
             image_info->ImageFileFormat, image->expected_info.ImageFileFormat);
 }
 
-static ID3D10Texture2D *get_texture2d_readback(ID3D10Texture2D *texture)
+#define check_image_info_values(info, width, height, depth, array_size, mip_levels, misc_flags, format, resource_dimension, \
+                                image_file_format, wine_todo) \
+    check_image_info_values_(__LINE__, info, width, height, depth, array_size, mip_levels, misc_flags, format, resource_dimension, \
+            image_file_format, wine_todo)
+static inline void check_image_info_values_(uint32_t line, const D3DX10_IMAGE_INFO *info, uint32_t width,
+        uint32_t height, uint32_t depth, uint32_t array_size, uint32_t mip_levels, uint32_t misc_flags,
+        DXGI_FORMAT format, D3D10_RESOURCE_DIMENSION resource_dimension, D3DX10_IMAGE_FILE_FORMAT image_file_format,
+        BOOL wine_todo)
+{
+    const D3DX10_IMAGE_INFO expected_info = { width, height, depth, array_size, mip_levels, misc_flags, format,
+                                              resource_dimension, image_file_format };
+    BOOL matched;
+
+    matched = !memcmp(&expected_info, info, sizeof(*info));
+    todo_wine_if(wine_todo) ok_(__FILE__, line)(matched, "Got unexpected image info values.\n");
+    if (matched)
+        return;
+
+    todo_wine_if(wine_todo && info->Width != width)
+        ok_(__FILE__, line)(info->Width == width, "Expected width %u, got %u.\n", width, info->Width);
+    todo_wine_if(wine_todo && info->Height != height)
+        ok_(__FILE__, line)(info->Height == height, "Expected height %u, got %u.\n", height, info->Height);
+    todo_wine_if(wine_todo && info->Depth != depth)
+        ok_(__FILE__, line)(info->Depth == depth, "Expected depth %u, got %u.\n", depth, info->Depth);
+    todo_wine_if(wine_todo && info->ArraySize != array_size)
+        ok_(__FILE__, line)(info->ArraySize == array_size, "Expected array_size %u, got %u.\n", array_size,
+                info->ArraySize);
+    todo_wine_if(wine_todo && info->MipLevels != mip_levels)
+        ok_(__FILE__, line)(info->MipLevels == mip_levels, "Expected mip_levels %u, got %u.\n", mip_levels,
+                info->MipLevels);
+    todo_wine_if(wine_todo && info->MiscFlags != misc_flags)
+        ok_(__FILE__, line)(info->MiscFlags == misc_flags, "Expected misc_flags %u, got %u.\n", misc_flags,
+                info->MiscFlags);
+    ok_(__FILE__, line)(info->Format == format, "Expected texture format %d, got %d.\n", format, info->Format);
+    todo_wine_if(wine_todo && info->ResourceDimension != resource_dimension)
+        ok_(__FILE__, line)(info->ResourceDimension == resource_dimension, "Expected resource_dimension %d, got %d.\n",
+                resource_dimension, info->ResourceDimension);
+    ok_(__FILE__, line)(info->ImageFileFormat == image_file_format, "Expected image_file_format %d, got %d.\n",
+            image_file_format, info->ImageFileFormat);
+}
+
+#define check_texture2d_desc_values(desc, width, height, mip_levels, array_size, format, sample_count, sample_quality, \
+                                usage, bind_flags, cpu_access_flags, misc_flags, wine_todo) \
+    check_texture2d_desc_values_(__LINE__, desc, width, height, mip_levels, array_size, format, sample_count, sample_quality, \
+                                usage, bind_flags, cpu_access_flags, misc_flags, wine_todo)
+static inline void check_texture2d_desc_values_(uint32_t line, const D3D10_TEXTURE2D_DESC *desc, uint32_t width,
+        uint32_t height, uint32_t mip_levels, uint32_t array_size, DXGI_FORMAT format, uint32_t sample_count,
+        uint32_t sample_quality, D3D10_USAGE usage, uint32_t bind_flags, uint32_t cpu_access_flags, uint32_t misc_flags,
+        BOOL wine_todo)
+{
+    const D3D10_TEXTURE2D_DESC expected_desc = { width, height, mip_levels, array_size, format, { sample_count, sample_quality },
+                                                 usage, bind_flags, cpu_access_flags, misc_flags };
+    BOOL matched;
+
+    matched = !memcmp(&expected_desc, desc, sizeof(*desc));
+    todo_wine_if(wine_todo) ok_(__FILE__, line)(matched, "Got unexpected 2D texture desc values.\n");
+    if (matched)
+        return;
+
+    todo_wine_if(wine_todo && desc->Width != width)
+        ok_(__FILE__, line)(desc->Width == width, "Expected width %u, got %u.\n", width, desc->Width);
+    todo_wine_if(wine_todo && desc->Height != height)
+        ok_(__FILE__, line)(desc->Height == height, "Expected height %u, got %u.\n", height, desc->Height);
+    todo_wine_if(wine_todo && desc->ArraySize != array_size)
+        ok_(__FILE__, line)(desc->ArraySize == array_size, "Expected array_size %u, got %u.\n", array_size,
+                desc->ArraySize);
+    todo_wine_if(wine_todo && desc->MipLevels != mip_levels)
+        ok_(__FILE__, line)(desc->MipLevels == mip_levels, "Expected mip_levels %u, got %u.\n", mip_levels,
+                desc->MipLevels);
+    todo_wine_if(wine_todo && desc->Format != format)
+        ok_(__FILE__, line)(desc->Format == format, "Expected texture format %#x, got %#x.\n", format, desc->Format);
+    todo_wine_if(wine_todo && desc->SampleDesc.Count != sample_count)
+        ok_(__FILE__, line)(desc->SampleDesc.Count == sample_count, "Expected sample_count %u, got %u.\n", sample_count,
+                desc->SampleDesc.Count);
+    todo_wine_if(wine_todo && desc->SampleDesc.Quality != sample_quality)
+        ok_(__FILE__, line)(desc->SampleDesc.Quality == sample_quality, "Expected sample_quality %u, got %u.\n", sample_quality,
+                desc->SampleDesc.Quality);
+    todo_wine_if(wine_todo && desc->Usage != usage)
+        ok_(__FILE__, line)(desc->Usage == usage, "Expected usage %u, got %u.\n", usage,
+                desc->Usage);
+    todo_wine_if(wine_todo && desc->BindFlags != bind_flags)
+        ok_(__FILE__, line)(desc->BindFlags == bind_flags, "Expected bind_flags %#x, got %#x.\n", bind_flags,
+                desc->BindFlags);
+    todo_wine_if(wine_todo && desc->CPUAccessFlags != cpu_access_flags)
+        ok_(__FILE__, line)(desc->CPUAccessFlags == cpu_access_flags, "Expected cpu_access_flags %#x, got %#x.\n",
+                cpu_access_flags, desc->CPUAccessFlags);
+    todo_wine_if(wine_todo && desc->MiscFlags != misc_flags)
+        ok_(__FILE__, line)(desc->MiscFlags == misc_flags, "Expected misc_flags %#x, got %#x.\n", misc_flags,
+                desc->MiscFlags);
+}
+
+#define check_texture3d_desc_values(desc, width, height, depth, mip_levels, format, usage, bind_flags, cpu_access_flags, \
+                                    misc_flags, wine_todo) \
+    check_texture3d_desc_values_(__LINE__, desc, width, height, depth, mip_levels, format, usage, bind_flags, \
+            cpu_access_flags, misc_flags, wine_todo)
+static inline void check_texture3d_desc_values_(uint32_t line, const D3D10_TEXTURE3D_DESC *desc, uint32_t width,
+        uint32_t height, uint32_t depth, uint32_t mip_levels, DXGI_FORMAT format, D3D10_USAGE usage, uint32_t bind_flags,
+        uint32_t cpu_access_flags, uint32_t misc_flags, BOOL wine_todo)
+{
+    const D3D10_TEXTURE3D_DESC expected_desc = { width, height, depth, mip_levels, format, usage, bind_flags,
+                                                 cpu_access_flags, misc_flags };
+    BOOL matched;
+
+    matched = !memcmp(&expected_desc, desc, sizeof(*desc));
+    todo_wine_if(wine_todo) ok_(__FILE__, line)(matched, "Got unexpected 3D texture desc values.\n");
+    if (matched)
+        return;
+
+    todo_wine_if(wine_todo && desc->Width != width)
+        ok_(__FILE__, line)(desc->Width == width, "Expected width %u, got %u.\n", width, desc->Width);
+    todo_wine_if(wine_todo && desc->Height != height)
+        ok_(__FILE__, line)(desc->Height == height, "Expected height %u, got %u.\n", height, desc->Height);
+    todo_wine_if(wine_todo && desc->Depth != depth)
+        ok_(__FILE__, line)(desc->Depth == depth, "Expected depth %u, got %u.\n", depth, desc->Depth);
+    todo_wine_if(wine_todo && desc->MipLevels != mip_levels)
+        ok_(__FILE__, line)(desc->MipLevels == mip_levels, "Expected mip_levels %u, got %u.\n", mip_levels,
+                desc->MipLevels);
+    todo_wine_if(wine_todo && desc->Format != format)
+        ok_(__FILE__, line)(desc->Format == format, "Expected texture format %#x, got %#x.\n", format, desc->Format);
+    todo_wine_if(wine_todo && desc->Usage != usage)
+        ok_(__FILE__, line)(desc->Usage == usage, "Expected usage %u, got %u.\n", usage,
+                desc->Usage);
+    todo_wine_if(wine_todo && desc->BindFlags != bind_flags)
+        ok_(__FILE__, line)(desc->BindFlags == bind_flags, "Expected bind_flags %#x, got %#x.\n", bind_flags,
+                desc->BindFlags);
+    todo_wine_if(wine_todo && desc->CPUAccessFlags != cpu_access_flags)
+        ok_(__FILE__, line)(desc->CPUAccessFlags == cpu_access_flags, "Expected cpu_access_flags %#x, got %#x.\n",
+                cpu_access_flags, desc->CPUAccessFlags);
+    todo_wine_if(wine_todo && desc->MiscFlags != misc_flags)
+        ok_(__FILE__, line)(desc->MiscFlags == misc_flags, "Expected misc_flags %#x, got %#x.\n", misc_flags,
+                desc->MiscFlags);
+}
+
+static ID3D10Texture2D *get_texture2d_readback_iface(ID3D10Texture2D *texture)
 {
     D3D10_TEXTURE2D_DESC desc;
     ID3D10Texture2D *readback;
@@ -1302,7 +1719,7 @@ static ID3D10Texture2D *get_texture2d_readback(ID3D10Texture2D *texture)
     return readback;
 }
 
-static ID3D10Texture3D *get_texture3d_readback(ID3D10Texture3D *texture)
+static ID3D10Texture3D *get_texture3d_readback_iface(ID3D10Texture3D *texture)
 {
     D3D10_TEXTURE3D_DESC desc;
     ID3D10Texture3D *readback;
@@ -1326,6 +1743,59 @@ static ID3D10Texture3D *get_texture3d_readback(ID3D10Texture3D *texture)
 
     ID3D10Device_Release(device);
     return readback;
+}
+
+#define check_test_image_load_info_resource(resource, image_load_info) \
+    check_test_image_load_info_resource_(__LINE__, resource, image_load_info)
+static void check_test_image_load_info_resource_(uint32_t line, ID3D10Resource *resource,
+        const struct test_image_load_info *image_load_info)
+{
+    D3D10_RESOURCE_DIMENSION resource_dimension;
+    HRESULT hr;
+
+    ID3D10Resource_GetType(resource, &resource_dimension);
+    ok(resource_dimension == image_load_info->expected_type, "Got unexpected ResourceDimension %u, expected %u.\n",
+         resource_dimension, image_load_info->expected_type);
+    switch (resource_dimension)
+    {
+        case D3D10_RESOURCE_DIMENSION_TEXTURE2D:
+        {
+            const D3D10_TEXTURE2D_DESC *expected_desc_2d = &image_load_info->expected_resource_desc.desc_2d;
+            D3D10_TEXTURE2D_DESC desc_2d;
+            ID3D10Texture2D *tex_2d;
+
+            hr = ID3D10Resource_QueryInterface(resource, &IID_ID3D10Texture2D, (void **)&tex_2d);
+            ok(hr == S_OK, "Got unexpected hr %#lx.\n",  hr);
+            ID3D10Texture2D_GetDesc(tex_2d, &desc_2d);
+            check_texture2d_desc_values_(line, &desc_2d, expected_desc_2d->Width, expected_desc_2d->Height,
+                    expected_desc_2d->MipLevels, expected_desc_2d->ArraySize, expected_desc_2d->Format,
+                    expected_desc_2d->SampleDesc.Count, expected_desc_2d->SampleDesc.Quality, expected_desc_2d->Usage,
+                    expected_desc_2d->BindFlags, expected_desc_2d->CPUAccessFlags, expected_desc_2d->MiscFlags,
+                    image_load_info->todo_resource_desc);
+            ID3D10Texture2D_Release(tex_2d);
+            break;
+        }
+
+        case D3D10_RESOURCE_DIMENSION_TEXTURE3D:
+        {
+            const D3D10_TEXTURE3D_DESC *expected_desc_3d = &image_load_info->expected_resource_desc.desc_3d;
+            D3D10_TEXTURE3D_DESC desc_3d;
+            ID3D10Texture3D *tex_3d;
+
+            hr = ID3D10Resource_QueryInterface(resource, &IID_ID3D10Texture3D, (void **)&tex_3d);
+            ok(hr == S_OK, "Got unexpected hr %#lx.\n",  hr);
+            ID3D10Texture3D_GetDesc(tex_3d, &desc_3d);
+            check_texture3d_desc_values_(line, &desc_3d, expected_desc_3d->Width, expected_desc_3d->Height,
+                    expected_desc_3d->Depth, expected_desc_3d->MipLevels, expected_desc_3d->Format, expected_desc_3d->Usage,
+                    expected_desc_3d->BindFlags, expected_desc_3d->CPUAccessFlags, expected_desc_3d->MiscFlags,
+                    image_load_info->todo_resource_desc);
+            ID3D10Texture3D_Release(tex_3d);
+            break;
+        }
+
+        default:
+            break;
+    }
 }
 
 static void check_resource_info(ID3D10Resource *resource, const struct test_image *image, unsigned int line)
@@ -1354,10 +1824,9 @@ static void check_resource_info(ID3D10Resource *resource, const struct test_imag
     }
 
     ID3D10Resource_GetType(resource, &resource_dimension);
-    todo_wine_if (image->expected_info.ResourceDimension == D3D10_RESOURCE_DIMENSION_TEXTURE3D)
-        ok(resource_dimension == image->expected_info.ResourceDimension,
-                "Got unexpected ResourceDimension %u, expected %u.\n",
-                 resource_dimension, image->expected_info.ResourceDimension);
+    ok(resource_dimension == image->expected_info.ResourceDimension,
+            "Got unexpected ResourceDimension %u, expected %u.\n",
+             resource_dimension, image->expected_info.ResourceDimension);
 
     switch (resource_dimension)
     {
@@ -1371,7 +1840,6 @@ static void check_resource_info(ID3D10Resource *resource, const struct test_imag
             ok_(__FILE__, line)(desc_2d.Height == expected_height,
                     "Got unexpected Height %u, expected %u.\n",
                      desc_2d.Height, expected_height);
-            todo_wine_if(expected_mip_levels != image->expected_info.MipLevels)
             ok_(__FILE__, line)(desc_2d.MipLevels == expected_mip_levels,
                     "Got unexpected MipLevels %u, expected %u.\n",
                      desc_2d.MipLevels, expected_mip_levels);
@@ -1452,7 +1920,7 @@ static void check_texture2d_data(ID3D10Texture2D *texture, const struct test_ima
     BOOL line_match;
     HRESULT hr;
 
-    readback = get_texture2d_readback(texture);
+    readback = get_texture2d_readback_iface(texture);
     ok_(__FILE__, line)(readback != NULL, "Failed to get texture readback.\n");
     if (!readback)
         return;
@@ -1482,7 +1950,7 @@ static void check_texture2d_data(ID3D10Texture2D *texture, const struct test_ima
         {
             line_match = !memcmp(expected_data + stride * i,
                     (BYTE *)map.pData + map.RowPitch * i, stride);
-            todo_wine_if(is_block_compressed(image->expected_info.Format)
+            todo_wine_if(is_block_compressed(image->expected_info.Format) && image->data != test_dds_dxt5
                     && (image->expected_info.Width % 4 != 0 || image->expected_info.Height % 4 != 0))
                 ok_(__FILE__, line)(line_match, "Data mismatch for line %u, array slice %u.\n", i, array_slice);
             if (!line_match)
@@ -1506,7 +1974,7 @@ static void check_texture3d_data(ID3D10Texture3D *texture, const struct test_ima
     BOOL line_match;
     HRESULT hr;
 
-    readback = get_texture3d_readback(texture);
+    readback = get_texture3d_readback_iface(texture);
     ok_(__FILE__, line)(readback != NULL, "Failed to get texture readback.\n");
     if (!readback)
         return;
@@ -1550,7 +2018,10 @@ static void check_resource_data(ID3D10Resource *resource, const struct test_imag
 
     if (SUCCEEDED(ID3D10Resource_QueryInterface(resource, &IID_ID3D10Texture3D, (void **)&texture3d)))
     {
-        check_texture3d_data(texture3d, image, line);
+        if (wined3d_opengl && is_block_compressed(image->expected_info.Format))
+            skip("Skipping compressed format 3D texture readback test.\n");
+        else
+            check_texture3d_data(texture3d, image, line);
         ID3D10Texture3D_Release(texture3d);
     }
     else if (SUCCEEDED(ID3D10Resource_QueryInterface(resource, &IID_ID3D10Texture2D, (void **)&texture2d)))
@@ -1562,6 +2033,172 @@ static void check_resource_data(ID3D10Resource *resource, const struct test_imag
     {
         ok(0, "Failed to get 2D or 3D texture interface.\n");
     }
+}
+
+/*
+ * Taken from the d3d10core tests. If there's a missing resource type or
+ * texture format checking function, check to see if it exists there first.
+ */
+struct resource_readback
+{
+    D3D10_RESOURCE_DIMENSION dimension;
+    ID3D10Resource *resource;
+    D3D10_MAPPED_TEXTURE3D map_desc;
+    uint32_t width, height, depth, sub_resource_idx;
+};
+
+static void get_texture_readback(ID3D10Texture2D *texture, uint32_t sub_resource_idx,
+        struct resource_readback *rb)
+{
+    D3D10_TEXTURE2D_DESC texture_desc;
+    D3D10_MAPPED_TEXTURE2D map_desc;
+    uint32_t miplevel;
+    ID3D10Device *device;
+    HRESULT hr;
+
+    memset(rb, 0, sizeof(*rb));
+    rb->dimension = D3D10_RESOURCE_DIMENSION_TEXTURE2D;
+
+    ID3D10Texture2D_GetDevice(texture, &device);
+
+    ID3D10Texture2D_GetDesc(texture, &texture_desc);
+    texture_desc.Usage = D3D10_USAGE_STAGING;
+    texture_desc.BindFlags = 0;
+    texture_desc.CPUAccessFlags = D3D10_CPU_ACCESS_READ;
+    texture_desc.MiscFlags = 0;
+    if (FAILED(hr = ID3D10Device_CreateTexture2D(device, &texture_desc, NULL, (ID3D10Texture2D **)&rb->resource)))
+    {
+        trace("Failed to create texture, hr %#lx.\n", hr);
+        ID3D10Device_Release(device);
+        return;
+    }
+
+    miplevel = sub_resource_idx % texture_desc.MipLevels;
+    rb->width = max(1, texture_desc.Width >> miplevel);
+    rb->height = max(1, texture_desc.Height >> miplevel);
+    rb->depth = 1;
+    rb->sub_resource_idx = sub_resource_idx;
+
+    ID3D10Device_CopyResource(device, rb->resource, (ID3D10Resource *)texture);
+    if (FAILED(hr = ID3D10Texture2D_Map((ID3D10Texture2D *)rb->resource, sub_resource_idx,
+            D3D10_MAP_READ, 0, &map_desc)))
+    {
+        trace("Failed to map sub-resource %u, hr %#lx.\n", sub_resource_idx, hr);
+        ID3D10Resource_Release(rb->resource);
+        rb->resource = NULL;
+    }
+    rb->map_desc.pData = map_desc.pData;
+    rb->map_desc.RowPitch = map_desc.RowPitch;
+    rb->map_desc.DepthPitch = 0;
+
+    ID3D10Device_Release(device);
+}
+
+static void *get_readback_data(struct resource_readback *rb, uint32_t x, uint32_t y, unsigned byte_width)
+{
+    return (uint8_t *)rb->map_desc.pData + y * rb->map_desc.RowPitch + x * byte_width;
+}
+
+static uint32_t get_readback_u32(struct resource_readback *rb, uint32_t x, uint32_t y)
+{
+    return *(uint32_t *)get_readback_data(rb, x, y, sizeof(uint32_t));
+}
+
+static uint32_t get_readback_color(struct resource_readback *rb, uint32_t x, uint32_t y)
+{
+    return get_readback_u32(rb, x, y);
+}
+
+static void release_resource_readback(struct resource_readback *rb)
+{
+    switch (rb->dimension)
+    {
+        case D3D10_RESOURCE_DIMENSION_BUFFER:
+            ID3D10Buffer_Unmap((ID3D10Buffer *)rb->resource);
+            break;
+        case D3D10_RESOURCE_DIMENSION_TEXTURE1D:
+            ID3D10Texture1D_Unmap((ID3D10Texture1D *)rb->resource, rb->sub_resource_idx);
+            break;
+        case D3D10_RESOURCE_DIMENSION_TEXTURE2D:
+            ID3D10Texture2D_Unmap((ID3D10Texture2D *)rb->resource, rb->sub_resource_idx);
+            break;
+        case D3D10_RESOURCE_DIMENSION_TEXTURE3D:
+            ID3D10Texture3D_Unmap((ID3D10Texture3D *)rb->resource, rb->sub_resource_idx);
+            break;
+        default:
+            trace("Unhandled resource dimension %#x.\n", rb->dimension);
+            break;
+    }
+    ID3D10Resource_Release(rb->resource);
+}
+
+static BOOL compare_color(uint32_t c1, uint32_t c2, uint8_t max_diff)
+{
+    return compare_uint(c1 & 0xff, c2 & 0xff, max_diff)
+            && compare_uint((c1 >> 8) & 0xff, (c2 >> 8) & 0xff, max_diff)
+            && compare_uint((c1 >> 16) & 0xff, (c2 >> 16) & 0xff, max_diff)
+            && compare_uint((c1 >> 24) & 0xff, (c2 >> 24) & 0xff, max_diff);
+}
+
+#define check_readback_data_color(a, b, c, d) check_readback_data_color_(__LINE__, a, b, c, d)
+static void check_readback_data_color_(uint32_t line, struct resource_readback *rb,
+        const RECT *rect, uint32_t expected_color, uint8_t max_diff)
+{
+    unsigned int x = 0, y = 0, color = 0;
+    BOOL all_match = FALSE;
+    RECT default_rect;
+
+    if (!rect)
+    {
+        SetRect(&default_rect, 0, 0, rb->width, rb->height);
+        rect = &default_rect;
+    }
+
+    for (y = rect->top; y < rect->bottom; ++y)
+    {
+        for (x = rect->left; x < rect->right; ++x)
+        {
+            color = get_readback_color(rb, x, y);
+            if (!compare_color(color, expected_color, max_diff))
+                goto done;
+        }
+    }
+    all_match = TRUE;
+
+done:
+    ok_(__FILE__, line)(all_match,
+            "Got 0x%08x, expected 0x%08x at (%u, %u), sub-resource %u.\n",
+            color, expected_color, x, y, rb->sub_resource_idx);
+}
+
+#define check_texture_sub_resource_color(a, b, c, d, e) check_texture_sub_resource_color_(__LINE__, a, b, c, d, e)
+static void check_texture_sub_resource_color_(uint32_t line, ID3D10Texture2D *texture,
+        uint32_t sub_resource_idx, const RECT *rect, uint32_t expected_color, uint8_t max_diff)
+{
+    struct resource_readback rb;
+
+    get_texture_readback(texture, sub_resource_idx, &rb);
+    check_readback_data_color_(line, &rb, rect, expected_color, max_diff);
+    release_resource_readback(&rb);
+}
+
+static void set_d3dx10_image_load_info(D3DX10_IMAGE_LOAD_INFO *info, uint32_t width, uint32_t height, uint32_t depth,
+        uint32_t first_mip_level, uint32_t mip_levels, D3D10_USAGE usage, uint32_t bind_flags, uint32_t cpu_access_flags,
+        uint32_t misc_flags, DXGI_FORMAT format, uint32_t filter, uint32_t mip_filter, D3DX10_IMAGE_INFO *src_info)
+{
+    info->Width = width;
+    info->Height = height;
+    info->Depth = depth;
+    info->FirstMipLevel = first_mip_level;
+    info->MipLevels = mip_levels;
+    info->Usage = usage;
+    info->BindFlags = bind_flags;
+    info->CpuAccessFlags = cpu_access_flags;
+    info->MiscFlags = misc_flags;
+    info->Format = format;
+    info->Filter = filter;
+    info->MipFilter = mip_filter;
+    info->pSrcInfo = src_info;
 }
 
 static void test_D3DX10UnsetAllDeviceObjects(void)
@@ -2326,6 +2963,12 @@ static void test_D3DX10CreateAsyncTextureInfoProcessor(void)
     CoUninitialize();
 }
 
+static const D3DX10_IMAGE_LOAD_INFO d3dx10_default_load_info =
+{
+    D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT,
+    D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, NULL
+};
+
 static void test_D3DX10CreateAsyncTextureProcessor(void)
 {
     ID3DX10DataProcessor *dp;
@@ -2360,6 +3003,9 @@ static void test_D3DX10CreateAsyncTextureProcessor(void)
 
     for (i = 0; i < ARRAY_SIZE(test_image); ++i)
     {
+        D3DX10_IMAGE_LOAD_INFO load_info = d3dx10_default_load_info;
+        D3DX10_IMAGE_INFO info = { 0 };
+
         winetest_push_context("Test %u", i);
 
         hr = D3DX10CreateAsyncTextureProcessor(device, NULL, &dp);
@@ -2375,6 +3021,56 @@ static void test_D3DX10CreateAsyncTextureProcessor(void)
             check_resource_info(resource, test_image + i, __LINE__);
             check_resource_data(resource, test_image + i, __LINE__);
             ID3D10Resource_Release(resource);
+        }
+
+        hr = ID3DX10DataProcessor_Destroy(dp);
+        ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+
+        /* Check that D3DX10_IMAGE_INFO argument is set. */
+        load_info.pSrcInfo = &info;
+        hr = D3DX10CreateAsyncTextureProcessor(device, &load_info, &dp);
+        ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+
+        hr = ID3DX10DataProcessor_Process(dp, (void *)test_image[i].data, test_image[i].size);
+        ok(hr == S_OK || broken(hr == E_FAIL && test_image[i].expected_info.ImageFileFormat == D3DX10_IFF_WMP),
+                "Got unexpected hr %#lx.\n", hr);
+        if (hr == S_OK)
+        {
+            hr = ID3DX10DataProcessor_CreateDeviceObject(dp, (void **)&resource);
+            ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+            check_resource_info(resource, test_image + i, __LINE__);
+            check_resource_data(resource, test_image + i, __LINE__);
+            check_image_info(&info, test_image + i, __LINE__);
+            ID3D10Resource_Release(resource);
+        }
+
+        hr = ID3DX10DataProcessor_Destroy(dp);
+        ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+
+        winetest_pop_context();
+    }
+
+    for (i = 0; i < ARRAY_SIZE(test_invalid_image_load_info); ++i)
+    {
+        const struct test_invalid_image_load_info *test_load_info = &test_invalid_image_load_info[i];
+        D3DX10_IMAGE_LOAD_INFO load_info = test_load_info->load_info;
+
+        winetest_push_context("Test %u", i);
+
+        hr = D3DX10CreateAsyncTextureProcessor(device, &load_info, &dp);
+        ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+
+        hr = ID3DX10DataProcessor_Process(dp, (void *)test_load_info->data, test_load_info->size);
+        todo_wine_if(test_load_info->todo_process_hr)
+            ok(hr == test_load_info->expected_process_hr, "Got unexpected hr %#lx.\n", hr);
+        if (hr == S_OK)
+        {
+            resource = NULL;
+            hr = ID3DX10DataProcessor_CreateDeviceObject(dp, (void **)&resource);
+            todo_wine_if(test_load_info->todo_create_device_object_hr)
+                ok(hr == test_load_info->expected_create_device_object_hr, "Got unexpected hr %#lx.\n", hr);
+            if (SUCCEEDED(hr))
+                ID3D10Resource_Release(resource);
         }
 
         hr = ID3DX10DataProcessor_Destroy(dp);
@@ -2759,10 +3455,8 @@ static void test_D3DX10CreateThreadPump(void)
     ok(!ret, "Got unexpected refcount %lu.\n", ret);
 }
 
-#define check_dds_pixel_format(flags, fourcc, bpp, rmask, gmask, bmask, amask, format) \
-        check_dds_pixel_format_(__LINE__, flags, fourcc, bpp, rmask, gmask, bmask, amask, format)
-static void check_dds_pixel_format_(unsigned int line, DWORD flags, DWORD fourcc, DWORD bpp,
-        DWORD rmask, DWORD gmask, DWORD bmask, DWORD amask, DXGI_FORMAT expected_format)
+static void check_dds_pixel_format_image_info(unsigned int line, DWORD flags, DWORD fourcc, DWORD bpp,
+        DWORD rmask, DWORD gmask, DWORD bmask, DWORD amask, HRESULT expected_hr, DXGI_FORMAT expected_format)
 {
     D3DX10_IMAGE_INFO info;
     HRESULT hr;
@@ -2770,6 +3464,7 @@ static void check_dds_pixel_format_(unsigned int line, DWORD flags, DWORD fourcc
     {
         DWORD magic;
         struct dds_header header;
+        PALETTEENTRY palette[256];
         BYTE data[256];
     } dds;
 
@@ -2785,12 +3480,390 @@ static void check_dds_pixel_format_(unsigned int line, DWORD flags, DWORD fourcc
     memset(dds.data, 0, sizeof(dds.data));
 
     hr = D3DX10GetImageInfoFromMemory(&dds, sizeof(dds), NULL, &info, NULL);
-    ok_(__FILE__, line)(hr == S_OK, "Got unexpected hr %#lx for pixel format %#x.\n", hr, expected_format);
-    if (SUCCEEDED(hr))
+    ok_(__FILE__, line)(hr == expected_hr, "Unexpected hr %#lx.\n", hr);
+    if (SUCCEEDED(hr) && hr == expected_hr)
+        ok_(__FILE__, line)(info.Format == expected_format, "Unexpected format %#x.\n", info.Format);
+
+    /* Test again with unused fields set. */
+    if (flags & DDS_PF_FOURCC)
+        rmask = gmask = bmask = amask = bpp = flags = ~0u;
+    else if ((flags & (DDS_PF_INDEXED | DDS_PF_ALPHA)) == (DDS_PF_INDEXED | DDS_PF_ALPHA))
+        rmask = gmask = bmask = fourcc = ~0u;
+    else if (flags & DDS_PF_INDEXED)
+        rmask = gmask = bmask = amask = fourcc = ~0u;
+    else if ((flags & (DDS_PF_RGB | DDS_PF_ALPHA)) == (DDS_PF_RGB | DDS_PF_ALPHA))
+        fourcc = ~0u;
+    else if (flags & DDS_PF_RGB)
+        fourcc = amask = ~0u;
+    else if ((flags & (DDS_PF_LUMINANCE | DDS_PF_ALPHA)) == (DDS_PF_LUMINANCE | DDS_PF_ALPHA))
+        gmask = bmask = fourcc = ~0u;
+    else if (flags & DDS_PF_LUMINANCE)
+        gmask = bmask = amask = fourcc = ~0u;
+    else if (flags & DDS_PF_ALPHA_ONLY)
+        rmask = gmask = bmask = fourcc = ~0u;
+    else if (flags & DDS_PF_BUMPDUDV)
+        fourcc = ~0u;
+    else if (flags & DDS_PF_BUMPLUMINANCE)
+        fourcc = amask = ~0u;
+
+    dds.header.pixel_format.flags = flags;
+    dds.header.pixel_format.fourcc = fourcc;
+    dds.header.pixel_format.bpp = bpp;
+    dds.header.pixel_format.rmask = rmask;
+    dds.header.pixel_format.gmask = gmask;
+    dds.header.pixel_format.bmask = bmask;
+    dds.header.pixel_format.amask = amask;
+    hr = D3DX10GetImageInfoFromMemory(&dds, sizeof(dds), NULL, &info, NULL);
+    ok_(__FILE__, line)(hr == expected_hr, "Unexpected hr %#lx.\n", hr);
+    if (SUCCEEDED(hr) && hr == expected_hr)
+        ok_(__FILE__, line)(info.Format == expected_format, "Unexpected format %#x.\n", info.Format);
+}
+
+#define check_dds_pixel_format(flags, fourcc, bpp, rmask, gmask, bmask, amask, format) \
+        check_dds_pixel_format_image_info(__LINE__, flags, fourcc, bpp, rmask, gmask, bmask, amask, S_OK, format)
+
+#define check_dds_pixel_format_unsupported(flags, fourcc, bpp, rmask, gmask, bmask, amask, expected_hr) \
+        check_dds_pixel_format_image_info(__LINE__, flags, fourcc, bpp, rmask, gmask, bmask, amask, expected_hr, \
+                DXGI_FORMAT_UNKNOWN)
+
+static void check_dds_dxt10_format_image_info(unsigned int line, DXGI_FORMAT format, DXGI_FORMAT expected_format,
+        HRESULT expected_hr, BOOL todo_format)
+{
+    const unsigned int stride = (4 * get_bpp_from_format(format) + 7) / 8;
+    D3DX10_IMAGE_INFO info;
+    HRESULT hr;
+    struct
     {
-        ok_(__FILE__, line)(info.Format == expected_format, "Unexpected format %#x, expected %#x\n",
-                info.Format, expected_format);
+        DWORD magic;
+        struct dds_header header;
+        struct dds_header_dxt10 dxt10;
+        BYTE data[256];
+    } dds;
+
+    dds.magic = MAKEFOURCC('D','D','S',' ');
+    set_dxt10_dds_header(&dds.header, 0, 4, 4, 1, 1, stride, 0, 0);
+    set_dds_header_dxt10(&dds.dxt10, format, D3D10_RESOURCE_DIMENSION_TEXTURE2D, 0, 1, 0);
+
+    hr = D3DX10GetImageInfoFromMemory(&dds, sizeof(dds), NULL, &info, NULL);
+    ok_(__FILE__, line)(hr == expected_hr, "Unexpected hr %#lx.\n", hr);
+    if (SUCCEEDED(hr) && hr == expected_hr)
+        todo_wine_if(todo_format) ok_(__FILE__, line)(info.Format == expected_format, "Unexpected format %#x.\n",
+                info.Format);
+}
+
+#define check_dds_dxt10_format(format, expected_format, todo_format) \
+    check_dds_dxt10_format_image_info(__LINE__, format, expected_format, S_OK, todo_format)
+
+#define check_dds_dxt10_format_unsupported(format, expected_hr) \
+    check_dds_dxt10_format_image_info(__LINE__, format, DXGI_FORMAT_UNKNOWN, expected_hr, FALSE)
+
+static void test_legacy_dds_header_image_info(void)
+{
+    struct expected
+    {
+        HRESULT hr;
+        uint32_t width;
+        uint32_t height;
+        uint32_t depth;
+        uint32_t array_size;
+        uint32_t mip_levels;
+        uint32_t misc_flags;
+        DXGI_FORMAT format;
+        D3D10_RESOURCE_DIMENSION resource_dimension;
+    };
+    static const struct
+    {
+        uint32_t flags;
+        uint32_t width;
+        uint32_t height;
+        uint32_t depth;
+        uint32_t row_pitch;
+        uint32_t mip_levels;
+        uint32_t caps;
+        uint32_t caps2;
+        uint32_t pixel_data_size;
+        struct expected expected;
+        BOOL todo_hr;
+    } tests[] =
+    {
+        /*
+         * Only DDS header size is validated on d3dx10, unlike d3dx9 where image pixel size
+         * is as well.
+         */
+        {
+            (DDS_CAPS | DDS_WIDTH | DDS_HEIGHT | DDS_PIXELFORMAT), 4, 4, 1, (4 * 4), 3, 0, 0, 0,
+            { S_OK, 4, 4, 1, 1, 3, 0, DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE2D, },
+        },
+        /* Depth value set to 4, but no caps bits are set. Depth is ignored. */
+        {
+            (DDS_CAPS | DDS_WIDTH | DDS_HEIGHT | DDS_PIXELFORMAT), 4, 4, 4, (4 * 4), 3, 0, 0, 292,
+            { S_OK, 4, 4, 1, 1, 3, 0, DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE2D, },
+        },
+        /* The volume texture caps2 field is ignored. */
+        {
+            (DDS_CAPS | DDS_WIDTH | DDS_HEIGHT | DDS_PIXELFORMAT), 4, 4, 4, (4 * 4), 3,
+            (DDS_CAPS_TEXTURE | DDS_CAPS_COMPLEX), DDS_CAPS2_VOLUME, 292,
+            { S_OK, 4, 4, 1, 1, 3, 0, DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE2D, }
+        },
+        /*
+         * The DDS_DEPTH flag is the only thing checked to determine if a DDS
+         * file represents a 3D texture.
+         */
+        {
+            (DDS_CAPS | DDS_WIDTH | DDS_HEIGHT | DDS_PIXELFORMAT | DDS_DEPTH), 4, 4, 4, (4 * 4), 3, 0, 0, 292,
+            { S_OK, 4, 4, 4, 1, 3, 0, DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE3D, }
+        },
+        /* Even if the depth field is set to 0, it's still a 3D texture. */
+        {
+            (DDS_CAPS | DDS_WIDTH | DDS_HEIGHT | DDS_PIXELFORMAT | DDS_DEPTH), 4, 4, 0, (4 * 4), 3, 0, 0, 292,
+            { S_OK, 4, 4, 1, 1, 3, 0, DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE3D, }
+        },
+        /*
+         * 5.
+         * The DDS_DEPTH flag overrides cubemap caps.
+         */
+        {
+            (DDS_CAPS | DDS_WIDTH | DDS_HEIGHT | DDS_PIXELFORMAT | DDS_DEPTH), 4, 4, 4, (4 * 4), 3,
+            (DDS_CAPS_TEXTURE | DDS_CAPS_COMPLEX), (DDS_CAPS2_CUBEMAP | DDS_CAPS2_CUBEMAP_ALL_FACES), 292,
+            { S_OK, 4, 4, 4, 1, 3, 0, DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE3D, }
+        },
+        /* Cubemap where width field does not equal height. */
+        {
+            (DDS_CAPS | DDS_WIDTH | DDS_HEIGHT | DDS_PIXELFORMAT), 4, 5, 1, (4 * 4), 1,
+            (DDS_CAPS_TEXTURE | DDS_CAPS_COMPLEX), (DDS_CAPS2_CUBEMAP | DDS_CAPS2_CUBEMAP_ALL_FACES), (80 * 6),
+            {
+                S_OK, 4, 5, 1, 6, 1, D3D10_RESOURCE_MISC_TEXTURECUBE, DXGI_FORMAT_R8G8B8A8_UNORM,
+                D3D10_RESOURCE_DIMENSION_TEXTURE2D,
+            }
+        },
+        /* Partial cubemaps are not supported. */
+        {
+            (DDS_CAPS | DDS_WIDTH | DDS_HEIGHT | DDS_PIXELFORMAT), 4, 4, 1, (4 * 4), 1,
+            (DDS_CAPS_TEXTURE | DDS_CAPS_COMPLEX), (DDS_CAPS2_CUBEMAP | DDS_CAPS2_CUBEMAP_POSITIVEX), (64 * 6),
+            { E_FAIL, }
+        },
+    };
+    D3DX10_IMAGE_INFO info;
+    unsigned int i;
+    struct
+    {
+        DWORD magic;
+        struct dds_header header;
+    } dds;
+    HRESULT hr;
+
+    for (i = 0; i < ARRAY_SIZE(tests); ++i)
+    {
+        const uint32_t file_size = sizeof(dds) + tests[i].pixel_data_size;
+
+        winetest_push_context("Test %u", i);
+
+        dds.magic = MAKEFOURCC('D','D','S',' ');
+        fill_dds_header(&dds.header);
+        dds.header.flags = tests[i].flags;
+        dds.header.width = tests[i].width;
+        dds.header.height = tests[i].height;
+        dds.header.depth = tests[i].depth;
+        dds.header.pitch_or_linear_size = tests[i].row_pitch;
+        dds.header.miplevels = tests[i].mip_levels;
+        dds.header.caps = tests[i].caps;
+        dds.header.caps2 = tests[i].caps2;
+
+        memset(&info, 0, sizeof(info));
+        hr = D3DX10GetImageInfoFromMemory(&dds, file_size, NULL, &info, NULL);
+        todo_wine_if(tests[i].todo_hr) ok(hr == tests[i].expected.hr, "Got unexpected hr %#lx.\n", hr);
+        if (SUCCEEDED(hr) && SUCCEEDED(tests[i].expected.hr))
+            check_image_info_values(&info, tests[i].expected.width, tests[i].expected.height,
+                    tests[i].expected.depth, tests[i].expected.array_size, tests[i].expected.mip_levels,
+                    tests[i].expected.misc_flags, tests[i].expected.format,
+                    tests[i].expected.resource_dimension, D3DX10_IFF_DDS, FALSE);
+
+        winetest_pop_context();
     }
+
+    /*
+     * Image size (e.g, the size of the pixels) isn't validated, but header
+     * size is.
+     */
+    dds.magic = MAKEFOURCC('D','D','S',' ');
+    fill_dds_header(&dds.header);
+
+    hr = D3DX10GetImageInfoFromMemory(&dds, sizeof(dds) - 1, NULL, &info, NULL);
+    ok(hr == E_FAIL, "Unexpected hr %#lx.\n", hr);
+
+    hr = D3DX10GetImageInfoFromMemory(&dds, sizeof(dds), NULL, &info, NULL);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+}
+
+static void test_dxt10_dds_header_image_info(void)
+{
+    struct expected
+    {
+        HRESULT hr;
+        uint32_t width;
+        uint32_t height;
+        uint32_t depth;
+        uint32_t array_size;
+        uint32_t mip_levels;
+        uint32_t misc_flags;
+        DXGI_FORMAT format;
+        D3D10_RESOURCE_DIMENSION resource_dimension;
+    };
+    static const struct
+    {
+        uint32_t append_flags;
+        uint32_t width;
+        uint32_t height;
+        uint32_t depth;
+        uint32_t row_pitch;
+        uint32_t mip_levels;
+        uint32_t caps;
+        uint32_t caps2;
+        struct dds_header_dxt10 dxt10;
+        uint32_t pixel_data_size;
+        struct expected expected;
+        BOOL todo_hr;
+        BOOL todo_info;
+    } tests[] =
+    {
+        /* File size validation isn't done on d3dx10. */
+        {
+            0, 4, 4, 0, (4 * 4), 1, 0, 0,
+            { DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE2D, 0, 1, 0, }, 0,
+            { S_OK, 4, 4, 1, 1, 1, 0, DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE2D, },
+        },
+        /*
+         * Setting the misc_flags2 field to anything other than 0 results in
+         * E_FAIL on d3dx10_37+.
+         */
+        {
+            0, 4, 4, 0, (4 * 4), 1, 0, 0,
+            { DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE2D, 0, 1, 1, }, (4 * 4 * 4),
+#if D3DX10_SDK_VERSION >= 37
+            { E_FAIL }
+#else
+            { S_OK, 4, 4, 1, 1, 1, 0, DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE2D, }, .todo_hr = TRUE
+#endif
+        },
+        /*
+         * The misc_flags field isn't passed through directly, only the
+         * cube texture flag is (if it's set).
+         */
+        {
+            0, 4, 4, 0, (4 * 4), 1, 0, 0,
+            { DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE2D, 0xfffffffb, 1, 0, }, (4 * 4 * 4),
+            { S_OK, 4, 4, 1, 1, 1, 0, DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE2D, }
+        },
+        /* Resource dimension field of the header isn't validated. */
+        {
+            0, 4, 4, 0, (4 * 4), 1, 0, 0,
+            { DXGI_FORMAT_R8G8B8A8_UNORM, 500, 0, 1, 0, }, (4 * 4 * 4),
+            { S_OK, 4, 4, 1, 1, 1, 0, DXGI_FORMAT_R8G8B8A8_UNORM, 500, }, .todo_hr = TRUE
+        },
+        /* Depth value of 2, but D3D10_RESOURCE_DIMENSION_TEXTURE2D. */
+        {
+            DDS_DEPTH, 4, 4, 2, (4 * 4), 1, 0, 0,
+            { DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE2D, 0, 1, 0, }, (4 * 4 * 4 * 2),
+            { S_OK, 4, 4, 2, 1, 1, 0, DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE2D, }
+        },
+        /*
+         * 5.
+         * Depth field value is ignored if DDS_DEPTH isn't set.
+         */
+        {
+            0, 4, 4, 2, (4 * 4), 1, 0, 0,
+            { DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE3D, 0, 1, 0, }, (4 * 4 * 4 * 2),
+            { S_OK, 4, 4, 1, 1, 1, 0, DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE3D, },
+        },
+        /*
+         * 3D texture with an array size larger than 1. Technically there's no
+         * such thing as a 3D texture array, but it succeeds.
+         */
+        {
+            DDS_DEPTH, 4, 4, 2, (4 * 4), 1, 0, 0,
+            { DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE3D, 0, 2, 0, }, (4 * 4 * 4 * 2 * 2),
+            { S_OK, 4, 4, 2, 2, 1, 0, DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE3D, }
+        },
+        /* Cubemap caps are ignored for DXT10 files. */
+        {
+            0, 4, 4, 1, (4 * 4), 1, 0, DDS_CAPS2_CUBEMAP | DDS_CAPS2_CUBEMAP_ALL_FACES,
+            { DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE2D, 0, 1, 0, }, (4 * 4 * 4 * 6),
+            { S_OK, 4, 4, 1, 1, 1, 0, DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE2D }
+        },
+        /* Array size value is multiplied by 6 for cubemap files. */
+        {
+            0, 4, 4, 1, (4 * 4), 1, 0, 0,
+            { DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE2D, DDS_RESOURCE_MISC_TEXTURECUBE, 2, 0, },
+            (4 * 4 * 4 * 12),
+            {
+                S_OK, 4, 4, 1, 12, 1, D3D10_RESOURCE_MISC_TEXTURECUBE, DXGI_FORMAT_R8G8B8A8_UNORM,
+                D3D10_RESOURCE_DIMENSION_TEXTURE2D
+            }
+        },
+        /* Resource dimension is validated for cube textures. */
+        {
+            0, 4, 4, 1, (4 * 4), 1, 0, 0,
+            { DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE3D, DDS_RESOURCE_MISC_TEXTURECUBE, 2, 0, },
+            (4 * 4 * 4 * 12), { E_FAIL }
+        },
+        /*
+         * 10.
+         * 1D Texture cube, invalid.
+         */
+        {
+            0, 4, 4, 1, (4 * 4), 1, 0, 0,
+            { DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE1D, DDS_RESOURCE_MISC_TEXTURECUBE, 2, 0, },
+            (4 * 4 * 4 * 12), { E_FAIL }
+        },
+    };
+    D3DX10_IMAGE_INFO info;
+    unsigned int i;
+    struct
+    {
+        DWORD magic;
+        struct dds_header header;
+        struct dds_header_dxt10 dxt10;
+    } dds;
+    HRESULT hr;
+
+    for (i = 0; i < ARRAY_SIZE(tests); ++i)
+    {
+        const uint32_t file_size = sizeof(dds) + tests[i].pixel_data_size;
+
+        winetest_push_context("Test %u", i);
+
+        dds.magic = MAKEFOURCC('D','D','S',' ');
+        set_dxt10_dds_header(&dds.header, tests[i].append_flags, tests[i].width, tests[i].height,
+                tests[i].depth, tests[i].mip_levels, tests[i].row_pitch, tests[i].caps,
+                tests[i].caps2);
+        dds.dxt10 = tests[i].dxt10;
+
+        memset(&info, 0, sizeof(info));
+        hr = D3DX10GetImageInfoFromMemory(&dds, file_size, NULL, &info, NULL);
+        todo_wine_if(tests[i].todo_hr) ok(hr == tests[i].expected.hr, "Got unexpected hr %#lx.\n", hr);
+        if (SUCCEEDED(hr) && SUCCEEDED(tests[i].expected.hr))
+            check_image_info_values(&info, tests[i].expected.width, tests[i].expected.height,
+                    tests[i].expected.depth, tests[i].expected.array_size, tests[i].expected.mip_levels,
+                    tests[i].expected.misc_flags, tests[i].expected.format,
+                    tests[i].expected.resource_dimension, D3DX10_IFF_DDS, tests[i].todo_info);
+
+        winetest_pop_context();
+    }
+
+    /*
+     * Image size (e.g, the size of the pixels) isn't validated, but header
+     * size is.
+     */
+    dds.magic = MAKEFOURCC('D','D','S',' ');
+    set_dxt10_dds_header(&dds.header, tests[0].append_flags, tests[0].width, tests[0].height,
+            tests[0].depth, tests[0].mip_levels, tests[0].row_pitch, tests[0].caps, tests[0].caps2);
+    dds.dxt10 = tests[0].dxt10;
+
+    hr = D3DX10GetImageInfoFromMemory(&dds, sizeof(dds) - 1, NULL, &info, NULL);
+    ok(hr == E_FAIL, "Unexpected hr %#lx.\n", hr);
+
+    hr = D3DX10GetImageInfoFromMemory(&dds, sizeof(dds), NULL, &info, NULL);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 }
 
 static void test_get_image_info(void)
@@ -2841,7 +3914,7 @@ static void test_get_image_info(void)
     /* 2 bpp is not a valid bit count. */
     hr2 = 0xdeadbeef;
     hr = D3DX10GetImageInfoFromMemory(test_bmp_2bpp, sizeof(test_bmp_2bpp), NULL, &image_info, &hr2);
-    todo_wine ok(hr == E_FAIL, "Got unexpected hr %#lx.\n", hr);
+    ok(hr == E_FAIL, "Got unexpected hr %#lx.\n", hr);
     ok(hr == hr2, "Got unexpected hr2 %#lx.\n", hr2);
 
     for (i = 0; i < ARRAY_SIZE(test_image); ++i)
@@ -2935,6 +4008,60 @@ static void test_get_image_info(void)
     check_dds_pixel_format(DDS_PF_LUMINANCE, 0, 16, 0xffff, 0, 0, 0, DXGI_FORMAT_R16G16B16A16_UNORM);
     check_dds_pixel_format(DDS_PF_LUMINANCE | DDS_PF_ALPHA, 0, 16, 0x00ff, 0, 0, 0xff00, DXGI_FORMAT_R8G8B8A8_UNORM);
     check_dds_pixel_format(DDS_PF_LUMINANCE | DDS_PF_ALPHA, 0, 8, 0x0f, 0, 0, 0xf0, DXGI_FORMAT_R8G8B8A8_UNORM);
+    check_dds_pixel_format(DDS_PF_INDEXED, 0, 8, 0, 0, 0, 0, DXGI_FORMAT_R8G8B8A8_UNORM);
+    check_dds_pixel_format(DDS_PF_INDEXED | DDS_PF_ALPHA, 0, 16, 0, 0, 0, 0xff00, DXGI_FORMAT_R8G8B8A8_UNORM);
+    check_dds_pixel_format(DDS_PF_FOURCC, 0x24, 0, 0, 0, 0, 0, DXGI_FORMAT_R16G16B16A16_UNORM); /* D3DFMT_A16B16G16R16 */
+    check_dds_pixel_format(DDS_PF_FOURCC, 0x6e, 0, 0, 0, 0, 0, DXGI_FORMAT_R16G16B16A16_SNORM); /* D3DFMT_Q16W16V16U16 */
+    check_dds_pixel_format(DDS_PF_FOURCC, 0x6f, 0, 0, 0, 0, 0, DXGI_FORMAT_R16_FLOAT); /* D3DFMT_R16F */
+    check_dds_pixel_format(DDS_PF_FOURCC, 0x70, 0, 0, 0, 0, 0, DXGI_FORMAT_R16G16_FLOAT); /* D3DFMT_G16R16F */
+    check_dds_pixel_format(DDS_PF_FOURCC, 0x71, 0, 0, 0, 0, 0, DXGI_FORMAT_R16G16B16A16_FLOAT); /* D3DFMT_A16B16G16R16F */
+    check_dds_pixel_format(DDS_PF_FOURCC, 0x72, 0, 0, 0, 0, 0, DXGI_FORMAT_R32_FLOAT); /* D3DFMT_R32F */
+    check_dds_pixel_format(DDS_PF_FOURCC, 0x73, 0, 0, 0, 0, 0, DXGI_FORMAT_R32G32_FLOAT); /* D3DFMT_G32R32F */
+    check_dds_pixel_format(DDS_PF_FOURCC, 0x74, 0, 0, 0, 0, 0, DXGI_FORMAT_R32G32B32A32_FLOAT); /* D3DFMT_A32B32G32R32F */
+
+    /* Test for DDS pixel formats that are valid on d3dx9, but not d3dx10. */
+    check_dds_pixel_format_unsupported(DDS_PF_FOURCC, 0x75, 0, 0, 0, 0, 0, E_FAIL); /* D3DFMT_CxV8U8 */
+    check_dds_pixel_format_unsupported(DDS_PF_FOURCC, MAKEFOURCC('U','Y','V','Y'), 0, 0, 0, 0, 0, E_FAIL);
+    check_dds_pixel_format_unsupported(DDS_PF_FOURCC, MAKEFOURCC('Y','U','Y','2'), 0, 0, 0, 0, 0, E_FAIL);
+    /* Bumpmap formats aren't supported. */
+    check_dds_pixel_format_unsupported(DDS_PF_BUMPDUDV, 0, 16, 0x00ff, 0xff00, 0, 0, E_FAIL);
+    check_dds_pixel_format_unsupported(DDS_PF_BUMPDUDV, 0, 32, 0x0000ffff, 0xffff0000, 0, 0, E_FAIL);
+    check_dds_pixel_format_unsupported(DDS_PF_BUMPDUDV, 0, 32, 0xff, 0xff00, 0x00ff0000, 0xff000000, E_FAIL);
+    check_dds_pixel_format_unsupported(DDS_PF_BUMPLUMINANCE, 0, 32, 0x0000ff, 0x00ff00, 0xff0000, 0, E_FAIL);
+
+    /* Newer fourCC formats. */
+    check_dds_pixel_format(DDS_PF_FOURCC, MAKEFOURCC('B','C','4','U'), 0, 0, 0, 0, 0, DXGI_FORMAT_BC4_UNORM);
+    check_dds_pixel_format(DDS_PF_FOURCC, MAKEFOURCC('B','C','5','U'), 0, 0, 0, 0, 0, DXGI_FORMAT_BC5_UNORM);
+    check_dds_pixel_format(DDS_PF_FOURCC, MAKEFOURCC('B','C','4','S'), 0, 0, 0, 0, 0, DXGI_FORMAT_BC4_SNORM);
+    check_dds_pixel_format(DDS_PF_FOURCC, MAKEFOURCC('B','C','5','S'), 0, 0, 0, 0, 0, DXGI_FORMAT_BC5_SNORM);
+    /* ATI1 is unsupported, but ATI2 is supported. */
+    check_dds_pixel_format_unsupported(DDS_PF_FOURCC, MAKEFOURCC('A','T','I','1'), 0, 0, 0, 0, 0, E_FAIL);
+    check_dds_pixel_format(DDS_PF_FOURCC, MAKEFOURCC('A','T','I','2'), 0, 0, 0, 0, 0, DXGI_FORMAT_BC5_UNORM);
+
+    check_dds_dxt10_format_unsupported(DXGI_FORMAT_B5G6R5_UNORM, E_FAIL);
+    check_dds_dxt10_format_unsupported(DXGI_FORMAT_B5G5R5A1_UNORM, E_FAIL);
+    /* Formats that are newer than d3d10. */
+    check_dds_dxt10_format_unsupported(DXGI_FORMAT_BC6H_UF16, E_FAIL);
+    check_dds_dxt10_format_unsupported(DXGI_FORMAT_BC6H_SF16, E_FAIL);
+    check_dds_dxt10_format_unsupported(DXGI_FORMAT_BC7_UNORM, E_FAIL);
+    check_dds_dxt10_format_unsupported(DXGI_FORMAT_B4G4R4A4_UNORM, E_FAIL);
+
+    /*
+     * These formats should map 1:1 from the DXT10 header, unlike legacy DDS
+     * file equivalents.
+     */
+    check_dds_dxt10_format(DXGI_FORMAT_R8_UNORM, DXGI_FORMAT_R8_UNORM, FALSE);
+    check_dds_dxt10_format(DXGI_FORMAT_R16_UNORM, DXGI_FORMAT_R16_UNORM, FALSE);
+    check_dds_dxt10_format(DXGI_FORMAT_R8G8_UNORM, DXGI_FORMAT_R8G8_UNORM, FALSE);
+
+    /* BGRA formats are only supported on d3dx10_40+. */
+#if D3DX10_SDK_VERSION >= 40
+    check_dds_dxt10_format(DXGI_FORMAT_B8G8R8X8_UNORM, DXGI_FORMAT_B8G8R8X8_UNORM, FALSE);
+    check_dds_dxt10_format(DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_B8G8R8A8_UNORM, FALSE);
+#else
+    todo_wine check_dds_dxt10_format_unsupported(DXGI_FORMAT_B8G8R8X8_UNORM, E_FAIL);
+    todo_wine check_dds_dxt10_format_unsupported(DXGI_FORMAT_B8G8R8A8_UNORM, E_FAIL);
+#endif
 
     /* D3DX10GetImageInfoFromResource tests */
 
@@ -2992,14 +4119,19 @@ static void test_get_image_info(void)
 
 static void test_create_texture(void)
 {
+    static const uint32_t dds_24bit_8_8_mip_level_expected[] = { 0xff0000ff, 0xff00ff00, 0xffff0000, 0xff000000 };
     static const WCHAR test_resource_name[] = L"resource.data";
     static const WCHAR test_filename[] = L"image.data";
+    D3D10_TEXTURE2D_DESC tex_2d_desc;
+    D3DX10_IMAGE_LOAD_INFO load_info;
+    D3DX10_IMAGE_INFO img_info;
     ID3D10Resource *resource;
+    ID3D10Texture2D *tex_2d;
     HMODULE resource_module;
     ID3D10Device *device;
     WCHAR path[MAX_PATH];
+    uint32_t i, mip_level;
     HRESULT hr, hr2;
-    unsigned int i;
 
     device = create_device();
     if (!device)
@@ -3049,6 +4181,8 @@ static void test_create_texture(void)
 
     for (i = 0; i < ARRAY_SIZE(test_image); ++i)
     {
+        D3DX10_IMAGE_INFO info = { 0 };
+
         winetest_push_context("Test %u", i);
 
         hr2 = 0xdeadbeef;
@@ -3063,8 +4197,132 @@ static void test_create_texture(void)
             ID3D10Resource_Release(resource);
         }
 
+        /* Check that D3DX10_IMAGE_INFO argument is set. */
+        load_info = d3dx10_default_load_info;
+        load_info.pSrcInfo = &info;
+        hr2 = 0xdeadbeef;
+        hr = D3DX10CreateTextureFromMemory(device, test_image[i].data, test_image[i].size, &load_info, NULL, &resource, &hr2);
+        ok(hr == hr2, "Got unexpected hr2 %#lx.\n", hr2);
+        ok(hr == S_OK || broken(hr == E_FAIL && test_image[i].expected_info.ImageFileFormat == D3DX10_IFF_WMP),
+                "Got unexpected hr %#lx.\n", hr);
+        if (hr == S_OK)
+        {
+            check_resource_info(resource, test_image + i, __LINE__);
+            check_resource_data(resource, test_image + i, __LINE__);
+            check_image_info(&info, test_image + i, __LINE__);
+            ID3D10Resource_Release(resource);
+        }
+
         winetest_pop_context();
     }
+
+    for (i = 0; i < ARRAY_SIZE(test_invalid_image_load_info); ++i)
+    {
+        const struct test_invalid_image_load_info *test_load_info = &test_invalid_image_load_info[i];
+
+        winetest_push_context("Test %u", i);
+
+        hr2 = 0xdeadbeef;
+        load_info = test_load_info->load_info;
+        hr = D3DX10CreateTextureFromMemory(device, test_load_info->data, test_load_info->size, &load_info, NULL, &resource, &hr2);
+        ok(hr == hr2, "Got unexpected hr2 %#lx.\n", hr2);
+        todo_wine_if(test_load_info->todo_hr) ok(hr == test_load_info->expected_hr, "Got unexpected hr %#lx.\n", hr);
+        if (SUCCEEDED(hr))
+            ID3D10Resource_Release(resource);
+
+        winetest_pop_context();
+    }
+
+    for (i = 0; i < ARRAY_SIZE(test_image_load_info); ++i)
+    {
+        const struct test_image_load_info *test_load_info = &test_image_load_info[i];
+
+        winetest_push_context("Test %u", i);
+
+        load_info = test_load_info->load_info;
+        load_info.pSrcInfo = &img_info;
+
+        resource = NULL;
+        hr2 = 0xdeadbeef;
+        hr = D3DX10CreateTextureFromMemory(device, test_load_info->data, test_load_info->size, &load_info, NULL, &resource, &hr2);
+        ok(hr == hr2, "Got unexpected hr2 %#lx.\n", hr2);
+        ok(hr == test_load_info->expected_hr, "Got unexpected hr %#lx.\n", hr);
+        if (SUCCEEDED(hr))
+        {
+            check_test_image_load_info_resource(resource, test_load_info);
+            ID3D10Resource_Release(resource);
+        }
+
+        winetest_pop_context();
+    }
+
+    /* Check behavior of the FirstMipLevel argument. */
+    for (i = 0; i < 2; ++i)
+    {
+        winetest_push_context("FirstMipLevel %u", i);
+        memset(&img_info, 0, sizeof(img_info));
+        set_d3dx10_image_load_info(&load_info, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, i, D3DX10_FROM_FILE,
+                D3D10_USAGE_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT,
+                D3DX10_DEFAULT, &img_info);
+
+        resource = NULL;
+        hr2 = 0xdeadbeef;
+        hr = D3DX10CreateTextureFromMemory(device, dds_24bit_8_8, sizeof(dds_24bit_8_8), &load_info, NULL, &resource, &hr2);
+        ok(hr == hr2, "Got unexpected hr2 %#lx.\n", hr2);
+        ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+        check_image_info_values(&img_info, 8, 8, 1, 1, 4, 0, DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE2D,
+                D3DX10_IFF_DDS, FALSE);
+
+        hr = ID3D10Resource_QueryInterface(resource, &IID_ID3D10Texture2D, (void **)&tex_2d);
+        ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+
+        ID3D10Texture2D_GetDesc(tex_2d, &tex_2d_desc);
+        check_texture2d_desc_values(&tex_2d_desc, 8, 8, 4, 1, DXGI_FORMAT_R8G8B8A8_UNORM, 1, 0, D3D10_USAGE_DEFAULT,
+                D3D10_BIND_SHADER_RESOURCE, 0, 0, FALSE);
+        for (mip_level = 0; mip_level < 4; ++mip_level)
+        {
+            winetest_push_context("MipLevel %u", mip_level);
+            check_texture_sub_resource_color(tex_2d, mip_level, NULL,
+                    dds_24bit_8_8_mip_level_expected[min(3, mip_level + i)], 0);
+            winetest_pop_context();
+        }
+
+        ID3D10Texture2D_Release(tex_2d);
+        ID3D10Resource_Release(resource);
+        winetest_pop_context();
+    }
+
+    /*
+     * If FirstMipLevel is set to a value that is larger than the total number
+     * of mip levels in the image, it falls back to 0.
+     */
+    memset(&img_info, 0, sizeof(img_info));
+    set_d3dx10_image_load_info(&load_info, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, 5, D3DX10_FROM_FILE,
+            D3D10_USAGE_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT, D3DX10_DEFAULT,
+            D3DX10_DEFAULT, &img_info);
+
+    resource = NULL;
+    hr2 = 0xdeadbeef;
+    hr = D3DX10CreateTextureFromMemory(device, dds_24bit_8_8, sizeof(dds_24bit_8_8), &load_info, NULL, &resource, &hr2);
+    ok(hr == hr2, "Got unexpected hr2 %#lx.\n", hr2);
+    ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+    check_image_info_values(&img_info, 8, 8, 1, 1, 4, 0, DXGI_FORMAT_R8G8B8A8_UNORM, D3D10_RESOURCE_DIMENSION_TEXTURE2D,
+            D3DX10_IFF_DDS, FALSE);
+
+    hr = ID3D10Resource_QueryInterface(resource, &IID_ID3D10Texture2D, (void **)&tex_2d);
+    ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+    ID3D10Texture2D_GetDesc(tex_2d, &tex_2d_desc);
+    check_texture2d_desc_values(&tex_2d_desc, 8, 8, 4, 1, DXGI_FORMAT_R8G8B8A8_UNORM, 1, 0, D3D10_USAGE_DEFAULT,
+            D3D10_BIND_SHADER_RESOURCE, 0, 0, FALSE);
+    for (mip_level = 0; mip_level < 4; ++mip_level)
+    {
+        winetest_push_context("MipLevel %u", mip_level);
+        check_texture_sub_resource_color(tex_2d, mip_level, NULL, dds_24bit_8_8_mip_level_expected[mip_level], 0);
+        winetest_pop_context();
+    }
+
+    ID3D10Texture2D_Release(tex_2d);
+    ID3D10Resource_Release(resource);
 
     hr2 = 0xdeadbeef;
     add_work_item_count = 0;
@@ -3098,6 +4356,8 @@ static void test_create_texture(void)
 
     for (i = 0; i < ARRAY_SIZE(test_image); ++i)
     {
+        D3DX10_IMAGE_INFO info = { 0 };
+
         winetest_push_context("Test %u", i);
         create_file(test_filename, test_image[i].data, test_image[i].size, path);
 
@@ -3125,6 +4385,62 @@ static void test_create_texture(void)
             ID3D10Resource_Release(resource);
         }
 
+        /* Check that D3DX10_IMAGE_INFO argument is set. */
+        load_info = d3dx10_default_load_info;
+        load_info.pSrcInfo = &info;
+        hr2 = 0xdeadbeef;
+        hr = D3DX10CreateTextureFromFileW(device, path, &load_info, NULL, &resource, &hr2);
+        ok(hr == hr2, "Got unexpected hr2 %#lx.\n", hr2);
+        ok(hr == S_OK || broken(hr == E_FAIL && test_image[i].expected_info.ImageFileFormat == D3DX10_IFF_WMP),
+                "Got unexpected hr %#lx.\n", hr);
+        if (hr == S_OK)
+        {
+            check_resource_info(resource, test_image + i, __LINE__);
+            check_resource_data(resource, test_image + i, __LINE__);
+            check_image_info(&info, test_image + i, __LINE__);
+            ID3D10Resource_Release(resource);
+        }
+
+        load_info = d3dx10_default_load_info;
+        load_info.pSrcInfo = &info;
+        hr2 = 0xdeadbeef;
+        hr = D3DX10CreateTextureFromFileA(device, get_str_a(path), &load_info, NULL, &resource, &hr2);
+        ok(hr == hr2, "Got unexpected hr2 %#lx.\n", hr2);
+        ok(hr == S_OK || broken(hr == E_FAIL && test_image[i].expected_info.ImageFileFormat == D3DX10_IFF_WMP),
+                "Got unexpected hr %#lx.\n", hr);
+        if (hr == S_OK)
+        {
+            check_resource_info(resource, test_image + i, __LINE__);
+            check_resource_data(resource, test_image + i, __LINE__);
+            check_image_info(&info, test_image + i, __LINE__);
+            ID3D10Resource_Release(resource);
+        }
+
+        delete_file(test_filename);
+        winetest_pop_context();
+    }
+
+    for (i = 0; i < ARRAY_SIZE(test_invalid_image_load_info); ++i)
+    {
+        const struct test_invalid_image_load_info *test_load_info = &test_invalid_image_load_info[i];
+
+        winetest_push_context("Test %u", i);
+        create_file(test_filename, test_image[i].data, test_image[i].size, path);
+        load_info = test_load_info->load_info;
+
+        hr2 = 0xdeadbeef;
+        hr = D3DX10CreateTextureFromFileW(device, path, &load_info, NULL, &resource, &hr2);
+        ok(hr == hr2, "Got unexpected hr2 %#lx.\n", hr2);
+        todo_wine_if(test_load_info->todo_hr) ok(hr == test_load_info->expected_hr, "Got unexpected hr %#lx.\n", hr);
+        if (SUCCEEDED(hr))
+            ID3D10Resource_Release(resource);
+
+        hr = D3DX10CreateTextureFromFileA(device, get_str_a(path), &load_info, NULL, &resource, &hr2);
+        ok(hr == hr2, "Got unexpected hr2 %#lx.\n", hr2);
+        todo_wine_if(test_load_info->todo_hr) ok(hr == test_load_info->expected_hr, "Got unexpected hr %#lx.\n", hr);
+        if (SUCCEEDED(hr))
+            ID3D10Resource_Release(resource);
+
         delete_file(test_filename);
         winetest_pop_context();
     }
@@ -3150,6 +4466,8 @@ static void test_create_texture(void)
 
     for (i = 0; i < ARRAY_SIZE(test_image); ++i)
     {
+        D3DX10_IMAGE_INFO info = { 0 };
+
         winetest_push_context("Test %u", i);
         resource_module = create_resource_module(test_resource_name, test_image[i].data, test_image[i].size);
 
@@ -3183,6 +4501,67 @@ static void test_create_texture(void)
             check_resource_data(resource, test_image + i, __LINE__);
             ID3D10Resource_Release(resource);
         }
+
+        /* Check that D3DX10_IMAGE_INFO argument is set. */
+        load_info = d3dx10_default_load_info;
+        load_info.pSrcInfo = &info;
+        hr2 = 0xdeadbeef;
+        hr = D3DX10CreateTextureFromResourceW(device, resource_module,
+                test_resource_name, &load_info, NULL, &resource, &hr2);
+        ok(hr == S_OK || broken(hr == E_FAIL && test_image[i].expected_info.ImageFileFormat == D3DX10_IFF_WMP),
+                "Got unexpected hr %#lx.\n", hr);
+        ok(hr == hr2, "Got unexpected hr2 %#lx.\n", hr2);
+        if (hr == S_OK)
+        {
+            check_resource_info(resource, test_image + i, __LINE__);
+            check_resource_data(resource, test_image + i, __LINE__);
+            check_image_info(&info, test_image + i, __LINE__);
+            ID3D10Resource_Release(resource);
+        }
+
+        load_info = d3dx10_default_load_info;
+        load_info.pSrcInfo = &info;
+        hr2 = 0xdeadbeef;
+        hr = D3DX10CreateTextureFromResourceA(device, resource_module,
+                get_str_a(test_resource_name), &load_info, NULL, &resource, &hr2);
+        ok(hr == S_OK || broken(hr == E_FAIL && test_image[i].expected_info.ImageFileFormat == D3DX10_IFF_WMP),
+                "Got unexpected hr %#lx.\n", hr);
+        ok(hr == hr2, "Got unexpected hr2 %#lx.\n", hr2);
+        if (hr == S_OK)
+        {
+            check_resource_info(resource, test_image + i, __LINE__);
+            check_resource_data(resource, test_image + i, __LINE__);
+            check_image_info(&info, test_image + i, __LINE__);
+            ID3D10Resource_Release(resource);
+        }
+
+        delete_resource_module(test_resource_name, resource_module);
+        winetest_pop_context();
+    }
+
+    for (i = 0; i < ARRAY_SIZE(test_invalid_image_load_info); ++i)
+    {
+        const struct test_invalid_image_load_info *test_load_info = &test_invalid_image_load_info[i];
+
+        winetest_push_context("Test %u", i);
+        resource_module = create_resource_module(test_resource_name, test_load_info->data, test_load_info->size);
+        load_info = test_load_info->load_info;
+
+        hr2 = 0xdeadbeef;
+        hr = D3DX10CreateTextureFromResourceW(device, resource_module,
+                test_resource_name, &load_info, NULL, &resource, &hr2);
+        ok(hr == hr2, "Got unexpected hr2 %#lx.\n", hr2);
+        todo_wine_if(test_load_info->todo_hr) ok(hr == test_load_info->expected_hr, "Got unexpected hr %#lx.\n", hr);
+        if (SUCCEEDED(hr))
+            ID3D10Resource_Release(resource);
+
+        hr2 = 0xdeadbeef;
+        hr = D3DX10CreateTextureFromResourceA(device, resource_module,
+                get_str_a(test_resource_name), &load_info, NULL, &resource, &hr2);
+        ok(hr == hr2, "Got unexpected hr2 %#lx.\n", hr2);
+        todo_wine_if(test_load_info->todo_hr) ok(hr == test_load_info->expected_hr, "Got unexpected hr %#lx.\n", hr);
+        if (SUCCEEDED(hr))
+            ID3D10Resource_Release(resource);
 
         delete_resource_module(test_resource_name, resource_module);
         winetest_pop_context();
@@ -3251,6 +4630,12 @@ static void test_font(void)
     if (!(device = create_device()))
     {
         skip("Failed to create device, skipping tests.\n");
+        return;
+    }
+
+    if (D3DX10_SDK_VERSION == 33)
+    {
+        skip("Font functions are broken in version 33.\n");
         return;
     }
 
@@ -4382,7 +5767,7 @@ static void test_create_effect_from_memory(void)
     /* Empty buffers are always included before version 40. */
     hr = effect->lpVtbl->GetDesc(effect, &desc);
     ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
-#if D3DX10_SDK_VERSION > 40
+#if D3DX10_SDK_VERSION >= 40
     ok(desc.ConstantBuffers == 1, "Unexpected buffer count.\n");
 #else
     todo_wine
@@ -4647,6 +6032,17 @@ static void test_preprocess_shader(void)
 
 START_TEST(d3dx10)
 {
+    HMODULE wined3d;
+
+    if ((wined3d = GetModuleHandleA("wined3d.dll")))
+    {
+        enum wined3d_renderer (CDECL *p_wined3d_get_renderer)(void);
+
+        if ((p_wined3d_get_renderer = (void *)GetProcAddress(wined3d, "wined3d_get_renderer"))
+                && p_wined3d_get_renderer() == WINED3D_RENDERER_OPENGL)
+            wined3d_opengl = true;
+    }
+
     test_D3DX10UnsetAllDeviceObjects();
     test_D3DX10CreateAsyncMemoryLoader();
     test_D3DX10CreateAsyncFileLoader();
@@ -4662,4 +6058,6 @@ START_TEST(d3dx10)
     test_create_effect_from_file();
     test_create_effect_from_resource();
     test_preprocess_shader();
+    test_legacy_dds_header_image_info();
+    test_dxt10_dds_header_image_info();
 }

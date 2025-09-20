@@ -71,6 +71,8 @@ static inline TEB *get_teb64( ULONG teb32 )
     return (TEB *)((char *)teb32_ptr + teb32_ptr->WowTebOffset);
 }
 
+extern void invalidate_buffer_name( TEB *teb, GLuint name );
+extern void invalidate_buffer_target( TEB *teb, GLenum target );
 extern NTSTATUS return_wow64_string( const void *str, PTR32 *wow64_str );
 
 #endif
@@ -82,5 +84,10 @@ extern NTSTATUS thread_attach( void *args );
 extern NTSTATUS process_detach( void *args );
 extern NTSTATUS get_pixel_formats( void *args );
 extern void set_context_attribute( TEB *teb, GLenum name, const void *value, size_t size );
+extern void set_current_fbo( TEB *teb, GLenum target, GLuint framebuffer );
+extern GLuint get_default_fbo( TEB *teb, GLenum target );
+extern void push_default_fbo( TEB *teb );
+extern void pop_default_fbo( TEB *teb );
+extern void resolve_default_fbo( TEB *teb, BOOL read );
 
 #endif /* __WINE_OPENGL32_UNIX_PRIVATE_H */

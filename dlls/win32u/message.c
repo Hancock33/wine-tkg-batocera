@@ -2948,7 +2948,12 @@ int peek_message( MSG *msg, const struct peek_message_filter *filter, BOOL waite
             }
             else if (info.msg.message == WH_MOUSE_LL && size >= sizeof(msg_data->hardware))
             {
+                RECT rect = {info.msg.pt.x, info.msg.pt.y, info.msg.pt.x, info.msg.pt.y};
                 MSLLHOOKSTRUCT hook;
+
+                rect = map_rect_raw_to_virt( rect, 0 );
+                info.msg.pt.x = rect.left;
+                info.msg.pt.y = rect.top;
 
                 hook.pt          = info.msg.pt;
                 hook.mouseData   = info.msg.lParam;
@@ -3214,7 +3219,6 @@ static DWORD wait_objects( DWORD count, const HANDLE *handles, DWORD timeout,
         {
             req->wake_mask    = wake_mask;
             req->changed_mask = changed_mask;
-            req->skip_wait    = 0;
             wine_server_call( req );
         }
         SERVER_END_REQ;
@@ -3535,7 +3539,6 @@ static void wait_message_reply( UINT flags )
         {
             req->wake_mask    = wake_mask;
             req->changed_mask = wake_mask;
-            req->skip_wait    = 1;
             wine_server_call( req );
             wake_bits = reply->wake_bits & wake_mask;
         }
@@ -4189,7 +4192,9 @@ static BOOL process_message( struct send_message_info *info, DWORD_PTR *res_ptr,
     thread_info->msg_source = msg_source_unavailable;
     spy_enter_message( SPY_SENDMESSAGE, info->hwnd, info->msg, info->wparam, info->lparam );
 
-    if (info->dest_tid != GetCurrentThreadId())
+    if (info->dest_tid != GetCurrentThreadId() ||
+        /* When the callback pointer is NULL and the data is 1, don't wait for the result */
+        (info->type == MSG_CALLBACK && !info->callback && info->data == 1))
     {
         if (dest_pid != GetCurrentProcessId() && (info->type == MSG_ASCII || info->type == MSG_UNICODE))
             info->type = MSG_OTHER_PROCESS;

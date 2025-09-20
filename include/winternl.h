@@ -465,17 +465,15 @@ typedef struct _PEB
     PVOID                        SystemDefaultActivationData;       /* 200/308 */
     PVOID                        SystemAssemblyStorageMap;          /* 204/310 */
     SIZE_T                       MinimumStackCommit;                /* 208/318 */
-    PVOID                       *FlsCallback;                       /* 20c/320 */
-    LIST_ENTRY                   FlsListHead;                       /* 210/328 */
-    union
-    {
-        PRTL_BITMAP              FlsBitmap;                         /* 218/338 */
-#ifdef _WIN64
-        CHPEV2_PROCESS_INFO     *ChpeV2ProcessInfo;                 /*    /338 */
-#endif
-    };
-    ULONG                        FlsBitmapBits[4];                  /* 21c/340 */
-    ULONG                        FlsHighIndex;                      /* 22c/350 */
+    PVOID                        SparePointers[2];                  /* 20c/320 */
+    PVOID                        PatchLoaderData;                   /* 214/330 */
+    CHPEV2_PROCESS_INFO         *ChpeV2ProcessInfo;                 /* 218/338 */
+    ULONG                        AppModelFeatureState;              /* 21c/340 */
+    ULONG                        SpareUlongs[2];                    /* 220/344 */
+    USHORT                       ActiveCodePage;                    /* 228/34c */
+    USHORT                       OemCodePage;                       /* 22a/34e */
+    USHORT                       UseCaseMapping;                    /* 22c/350 */
+    USHORT                       UnusedNlsField;                    /* 22e/352 */
     PVOID                        WerRegistrationData;               /* 230/358 */
     PVOID                        WerShipAssertPtr;                  /* 234/360 */
     PVOID                        EcCodeBitMap;                      /* 238/368 */
@@ -610,7 +608,27 @@ typedef struct _TEB
     PVOID                        MergedPrefLanguages;               /* fc0/17e0 */
     ULONG                        MuiImpersonation;                  /* fc4/17e8 */
     USHORT                       CrossTebFlags;                     /* fc8/17ec */
-    USHORT                       SameTebFlags;                      /* fca/17ee */
+    union {
+        USHORT SameTebFlags;                                        /* fca/17ee */
+        struct {
+            USHORT SafeThunkCall : 1;
+            USHORT InDebugPrint : 1;
+            USHORT HasFiberData : 1;
+            USHORT SkipThreadAttach : 1;
+            USHORT WerInShipAssertCode : 1;
+            USHORT RanProcessInit : 1;
+            USHORT ClonedThread : 1;
+            USHORT SuppressDebugMsg : 1;
+            USHORT DisableUserStackWalk : 1;
+            USHORT RtlExceptionAttached : 1;
+            USHORT InitialThread : 1;
+            USHORT SessionAware : 1;
+            USHORT LoadOwner : 1;
+            USHORT LoaderWorker : 1;
+            USHORT SkipLoaderInit : 1;
+            USHORT SkipFileAPIBrokering : 1;
+        };
+    };
     PVOID                        TxnScopeEnterCallback;             /* fcc/17f0 */
     PVOID                        TxnScopeExitCallback;              /* fd0/17f8 */
     PVOID                        TxnScopeContext;                   /* fd4/1800 */
@@ -913,11 +931,15 @@ typedef struct _PEB32
     ULONG                        SystemDefaultActivationData;       /* 0200 */
     ULONG                        SystemAssemblyStorageMap;          /* 0204 */
     ULONG                        MinimumStackCommit;                /* 0208 */
-    ULONG                        FlsCallback;                       /* 020c */
-    LIST_ENTRY32                 FlsListHead;                       /* 0210 */
-    ULONG                        FlsBitmap;                         /* 0218 */
-    ULONG                        FlsBitmapBits[4];                  /* 021c */
-    ULONG                        FlsHighIndex;                      /* 022c */
+    ULONG                        SparePointers[2];                  /* 020c */
+    ULONG                        PatchLoaderData;                   /* 0214 */
+    ULONG                        ChpeV2ProcessInfo;                 /* 0218 */
+    ULONG                        AppModelFeatureState;              /* 021c */
+    ULONG                        SpareUlongs[2];                    /* 0220 */
+    USHORT                       ActiveCodePage;                    /* 0228 */
+    USHORT                       OemCodePage;                       /* 022a */
+    USHORT                       UseCaseMapping;                    /* 022c */
+    USHORT                       UnusedNlsField;                    /* 022e */
     ULONG                        WerRegistrationData;               /* 0230 */
     ULONG                        WerShipAssertPtr;                  /* 0234 */
     ULONG                        pUnused;                           /* 0238 */
@@ -1023,15 +1045,15 @@ typedef struct _PEB64
     ULONG64                      SystemDefaultActivationData;       /* 0308 */
     ULONG64                      SystemAssemblyStorageMap;          /* 0310 */
     ULONG64                      MinimumStackCommit;                /* 0318 */
-    ULONG64                      FlsCallback;                       /* 0320 */
-    LIST_ENTRY64                 FlsListHead;                       /* 0328 */
-    union
-    {
-        ULONG64                  FlsBitmap;                         /* 0338 */
-        ULONG64                  ChpeV2ProcessInfo;                 /* 0338 */
-    };
-    ULONG                        FlsBitmapBits[4];                  /* 0340 */
-    ULONG                        FlsHighIndex;                      /* 0350 */
+    ULONG64                      SparePointers[2];                  /* 0320 */
+    ULONG64                      PatchLoaderData;                   /* 0330 */
+    ULONG64                      ChpeV2ProcessInfo;                 /* 0338 */
+    ULONG                        AppModelFeatureState;              /* 0340 */
+    ULONG                        SpareUlongs[2];                    /* 0344 */
+    USHORT                       ActiveCodePage;                    /* 034c */
+    USHORT                       OemCodePage;                       /* 034e */
+    USHORT                       UseCaseMapping;                    /* 0350 */
+    USHORT                       UnusedNlsField;                    /* 0352 */
     ULONG64                      WerRegistrationData;               /* 0358 */
     ULONG64                      WerShipAssertPtr;                  /* 0360 */
     ULONG64                      pUnused;                           /* 0368 */
@@ -1143,7 +1165,27 @@ typedef struct _TEB32
     ULONG                        MergedPrefLanguages;               /* 0fc0 */
     ULONG                        MuiImpersonation;                  /* 0fc4 */
     USHORT                       CrossTebFlags;                     /* 0fc8 */
-    USHORT                       SameTebFlags;                      /* 0fca */
+    union {
+        USHORT SameTebFlags;                                        /* 0fca */
+        struct {
+            USHORT SafeThunkCall : 1;
+            USHORT InDebugPrint : 1;
+            USHORT HasFiberData : 1;
+            USHORT SkipThreadAttach : 1;
+            USHORT WerInShipAssertCode : 1;
+            USHORT RanProcessInit : 1;
+            USHORT ClonedThread : 1;
+            USHORT SuppressDebugMsg : 1;
+            USHORT DisableUserStackWalk : 1;
+            USHORT RtlExceptionAttached : 1;
+            USHORT InitialThread : 1;
+            USHORT SessionAware : 1;
+            USHORT LoadOwner : 1;
+            USHORT LoaderWorker : 1;
+            USHORT SkipLoaderInit : 1;
+            USHORT SkipFileAPIBrokering : 1;
+        };
+    };
     ULONG                        TxnScopeEnterCallback;             /* 0fcc */
     ULONG                        TxnScopeExitCallback;              /* 0fd0 */
     ULONG                        TxnScopeContext;                   /* 0fd4 */
@@ -1249,7 +1291,27 @@ typedef struct _TEB64
     ULONG64                      MergedPrefLanguages;               /* 17e0 */
     ULONG                        MuiImpersonation;                  /* 17e8 */
     USHORT                       CrossTebFlags;                     /* 17ec */
-    USHORT                       SameTebFlags;                      /* 17ee */
+    union {
+        USHORT SameTebFlags;                                        /* 17ee */
+        struct {
+            USHORT SafeThunkCall : 1;
+            USHORT InDebugPrint : 1;
+            USHORT HasFiberData : 1;
+            USHORT SkipThreadAttach : 1;
+            USHORT WerInShipAssertCode : 1;
+            USHORT RanProcessInit : 1;
+            USHORT ClonedThread : 1;
+            USHORT SuppressDebugMsg : 1;
+            USHORT DisableUserStackWalk : 1;
+            USHORT RtlExceptionAttached : 1;
+            USHORT InitialThread : 1;
+            USHORT SessionAware : 1;
+            USHORT LoadOwner : 1;
+            USHORT LoaderWorker : 1;
+            USHORT SkipLoaderInit : 1;
+            USHORT SkipFileAPIBrokering : 1;
+        };
+    };
     ULONG64                      TxnScopeEnterCallback;             /* 17f0 */
     ULONG64                      TxnScopeExitCallback;              /* 17f8 */
     ULONG64                      TxnScopeContext;                   /* 1800 */
@@ -1919,8 +1981,7 @@ typedef enum _PROCESSINFOCLASS {
     MaxProcessInfoClass,
 #ifdef __WINESRC__
     ProcessWineMakeProcessSystem = 1000,
-    ProcessWineLdtCopy,
-    ProcessWineGrantAdminToken,
+    ProcessWineGrantAdminToken = 1002,
 #endif
 } PROCESSINFOCLASS;
 
@@ -4439,7 +4500,8 @@ NTSYSAPI NTSTATUS  WINAPI LdrUnlockLoaderLock(ULONG,ULONG_PTR);
 NTSYSAPI NTSTATUS  WINAPI LdrUnregisterDllNotification(void*);
 NTSYSAPI NTSTATUS  WINAPI NtAcceptConnectPort(PHANDLE,ULONG,PLPC_MESSAGE,BOOLEAN,PLPC_SECTION_WRITE,PLPC_SECTION_READ);
 NTSYSAPI NTSTATUS  WINAPI NtAccessCheck(PSECURITY_DESCRIPTOR,HANDLE,ACCESS_MASK,PGENERIC_MAPPING,PPRIVILEGE_SET,PULONG,PULONG,NTSTATUS*);
-NTSYSAPI NTSTATUS  WINAPI NtAccessCheckAndAuditAlarm(PUNICODE_STRING,HANDLE,PUNICODE_STRING,PUNICODE_STRING,PSECURITY_DESCRIPTOR,ACCESS_MASK,PGENERIC_MAPPING,BOOLEAN,PACCESS_MASK,PBOOLEAN,PBOOLEAN);
+NTSYSAPI NTSTATUS  WINAPI NtAccessCheckAndAuditAlarm(UNICODE_STRING*,HANDLE,UNICODE_STRING*,UNICODE_STRING*,PSECURITY_DESCRIPTOR,ACCESS_MASK,GENERIC_MAPPING*,BOOLEAN,ACCESS_MASK*,NTSTATUS*,BOOLEAN*);
+NTSYSAPI NTSTATUS  WINAPI NtAccessCheckByTypeAndAuditAlarm(UNICODE_STRING*,HANDLE,UNICODE_STRING*,UNICODE_STRING*,PSECURITY_DESCRIPTOR,PSID,ACCESS_MASK,AUDIT_EVENT_TYPE,ULONG,OBJECT_TYPE_LIST*,ULONG,GENERIC_MAPPING*,BOOLEAN,ACCESS_MASK*,NTSTATUS*,BOOLEAN*);
 NTSYSAPI NTSTATUS  WINAPI NtAddAtom(const WCHAR*,ULONG,RTL_ATOM*);
 NTSYSAPI NTSTATUS  WINAPI NtAdjustGroupsToken(HANDLE,BOOLEAN,PTOKEN_GROUPS,ULONG,PTOKEN_GROUPS,PULONG);
 NTSYSAPI NTSTATUS  WINAPI NtAdjustPrivilegesToken(HANDLE,BOOLEAN,PTOKEN_PRIVILEGES,DWORD,PTOKEN_PRIVILEGES,PDWORD);
@@ -4531,7 +4593,7 @@ NTSYSAPI NTSTATUS  WINAPI NtGetPlugPlayEvent(ULONG,ULONG,PVOID,ULONG);
 NTSYSAPI ULONG     WINAPI NtGetTickCount(VOID);
 NTSYSAPI NTSTATUS  WINAPI NtGetWriteWatch(HANDLE,ULONG,PVOID,SIZE_T,PVOID*,ULONG_PTR*,ULONG*);
 NTSYSAPI NTSTATUS  WINAPI NtImpersonateAnonymousToken(HANDLE);
-NTSYSAPI NTSTATUS  WINAPI NtImpersonateClientOfPort(HANDLE,PPORT_MESSAGE);
+NTSYSAPI NTSTATUS  WINAPI NtImpersonateClientOfPort(HANDLE,PLPC_MESSAGE);
 NTSYSAPI NTSTATUS  WINAPI NtImpersonateThread(HANDLE,HANDLE,PSECURITY_QUALITY_OF_SERVICE);
 NTSYSAPI NTSTATUS  WINAPI NtInitializeNlsFiles(void**,LCID*,LARGE_INTEGER*);
 NTSYSAPI NTSTATUS  WINAPI NtInitializeRegistry(BOOLEAN);
@@ -4582,6 +4644,7 @@ NTSYSAPI NTSTATUS  WINAPI NtProtectVirtualMemory(HANDLE,PVOID*,SIZE_T*,ULONG,ULO
 NTSYSAPI NTSTATUS  WINAPI NtPulseEvent(HANDLE,LONG*);
 NTSYSAPI NTSTATUS  WINAPI NtQueueApcThread(HANDLE,PNTAPCFUNC,ULONG_PTR,ULONG_PTR,ULONG_PTR);
 NTSYSAPI NTSTATUS  WINAPI NtQueueApcThreadEx(HANDLE,HANDLE,PNTAPCFUNC,ULONG_PTR,ULONG_PTR,ULONG_PTR);
+NTSYSAPI NTSTATUS  WINAPI NtQueueApcThreadEx2(HANDLE,HANDLE,ULONG,PNTAPCFUNC,ULONG_PTR,ULONG_PTR,ULONG_PTR);
 NTSYSAPI NTSTATUS  WINAPI NtQueryAttributesFile(const OBJECT_ATTRIBUTES*,FILE_BASIC_INFORMATION*);
 NTSYSAPI NTSTATUS  WINAPI NtQueryDefaultLocale(BOOLEAN,LCID*);
 NTSYSAPI NTSTATUS  WINAPI NtQueryDefaultUILanguage(LANGID*);
@@ -4638,7 +4701,7 @@ NTSYSAPI NTSTATUS  WINAPI NtRenameKey(HANDLE,UNICODE_STRING*);
 NTSYSAPI NTSTATUS  WINAPI NtReplaceKey(POBJECT_ATTRIBUTES,HANDLE,POBJECT_ATTRIBUTES);
 NTSYSAPI NTSTATUS  WINAPI NtReplyPort(HANDLE,PLPC_MESSAGE);
 NTSYSAPI NTSTATUS  WINAPI NtReplyWaitReceivePort(HANDLE,PULONG,PLPC_MESSAGE,PLPC_MESSAGE);
-NTSYSAPI NTSTATUS  WINAPI NtReplyWaitReceivePortEx(HANDLE,PVOID*,PPORT_MESSAGE,PPORT_MESSAGE,PLARGE_INTEGER);
+NTSYSAPI NTSTATUS  WINAPI NtReplyWaitReceivePortEx(HANDLE,PULONG,PLPC_MESSAGE,PLPC_MESSAGE,PLARGE_INTEGER);
 NTSYSAPI NTSTATUS  WINAPI NtReplyWaitReplyPort(HANDLE,PLPC_MESSAGE);
 NTSYSAPI NTSTATUS  WINAPI NtRequestPort(HANDLE,PLPC_MESSAGE);
 NTSYSAPI NTSTATUS  WINAPI NtRequestWaitReplyPort(HANDLE,PLPC_MESSAGE,PLPC_MESSAGE);
@@ -4657,6 +4720,7 @@ NTSYSAPI NTSTATUS  WINAPI NtSetDefaultLocale(BOOLEAN,LCID);
 NTSYSAPI NTSTATUS  WINAPI NtSetDefaultUILanguage(LANGID);
 NTSYSAPI NTSTATUS  WINAPI NtSetEaFile(HANDLE,PIO_STATUS_BLOCK,PVOID,ULONG);
 NTSYSAPI NTSTATUS  WINAPI NtSetEvent(HANDLE,LONG*);
+NTSYSAPI NTSTATUS  WINAPI NtSetEventBoostPriority(HANDLE);
 NTSYSAPI NTSTATUS  WINAPI NtSetHighEventPair(HANDLE);
 NTSYSAPI NTSTATUS  WINAPI NtSetHighWaitLowEventPair(HANDLE);
 NTSYSAPI NTSTATUS  WINAPI NtSetHighWaitLowThread(VOID);

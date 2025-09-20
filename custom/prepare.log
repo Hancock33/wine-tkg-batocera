@@ -1,23 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at a8a6d7b0 Release v10.13
-HEAD is now at 75b9e1722d1 Release 10.13.
-
-ed9f31120b68e7d684c1544c05d94c38b25cb759 reverted (hotfix)
-Auto-merging dlls/ntdll/ntdll.spec
-
-5b3862a3fd3e609fdc7e18a3b4296d5a7823ff61 reverted (hotfix)
-Auto-merging dlls/ntdll/ntdll.spec
-Auto-merging include/winternl.h
-
-07b4a234627953c561939b22d4ec6fea0b20aaa3 reverted (hotfix)
-Auto-merging dlls/ntdll/ntdll.spec
-Auto-merging include/winternl.h
-
-e377b7406859213adda6ccf912a4b64753fe88b3 reverted (hotfix)
-Auto-merging dlls/ntdll/ntdll.spec
-Auto-merging dlls/ntdll/unix/file.c
-Auto-merging include/winternl.h
+HEAD is now at 64988e15 Rebase against fc70990d579a74974c6e4f1550f892188114f5cf.
+HEAD is now at fc70990d579 cmd: Ensure that all output to STD_OUTPUT go through WCMD_output_asis.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
@@ -35,14 +19,32 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/crypt32-CMS_Certificates/0001-crypt32-Skip-unknown-item-when-decoding-a-CMS-certif.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d2d1_ID2D1GeometryGroup/0001-d2d1-Add-tests-for-drawing-ID2D1GeometryGroup.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d2d1_ID2D1GeometryGroup/0002-d2d1-Implement-drawing-for-ID2D1GeometryGroup.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx11_43-D3DX11CreateTextureFromMemory/0001-d3dx11_43-Implement-D3DX11GetImageInfoFromMemory.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx11_43-D3DX11CreateTextureFromMemory/0002-d3dx11_42-Implement-D3DX11CreateTextureFromMemory.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx11_43-D3DX11CreateTextureFromMemory/0003-d3dx11_43-D3DX11GetImageInfoFromMemory-Only-use-fram.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx11_43-D3DX11CreateTextureFromMemory/0001-d3dx9-Add-an-optimization-to-stb_dxt.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx11_43-D3DX11CreateTextureFromMemory/0002-d3dx10-Use-shared-code-in-load_texture_data-when-pos.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx11_43-D3DX11CreateTextureFromMemory/0003-d3dx10-Add-support-for-decompressing-BC4-and-BC5-for.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx11_43-D3DX11CreateTextureFromMemory/0004-d3dx10-Add-support-for-compressing-BC4-and-BC5-forma.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx11_43-D3DX11CreateTextureFromMemory/0005-d3dx10-Exclusively-use-shared-code-to-load-DDS-files.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx11_43-D3DX11CreateTextureFromMemory/0006-d3dx10-Exclusively-use-shared-code-in-load_texture_d.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx11_43-D3DX11CreateTextureFromMemory/0007-d3dx10-tests-Add-tests-for-the-D3DX10_IMAGE_LOAD_INF.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx11_43-D3DX11CreateTextureFromMemory/0008-d3dx10-Set-D3DX10_IMAGE_LOAD_INFO-pSrcInfo-value-if-.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx11_43-D3DX11CreateTextureFromMemory/0009-d3dx10-Create-3D-textures-for-images-representing-3D.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx11_43-D3DX11CreateTextureFromMemory/0010-d3dx10-Handle-filter-value-passed-in-via-D3DX10_IMAG.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx11_43-D3DX11CreateTextureFromMemory/0011-d3dx10-Add-support-for-custom-texture-dimension-argu.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx11_43-D3DX11CreateTextureFromMemory/0012-d3dx10-Add-support-for-generating-mipmaps-to-load_te.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx11_43-D3DX11CreateTextureFromMemory/0013-d3dx10-Add-support-for-the-format-field-in-D3DX10_IM.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx11_43-D3DX11CreateTextureFromMemory/0014-d3dx10-Handle-FirstMipLevel-argument-in-load_texture.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx11_43-D3DX11CreateTextureFromMemory/0015-d3dx10-Pass-D3DX10_IMAGE_LOAD_INFO-texture-creation-.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx11_43-D3DX11CreateTextureFromMemory/0016-d3dx11-Implement-D3DX11CreateTextureFromMemory-using.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx9-setrawvalue/0001-d3dx9-Add-support-for-setting-vec-2-3-effect-paramet.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx9-setrawvalue/0002-d3dx9-Add-partial-support-for-setting-D3DXPC_STRUCT-.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx9-sprite-state/0001-d3dx9-Improve-handling-of-Sprite-render-states.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx9_36-D3DXStubs/0003-d3dx9-Implement-D3DXComputeTangent.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx9_36-UpdateSkinnedMesh/0001-d3dx9_36-Implement-ID3DXSkinInfoImpl_UpdateSkinnedMe.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx9_36_controller/0001-d3dx9-D3DXLoadMeshHierarchyFromXInMemory-return-defa.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx9_36_controller/0003-d3dx9-HACK-D3DXIntersect-Assign-hit-to-FALSE.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx9_animation_TrackDesc/0001-d3dx9-Implement-ID3DXAnimationController-RegisterAni.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx9_animation_TrackDesc/0002-d3dx9-Implement-ID3DXAnimationController-Get-Set-Tra.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/d3dx9_animation_TrackDesc/0003-d3dx9-Implement-ID3DXAnimationController-Get-Set-Tra.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/dbghelp-Debug_Symbols/0001-dbghelp-Always-check-for-debug-symbols-in-BINDIR.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ddraw-Device_Caps/0002-ddraw-Set-dwZBufferBitDepth-in-ddraw7_GetCaps.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ddraw-GetPickRecords/0001-ddraw-Implement-Pick-and-GetPickRecords.patch
@@ -110,9 +112,9 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/msxml3-FreeThreadedXMLHTTP60/0005-msxml3-Treat-body-as-data-array-in-xml_http_request_.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/msxml3-FreeThreadedXMLHTTP60/0006-msxml3-Try-to-get-body-size-from-stream-in-xml_http_.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/msxml3-FreeThreadedXMLHTTP60/0007-msxml3-Don-t-fail-xml_http_request_2_IRtwqAsyncCallb.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/msxml3-element_props/0001-msxml3-Correct-looping-of-Document-Element-propertie.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/msxml3-whitespace/0001-msxml3-IXMLDOMDocument3-preserveWhiteSpace-fix-for-a.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/msxml3-write_out_doc/0001-msxml3-Write-to-DOMDocument-mxwriter-destination-in-.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/msxml3_encode_gb2312/0001-msxml3-Add-GB2312-support-for-builtin-character-conv.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/msxml_normalize_line/0001-msxml-Support-ISAXXMLReader-putFeature-normalize-lin.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-APC_Performance/0001-ntdll-Reuse-old-async-fileio-structures-if-possible.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Exception/0002-ntdll-OutputDebugString-should-throw-the-exception-a.patch
@@ -146,8 +148,6 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0025-ntdll-Report-regular-Unix-symlinks-as-WSL-Linux-Unix.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0026-Return-correct-status-value-if-handle-is-not-a-repar.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-NtDevicePath/0001-ntdll-Implement-opening-files-through-nt-device-path.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-NtSetLdtEntries/0001-ntdll-Implement-NtSetLdtEntries.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-NtSetLdtEntries/0002-libs-wine-Allow-to-modify-reserved-LDT-entries.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-RtlQueryPackageIdentity/0003-ntdll-tests-Add-basic-tests-for-RtlQueryPackageIdent.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Syscall_Emulation/0001-ntdll-Support-x86_64-syscall-emulation.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-WRITECOPY/0010-kernelbase-Correct-return-value-in-VirtualProtect-fo.patch
@@ -226,7 +226,6 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/user32-Implement-CascadeWindows/0002-user32-Implement-TileWindows.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/user32-LR_LOADFROMFILE/0001-user32-Add-a-workaround-for-Windows-3.1-apps-which-c.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/user32-ListBox_Size/0001-user32-Fix-calculation-of-listbox-size-when-horizont.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/user32-Refresh_MDI_Menus/0001-user32-Refresh-MDI-menus-when-DefMDIChildProcW-WM_SE.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/user32-message-order/0001-user32-Fix-messages-sent-on-a-window-without-WS_CHIL.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/user32-msgbox-Support-WM_COPY-mesg/0001-user32-msgbox-Support-WM_COPY-Message.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/user32-msgbox-Support-WM_COPY-mesg/0002-user32-msgbox-Use-a-windows-hook-to-trap-Ctrl-C.patch
@@ -242,19 +241,10 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vbscript-classes/0001-vbscript-class-single-line-multivar.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vcomp_for_dynamic_init_i8/0001-vcomp-Implement-_vcomp_for_dynamic_init_i8.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/version-VerQueryValue/0001-version-Test-for-VerQueryValueA-try-2.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0001-Updated-vkd3d-to-3163e589bc41b674c46750bef9a3cbbaa90.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0002-Updated-vkd3d-to-ba545669cd09682960f5da17b9131780642.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0003-Updated-vkd3d-to-decc155cca45d7c4a60699990452b921a6e.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0004-Updated-vkd3d-to-68cd72c7fc7a364ecce87a19617acb382c7.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0005-Updated-vkd3d-to-a4c25b81c59ae783a94c1b25714eb080231.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0006-Updated-vkd3d-to-b3e367b099cb65d79c5b0044134a02e7e9c.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0007-Updated-vkd3d-to-f7866df201e491aa6033cc4618ab21cedd1.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0008-Updated-vkd3d-to-bb2979aa4c3432bfd5b30ae23de8aaaa57e.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0009-Updated-vkd3d-to-75cb4336ec1a0455c347db05b22dc0fd76d.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0010-Updated-vkd3d-to-bd3d0f3495f6375901df9ca899accf8bc7a.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0011-Updated-vkd3d-to-721859005f3edfb3d52bc0f810d1da4fe2e.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0012-Updated-vkd3d-to-4bb880f9ed09dab9a87a56bb065f087e92a.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0013-Updated-vkd3d-to-44fffee5e1331e1c7e10489d84723c3b9da.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0001-Updated-vkd3d-to-e69f3da089d472b723b016ef67c04c0f954.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0002-Updated-vkd3d-to-dddc92ccfd34f941d9b6738c4f54fac43cd.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0003-Updated-vkd3d-to-c48141457203d4cdfcd8315c0735748ba3b.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0004-Updated-vkd3d-to-52b9aa416bb4e8be2fb6e28ffd1234cc10d.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wbemdisp-ISWbemObject-Invoke/0001-wbemdisp-Support-DISPATCH_METHOD-in-ISWbemObject-Inv.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wbemdisp-ISWbemObject-Invoke/0002-vbscript-Support-VT_BSTR-VT_ARRAY-Iterator.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wbemdisp-ISWbemObject-Invoke/0003-wbemprox-Support-VT_BYREF-in-to_longlong.patch
@@ -297,6 +287,10 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Fixed-scancodes/0008-winex11-Support-fixed-X11-keycode-to-scancode-conver.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Fixed-scancodes/0009-winex11-Disable-keyboard-scancode-auto-detection-by-.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Window_Style/0001-winex11-Fix-handling-of-window-attributes-for-WS_EX_.patch
+include/wine/server_protocol.h updated
+include/wine/server_protocol.h updated
+server/request_trace.h updated
+server/request_handlers.h updated
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-ime-check-thread-data/0001-winex11.drv-handle-missing-thread-data-in-X11DRV_get_ic.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11.drv-Query_server_position/0001-winex11.drv-window-Query-the-X-server-for-the-actual.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wininet-Cleanup/0001-wininet-tests-Add-more-tests-for-cookies.patch
@@ -304,11 +298,7 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wininet-Cleanup/0003-wininet-tests-Check-cookie-behaviour-when-overriding.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wininet-Cleanup/0004-wininet-Strip-filename-if-no-path-is-set-in-cookie.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wininet-Cleanup/0005-wininet-Replacing-header-fields-should-fail-if-they-.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d include/wine/server_protocol.h updated
-include/wine/server_protocol.h updated
-server/request_trace.h updated
-server/request_handlers.h updated
-/home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winmm-mciSendCommandA/0001-winmm-Do-not-crash-in-Win-9X-mode-when-an-invalid-de.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winmm-mciSendCommandA/0001-winmm-Do-not-crash-in-Win-9X-mode-when-an-invalid-de.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wintab32-improvements/0002-wintab32-Set-lcSysExtX-Y-for-the-first-index-of-WTI_.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wintab32-improvements/0003-winex11-Handle-negative-orAltitude-values.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wintab32-improvements/0004-winex11.drv-Support-multiplex-categories-WTI_DSCTXS-.patch
@@ -331,153 +321,218 @@ autoreconf -f
 LAA-unix-staging-wow64.patch -- ( Applied large address aware override support )
 patching file dlls/kernel32/heap.c
 patching file dlls/ntdll/ntdll.spec
-Hunk #1 succeeded at 1747 (offset 122 lines).
+Hunk #1 succeeded at 1755 (offset 130 lines).
 patching file dlls/ntdll/signal_arm64ec.c
-Hunk #1 succeeded at 340 (offset -240 lines).
+Hunk #1 succeeded at 340 with fuzz 1 (offset -240 lines).
 patching file dlls/ntdll/unix/unix_private.h
-Hunk #1 succeeded at 591 (offset 16 lines).
+Hunk #1 succeeded at 688 with fuzz 2 (offset 113 lines).
 patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 4905 (offset 1 line).
-Hunk #2 succeeded at 4934 (offset 1 line).
-Hunk #3 succeeded at 4943 (offset 1 line).
+Hunk #1 succeeded at 5029 (offset 125 lines).
+Hunk #2 succeeded at 5066 (offset 133 lines).
+Hunk #3 succeeded at 5070 (offset 128 lines).
 patching file dlls/wow64/system.c
 Hunk #1 succeeded at 857 (offset 2 lines).
 
 vulkan-1-Prefer-builtin.patch -- ( Prefer build vulkan-1 patch )
 patching file dlls/vulkan-1/Makefile.in
 
+ntoskrnl-server-Support-referencing-section-objects.patch -- ( ntoskrnl, server: Support referencing section objects. (Server side) )
+patching file dlls/ntoskrnl.exe/ntoskrnl.c
+patching file server/mapping.c
+Hunk #1 succeeded at 157 (offset -2 lines).
+Hunk #2 succeeded at 168 (offset -2 lines).
+Hunk #3 succeeded at 192 (offset -3 lines).
+Hunk #4 succeeded at 1025 (offset 8 lines).
+Hunk #5 succeeded at 1118 (offset 8 lines).
+Hunk #6 succeeded at 1226 (offset 8 lines).
+
 proton10-winevulkan.patch -- ( Using Proton 10 winevulkan patches )
-patching file dlls/winevulkan/vulkan.c
-Hunk #1 succeeded at 697 (offset 9 lines).
-patching file dlls/winevulkan/vulkan.c
-Hunk #1 succeeded at 561 (offset 2 lines).
-patching file dlls/winevulkan/vulkan.c
-Hunk #1 succeeded at 533 (offset 2 lines).
-Hunk #2 succeeded at 606 (offset 2 lines).
-Hunk #3 succeeded at 650 (offset 9 lines).
+patching file dlls/win32u/vulkan.c
 patching file dlls/winevulkan/make_vulkan
-Hunk #1 succeeded at 2496 (offset 3 lines).
-Hunk #2 succeeded at 3162 (offset 3 lines).
 patching file dlls/winevulkan/vulkan.c
-Hunk #1 succeeded at 713 (offset 6 lines).
-Hunk #2 succeeded at 931 (offset 6 lines).
-Hunk #3 succeeded at 956 (offset 6 lines).
-Hunk #4 succeeded at 1017 (offset 6 lines).
-Hunk #5 succeeded at 1037 (offset 6 lines).
+patching file dlls/winevulkan/vulkan_thunks.c
+patching file include/wine/vulkan_driver.h
+patching file dlls/win32u/vulkan.c
+patching file dlls/winevulkan/loader_thunks.c
+patching file dlls/winevulkan/loader_thunks.h
+patching file dlls/winevulkan/make_vulkan
 patching file dlls/winevulkan/vulkan.c
-Hunk #1 succeeded at 489 (offset 2 lines).
-Hunk #2 succeeded at 499 (offset 2 lines).
-Hunk #3 succeeded at 521 (offset 2 lines).
-Hunk #4 succeeded at 1004 (offset 3 lines).
-Hunk #5 succeeded at 1129 (offset 3 lines).
-Hunk #6 succeeded at 1307 (offset 3 lines).
-Hunk #7 succeeded at 1317 (offset 3 lines).
+patching file dlls/winevulkan/vulkan_private.h
+patching file dlls/winevulkan/vulkan_thunks.c
+patching file dlls/winevulkan/vulkan_thunks.h
+patching file include/wine/vulkan.h
+patching file include/wine/vulkan_driver.h
+patching file dlls/win32u/vulkan.c
+patching file dlls/winevulkan/vulkan.c
+patching file dlls/win32u/vulkan.c
+patching file dlls/winevulkan/loader_thunks.c
+patching file dlls/winevulkan/loader_thunks.h
+patching file dlls/winevulkan/make_vulkan
+patching file dlls/winevulkan/vulkan_thunks.c
+patching file dlls/winevulkan/vulkan_thunks.h
+patching file include/wine/vulkan.h
+patching file include/wine/vulkan_driver.h
+patching file dlls/win32u/vulkan.c
+patching file dlls/winevulkan/make_vulkan
+Hunk #5 succeeded at 1100 (offset -12 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #9 succeeded at 548 (offset 2 lines).
+Hunk #10 succeeded at 570 (offset 2 lines).
+Hunk #11 succeeded at 586 (offset 2 lines).
+Hunk #12 succeeded at 595 (offset 2 lines).
+Hunk #13 succeeded at 740 (offset 2 lines).
+Hunk #14 succeeded at 779 (offset 2 lines).
+Hunk #15 succeeded at 950 (offset 2 lines).
+Hunk #16 succeeded at 993 (offset 2 lines).
+Hunk #17 succeeded at 1017 (offset 2 lines).
+Hunk #18 succeeded at 1058 (offset 2 lines).
+Hunk #19 succeeded at 1073 (offset 2 lines).
+Hunk #20 succeeded at 1084 (offset 2 lines).
+Hunk #21 succeeded at 1188 (offset 2 lines).
+Hunk #22 succeeded at 1305 (offset 2 lines).
+Hunk #23 succeeded at 1322 (offset 2 lines).
+Hunk #24 succeeded at 1335 (offset 2 lines).
+Hunk #25 succeeded at 1650 (offset 2 lines).
+patching file dlls/winevulkan/vulkan_private.h
+patching file dlls/winevulkan/vulkan_thunks.c
+patching file dlls/winevulkan/vulkan_thunks.h
+patching file include/wine/vulkan_driver.h
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 699 (offset 11 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 563 (offset 4 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 535 (offset 4 lines).
+Hunk #2 succeeded at 608 (offset 4 lines).
+Hunk #3 succeeded at 652 (offset 11 lines).
+patching file dlls/winevulkan/make_vulkan
+Hunk #1 succeeded at 2350 (offset -143 lines).
+Hunk #2 succeeded at 3034 (offset -125 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 715 (offset 8 lines).
+Hunk #2 succeeded at 933 (offset 8 lines).
+Hunk #3 succeeded at 958 (offset 8 lines).
+Hunk #4 succeeded at 1019 (offset 8 lines).
+Hunk #5 succeeded at 1039 (offset 8 lines).
+patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 491 (offset 4 lines).
+Hunk #2 succeeded at 501 (offset 4 lines).
+Hunk #3 succeeded at 523 (offset 4 lines).
+Hunk #4 succeeded at 1006 (offset 5 lines).
+Hunk #5 succeeded at 1131 (offset 5 lines).
+Hunk #6 succeeded at 1309 (offset 5 lines).
+Hunk #7 succeeded at 1319 (offset 5 lines).
 patching file dlls/winevulkan/vulkan_private.h
 patching file include/wine/vulkan_driver.h
 Hunk #1 succeeded at 119 (offset -2 lines).
 patching file dlls/winevulkan/vulkan.c
-Hunk #1 succeeded at 930 (offset 3 lines).
-Hunk #2 succeeded at 951 (offset 3 lines).
+Hunk #1 succeeded at 932 (offset 5 lines).
+Hunk #2 succeeded at 953 (offset 5 lines).
 patching file dlls/winevulkan/vulkan_private.h
 patching file dlls/winevulkan/vulkan.c
-Hunk #2 succeeded at 481 (offset 2 lines).
-Hunk #3 succeeded at 523 (offset 2 lines).
-Hunk #4 succeeded at 920 (offset 3 lines).
-Hunk #5 succeeded at 983 (offset 3 lines).
-Hunk #6 succeeded at 1001 (offset 3 lines).
-Hunk #7 succeeded at 1118 (offset 3 lines).
-Hunk #8 succeeded at 1127 (offset 3 lines).
-Hunk #9 succeeded at 1306 (offset 3 lines).
+Hunk #2 succeeded at 483 (offset 4 lines).
+Hunk #3 succeeded at 525 (offset 4 lines).
+Hunk #4 succeeded at 922 (offset 5 lines).
+Hunk #5 succeeded at 985 (offset 5 lines).
+Hunk #6 succeeded at 1003 (offset 5 lines).
+Hunk #7 succeeded at 1120 (offset 5 lines).
+Hunk #8 succeeded at 1129 (offset 5 lines).
+Hunk #9 succeeded at 1308 (offset 5 lines).
 patching file dlls/winevulkan/vulkan_private.h
 patching file include/wine/vulkan_driver.h
 Hunk #1 succeeded at 107 (offset -2 lines).
 patching file dlls/winevulkan/vulkan.c
-Hunk #1 succeeded at 921 (offset 3 lines).
-Hunk #2 succeeded at 946 (offset 3 lines).
-Hunk #3 succeeded at 956 (offset 3 lines).
-Hunk #4 succeeded at 1001 (offset 3 lines).
+Hunk #1 succeeded at 923 (offset 5 lines).
+Hunk #2 succeeded at 948 (offset 5 lines).
+Hunk #3 succeeded at 958 (offset 5 lines).
+Hunk #4 succeeded at 1003 (offset 5 lines).
 patching file include/wine/vulkan_driver.h
 Hunk #1 succeeded at 109 (offset -2 lines).
 patching file dlls/vulkan-1/tests/vulkan.c
 patching file dlls/winevulkan/make_vulkan
-Hunk #3 succeeded at 173 (offset 1 line).
-Hunk #5 succeeded at 294 (offset -1 lines).
-Hunk #6 succeeded at 816 (offset -1 lines).
-Hunk #7 succeeded at 910 (offset -1 lines).
-Hunk #8 succeeded at 990 (offset -1 lines).
-Hunk #9 succeeded at 1586 (offset -1 lines).
-Hunk #10 succeeded at 2461 (offset 1 line).
-Hunk #11 succeeded at 2476 (offset 1 line).
-Hunk #12 succeeded at 3050 (offset 1 line).
+Hunk #1 succeeded at 115 (offset 3 lines).
+Hunk #2 succeeded at 132 with fuzz 2 (offset 4 lines).
+Hunk #3 succeeded at 189 (offset 17 lines).
+Hunk #4 succeeded at 262 (offset 16 lines).
+Hunk #5 succeeded at 310 (offset 15 lines).
+Hunk #6 succeeded at 780 (offset -37 lines).
+Hunk #7 succeeded at 874 (offset -37 lines).
+Hunk #8 succeeded at 954 (offset -37 lines).
+Hunk #9 succeeded at 1467 (offset -120 lines).
+Hunk #10 succeeded at 2315 (offset -145 lines).
+Hunk #11 succeeded at 2330 (offset -145 lines).
+Hunk #12 succeeded at 2907 (offset -142 lines).
 patching file dlls/winevulkan/vulkan.c
-Hunk #3 succeeded at 619 (offset -4 lines).
-Hunk #4 succeeded at 1483 (offset -19 lines).
-Hunk #5 succeeded at 1818 (offset -19 lines).
-Hunk #6 succeeded at 1848 (offset -19 lines).
-Hunk #7 succeeded at 1931 (offset -19 lines).
-Hunk #8 succeeded at 1940 (offset -19 lines).
-Hunk #9 succeeded at 1980 (offset -19 lines).
-Hunk #10 succeeded at 2057 (offset -19 lines).
-Hunk #11 succeeded at 2204 (offset -19 lines).
-Hunk #12 succeeded at 2427 (offset -19 lines).
-Hunk #13 succeeded at 2459 (offset -19 lines).
+Hunk #3 succeeded at 621 (offset -2 lines).
+Hunk #4 succeeded at 1485 (offset -17 lines).
+Hunk #5 succeeded at 1820 (offset -17 lines).
+Hunk #6 succeeded at 1850 (offset -17 lines).
+Hunk #7 succeeded at 1933 (offset -17 lines).
+Hunk #8 succeeded at 1942 (offset -17 lines).
+Hunk #9 succeeded at 1982 (offset -17 lines).
+Hunk #10 succeeded at 2059 (offset -17 lines).
+Hunk #11 succeeded at 2206 (offset -17 lines).
+Hunk #12 succeeded at 2429 (offset -17 lines).
+Hunk #13 succeeded at 2461 (offset -17 lines).
 patching file dlls/winevulkan/vulkan_private.h
 patching file dlls/winevulkan/vulkan.c
-Hunk #1 succeeded at 1550 (offset -19 lines).
-Hunk #2 succeeded at 1571 (offset -19 lines).
+Hunk #1 succeeded at 1552 (offset -17 lines).
+Hunk #2 succeeded at 1573 (offset -17 lines).
 patching file dlls/winevulkan/make_vulkan
-Hunk #1 succeeded at 297 (offset -1 lines).
+Hunk #1 succeeded at 313 (offset 15 lines).
 patching file dlls/winevulkan/vulkan.c
-Hunk #1 succeeded at 1554 (offset -19 lines).
-Hunk #2 succeeded at 2251 (offset -19 lines).
+Hunk #1 succeeded at 1556 (offset -17 lines).
+Hunk #2 succeeded at 2253 (offset -17 lines).
 patching file configure.ac
-Hunk #1 succeeded at 3143 with fuzz 1 (offset 16 lines).
+Hunk #1 succeeded at 3148 with fuzz 1 (offset 21 lines).
 patching file dlls/sharedgpures.sys/Makefile.in
 patching file dlls/sharedgpures.sys/shared_resource.c
 patching file dlls/sharedgpures.sys/sharedgpures.sys.spec
 patching file dlls/winevulkan/vulkan.c
-Hunk #2 succeeded at 1509 (offset -19 lines).
-Hunk #3 succeeded at 1520 (offset -19 lines).
-Hunk #4 succeeded at 1533 (offset -19 lines).
-Hunk #5 succeeded at 1570 (offset -19 lines).
-Hunk #6 succeeded at 1589 (offset -19 lines).
-Hunk #7 succeeded at 1846 (offset -19 lines).
-Hunk #8 succeeded at 2035 (offset -19 lines).
-Hunk #9 succeeded at 2056 (offset -19 lines).
-Hunk #10 succeeded at 2074 (offset -19 lines).
-Hunk #11 succeeded at 2382 (offset -19 lines).
-Hunk #12 succeeded at 2408 (offset -19 lines).
-Hunk #13 succeeded at 2647 (offset -19 lines).
-Hunk #14 succeeded at 2662 (offset -19 lines).
+Hunk #2 succeeded at 1511 (offset -17 lines).
+Hunk #3 succeeded at 1522 (offset -17 lines).
+Hunk #4 succeeded at 1535 (offset -17 lines).
+Hunk #5 succeeded at 1572 (offset -17 lines).
+Hunk #6 succeeded at 1591 (offset -17 lines).
+Hunk #7 succeeded at 1848 (offset -17 lines).
+Hunk #8 succeeded at 2037 (offset -17 lines).
+Hunk #9 succeeded at 2058 (offset -17 lines).
+Hunk #10 succeeded at 2076 (offset -17 lines).
+Hunk #11 succeeded at 2384 (offset -17 lines).
+Hunk #12 succeeded at 2410 (offset -17 lines).
+Hunk #13 succeeded at 2649 (offset -17 lines).
+Hunk #14 succeeded at 2664 (offset -17 lines).
 patching file dlls/winevulkan/vulkan_private.h
 patching file include/ddk/wdm.h
 Hunk #1 succeeded at 1889 (offset 18 lines).
 patching file loader/wine.inf.in
-Hunk #1 succeeded at 207 (offset -11 lines).
-Hunk #2 succeeded at 228 (offset -11 lines).
-Hunk #3 succeeded at 249 (offset -11 lines).
-Hunk #4 succeeded at 270 (offset -11 lines).
-Hunk #5 succeeded at 2700 (offset 215 lines).
+Hunk #1 succeeded at 153 (offset -4 lines).
+Hunk #2 succeeded at 174 (offset -4 lines).
+Hunk #3 succeeded at 195 (offset -4 lines).
+Hunk #4 succeeded at 216 (offset -65 lines).
+Hunk #5 succeeded at 1199 (offset -1286 lines).
 patching file dlls/sharedgpures.sys/shared_resource.c
 patching file dlls/sharedgpures.sys/shared_resource.c
 patching file dlls/sharedgpures.sys/shared_resource.c
 patching file dlls/winevulkan/vulkan.c
-Hunk #1 succeeded at 1511 (offset -19 lines).
-Hunk #2 succeeded at 2055 (offset -19 lines).
-Hunk #3 succeeded at 2664 (offset -19 lines).
+Hunk #1 succeeded at 1513 (offset -17 lines).
+Hunk #2 succeeded at 2057 (offset -17 lines).
+Hunk #3 succeeded at 2666 (offset -17 lines).
 patching file dlls/winevulkan/make_vulkan
 Hunk #1 succeeded at 97 (offset -1 lines).
-Hunk #3 succeeded at 173 (offset 1 line).
-Hunk #4 succeeded at 187 (offset 1 line).
-Hunk #6 succeeded at 306 (offset -1 lines).
+Hunk #2 succeeded at 115 (offset 4 lines).
+Hunk #3 succeeded at 189 (offset 17 lines).
+Hunk #4 succeeded at 203 (offset 17 lines).
+Hunk #5 succeeded at 246 (offset 16 lines).
+Hunk #6 succeeded at 322 (offset 15 lines).
 patching file dlls/winevulkan/vulkan.c
-Hunk #2 succeeded at 636 (offset -4 lines).
-Hunk #3 succeeded at 1844 (offset -19 lines).
-Hunk #4 succeeded at 2672 (offset -19 lines).
-Hunk #5 succeeded at 2709 (offset -19 lines).
-Hunk #6 succeeded at 2758 (offset -19 lines).
+Hunk #2 succeeded at 638 (offset -2 lines).
+Hunk #3 succeeded at 1846 (offset -17 lines).
+Hunk #4 succeeded at 2674 (offset -17 lines).
+Hunk #5 succeeded at 2711 (offset -17 lines).
+Hunk #6 succeeded at 2760 (offset -17 lines).
 patching file dlls/winevulkan/make_vulkan
-Hunk #1 succeeded at 1233 (offset -1 lines).
+Hunk #1 succeeded at 1144 (offset -90 lines).
 patching file dlls/win32u/vulkan.c
 Hunk #1 succeeded at 353 (offset -675 lines).
 Hunk #2 succeeded at 362 (offset -675 lines).
@@ -486,168 +541,170 @@ Hunk #4 succeeded at 407 (offset -858 lines).
 Hunk #5 succeeded at 414 (offset -862 lines).
 Hunk #6 succeeded at 477 (offset -956 lines).
 patching file dlls/winevulkan/make_vulkan
-Hunk #1 succeeded at 178 (offset 1 line).
-Hunk #2 succeeded at 197 (offset 1 line).
-Hunk #4 succeeded at 330 (offset -1 lines).
-Hunk #5 succeeded at 1248 (offset -1 lines).
+Hunk #1 succeeded at 194 (offset 17 lines).
+Hunk #2 succeeded at 213 (offset 17 lines).
+Hunk #3 succeeded at 302 (offset 16 lines).
+Hunk #4 succeeded at 346 (offset 15 lines).
+Hunk #5 succeeded at 1159 (offset -90 lines).
 patching file dlls/winevulkan/vulkan.c
-Hunk #4 succeeded at 667 (offset -4 lines).
-Hunk #5 succeeded at 1892 (offset -19 lines).
-Hunk #6 succeeded at 1935 (offset -19 lines).
-Hunk #7 succeeded at 2114 (offset -19 lines).
-Hunk #8 succeeded at 2142 (offset -19 lines).
-Hunk #9 succeeded at 2811 (offset -19 lines).
-Hunk #10 succeeded at 3124 (offset -19 lines).
-Hunk #11 succeeded at 3175 (offset -19 lines).
+Hunk #4 succeeded at 669 (offset -2 lines).
+Hunk #5 succeeded at 1894 (offset -17 lines).
+Hunk #6 succeeded at 1937 (offset -17 lines).
+Hunk #7 succeeded at 2116 (offset -17 lines).
+Hunk #8 succeeded at 2144 (offset -17 lines).
+Hunk #9 succeeded at 2813 (offset -17 lines).
+Hunk #10 succeeded at 3126 (offset -17 lines).
+Hunk #11 succeeded at 3177 (offset -17 lines).
 patching file dlls/winevulkan/vulkan_private.h
 patching file include/wine/vulkan_driver.h
 Hunk #1 succeeded at 154 (offset -2 lines).
 patching file dlls/winevulkan/vulkan.c
-Hunk #3 succeeded at 671 (offset -4 lines).
-Hunk #4 succeeded at 1176 (offset -19 lines).
-Hunk #5 succeeded at 1908 (offset -19 lines).
+Hunk #3 succeeded at 673 (offset -2 lines).
+Hunk #4 succeeded at 1178 (offset -17 lines).
+Hunk #5 succeeded at 1910 (offset -17 lines).
 patching file include/wine/vulkan_driver.h
 Hunk #1 succeeded at 79 (offset -3 lines).
 Hunk #2 succeeded at 92 (offset -3 lines).
 patching file dlls/winevulkan/make_vulkan
-Hunk #1 succeeded at 183 (offset 1 line).
-Hunk #2 succeeded at 334 (offset -1 lines).
-Hunk #3 succeeded at 1474 (offset -1 lines).
-Hunk #4 succeeded at 1599 (offset -1 lines).
-Hunk #5 succeeded at 1657 (offset -1 lines).
-Hunk #6 succeeded at 2388 (offset 1 line).
-Hunk #7 succeeded at 2434 (offset 1 line).
-Hunk #8 succeeded at 2444 (offset 1 line).
-Hunk #9 succeeded at 2465 (offset 1 line).
-Hunk #10 succeeded at 2507 (offset 1 line).
-Hunk #11 succeeded at 2566 (offset 1 line).
-Hunk #12 succeeded at 2601 (offset 1 line).
+Hunk #1 succeeded at 199 (offset 17 lines).
+Hunk #2 succeeded at 350 (offset 15 lines).
+Hunk #3 succeeded at 1474 (offset -123 lines).
+Hunk #4 succeeded at 1536 (offset -119 lines).
+Hunk #5 succeeded at 2239 (offset -145 lines).
+Hunk #6 succeeded at 2285 (offset -145 lines).
+Hunk #7 succeeded at 2295 (offset -145 lines).
+Hunk #8 succeeded at 2316 (offset -145 lines).
+Hunk #9 succeeded at 2358 (offset -145 lines).
+Hunk #10 succeeded at 2417 (offset -145 lines).
+Hunk #11 succeeded at 2452 (offset -145 lines).
 patching file dlls/winevulkan/vulkan.c
-Hunk #1 succeeded at 3385 (offset -19 lines).
+Hunk #1 succeeded at 3387 (offset -17 lines).
 patching file dlls/winevulkan/vulkan_private.h
 patching file dlls/winevulkan/vulkan.c
-Hunk #5 succeeded at 1080 (offset 3 lines).
-Hunk #6 succeeded at 1100 (offset -19 lines).
-Hunk #7 succeeded at 1244 (offset -19 lines).
-Hunk #8 succeeded at 1254 (offset -19 lines).
-Hunk #9 succeeded at 2949 (offset -19 lines).
-Hunk #10 succeeded at 3333 (offset -19 lines).
-Hunk #11 succeeded at 3473 (offset -19 lines).
-Hunk #12 succeeded at 3510 (offset -19 lines).
-Hunk #13 succeeded at 3544 (offset -19 lines).
-Hunk #14 succeeded at 3649 (offset -19 lines).
-Hunk #15 succeeded at 3667 (offset -19 lines).
-Hunk #16 succeeded at 3680 (offset -19 lines).
-Hunk #17 succeeded at 3696 (offset -19 lines).
-Hunk #18 succeeded at 3899 (offset -19 lines).
-Hunk #19 succeeded at 3911 (offset -19 lines).
-Hunk #20 succeeded at 3928 (offset -19 lines).
-Hunk #21 succeeded at 3946 (offset -19 lines).
-Hunk #22 succeeded at 3955 (offset -19 lines).
-Hunk #23 succeeded at 4007 (offset -19 lines).
+Hunk #5 succeeded at 1082 (offset 5 lines).
+Hunk #6 succeeded at 1102 (offset -17 lines).
+Hunk #7 succeeded at 1246 (offset -17 lines).
+Hunk #8 succeeded at 1256 (offset -17 lines).
+Hunk #9 succeeded at 2951 (offset -17 lines).
+Hunk #10 succeeded at 3335 (offset -17 lines).
+Hunk #11 succeeded at 3475 (offset -17 lines).
+Hunk #12 succeeded at 3512 (offset -17 lines).
+Hunk #13 succeeded at 3546 (offset -17 lines).
+Hunk #14 succeeded at 3651 (offset -17 lines).
+Hunk #15 succeeded at 3669 (offset -17 lines).
+Hunk #16 succeeded at 3682 (offset -17 lines).
+Hunk #17 succeeded at 3698 (offset -17 lines).
+Hunk #18 succeeded at 3901 (offset -17 lines).
+Hunk #19 succeeded at 3913 (offset -17 lines).
+Hunk #20 succeeded at 3930 (offset -17 lines).
+Hunk #21 succeeded at 3948 (offset -17 lines).
+Hunk #22 succeeded at 3957 (offset -17 lines).
+Hunk #23 succeeded at 4009 (offset -17 lines).
 patching file dlls/winevulkan/vulkan_private.h
 patching file include/wine/vulkan_driver.h
 Hunk #1 succeeded at 45 with fuzz 1 (offset -3 lines).
 Hunk #2 succeeded at 103 (offset -2 lines).
 Hunk #3 succeeded at 119 (offset -2 lines).
 patching file dlls/winevulkan/vulkan.c
-Hunk #2 succeeded at 3021 (offset -19 lines).
-Hunk #3 succeeded at 3044 (offset -19 lines).
-Hunk #4 succeeded at 3280 (offset -19 lines).
+Hunk #2 succeeded at 3023 (offset -17 lines).
+Hunk #3 succeeded at 3046 (offset -17 lines).
+Hunk #4 succeeded at 3282 (offset -17 lines).
 patching file dlls/winevulkan/vulkan_private.h
 patching file dlls/winevulkan/vulkan.c
-Hunk #1 succeeded at 2797 (offset -19 lines).
-Hunk #2 succeeded at 2827 (offset -19 lines).
-Hunk #3 succeeded at 2841 (offset -19 lines).
-Hunk #4 succeeded at 2860 (offset -19 lines).
+Hunk #1 succeeded at 2799 (offset -17 lines).
+Hunk #2 succeeded at 2829 (offset -17 lines).
+Hunk #3 succeeded at 2843 (offset -17 lines).
+Hunk #4 succeeded at 2862 (offset -17 lines).
 patching file dlls/winevulkan/make_vulkan
-Hunk #1 succeeded at 100 with fuzz 2 (offset -1 lines).
-Hunk #2 succeeded at 333 (offset -1 lines).
+Hunk #1 succeeded at 103 (offset 2 lines).
+Hunk #2 succeeded at 349 (offset 15 lines).
 patching file dlls/winevulkan/vulkan.c
 Hunk #4 succeeded at 482 (offset 2 lines).
 Hunk #5 succeeded at 499 (offset 2 lines).
-Hunk #6 succeeded at 724 (offset -4 lines).
+Hunk #6 succeeded at 726 (offset -2 lines).
 patching file dlls/winevulkan/vulkan.c
-Hunk #1 succeeded at 2920 (offset -19 lines).
+Hunk #1 succeeded at 2922 (offset -17 lines).
 patching file dlls/sharedgpures.sys/shared_resource.c
 patching file dlls/winevulkan/vulkan.c
-Hunk #1 succeeded at 2082 (offset -19 lines).
-Hunk #2 succeeded at 2123 (offset -19 lines).
-Hunk #3 succeeded at 2151 (offset -19 lines).
-Hunk #4 succeeded at 2203 (offset -19 lines).
-Hunk #5 succeeded at 2297 (offset -19 lines).
-Hunk #6 succeeded at 2341 (offset -19 lines).
-Hunk #7 succeeded at 2441 (offset -19 lines).
-Hunk #8 succeeded at 3477 (offset -19 lines).
-Hunk #9 succeeded at 3516 (offset -19 lines).
+Hunk #1 succeeded at 2084 (offset -17 lines).
+Hunk #2 succeeded at 2125 (offset -17 lines).
+Hunk #3 succeeded at 2153 (offset -17 lines).
+Hunk #4 succeeded at 2205 (offset -17 lines).
+Hunk #5 succeeded at 2299 (offset -17 lines).
+Hunk #6 succeeded at 2343 (offset -17 lines).
+Hunk #7 succeeded at 2443 (offset -17 lines).
+Hunk #8 succeeded at 3479 (offset -17 lines).
+Hunk #9 succeeded at 3518 (offset -17 lines).
 patching file dlls/winevulkan/vulkan.c
-Hunk #1 succeeded at 687 with fuzz 2 (offset 2 lines).
-Hunk #2 succeeded at 732 (offset -4 lines).
-Hunk #3 succeeded at 1108 with fuzz 1 (offset 3 lines).
-Hunk #4 succeeded at 2252 (offset -19 lines).
-Hunk #5 succeeded at 2548 (offset -19 lines).
-Hunk #6 succeeded at 2637 (offset -19 lines).
-Hunk #7 succeeded at 2679 (offset -19 lines).
+Hunk #1 succeeded at 689 with fuzz 2 (offset 4 lines).
+Hunk #2 succeeded at 734 (offset -2 lines).
+Hunk #3 succeeded at 1110 with fuzz 1 (offset 5 lines).
+Hunk #4 succeeded at 2254 (offset -17 lines).
+Hunk #5 succeeded at 2550 (offset -17 lines).
+Hunk #6 succeeded at 2639 (offset -17 lines).
+Hunk #7 succeeded at 2681 (offset -17 lines).
 patching file dlls/winevulkan/vulkan_private.h
 patching file include/wine/vulkan_driver.h
 Hunk #1 succeeded at 129 (offset -2 lines).
 patching file dlls/winevulkan/make_vulkan
-Hunk #1 succeeded at 182 (offset 1 line).
-Hunk #2 succeeded at 333 (offset -1 lines).
+Hunk #1 succeeded at 198 (offset 17 lines).
+Hunk #2 succeeded at 349 (offset 15 lines).
 patching file dlls/winevulkan/vulkan.c
-Hunk #1 succeeded at 2437 (offset -19 lines).
-Hunk #2 succeeded at 4252 (offset -19 lines).
-Hunk #3 succeeded at 4378 (offset -19 lines).
-Hunk #4 succeeded at 4410 (offset -19 lines).
-Hunk #5 succeeded at 4458 (offset -19 lines).
-Hunk #6 succeeded at 4477 (offset -19 lines).
-Hunk #7 succeeded at 4487 (offset -19 lines).
+Hunk #1 succeeded at 2439 (offset -17 lines).
+Hunk #2 succeeded at 4254 (offset -17 lines).
+Hunk #3 succeeded at 4380 (offset -17 lines).
+Hunk #4 succeeded at 4412 (offset -17 lines).
+Hunk #5 succeeded at 4460 (offset -17 lines).
+Hunk #6 succeeded at 4479 (offset -17 lines).
+Hunk #7 succeeded at 4489 (offset -17 lines).
 patching file dlls/winevulkan/make_vulkan
-Hunk #1 succeeded at 211 (offset 1 line).
-Hunk #3 succeeded at 3359 (offset -4 lines).
+Hunk #1 succeeded at 227 (offset 17 lines).
+Hunk #2 succeeded at 316 (offset 16 lines).
+Hunk #3 succeeded at 3228 (offset -135 lines).
 patching file dlls/winevulkan/vk_custom.xml
 patching file dlls/winevulkan/vulkan.c
-Hunk #1 succeeded at 3169 (offset -19 lines).
-Hunk #2 succeeded at 4607 (offset -19 lines).
+Hunk #1 succeeded at 3171 (offset -17 lines).
+Hunk #2 succeeded at 4609 (offset -17 lines).
 patching file dlls/winevulkan/vulkan.c
-Hunk #1 succeeded at 965 (offset 3 lines).
-Hunk #2 succeeded at 4618 (offset -19 lines).
+Hunk #1 succeeded at 967 (offset 5 lines).
+Hunk #2 succeeded at 4620 (offset -17 lines).
 patching file dlls/winevulkan/vulkan.c
-Hunk #5 succeeded at 1279 (offset -19 lines).
-Hunk #6 succeeded at 1352 (offset -19 lines).
-Hunk #7 succeeded at 2579 (offset -19 lines).
-Hunk #8 succeeded at 2757 (offset -19 lines).
+Hunk #5 succeeded at 1281 (offset -17 lines).
+Hunk #6 succeeded at 1354 (offset -17 lines).
+Hunk #7 succeeded at 2581 (offset -17 lines).
+Hunk #8 succeeded at 2759 (offset -17 lines).
 patching file dlls/winevulkan/vulkan_private.h
 patching file dlls/winevulkan/vulkan.c
-Hunk #2 succeeded at 3720 (offset -19 lines).
+Hunk #2 succeeded at 3722 (offset -17 lines).
 patching file dlls/winevulkan/vulkan_private.h
 patching file dlls/winevulkan/vulkan.c
-Hunk #1 succeeded at 1074 (offset 3 lines).
-Hunk #2 succeeded at 1115 (offset 3 lines).
+Hunk #1 succeeded at 1076 (offset 5 lines).
+Hunk #2 succeeded at 1117 (offset 5 lines).
 patching file dlls/winevulkan/vulkan.c
-Hunk #1 succeeded at 1074 (offset 3 lines).
-Hunk #2 succeeded at 1092 (offset 3 lines).
+Hunk #1 succeeded at 1076 (offset 5 lines).
+Hunk #2 succeeded at 1094 (offset 5 lines).
 patching file dlls/winevulkan/vulkan.c
+Hunk #1 succeeded at 718 (offset 2 lines).
 
 proton-win10-default.patch -- ( Enforce win10 as default wine version )
 patching file programs/wineboot/wineboot.c
-Hunk #1 succeeded at 1729 (offset 278 lines).
-Hunk #2 succeeded at 1820 with fuzz 2 (offset 287 lines).
+Hunk #1 succeeded at 1730 (offset 279 lines).
+Hunk #2 succeeded at 1821 with fuzz 2 (offset 288 lines).
 patching file programs/wineboot/wineboot.c
-Hunk #1 succeeded at 1731 (offset 25 lines).
+Hunk #1 succeeded at 1732 (offset 26 lines).
 patching file loader/wine.inf.in
-Hunk #1 succeeded at 2881 with fuzz 2 (offset 458 lines).
+Hunk #1 succeeded at 1380 with fuzz 2 (offset -1043 lines).
 patching file loader/wine.inf.in
-Hunk #1 succeeded at 2878 with fuzz 2 (offset 412 lines).
+Hunk #1 succeeded at 1377 with fuzz 2 (offset -1089 lines).
 patching file loader/wine.inf.in
-Hunk #1 succeeded at 380 (offset -169 lines).
-Hunk #2 succeeded at 406 with fuzz 1 (offset -167 lines).
+Hunk #1 succeeded at 326 (offset -223 lines).
+Hunk #2 succeeded at 352 with fuzz 1 (offset -221 lines).
 patching file loader/wine.inf.in
-Hunk #1 succeeded at 2871 with fuzz 2 (offset 415 lines).
+Hunk #1 succeeded at 1370 with fuzz 2 (offset -1086 lines).
 patching file programs/wineboot/wineboot.c
 Hunk #1 succeeded at 68 with fuzz 2.
-Hunk #2 succeeded at 1923 (offset 317 lines).
-Hunk #3 succeeded at 2082 with fuzz 2 (offset 319 lines).
+Hunk #2 succeeded at 1924 (offset 318 lines).
+Hunk #3 succeeded at 2083 with fuzz 2 (offset 320 lines).
 
 proton_battleye.patch -- ( Add support for Proton's Battleye runtime )
 patching file dlls/kernel32/kernel32.spec
@@ -660,7 +717,7 @@ patching file dlls/kernelbase/process.c
 Hunk #2 succeeded at 503 (offset -3 lines).
 Hunk #3 succeeded at 735 (offset -60 lines).
 patching file configure.ac
-Hunk #1 succeeded at 3506 (offset 44 lines).
+Hunk #1 succeeded at 3516 (offset 54 lines).
 patching file dlls/kernelbase/process.c
 Hunk #1 succeeded at 505 (offset -3 lines).
 Hunk #2 succeeded at 554 (offset -3 lines).
@@ -668,8 +725,8 @@ Hunk #3 succeeded at 570 (offset -3 lines).
 patching file programs/belauncher/Makefile.in
 patching file programs/belauncher/main.c
 patching file dlls/ntdll/unix/loader.c
-Hunk #1 succeeded at 357 (offset 17 lines).
-Hunk #2 succeeded at 377 (offset 17 lines).
+Hunk #1 succeeded at 360 (offset 20 lines).
+Hunk #2 succeeded at 380 (offset 20 lines).
 patching file programs/belauncher/Makefile.in
 patching file programs/belauncher/main.c
 patching file programs/belauncher/main.c
@@ -681,11 +738,25 @@ Hunk #2 succeeded at 322 (offset -1 lines).
 Hunk #3 succeeded at 1117 (offset 2 lines).
 Hunk #4 succeeded at 1129 (offset 2 lines).
 
+Revert-ntdll-Get-rid-of-the-wine_nt_to_unix_file_nam.patch -- ( Revert ntdll: Get rid of the wine_nt_to_unix_file_name syscall )
+patching file dlls/ntdll/ntdll.spec
+Hunk #1 succeeded at 1762 (offset -9 lines).
+patching file dlls/ntdll/ntsyscalls.h
+Hunk #1 succeeded at 263 (offset 15 lines).
+Hunk #2 succeeded at 523 (offset 30 lines).
+patching file dlls/ntdll/signal_arm64ec.c
+Hunk #1 succeeded at 598 with fuzz 1 (offset 16 lines).
+patching file dlls/ntdll/unix/file.c
+Hunk #1 succeeded at 4794 (offset 1029 lines).
+patching file dlls/wow64/file.c
+patching file include/winternl.h
+Hunk #1 succeeded at 5276 (offset 66 lines).
+
 proton-eac_bridge.patch -- ( Add support for Proton's EAC bridge )
 patching file dlls/ntdll/unix/loader.c
-Hunk #1 succeeded at 357 (offset 17 lines).
-Hunk #2 succeeded at 365 (offset 17 lines).
-Hunk #3 succeeded at 398 (offset 17 lines).
+Hunk #1 succeeded at 360 (offset 20 lines).
+Hunk #2 succeeded at 368 (offset 20 lines).
+Hunk #3 succeeded at 401 (offset 20 lines).
 patching file dlls/ntdll/unix/loadorder.c
 patching file dlls/kernelbase/process.c
 Hunk #1 succeeded at 503 (offset -3 lines).
@@ -698,18 +769,18 @@ Hunk #3 succeeded at 428 with fuzz 1 (offset 1 line).
 
 wow64_loader_hack.patch -- ( Hack around loader name for EAC on 10.2+ )
 patching file configure.ac
-Hunk #1 succeeded at 2072 (offset 39 lines).
-Hunk #2 succeeded at 2091 (offset 39 lines).
+Hunk #1 succeeded at 2073 (offset 40 lines).
+Hunk #2 succeeded at 2092 (offset 40 lines).
 patching file dlls/ntdll/unix/loader.c
-Hunk #1 succeeded at 494 (offset 18 lines).
-Hunk #2 succeeded at 506 (offset 18 lines).
-Hunk #3 succeeded at 540 (offset 18 lines).
+Hunk #1 succeeded at 497 (offset 21 lines).
+Hunk #2 succeeded at 509 (offset 21 lines).
+Hunk #3 succeeded at 543 (offset 21 lines).
 patching file loader/Makefile.in
 
 Applying hotfix wine-tkg-patches/hotfixes/GetMappedFileName/Return_nt_filename_and_resolve_DOS_drive_path.mypatch
 patching file dlls/ntdll/unix/virtual.c
 Hunk #1 succeeded at 131 with fuzz 2 (offset -2 lines).
-Hunk #2 succeeded at 5859 (offset 1584 lines).
+Hunk #2 succeeded at 6038 (offset 1763 lines).
 
 Applying hotfix wine-tkg-patches/hotfixes/08cccb5/a608ef1.mypatch
 patching file dlls/dxgi/dxgi_main.c
@@ -724,27 +795,22 @@ Hunk #1 succeeded at 799 (offset -5 lines).
 patching file dlls/win32u/message.c
 Hunk #1 succeeded at 2782 (offset 88 lines).
 Hunk #2 succeeded at 2822 (offset 88 lines).
-Hunk #3 succeeded at 3023 (offset 88 lines).
-Hunk #4 succeeded at 3088 (offset 88 lines).
-Hunk #5 succeeded at 3330 (offset 96 lines).
-Hunk #6 succeeded at 3393 (offset 108 lines).
+Hunk #3 succeeded at 3028 (offset 93 lines).
+Hunk #4 succeeded at 3093 (offset 93 lines).
+Hunk #5 succeeded at 3334 (offset 100 lines).
+Hunk #6 succeeded at 3397 (offset 112 lines).
 patching file dlls/win32u/ntuser_private.h
-Hunk #1 succeeded at 211 (offset -24 lines).
+Hunk #1 succeeded at 213 (offset -22 lines).
 
 Applying hotfix wine-tkg-patches/hotfixes/autoconf-opencl-hotfix/opencl-fixup.mypatch
 patching file configure.ac
 Hunk #1 succeeded at 45 with fuzz 2 (offset -5 lines).
 Hunk #2 succeeded at 664 (offset 234 lines).
-Hunk #3 succeeded at 743 (offset 229 lines).
-Hunk #4 succeeded at 972 with fuzz 2 (offset 217 lines).
-
-Applying hotfix wine-tkg-patches/hotfixes/winedevice-Default_Drivers/0001-wine-staging-Fix-build.mypatch
-patching file dlls/dxgkrnl.sys/Makefile.in
-patching file dlls/dxgmms1.sys/Makefile.in
-patching file dlls/win32k.sys/Makefile.in
+Hunk #3 succeeded at 744 (offset 230 lines).
+Hunk #4 succeeded at 973 with fuzz 2 (offset 218 lines).
 
 wine-tkg-staging.patch -- ( Please don't report bugs about this wine build on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead. )
 patching file dlls/ntdll/loader.c
-Hunk #1 succeeded at 4584 with fuzz 1 (offset 1101 lines).
+Hunk #1 succeeded at 4594 with fuzz 1 (offset 1111 lines).
 
 Running make_vulkan

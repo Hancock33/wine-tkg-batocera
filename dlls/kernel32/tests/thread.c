@@ -77,9 +77,11 @@
 
 static void (WINAPI *pGetCurrentThreadStackLimits)(PULONG_PTR,PULONG_PTR);
 static BOOL (WINAPI *pGetThreadPriorityBoost)(HANDLE,PBOOL);
+static BOOL (WINAPI *pGetProcessPriorityBoost)(HANDLE,PBOOL);
 static HANDLE (WINAPI *pOpenThread)(DWORD,BOOL,DWORD);
 static BOOL (WINAPI *pQueueUserWorkItem)(LPTHREAD_START_ROUTINE,PVOID,ULONG);
 static BOOL (WINAPI *pSetThreadPriorityBoost)(HANDLE,BOOL);
+static BOOL (WINAPI *pSetProcessPriorityBoost)(HANDLE,BOOL);
 static BOOL (WINAPI *pSetThreadStackGuarantee)(ULONG*);
 static BOOL (WINAPI *pRegisterWaitForSingleObject)(PHANDLE,HANDLE,WAITORTIMERCALLBACK,PVOID,ULONG,ULONG);
 static BOOL (WINAPI *pUnregisterWait)(HANDLE);
@@ -101,7 +103,6 @@ static HRESULT (WINAPI *pSetThreadDescription)(HANDLE,const WCHAR *);
 static HRESULT (WINAPI *pGetThreadDescription)(HANDLE,WCHAR **);
 static PVOID (WINAPI *pRtlAddVectoredExceptionHandler)(ULONG,PVECTORED_EXCEPTION_HANDLER);
 static ULONG (WINAPI *pRtlRemoveVectoredExceptionHandler)(PVOID);
-static NTSTATUS (WINAPI *pNtSetLdtEntries)(ULONG,ULONG,ULONG,ULONG,ULONG,ULONG);
 
 static HANDLE create_target_process(const char *arg)
 {
@@ -787,6 +788,27 @@ static VOID test_thread_priority(void)
    rc = pGetThreadPriorityBoost(curthread, &disabled);
    ok(rc != 0 && disabled == 0,
       "rc=%d error=%ld disabled=%d\n", rc, GetLastError(), disabled);
+
+   rc = pSetProcessPriorityBoost(GetCurrentProcess(), 1);
+   ok(rc != 0, "error=%ld\n", GetLastError());
+   rc = pGetThreadPriorityBoost(curthread, &disabled);
+   ok(rc != 0 && disabled == 1,
+      "rc=%d error=%ld disabled=%d\n", rc, GetLastError(), disabled);
+   rc = pGetProcessPriorityBoost(GetCurrentProcess(), &disabled);
+   ok(rc != 0 && disabled == 1,
+      "rc=%d error=%ld disabled=%d\n", rc, GetLastError(), disabled);
+
+   rc = pSetThreadPriorityBoost(curthread, 0);
+   ok(rc != 0, "error=%ld\n", GetLastError());
+   rc = pGetThreadPriorityBoost(curthread, &disabled);
+   ok(rc != 0 && disabled == 0,
+      "rc=%d error=%ld disabled=%d\n", rc, GetLastError(), disabled);
+   rc = pGetProcessPriorityBoost(GetCurrentProcess(), &disabled);
+   ok(rc != 0 && disabled == 1,
+      "rc=%d error=%ld disabled=%d\n", rc, GetLastError(), disabled);
+
+   rc = pSetProcessPriorityBoost(GetCurrentProcess(), 0);
+   ok(rc != 0, "error=%ld\n", GetLastError());
 }
 
 /* check the GetThreadTimes function */
@@ -1295,78 +1317,6 @@ static void test_GetThreadSelectorEntry(void)
     ok(entry.HighWord.Bits.Reserved_0 == 0,   "expected 0, got %u\n", entry.HighWord.Bits.Reserved_0);
     ok(entry.HighWord.Bits.Default_Big == 1,  "expected 1, got %u\n", entry.HighWord.Bits.Default_Big);
     ok(entry.HighWord.Bits.Granularity == 1,  "expected 1, got %u\n", entry.HighWord.Bits.Granularity);
-}
-
-static void test_NtSetLdtEntries(void)
-{
-    THREAD_DESCRIPTOR_INFORMATION tdi;
-    LDT_ENTRY ds_entry;
-    CONTEXT ctx;
-    DWORD ret;
-    union
-    {
-        LDT_ENTRY entry;
-        DWORD dw[2];
-    } sel;
-
-    if (!pNtSetLdtEntries)
-    {
-        win_skip("NtSetLdtEntries is not available on this platform\n");
-        return;
-    }
-
-    if (pNtSetLdtEntries(0, 0, 0, 0, 0, 0) == STATUS_NOT_IMPLEMENTED) /* WoW64 */
-    {
-        win_skip("NtSetLdtEntries is not implemented on this platform\n");
-        return;
-    }
-
-    ret = pNtSetLdtEntries(0, 0, 0, 0, 0, 0);
-    ok(!ret, "NtSetLdtEntries failed: %08x\n", ret);
-
-    ctx.ContextFlags = CONTEXT_SEGMENTS;
-    ret = GetThreadContext(GetCurrentThread(), &ctx);
-    ok(ret, "GetThreadContext failed\n");
-
-    tdi.Selector = ctx.SegDs;
-    ret = pNtQueryInformationThread(GetCurrentThread(), ThreadDescriptorTableEntry, &tdi, sizeof(tdi), &ret);
-    ok(!ret, "NtQueryInformationThread failed: %08x\n", ret);
-    ds_entry = tdi.Entry;
-
-    tdi.Selector = 0x000f;
-    ret = pNtQueryInformationThread(GetCurrentThread(), ThreadDescriptorTableEntry, &tdi, sizeof(tdi), &ret);
-    ok(ret == STATUS_ACCESS_VIOLATION, "got %08x\n", ret);
-
-    tdi.Selector = 0x001f;
-    ret = pNtQueryInformationThread(GetCurrentThread(), ThreadDescriptorTableEntry, &tdi, sizeof(tdi), &ret);
-    ok(ret == STATUS_ACCESS_VIOLATION, "NtQueryInformationThread returned %08x\n", ret);
-
-    ret = GetThreadSelectorEntry(GetCurrentThread(), 0x000f, &sel.entry);
-    ok(!ret, "GetThreadSelectorEntry should fail\n");
-
-    ret = GetThreadSelectorEntry(GetCurrentThread(), 0x001f, &sel.entry);
-    ok(!ret, "GetThreadSelectorEntry should fail\n");
-
-    memset(&sel.entry, 0x9a, sizeof(sel.entry));
-    ret = GetThreadSelectorEntry(GetCurrentThread(), ctx.SegDs, &sel.entry);
-    ok(ret, "GetThreadSelectorEntry failed\n");
-    ok(!memcmp(&ds_entry, &sel.entry, sizeof(ds_entry)), "entries do not match\n");
-
-    ret = pNtSetLdtEntries(0x000f, sel.dw[0], sel.dw[1], 0x001f, sel.dw[0], sel.dw[1]);
-    ok(!ret || broken(ret == STATUS_INVALID_LDT_DESCRIPTOR) /*XP*/, "NtSetLdtEntries failed: %08x\n", ret);
-
-    if (!ret)
-    {
-        memset(&sel.entry, 0x9a, sizeof(sel.entry));
-        ret = GetThreadSelectorEntry(GetCurrentThread(), 0x000f, &sel.entry);
-        ok(ret, "GetThreadSelectorEntry failed\n");
-        ok(!memcmp(&ds_entry, &sel.entry, sizeof(ds_entry)), "entries do not match\n");
-
-        memset(&sel.entry, 0x9a, sizeof(sel.entry));
-        ret = GetThreadSelectorEntry(GetCurrentThread(), 0x001f, &sel.entry);
-        ok(ret, "GetThreadSelectorEntry failed\n");
-        ok(!memcmp(&ds_entry, &sel.entry, sizeof(ds_entry)), "entries do not match\n");
-    }
 }
 
 #endif  /* __i386__ */
@@ -2085,6 +2035,8 @@ static void test_thread_fpu_cw(void)
     unsigned int initial_cw, cw;
     unsigned long fpu_cw;
 
+    _clearfp();  /* clear status flags before checks */
+
     fpu_cw = get_fpu_cw();
     initial_cw = _control87( 0, 0 );
     ok(initial_cw == expected_cw[0].cw, "expected %#x got %#x\n", expected_cw[0].cw, initial_cw);
@@ -2654,9 +2606,11 @@ static void init_funcs(void)
 #define X(f) p##f = (void*)GetProcAddress(hKernel32, #f)
     X(GetCurrentThreadStackLimits);
     X(GetThreadPriorityBoost);
+    X(GetProcessPriorityBoost);
     X(OpenThread);
     X(QueueUserWorkItem);
     X(SetThreadPriorityBoost);
+    X(SetProcessPriorityBoost);
     X(SetThreadStackGuarantee);
     X(RegisterWaitForSingleObject);
     X(UnregisterWait);
@@ -2690,7 +2644,6 @@ static void init_funcs(void)
        X(NtSetInformationThread);
        X(RtlAddVectoredExceptionHandler);
        X(RtlRemoveVectoredExceptionHandler);
-       X(NtSetLdtEntries);
    }
 #undef X
 }
@@ -2747,7 +2700,6 @@ START_TEST(thread)
    test_SetThreadContext();
    test_GetThreadSelectorEntry();
    test_GetThreadContext();
-   test_NtSetLdtEntries();
 #endif
    test_QueueUserWorkItem();
    test_RegisterWaitForSingleObject();
