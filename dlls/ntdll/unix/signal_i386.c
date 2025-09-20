@@ -164,7 +164,7 @@ __ASM_GLOBAL_FUNC( rt_sigreturn,
 struct modify_ldt_s
 {
     unsigned int  entry_number;
-    void         *base_addr;
+    unsigned int  base_addr;
     unsigned int  limit;
     unsigned int  seg_32bit : 1;
     unsigned int  contents : 2;
@@ -387,8 +387,6 @@ static inline int set_thread_area( struct modify_ldt_s *ptr )
 #error You must define the signal context functions for your platform
 #endif /* linux */
 
-static ULONG first_ldt_entry = 32;
-
 enum i386_trap_code
 {
 #if defined(__FreeBSD__) || defined (__FreeBSD_kernel__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
@@ -551,20 +549,11 @@ NTSTATUS unwind_builtin_dll( void *args )
 
 
 /***********************************************************************
- *           is_gdt_sel
- */
-static inline int is_gdt_sel( WORD sel )
-{
-    return !(sel & 4);
-}
-
-
-/***********************************************************************
  *           ldt_is_system
  */
 static inline int ldt_is_system( WORD sel )
 {
-    return is_gdt_sel( sel ) || ((sel >> 3) < first_ldt_entry);
+    return is_gdt_sel( sel ) || ((sel >> 3) < 32);
 }
 
 
@@ -1508,12 +1497,14 @@ static void setup_exception( ucontext_t *sigcontext, EXCEPTION_RECORD *rec )
 /***********************************************************************
  *           call_user_apc_dispatcher
  */
-NTSTATUS call_user_apc_dispatcher( CONTEXT *context, ULONG_PTR arg1, ULONG_PTR arg2, ULONG_PTR arg3,
+NTSTATUS call_user_apc_dispatcher( CONTEXT *context, unsigned int flags, ULONG_PTR arg1, ULONG_PTR arg2, ULONG_PTR arg3,
                                    PNTAPCFUNC func, NTSTATUS status )
 {
     struct syscall_frame *frame = get_syscall_frame();
     ULONG esp = context ? context->Esp : frame->esp;
     struct apc_stack_layout *stack = (struct apc_stack_layout *)esp - 1;
+
+    if (flags) FIXME( "flags %#x are not supported.\n", flags );
 
     if (!context)
     {
@@ -2178,63 +2169,12 @@ static void usr1_handler( int signal, siginfo_t *siginfo, void *sigcontext )
  *           LDT support
  */
 
-#define LDT_SIZE 8192
-
-#define LDT_FLAGS_DATA      0x13  /* Data segment */
-#define LDT_FLAGS_CODE      0x1b  /* Code segment */
-#define LDT_FLAGS_32BIT     0x40  /* Segment is 32-bit (code or stack) */
-#define LDT_FLAGS_ALLOCATED 0x80  /* Segment is allocated */
-
-struct ldt_copy
-{
-    void         *base[LDT_SIZE];
-    unsigned int  limit[LDT_SIZE];
-    unsigned char flags[LDT_SIZE];
-} __wine_ldt_copy;
-
 static WORD gdt_fs_sel;
-static pthread_mutex_t ldt_mutex = PTHREAD_MUTEX_INITIALIZER;
-static const LDT_ENTRY null_entry;
 
-static inline void *ldt_get_base( LDT_ENTRY ent )
+void ldt_set_entry( WORD sel, LDT_ENTRY entry )
 {
-    return (void *)(ent.BaseLow |
-                    (ULONG_PTR)ent.HighWord.Bits.BaseMid << 16 |
-                    (ULONG_PTR)ent.HighWord.Bits.BaseHi << 24);
-}
-
-static inline unsigned int ldt_get_limit( LDT_ENTRY ent )
-{
-    unsigned int limit = ent.LimitLow | (ent.HighWord.Bits.LimitHi << 16);
-    if (ent.HighWord.Bits.Granularity) limit = (limit << 12) | 0xfff;
-    return limit;
-}
-
-static LDT_ENTRY ldt_make_entry( void *base, unsigned int limit, unsigned char flags )
-{
-    LDT_ENTRY entry;
-
-    entry.BaseLow                   = (WORD)(ULONG_PTR)base;
-    entry.HighWord.Bits.BaseMid     = (BYTE)((ULONG_PTR)base >> 16);
-    entry.HighWord.Bits.BaseHi      = (BYTE)((ULONG_PTR)base >> 24);
-    if ((entry.HighWord.Bits.Granularity = (limit >= 0x100000))) limit >>= 12;
-    entry.LimitLow                  = (WORD)limit;
-    entry.HighWord.Bits.LimitHi     = limit >> 16;
-    entry.HighWord.Bits.Dpl         = 3;
-    entry.HighWord.Bits.Pres        = 1;
-    entry.HighWord.Bits.Type        = flags;
-    entry.HighWord.Bits.Sys         = 0;
-    entry.HighWord.Bits.Reserved_0  = 0;
-    entry.HighWord.Bits.Default_Big = (flags & LDT_FLAGS_32BIT) != 0;
-    return entry;
-}
-
-static void ldt_set_entry( WORD sel, LDT_ENTRY entry )
-{
-    int index = sel >> 3;
-
 #ifdef linux
-    struct modify_ldt_s ldt_info = { index };
+    struct modify_ldt_s ldt_info = { .entry_number = sel >> 3 };
 
     ldt_info.base_addr       = ldt_get_base( entry );
     ldt_info.limit           = entry.LimitLow | (entry.HighWord.Bits.LimitHi << 16);
@@ -2248,7 +2188,7 @@ static void ldt_set_entry( WORD sel, LDT_ENTRY entry )
 #elif defined(__NetBSD__) || defined(__FreeBSD__) || defined(__FreeBSD_kernel__) || defined(__OpenBSD__) || defined(__DragonFly__)
     /* The kernel will only let us set LDTs with user priority level */
     if (entry.HighWord.Bits.Pres && entry.HighWord.Bits.Dpl != 3) entry.HighWord.Bits.Dpl = 3;
-    if (i386_set_ldt(index, (union descriptor *)&entry, 1) < 0)
+    if (i386_set_ldt(sel >> 3, (union descriptor *)&entry, 1) < 0)
     {
         perror("i386_set_ldt");
         fprintf( stderr, "Did you reconfigure the kernel with \"options USER_LDT\"?\n" );
@@ -2258,13 +2198,13 @@ static void ldt_set_entry( WORD sel, LDT_ENTRY entry )
     struct ssd ldt_mod;
 
     ldt_mod.sel  = sel;
-    ldt_mod.bo   = (unsigned long)ldt_get_base( entry );
+    ldt_mod.bo   = ldt_get_base( entry );
     ldt_mod.ls   = entry.LimitLow | (entry.HighWord.Bits.LimitHi << 16);
     ldt_mod.acc1 = entry.HighWord.Bytes.Flags1;
     ldt_mod.acc2 = entry.HighWord.Bytes.Flags2 >> 4;
     if (sysi86(SI86DSCR, &ldt_mod) == -1) perror("sysi86");
 #elif defined(__APPLE__)
-    if (i386_set_ldt(index, (union ldt_entry *)&entry, 1) < 0) perror("i386_set_ldt");
+    if (i386_set_ldt(sel >> 3, (union ldt_entry *)&entry, 1) < 0) perror("i386_set_ldt");
 #elif defined(__GNU__)
     if (i386_set_ldt(mach_thread_self(), sel, (descriptor_list_t)&entry, 1) != KERN_SUCCESS)
         perror("i386_set_ldt");
@@ -2272,12 +2212,6 @@ static void ldt_set_entry( WORD sel, LDT_ENTRY entry )
     fprintf( stderr, "No LDT support on this platform\n" );
     exit(1);
 #endif
-
-    __wine_ldt_copy.base[index]  = ldt_get_base( entry );
-    __wine_ldt_copy.limit[index] = ldt_get_limit( entry );
-    __wine_ldt_copy.flags[index] = (entry.HighWord.Bits.Type |
-                                    (entry.HighWord.Bits.Default_Big ? LDT_FLAGS_32BIT : 0) |
-                                    LDT_FLAGS_ALLOCATED);
 }
 
 static void ldt_set_fs( WORD sel, TEB *teb )
@@ -2285,11 +2219,8 @@ static void ldt_set_fs( WORD sel, TEB *teb )
     if (sel == gdt_fs_sel)
     {
 #ifdef __linux__
-        struct modify_ldt_s ldt_info = { sel >> 3 };
-
-        ldt_info.base_addr = teb;
-        ldt_info.limit     = page_size - 1;
-        ldt_info.seg_32bit = 1;
+        struct modify_ldt_s ldt_info = { .entry_number = sel >> 3, .base_addr = PtrToUlong( teb ),
+                                         .limit = page_size - 1, .seg_32bit = 1 };
         if (set_thread_area( &ldt_info ) < 0) perror( "set_thread_area" );
 #elif defined(__FreeBSD__) || defined (__FreeBSD_kernel__) || defined(__DragonFly__)
         i386_set_fsbase( teb );
@@ -2302,67 +2233,37 @@ static void ldt_set_fs( WORD sel, TEB *teb )
 /**********************************************************************
  *           get_thread_ldt_entry
  */
-NTSTATUS get_thread_ldt_entry( HANDLE handle, void *data, ULONG len, ULONG *ret_len )
+NTSTATUS get_thread_ldt_entry( HANDLE handle, THREAD_DESCRIPTOR_INFORMATION *info, ULONG len )
 {
-    THREAD_DESCRIPTOR_INFORMATION *info = data;
-    unsigned int status = STATUS_SUCCESS;
+    THREAD_BASIC_INFORMATION tbi;
+    NTSTATUS status = STATUS_SUCCESS;
+    TEB *teb = NtCurrentTeb();
 
     if (len != sizeof(*info)) return STATUS_INFO_LENGTH_MISMATCH;
     if (info->Selector >> 16) return STATUS_UNSUCCESSFUL;
 
-    if (is_gdt_sel( info->Selector ))
+    if (handle == GetCurrentThread())
     {
-        if (!(info->Selector & ~3))
-            info->Entry = null_entry;
-        else if ((info->Selector | 3) == get_cs())
-            info->Entry = ldt_make_entry( 0, ~0u, LDT_FLAGS_CODE | LDT_FLAGS_32BIT );
-        else if ((info->Selector | 3) == get_ds())
-            info->Entry = ldt_make_entry( 0, ~0u, LDT_FLAGS_DATA | LDT_FLAGS_32BIT );
-        else if ((info->Selector | 3) == get_fs())
-            info->Entry = ldt_make_entry( NtCurrentTeb(), 0xfff, LDT_FLAGS_DATA | LDT_FLAGS_32BIT );
-        else
-            return STATUS_UNSUCCESSFUL;
+        tbi.TebBaseAddress = teb;
+        tbi.ClientId = teb->ClientId;
     }
     else
     {
-        SERVER_START_REQ( get_selector_entry )
-        {
-            req->handle = wine_server_obj_handle( handle );
-            req->entry = info->Selector >> 3;
-            status = wine_server_call( req );
-            if (!status)
-            {
-                if (reply->flags)
-                    info->Entry = ldt_make_entry( (void *)reply->base, reply->limit, reply->flags );
-                else
-                    status = STATUS_ACCESS_VIOLATION;
-            }
-        }
-        SERVER_END_REQ;
+        if ((status = NtQueryInformationThread( handle, ThreadBasicInformation, &tbi, sizeof(tbi), NULL )))
+            return status;
     }
-    if (status == STATUS_SUCCESS && ret_len)
-        /* yes, that's a bit strange, but it's the way it is */
-        *ret_len = sizeof(info->Entry);
+
+    if (is_gdt_sel( info->Selector ))
+    {
+        if (!(info->Selector & ~3)) info->Entry = null_entry;
+        else if ((info->Selector | 3) == get_cs()) info->Entry = ldt_make_cs32_entry();
+        else if ((info->Selector | 3) == get_ds()) info->Entry = ldt_make_ds32_entry();
+        else if ((info->Selector | 3) == get_fs()) info->Entry = ldt_make_fs32_entry( tbi.TebBaseAddress );
+        else return STATUS_UNSUCCESSFUL;
+    }
+    else status = ldt_get_entry( info->Selector, tbi.ClientId, &info->Entry );
 
     return status;
-}
-
-
-/******************************************************************************
- *           NtSetLdtEntries   (NTDLL.@)
- *           ZwSetLdtEntries   (NTDLL.@)
- */
-NTSTATUS WINAPI NtSetLdtEntries( ULONG sel1, LDT_ENTRY entry1, ULONG sel2, LDT_ENTRY entry2 )
-{
-    sigset_t sigset;
-
-    if (sel1 >> 16 || sel2 >> 16) return STATUS_INVALID_LDT_DESCRIPTOR;
-
-    server_enter_uninterrupted_section( &ldt_mutex, &sigset );
-    if (sel1) ldt_set_entry( sel1, entry1 );
-    if (sel2) ldt_set_entry( sel2, entry2 );
-    server_leave_uninterrupted_section( &ldt_mutex, &sigset );
-   return STATUS_SUCCESS;
 }
 
 
@@ -2398,32 +2299,8 @@ NTSTATUS signal_alloc_thread( TEB *teb )
 
     if (!gdt_fs_sel)
     {
-        static int first_thread = 1;
-        sigset_t sigset;
-        int idx;
-        LDT_ENTRY entry = ldt_make_entry( teb, page_size - 1, LDT_FLAGS_DATA | LDT_FLAGS_32BIT );
-
-        if (first_thread)  /* no locking for first thread */
-        {
-            /* leave some space if libc is using the LDT for %gs */
-            if (!is_gdt_sel( get_gs() )) first_ldt_entry = 512;
-            idx = first_ldt_entry;
-            ldt_set_entry( (idx << 3) | 7, entry );
-            first_thread = 0;
-        }
-        else
-        {
-            server_enter_uninterrupted_section( &ldt_mutex, &sigset );
-            for (idx = first_ldt_entry; idx < LDT_SIZE; idx++)
-            {
-                if (__wine_ldt_copy.flags[idx]) continue;
-                ldt_set_entry( (idx << 3) | 7, entry );
-                break;
-            }
-            server_leave_uninterrupted_section( &ldt_mutex, &sigset );
-            if (idx == LDT_SIZE) return STATUS_TOO_MANY_THREADS;
-        }
-        thread_data->fs = (idx << 3) | 7;
+        thread_data->fs = ldt_alloc_entry( ldt_make_fs32_entry( teb ));
+        if (!thread_data->fs) return STATUS_TOO_MANY_THREADS;
     }
     else thread_data->fs = gdt_fs_sel;
 
@@ -2439,13 +2316,8 @@ NTSTATUS signal_alloc_thread( TEB *teb )
 void signal_free_thread( TEB *teb )
 {
     struct x86_thread_data *thread_data = (struct x86_thread_data *)&teb->GdiTebBatch;
-    sigset_t sigset;
 
-    if (gdt_fs_sel) return;
-
-    server_enter_uninterrupted_section( &ldt_mutex, &sigset );
-    __wine_ldt_copy.flags[thread_data->fs >> 3] = 0;
-    server_leave_uninterrupted_section( &ldt_mutex, &sigset );
+    if (!gdt_fs_sel) ldt_free_entry( thread_data->fs );
 }
 
 
@@ -2462,9 +2334,13 @@ void signal_init_process(void)
     frame_size = offsetof( struct syscall_frame, xstate ) + xstate_size;
 
     thread_data->syscall_frame = (struct syscall_frame *)(((ULONG_PTR)kernel_stack - frame_size) & ~(ULONG_PTR)63);
-    x86_thread_data()->frame_size = frame_size;
 
     xstate_extended_features = user_shared_data->XState.EnabledFeatures & ~(UINT64)3;
+
+    /* leave some space if libc is using the LDT for %gs */
+    if (!gdt_fs_sel && !is_gdt_sel( get_gs() )) memset( ldt_bitmap, 0xff, 512 / 8 );
+
+    signal_alloc_thread( NtCurrentTeb() );
 
     sig_act.sa_mask = server_block_set;
     sig_act.sa_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK;

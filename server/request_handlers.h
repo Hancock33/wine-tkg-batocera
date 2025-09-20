@@ -115,7 +115,6 @@ DECL_HANDLER(cancel_timer);
 DECL_HANDLER(get_timer_info);
 DECL_HANDLER(get_thread_context);
 DECL_HANDLER(set_thread_context);
-DECL_HANDLER(get_selector_entry);
 DECL_HANDLER(add_atom);
 DECL_HANDLER(delete_atom);
 DECL_HANDLER(find_atom);
@@ -215,6 +214,7 @@ DECL_HANDLER(get_hook_info);
 DECL_HANDLER(create_class);
 DECL_HANDLER(destroy_class);
 DECL_HANDLER(set_class_info);
+DECL_HANDLER(get_class_info);
 DECL_HANDLER(open_clipboard);
 DECL_HANDLER(close_clipboard);
 DECL_HANDLER(empty_clipboard);
@@ -421,7 +421,6 @@ static const req_handler req_handlers[REQ_NB_REQUESTS] =
     (req_handler)req_get_timer_info,
     (req_handler)req_get_thread_context,
     (req_handler)req_set_thread_context,
-    (req_handler)req_get_selector_entry,
     (req_handler)req_add_atom,
     (req_handler)req_delete_atom,
     (req_handler)req_find_atom,
@@ -521,6 +520,7 @@ static const req_handler req_handlers[REQ_NB_REQUESTS] =
     (req_handler)req_create_class,
     (req_handler)req_destroy_class,
     (req_handler)req_set_class_info,
+    (req_handler)req_get_class_info,
     (req_handler)req_open_clipboard,
     (req_handler)req_close_clipboard,
     (req_handler)req_empty_clipboard,
@@ -703,8 +703,7 @@ C_ASSERT( offsetof(struct get_startup_info_reply, machine) == 12 );
 C_ASSERT( sizeof(struct get_startup_info_reply) == 16 );
 C_ASSERT( offsetof(struct init_process_done_request, teb) == 16 );
 C_ASSERT( offsetof(struct init_process_done_request, peb) == 24 );
-C_ASSERT( offsetof(struct init_process_done_request, ldt_copy) == 32 );
-C_ASSERT( sizeof(struct init_process_done_request) == 40 );
+C_ASSERT( sizeof(struct init_process_done_request) == 32 );
 C_ASSERT( offsetof(struct init_process_done_reply, suspend) == 8 );
 C_ASSERT( sizeof(struct init_process_done_reply) == 16 );
 C_ASSERT( offsetof(struct init_first_thread_request, unix_pid) == 12 );
@@ -748,7 +747,8 @@ C_ASSERT( offsetof(struct get_process_info_reply, end_time) == 40 );
 C_ASSERT( offsetof(struct get_process_info_reply, session_id) == 48 );
 C_ASSERT( offsetof(struct get_process_info_reply, exit_code) == 52 );
 C_ASSERT( offsetof(struct get_process_info_reply, priority) == 56 );
-C_ASSERT( offsetof(struct get_process_info_reply, base_priority) == 60 );
+C_ASSERT( offsetof(struct get_process_info_reply, base_priority) == 58 );
+C_ASSERT( offsetof(struct get_process_info_reply, disable_boost) == 60 );
 C_ASSERT( offsetof(struct get_process_info_reply, machine) == 62 );
 C_ASSERT( sizeof(struct get_process_info_reply) == 64 );
 C_ASSERT( offsetof(struct get_process_debug_info_request, handle) == 12 );
@@ -772,12 +772,13 @@ C_ASSERT( offsetof(struct get_process_vm_counters_reply, pagefile_usage) == 40 )
 C_ASSERT( offsetof(struct get_process_vm_counters_reply, peak_pagefile_usage) == 48 );
 C_ASSERT( sizeof(struct get_process_vm_counters_reply) == 56 );
 C_ASSERT( offsetof(struct set_process_info_request, handle) == 12 );
-C_ASSERT( offsetof(struct set_process_info_request, priority) == 16 );
-C_ASSERT( offsetof(struct set_process_info_request, base_priority) == 20 );
-C_ASSERT( offsetof(struct set_process_info_request, affinity) == 24 );
-C_ASSERT( offsetof(struct set_process_info_request, token) == 32 );
-C_ASSERT( offsetof(struct set_process_info_request, mask) == 36 );
-C_ASSERT( sizeof(struct set_process_info_request) == 40 );
+C_ASSERT( offsetof(struct set_process_info_request, affinity) == 16 );
+C_ASSERT( offsetof(struct set_process_info_request, priority) == 24 );
+C_ASSERT( offsetof(struct set_process_info_request, base_priority) == 28 );
+C_ASSERT( offsetof(struct set_process_info_request, disable_boost) == 32 );
+C_ASSERT( offsetof(struct set_process_info_request, token) == 36 );
+C_ASSERT( offsetof(struct set_process_info_request, mask) == 40 );
+C_ASSERT( sizeof(struct set_process_info_request) == 48 );
 C_ASSERT( offsetof(struct get_thread_info_request, handle) == 12 );
 C_ASSERT( offsetof(struct get_thread_info_request, access) == 16 );
 C_ASSERT( sizeof(struct get_thread_info_request) == 24 );
@@ -818,7 +819,8 @@ C_ASSERT( sizeof(struct resume_thread_request) == 16 );
 C_ASSERT( offsetof(struct resume_thread_reply, count) == 8 );
 C_ASSERT( sizeof(struct resume_thread_reply) == 16 );
 C_ASSERT( offsetof(struct queue_apc_request, handle) == 12 );
-C_ASSERT( sizeof(struct queue_apc_request) == 16 );
+C_ASSERT( offsetof(struct queue_apc_request, reserve_handle) == 16 );
+C_ASSERT( sizeof(struct queue_apc_request) == 24 );
 C_ASSERT( offsetof(struct queue_apc_reply, handle) == 8 );
 C_ASSERT( offsetof(struct queue_apc_reply, self) == 12 );
 C_ASSERT( sizeof(struct queue_apc_reply) == 16 );
@@ -1284,13 +1286,6 @@ C_ASSERT( offsetof(struct set_thread_context_request, native_flags) == 16 );
 C_ASSERT( sizeof(struct set_thread_context_request) == 24 );
 C_ASSERT( offsetof(struct set_thread_context_reply, self) == 8 );
 C_ASSERT( sizeof(struct set_thread_context_reply) == 16 );
-C_ASSERT( offsetof(struct get_selector_entry_request, handle) == 12 );
-C_ASSERT( offsetof(struct get_selector_entry_request, entry) == 16 );
-C_ASSERT( sizeof(struct get_selector_entry_request) == 24 );
-C_ASSERT( offsetof(struct get_selector_entry_reply, base) == 8 );
-C_ASSERT( offsetof(struct get_selector_entry_reply, limit) == 12 );
-C_ASSERT( offsetof(struct get_selector_entry_reply, flags) == 16 );
-C_ASSERT( sizeof(struct get_selector_entry_reply) == 24 );
 C_ASSERT( sizeof(struct add_atom_request) == 16 );
 C_ASSERT( offsetof(struct add_atom_reply, atom) == 8 );
 C_ASSERT( sizeof(struct add_atom_reply) == 16 );
@@ -1838,31 +1833,27 @@ C_ASSERT( offsetof(struct create_class_request, win_extra) == 36 );
 C_ASSERT( offsetof(struct create_class_request, client_ptr) == 40 );
 C_ASSERT( offsetof(struct create_class_request, name_offset) == 48 );
 C_ASSERT( sizeof(struct create_class_request) == 56 );
-C_ASSERT( offsetof(struct create_class_reply, atom) == 8 );
-C_ASSERT( sizeof(struct create_class_reply) == 16 );
+C_ASSERT( offsetof(struct create_class_reply, locator) == 8 );
+C_ASSERT( offsetof(struct create_class_reply, atom) == 24 );
+C_ASSERT( sizeof(struct create_class_reply) == 32 );
 C_ASSERT( offsetof(struct destroy_class_request, atom) == 12 );
 C_ASSERT( offsetof(struct destroy_class_request, instance) == 16 );
 C_ASSERT( sizeof(struct destroy_class_request) == 24 );
 C_ASSERT( offsetof(struct destroy_class_reply, client_ptr) == 8 );
 C_ASSERT( sizeof(struct destroy_class_reply) == 16 );
 C_ASSERT( offsetof(struct set_class_info_request, window) == 12 );
-C_ASSERT( offsetof(struct set_class_info_request, flags) == 16 );
-C_ASSERT( offsetof(struct set_class_info_request, atom) == 20 );
-C_ASSERT( offsetof(struct set_class_info_request, style) == 24 );
-C_ASSERT( offsetof(struct set_class_info_request, win_extra) == 28 );
-C_ASSERT( offsetof(struct set_class_info_request, instance) == 32 );
-C_ASSERT( offsetof(struct set_class_info_request, extra_offset) == 40 );
-C_ASSERT( offsetof(struct set_class_info_request, extra_size) == 44 );
-C_ASSERT( offsetof(struct set_class_info_request, extra_value) == 48 );
-C_ASSERT( sizeof(struct set_class_info_request) == 56 );
-C_ASSERT( offsetof(struct set_class_info_reply, old_atom) == 8 );
-C_ASSERT( offsetof(struct set_class_info_reply, base_atom) == 12 );
-C_ASSERT( offsetof(struct set_class_info_reply, old_instance) == 16 );
-C_ASSERT( offsetof(struct set_class_info_reply, old_extra_value) == 24 );
-C_ASSERT( offsetof(struct set_class_info_reply, old_style) == 32 );
-C_ASSERT( offsetof(struct set_class_info_reply, old_extra) == 36 );
-C_ASSERT( offsetof(struct set_class_info_reply, old_win_extra) == 40 );
-C_ASSERT( sizeof(struct set_class_info_reply) == 48 );
+C_ASSERT( offsetof(struct set_class_info_request, offset) == 16 );
+C_ASSERT( offsetof(struct set_class_info_request, size) == 20 );
+C_ASSERT( offsetof(struct set_class_info_request, new_info) == 24 );
+C_ASSERT( sizeof(struct set_class_info_request) == 32 );
+C_ASSERT( offsetof(struct set_class_info_reply, old_info) == 8 );
+C_ASSERT( sizeof(struct set_class_info_reply) == 16 );
+C_ASSERT( offsetof(struct get_class_info_request, window) == 12 );
+C_ASSERT( offsetof(struct get_class_info_request, offset) == 16 );
+C_ASSERT( offsetof(struct get_class_info_request, size) == 20 );
+C_ASSERT( sizeof(struct get_class_info_request) == 24 );
+C_ASSERT( offsetof(struct get_class_info_reply, info) == 8 );
+C_ASSERT( sizeof(struct get_class_info_reply) == 16 );
 C_ASSERT( offsetof(struct open_clipboard_request, window) == 12 );
 C_ASSERT( sizeof(struct open_clipboard_request) == 16 );
 C_ASSERT( offsetof(struct open_clipboard_reply, owner) == 8 );

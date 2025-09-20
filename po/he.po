@@ -724,7 +724,7 @@ msgid "Font St&yle:"
 msgstr "&סגנון הגופן:"
 
 #: dlls/comdlg32/comdlg32.rc:260 dlls/comdlg32/comdlg32.rc:439
-#: programs/winecfg/winecfg.rc:300
+#: programs/winecfg/winecfg.rc:302
 msgid "&Size:"
 msgstr "&גודל:"
 
@@ -740,7 +740,7 @@ msgstr "קו חו&צה"
 msgid "&Underline"
 msgstr "קו &תחתי"
 
-#: dlls/comdlg32/comdlg32.rc:270 programs/winecfg/winecfg.rc:298
+#: dlls/comdlg32/comdlg32.rc:270 programs/winecfg/winecfg.rc:300
 msgid "&Color:"
 msgstr "&צבע:"
 
@@ -921,7 +921,7 @@ msgstr "מספר ה&עותקים:"
 msgid "C&ollate"
 msgstr "&איסוף"
 
-#: dlls/comdlg32/comdlg32.rc:414 programs/winecfg/winecfg.rc:306
+#: dlls/comdlg32/comdlg32.rc:414 programs/winecfg/winecfg.rc:308
 msgid "Si&ze:"
 msgstr "&גודל:"
 
@@ -2477,7 +2477,7 @@ msgid "&File name:"
 msgstr "&שם הקובץ:"
 
 #: dlls/cryptui/cryptui.rc:301 dlls/cryptui/cryptui.rc:323
-#: dlls/cryptui/cryptui.rc:437 programs/winecfg/winecfg.rc:319
+#: dlls/cryptui/cryptui.rc:437 programs/winecfg/winecfg.rc:321
 #, fuzzy
 msgid "B&rowse..."
 msgstr "&עיון"
@@ -3911,7 +3911,7 @@ msgstr ""
 
 #: dlls/joy.cpl/joy.rc:67
 msgid ""
-"Press any button in the controller to activate the chosen effect. The effect "
+"Hold any button in the controller to play the chosen effect. The effect "
 "direction can be changed with the controller axis."
 msgstr ""
 
@@ -4098,21 +4098,21 @@ msgstr ""
 msgid "Expected '@'"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:90
+#: dlls/jscript/jscript.rc:92
 msgid "Microsoft JScript compilation error"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:91
+#: dlls/jscript/jscript.rc:93
 msgid "Microsoft JScript runtime error"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:92 dlls/vbscript/vbscript.rc:64
+#: dlls/jscript/jscript.rc:94 dlls/vbscript/vbscript.rc:64
 #, fuzzy
 #| msgid "Unknown error"
 msgid "Unknown runtime error"
 msgstr "שגיאה בלתי ידועה"
 
-#: dlls/jscript/jscript.rc:56
+#: dlls/jscript/jscript.rc:57
 msgid "Number expected"
 msgstr ""
 
@@ -4121,147 +4121,157 @@ msgid "Function expected"
 msgstr ""
 
 #: dlls/jscript/jscript.rc:55
+#, fuzzy
+#| msgid "'%s' is not a valid port name"
+msgid "'[object]' is not a string object"
+msgstr "'%s' אינו שם תקני לפתחה"
+
+#: dlls/jscript/jscript.rc:56
 msgid "'[object]' is not a date object"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:57
+#: dlls/jscript/jscript.rc:58
 msgid "Object expected"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:58
+#: dlls/jscript/jscript.rc:59
 msgid "Illegal assignment"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:59
+#: dlls/jscript/jscript.rc:60
 msgid "'|' is undefined"
 msgstr "'|' אינו מוגדר"
 
-#: dlls/jscript/jscript.rc:60
+#: dlls/jscript/jscript.rc:61
 msgid "Boolean object expected"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:61
+#: dlls/jscript/jscript.rc:62
 #, fuzzy
 msgid "Cannot delete '|'"
 msgstr "תאריך המחיקה"
 
-#: dlls/jscript/jscript.rc:62
+#: dlls/jscript/jscript.rc:63
 msgid "VBArray object expected"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:63
+#: dlls/jscript/jscript.rc:64
 msgid "JScript object expected"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:64
+#: dlls/jscript/jscript.rc:65
 msgid "Enumerator object expected"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:65
+#: dlls/jscript/jscript.rc:66
 msgid "Regular Expression object expected"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:66
+#: dlls/jscript/jscript.rc:67
 msgid "Syntax error in regular expression"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:67
+#: dlls/jscript/jscript.rc:68
 #, fuzzy
 #| msgid "Expected an operand.\n"
 msgid "Unexpected quantifier"
 msgstr "Expected an operand.\n"
 
-#: dlls/jscript/jscript.rc:68
+#: dlls/jscript/jscript.rc:69
 msgid "Exception thrown and not caught"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:70
+#: dlls/jscript/jscript.rc:71
 msgid "URI to be encoded contains invalid characters"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:69
+#: dlls/jscript/jscript.rc:70
 msgid "URI to be decoded is incorrect"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:71
+#: dlls/jscript/jscript.rc:72
 msgid "Number of fraction digits is out of range"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:72
+#: dlls/jscript/jscript.rc:73
 #, fuzzy
 #| msgid "Print range"
 msgid "Precision is out of range"
 msgstr "טווח ההדפסה"
 
-#: dlls/jscript/jscript.rc:73
-msgid "Array length must be a finite positive integer"
-msgstr ""
-
 #: dlls/jscript/jscript.rc:74
-msgid "Array object expected"
+msgid "Array or arguments object expected"
 msgstr ""
 
 #: dlls/jscript/jscript.rc:75
+msgid "Array length must be a finite positive integer"
+msgstr ""
+
+#: dlls/jscript/jscript.rc:76
+msgid "Array object expected"
+msgstr ""
+
+#: dlls/jscript/jscript.rc:77
 msgid ""
 "'writable' attribute on the property descriptor cannot be set to 'true' on "
 "this object"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:76
+#: dlls/jscript/jscript.rc:78
 msgid "Cyclic __proto__ value"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:77
+#: dlls/jscript/jscript.rc:79
 msgid "Cannot create property for a non-extensible object"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:78
+#: dlls/jscript/jscript.rc:80
 msgid "Cannot define property '|': object is not extensible"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:79
+#: dlls/jscript/jscript.rc:81
 msgid "Cannot redefine non-configurable property '|'"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:80
+#: dlls/jscript/jscript.rc:82
 msgid "Cannot modify non-writable property '|'"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:81
+#: dlls/jscript/jscript.rc:83
 #, fuzzy
 #| msgid "'%s' is not a valid port name"
 msgid "'this' is not a DataView object"
 msgstr "'%s' אינו שם תקני לפתחה"
 
-#: dlls/jscript/jscript.rc:82
+#: dlls/jscript/jscript.rc:84
 msgid "Required argument offset or value in DataView method is not specified"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:83
+#: dlls/jscript/jscript.rc:85
 msgid "DataView operation access beyond specified buffer length"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:84
+#: dlls/jscript/jscript.rc:86
 msgid "DataView constructor argument offset is invalid"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:85
+#: dlls/jscript/jscript.rc:87
 #, fuzzy
 #| msgid "'%s' is not a valid port name"
 msgid "'this' is not a | object"
 msgstr "'%s' אינו שם תקני לפתחה"
 
-#: dlls/jscript/jscript.rc:86
+#: dlls/jscript/jscript.rc:88
 #, fuzzy
 #| msgid "'%s' is not a valid port name"
 msgid "'key' is not an object"
 msgstr "'%s' אינו שם תקני לפתחה"
 
-#: dlls/jscript/jscript.rc:87
+#: dlls/jscript/jscript.rc:89
 msgid "ArrayBuffer object expected"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:88
+#: dlls/jscript/jscript.rc:90
 msgid "Property cannot have both accessors and a value"
 msgstr ""
 
@@ -14868,7 +14878,7 @@ msgid "Digi&tal"
 msgstr "&דיגיטלי"
 
 #: programs/clock/clock.rc:35 programs/notepad/notepad.rc:59
-#: programs/winecfg/winecfg.rc:313 programs/winefile/winefile.rc:63
+#: programs/winecfg/winecfg.rc:315 programs/winefile/winefile.rc:63
 #: programs/wordpad/wordpad.rc:84
 msgid "&Font..."
 msgstr "&גופן..."
@@ -19400,80 +19410,85 @@ msgid "Driver diagnostics"
 msgstr "כלי ניתוח ה־DirectX"
 
 #: programs/winecfg/winecfg.rc:271
+msgid "&Test Sound"
+msgstr ""
+
+#: programs/winecfg/winecfg.rc:272
 #, fuzzy
 msgid "Defaults"
 msgstr "הגדרת &בררות מחדל"
 
-#: programs/winecfg/winecfg.rc:272
+#: programs/winecfg/winecfg.rc:273
 #, fuzzy
 msgid "Output device:"
 msgstr "שם קובץ ה&פלט:"
 
-#: programs/winecfg/winecfg.rc:273
+#: programs/winecfg/winecfg.rc:274
 msgid "Voice output device:"
 msgstr ""
 
-#: programs/winecfg/winecfg.rc:274
+#: programs/winecfg/winecfg.rc:275
 msgid "Input device:"
 msgstr ""
 
-#: programs/winecfg/winecfg.rc:275
+#: programs/winecfg/winecfg.rc:276
 msgid "Voice input device:"
 msgstr ""
 
-#: programs/winecfg/winecfg.rc:280
-msgid "&Test Sound"
-msgstr ""
+#: programs/winecfg/winecfg.rc:277
+#, fuzzy
+msgid "MIDI output device:"
+msgstr "שם קובץ ה&פלט:"
 
-#: programs/winecfg/winecfg.rc:281 programs/winecfg/winecfg.rc:89
+#: programs/winecfg/winecfg.rc:283 programs/winecfg/winecfg.rc:89
 #, fuzzy
 msgid "Speaker configuration"
 msgstr "תצורת Wine"
 
-#: programs/winecfg/winecfg.rc:284
+#: programs/winecfg/winecfg.rc:286
 msgid "Speakers:"
 msgstr ""
 
-#: programs/winecfg/winecfg.rc:292
+#: programs/winecfg/winecfg.rc:294
 msgid "Appearance"
 msgstr ""
 
-#: programs/winecfg/winecfg.rc:293
+#: programs/winecfg/winecfg.rc:295
 msgid "&Theme:"
 msgstr ""
 
-#: programs/winecfg/winecfg.rc:295
+#: programs/winecfg/winecfg.rc:297
 msgid "&WinRT theme:"
 msgstr ""
 
-#: programs/winecfg/winecfg.rc:297
+#: programs/winecfg/winecfg.rc:299
 #, fuzzy
 msgid "&Install theme..."
 msgstr "התקנה..."
 
-#: programs/winecfg/winecfg.rc:302
+#: programs/winecfg/winecfg.rc:304
 msgid "It&em:"
 msgstr ""
 
-#: programs/winecfg/winecfg.rc:304
+#: programs/winecfg/winecfg.rc:306
 #, fuzzy
 msgid "C&olor:"
 msgstr "&צבע"
 
-#: programs/winecfg/winecfg.rc:310
+#: programs/winecfg/winecfg.rc:312
 msgid "MIME types"
 msgstr ""
 
-#: programs/winecfg/winecfg.rc:311
+#: programs/winecfg/winecfg.rc:313
 msgid "Manage file and protocol &associations"
 msgstr ""
 
-#: programs/winecfg/winecfg.rc:314
+#: programs/winecfg/winecfg.rc:316
 #, fuzzy
 msgid "Folders"
 msgstr "תיקייה"
 
-#: programs/winecfg/winecfg.rc:317
+#: programs/winecfg/winecfg.rc:319
 #, fuzzy
 msgid "&Link to:"
 msgstr "קישורים אל"
@@ -20370,6 +20385,10 @@ msgstr "Error: Invalid key name\n"
 #, fuzzy
 msgid "Supply a command\n"
 msgstr "פקודה שגויה.\n"
+
+#: programs/wmic/wmic.rc:33
+msgid "Example usage: wmic ALIAS get PROPERTY[,PROPERTY2,...]\n"
+msgstr ""
 
 #: programs/wordpad/wordpad.rc:31
 msgid "&New...\tCtrl+N"

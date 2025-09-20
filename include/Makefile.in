@@ -104,6 +104,7 @@ SOURCES = \
 	crtrow.idl \
 	cryptdlg.h \
 	cryptuiapi.h \
+	cryptxml.h \
 	ctfutb.idl \
 	ctxtcall.idl \
 	custcntl.h \
@@ -342,6 +343,7 @@ SOURCES = \
 	fltdefs.h \
 	fontsub.h \
 	fusion.idl \
+	gameinput.idl \
 	gameux.idl \
 	gamingtcui.h \
 	gdiplus.h \
@@ -905,6 +907,7 @@ SOURCES = \
 	windows.media.faceanalysis.idl \
 	windows.media.idl \
 	windows.media.mediaproperties.idl \
+	windows.media.playback.idl \
 	windows.media.render.idl \
 	windows.media.speechrecognition.idl \
 	windows.media.speechsynthesis.idl \
@@ -912,12 +915,14 @@ SOURCES = \
 	windows.networking.connectivity.idl \
 	windows.networking.idl \
 	windows.networking.sockets.idl \
+	windows.perception.idl \
 	windows.perception.spatial.idl \
 	windows.perception.spatial.surfaces.idl \
 	windows.security.authentication.onlineid.idl \
 	windows.security.authorization.appcapabilityaccess.idl \
 	windows.security.credentials.idl \
 	windows.security.credentials.ui.idl \
+	windows.security.cryptography.core.idl \
 	windows.security.cryptography.idl \
 	windows.security.enterprisedata.idl \
 	windows.security.exchangeactivesyncprovisioning.idl \

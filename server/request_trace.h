@@ -125,7 +125,6 @@ static void dump_init_process_done_request( const struct init_process_done_reque
 {
     dump_uint64( " teb=", &req->teb );
     dump_uint64( ", peb=", &req->peb );
-    dump_uint64( ", ldt_copy=", &req->ldt_copy );
 }
 
 static void dump_init_process_done_reply( const struct init_process_done_reply *req )
@@ -203,8 +202,9 @@ static void dump_get_process_info_reply( const struct get_process_info_reply *re
     dump_timeout( ", end_time=", &req->end_time );
     fprintf( stderr, ", session_id=%08x", req->session_id );
     fprintf( stderr, ", exit_code=%d", req->exit_code );
-    fprintf( stderr, ", priority=%d", req->priority );
+    fprintf( stderr, ", priority=%04x", req->priority );
     fprintf( stderr, ", base_priority=%04x", req->base_priority );
+    fprintf( stderr, ", disable_boost=%04x", req->disable_boost );
     fprintf( stderr, ", machine=%04x", req->machine );
     dump_varargs_pe_image_info( ", image=", cur_size );
 }
@@ -252,9 +252,10 @@ static void dump_get_process_vm_counters_reply( const struct get_process_vm_coun
 static void dump_set_process_info_request( const struct set_process_info_request *req )
 {
     fprintf( stderr, " handle=%04x", req->handle );
+    dump_uint64( ", affinity=", &req->affinity );
     fprintf( stderr, ", priority=%d", req->priority );
     fprintf( stderr, ", base_priority=%d", req->base_priority );
-    dump_uint64( ", affinity=", &req->affinity );
+    fprintf( stderr, ", disable_boost=%d", req->disable_boost );
     fprintf( stderr, ", token=%04x", req->token );
     fprintf( stderr, ", mask=%d", req->mask );
 }
@@ -330,6 +331,7 @@ static void dump_resume_thread_reply( const struct resume_thread_reply *req )
 static void dump_queue_apc_request( const struct queue_apc_request *req )
 {
     fprintf( stderr, " handle=%04x", req->handle );
+    fprintf( stderr, ", reserve_handle=%04x", req->reserve_handle );
     dump_varargs_apc_call( ", call=", cur_size );
 }
 
@@ -1310,19 +1312,6 @@ static void dump_set_thread_context_request( const struct set_thread_context_req
 static void dump_set_thread_context_reply( const struct set_thread_context_reply *req )
 {
     fprintf( stderr, " self=%d", req->self );
-}
-
-static void dump_get_selector_entry_request( const struct get_selector_entry_request *req )
-{
-    fprintf( stderr, " handle=%04x", req->handle );
-    fprintf( stderr, ", entry=%d", req->entry );
-}
-
-static void dump_get_selector_entry_reply( const struct get_selector_entry_reply *req )
-{
-    fprintf( stderr, " base=%08x", req->base );
-    fprintf( stderr, ", limit=%08x", req->limit );
-    fprintf( stderr, ", flags=%02x", req->flags );
 }
 
 static void dump_add_atom_request( const struct add_atom_request *req )
@@ -2414,7 +2403,8 @@ static void dump_create_class_request( const struct create_class_request *req )
 
 static void dump_create_class_reply( const struct create_class_reply *req )
 {
-    fprintf( stderr, " atom=%04x", req->atom );
+    dump_obj_locator( " locator=", &req->locator );
+    fprintf( stderr, ", atom=%04x", req->atom );
 }
 
 static void dump_destroy_class_request( const struct destroy_class_request *req )
@@ -2432,25 +2422,26 @@ static void dump_destroy_class_reply( const struct destroy_class_reply *req )
 static void dump_set_class_info_request( const struct set_class_info_request *req )
 {
     fprintf( stderr, " window=%08x", req->window );
-    fprintf( stderr, ", flags=%08x", req->flags );
-    fprintf( stderr, ", atom=%04x", req->atom );
-    fprintf( stderr, ", style=%08x", req->style );
-    fprintf( stderr, ", win_extra=%d", req->win_extra );
-    dump_uint64( ", instance=", &req->instance );
-    fprintf( stderr, ", extra_offset=%d", req->extra_offset );
-    fprintf( stderr, ", extra_size=%u", req->extra_size );
-    dump_uint64( ", extra_value=", &req->extra_value );
+    fprintf( stderr, ", offset=%d", req->offset );
+    fprintf( stderr, ", size=%u", req->size );
+    dump_uint64( ", new_info=", &req->new_info );
 }
 
 static void dump_set_class_info_reply( const struct set_class_info_reply *req )
 {
-    fprintf( stderr, " old_atom=%04x", req->old_atom );
-    fprintf( stderr, ", base_atom=%04x", req->base_atom );
-    dump_uint64( ", old_instance=", &req->old_instance );
-    dump_uint64( ", old_extra_value=", &req->old_extra_value );
-    fprintf( stderr, ", old_style=%08x", req->old_style );
-    fprintf( stderr, ", old_extra=%d", req->old_extra );
-    fprintf( stderr, ", old_win_extra=%d", req->old_win_extra );
+    dump_uint64( " old_info=", &req->old_info );
+}
+
+static void dump_get_class_info_request( const struct get_class_info_request *req )
+{
+    fprintf( stderr, " window=%08x", req->window );
+    fprintf( stderr, ", offset=%d", req->offset );
+    fprintf( stderr, ", size=%u", req->size );
+}
+
+static void dump_get_class_info_reply( const struct get_class_info_reply *req )
+{
+    dump_uint64( " info=", &req->info );
 }
 
 static void dump_open_clipboard_request( const struct open_clipboard_request *req )
@@ -3543,7 +3534,6 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] =
     (dump_func)dump_get_timer_info_request,
     (dump_func)dump_get_thread_context_request,
     (dump_func)dump_set_thread_context_request,
-    (dump_func)dump_get_selector_entry_request,
     (dump_func)dump_add_atom_request,
     (dump_func)dump_delete_atom_request,
     (dump_func)dump_find_atom_request,
@@ -3643,6 +3633,7 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] =
     (dump_func)dump_create_class_request,
     (dump_func)dump_destroy_class_request,
     (dump_func)dump_set_class_info_request,
+    (dump_func)dump_get_class_info_request,
     (dump_func)dump_open_clipboard_request,
     (dump_func)dump_close_clipboard_request,
     (dump_func)dump_empty_clipboard_request,
@@ -3849,7 +3840,6 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] =
     (dump_func)dump_get_timer_info_reply,
     (dump_func)dump_get_thread_context_reply,
     (dump_func)dump_set_thread_context_reply,
-    (dump_func)dump_get_selector_entry_reply,
     (dump_func)dump_add_atom_reply,
     NULL,
     (dump_func)dump_find_atom_reply,
@@ -3949,6 +3939,7 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] =
     (dump_func)dump_create_class_reply,
     (dump_func)dump_destroy_class_reply,
     (dump_func)dump_set_class_info_reply,
+    (dump_func)dump_get_class_info_reply,
     (dump_func)dump_open_clipboard_reply,
     (dump_func)dump_close_clipboard_reply,
     NULL,
@@ -4155,7 +4146,6 @@ static const char * const req_names[REQ_NB_REQUESTS] =
     "get_timer_info",
     "get_thread_context",
     "set_thread_context",
-    "get_selector_entry",
     "add_atom",
     "delete_atom",
     "find_atom",
@@ -4255,6 +4245,7 @@ static const char * const req_names[REQ_NB_REQUESTS] =
     "create_class",
     "destroy_class",
     "set_class_info",
+    "get_class_info",
     "open_clipboard",
     "close_clipboard",
     "empty_clipboard",
@@ -4386,6 +4377,7 @@ static const struct
     { "ERROR_HOTKEY_ALREADY_REGISTERED", 0xc0010000 | ERROR_HOTKEY_ALREADY_REGISTERED },
     { "ERROR_HOTKEY_NOT_REGISTERED", 0xc0010000 | ERROR_HOTKEY_NOT_REGISTERED },
     { "ERROR_INVALID_CURSOR_HANDLE", 0xc0010000 | ERROR_INVALID_CURSOR_HANDLE },
+    { "ERROR_INVALID_HANDLE",        0xc0010000 | ERROR_INVALID_HANDLE },
     { "ERROR_INVALID_INDEX",         0xc0010000 | ERROR_INVALID_INDEX },
     { "ERROR_INVALID_WINDOW_HANDLE", 0xc0010000 | ERROR_INVALID_WINDOW_HANDLE },
     { "ERROR_NO_MORE_USER_HANDLES",  0xc0010000 | ERROR_NO_MORE_USER_HANDLES },
@@ -4421,6 +4413,7 @@ static const struct
     { "INVALID_LOCK_SEQUENCE",       STATUS_INVALID_LOCK_SEQUENCE },
     { "INVALID_OWNER",               STATUS_INVALID_OWNER },
     { "INVALID_PARAMETER",           STATUS_INVALID_PARAMETER },
+    { "INVALID_PARAMETER_2",         STATUS_INVALID_PARAMETER_2 },
     { "INVALID_PIPE_STATE",          STATUS_INVALID_PIPE_STATE },
     { "INVALID_READ_MODE",           STATUS_INVALID_READ_MODE },
     { "INVALID_SECURITY_DESCR",      STATUS_INVALID_SECURITY_DESCR },

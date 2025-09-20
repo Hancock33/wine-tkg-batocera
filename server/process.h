@@ -57,6 +57,7 @@ struct process
     affinity_t           affinity;        /* process affinity mask */
     int                  priority;        /* priority class */
     int                  base_priority;   /* base priority to calculate thread priority */
+    int                  disable_boost;   /* disable priority boost */
     int                  suspend;         /* global process suspend count */
     unsigned int         is_system:1;     /* is it a system process? */
     unsigned int         debug_children:1;/* also debug all child processes */
@@ -77,7 +78,6 @@ struct process
     struct token        *token;           /* security token associated with this process */
     struct list          views;           /* list of memory views */
     client_ptr_t         peb;             /* PEB address in client address space */
-    client_ptr_t         ldt_copy;        /* pointer to LDT copy in client addr space */
     struct dir_cache    *dir_cache;       /* map of client-side directory cache */
     unsigned int         trace_data;      /* opaque data used by the process tracing mechanism */
     struct rawinput_device *rawinput_devices;     /* list of registered rawinput devices */
@@ -143,6 +143,11 @@ static inline process_id_t get_process_id( struct process *process ) { return pr
 static inline int is_process_init_done( struct process *process )
 {
     return process->startup_state == STARTUP_DONE;
+}
+
+static inline int is_wow64_process( struct process *process )
+{
+    return is_machine_64bit( native_machine ) && !is_machine_64bit( process->machine );
 }
 
 static const unsigned int default_session_id = 1;

@@ -202,9 +202,6 @@ extern HANDLE keyed_event;
 extern timeout_t server_start_time;
 extern sigset_t server_block_set;
 extern struct _KUSER_SHARED_DATA *user_shared_data;
-#ifdef __i386__
-extern struct ldt_copy __wine_ldt_copy;
-#endif
 
 extern void init_environment(void);
 extern void init_startup_info(void);
@@ -319,7 +316,7 @@ extern void virtual_fill_image_information( const struct pe_image_info *pe_info,
 extern void *get_builtin_so_handle( void *module );
 extern NTSTATUS load_builtin_unixlib( void *module, const char *name );
 
-extern NTSTATUS get_thread_ldt_entry( HANDLE handle, void *data, ULONG len, ULONG *ret_len );
+extern NTSTATUS get_thread_ldt_entry( HANDLE handle, THREAD_DESCRIPTOR_INFORMATION *info, ULONG len );
 extern void *get_native_context( CONTEXT *context );
 extern void *get_wow_context( CONTEXT *context );
 extern BOOL get_thread_times( int unix_pid, int unix_tid, LARGE_INTEGER *kernel_time,
@@ -396,8 +393,8 @@ extern void dbg_init(void);
 
 extern void close_inproc_sync_obj( HANDLE handle );
 
-extern NTSTATUS call_user_apc_dispatcher( CONTEXT *context_ptr, ULONG_PTR arg1, ULONG_PTR arg2, ULONG_PTR arg3,
-                                          PNTAPCFUNC func, NTSTATUS status );
+extern NTSTATUS call_user_apc_dispatcher( CONTEXT *context_ptr, unsigned int flags, ULONG_PTR arg1, ULONG_PTR arg2,
+                                          ULONG_PTR arg3, PNTAPCFUNC func, NTSTATUS status );
 extern NTSTATUS call_user_exception_dispatcher( EXCEPTION_RECORD *rec, CONTEXT *context );
 extern void call_raise_user_exception_dispatcher(void);
 
@@ -598,6 +595,103 @@ static inline NTSTATUS map_section( HANDLE mapping, void **ptr, SIZE_T *size, UL
     return NtMapViewOfSection( mapping, NtCurrentProcess(), ptr, user_space_wow_limit,
                                0, NULL, size, ViewShare, 0, protect );
 }
+
+/* LDT definitions */
+
+#if defined(__i386__) || defined(__x86_64__)
+
+struct ldt_bits
+{
+    unsigned int limit : 24;
+    unsigned int type : 5;
+    unsigned int granularity : 1;
+    unsigned int default_big : 1;
+};
+
+#define LDT_SIZE 8192
+
+extern UINT ldt_bitmap[LDT_SIZE / 32];
+
+extern void ldt_set_entry( WORD sel, LDT_ENTRY entry );
+extern WORD ldt_update_entry( WORD sel, LDT_ENTRY entry );
+extern NTSTATUS ldt_get_entry( WORD sel, CLIENT_ID client_id, LDT_ENTRY *entry );
+
+static const LDT_ENTRY null_entry;
+static const struct ldt_bits data_segment = { .type = 0x13, .default_big = 1 };
+static const struct ldt_bits code_segment = { .type = 0x1b, .default_big = 1 };
+
+static inline unsigned int ldt_get_base( LDT_ENTRY ent )
+{
+    return (ent.BaseLow |
+            (unsigned int)ent.HighWord.Bits.BaseMid << 16 |
+            (unsigned int)ent.HighWord.Bits.BaseHi << 24);
+}
+
+static inline struct ldt_bits ldt_set_limit( struct ldt_bits bits, unsigned int limit )
+{
+    if ((bits.granularity = (limit >= 0x100000))) limit >>= 12;
+    bits.limit = limit;
+    return bits;
+}
+
+static inline LDT_ENTRY ldt_make_entry( unsigned int base, struct ldt_bits bits )
+{
+    LDT_ENTRY entry;
+
+    entry.BaseLow                   = (WORD)base;
+    entry.HighWord.Bits.BaseMid     = (BYTE)(base >> 16);
+    entry.HighWord.Bits.BaseHi      = (BYTE)(base >> 24);
+    entry.LimitLow                  = (WORD)bits.limit;
+    entry.HighWord.Bits.LimitHi     = bits.limit >> 16;
+    entry.HighWord.Bits.Dpl         = 3;
+    entry.HighWord.Bits.Pres        = 1;
+    entry.HighWord.Bits.Type        = bits.type;
+    entry.HighWord.Bits.Granularity = bits.granularity;
+    entry.HighWord.Bits.Sys         = 0;
+    entry.HighWord.Bits.Reserved_0  = 0;
+    entry.HighWord.Bits.Default_Big = bits.default_big;
+    return entry;
+}
+
+static inline WORD ldt_alloc_entry( LDT_ENTRY entry )
+{
+    int idx;
+    for (idx = 0; idx < ARRAY_SIZE(ldt_bitmap); idx++)
+    {
+        if (ldt_bitmap[idx] == ~0u) continue;
+        idx = idx * 32 + ffs( ~ldt_bitmap[idx] ) - 1;
+        return ldt_update_entry( (idx << 3) | 7, entry );
+    }
+    return 0;
+}
+
+static inline void ldt_free_entry( WORD sel )
+{
+    unsigned int index = sel >> 3;
+    ldt_bitmap[index / 32] &= ~(1u << (index & 31));
+}
+
+static inline LDT_ENTRY ldt_make_cs32_entry(void)
+{
+    return ldt_make_entry( 0, ldt_set_limit( code_segment, ~0u ));
+}
+
+static inline LDT_ENTRY ldt_make_ds32_entry(void)
+{
+    return ldt_make_entry( 0, ldt_set_limit( data_segment, ~0u ));
+}
+
+static inline LDT_ENTRY ldt_make_fs32_entry( void *teb )
+{
+    return ldt_make_entry( PtrToUlong(teb), ldt_set_limit( data_segment, page_size - 1 ));
+}
+
+static inline int is_gdt_sel( WORD sel )
+{
+    return !(sel & 4);
+}
+
+#endif  /* defined(__i386__) || defined(__x86_64__) */
 
 BOOL WINAPI __wine_needs_override_large_address_aware(void);
 

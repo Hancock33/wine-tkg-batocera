@@ -107,6 +107,7 @@ static struct wg_transform *get_transform(wg_transform_t trans)
 static void align_video_info_planes(MFVideoInfo *video_info, gsize plane_align,
         GstVideoInfo *info, GstVideoAlignment *align)
 {
+    bool fix_nv12 = !plane_align && info->finfo->format == GST_VIDEO_FORMAT_NV12 && (info->width & 3) && (info->width & 3) != 3;
     const MFVideoArea *aperture = &video_info->MinimumDisplayAperture;
 
     gst_video_alignment_reset(align);
@@ -114,7 +115,7 @@ static void align_video_info_planes(MFVideoInfo *video_info, gsize plane_align,
     align->padding_right = ((plane_align + 1) - (info->width & plane_align)) & plane_align;
     align->padding_bottom = ((plane_align + 1) - (info->height & plane_align)) & plane_align;
 
-    if (!is_mf_video_area_empty(aperture))
+    if (!is_mf_video_area_empty(aperture) && !plane_align)
     {
         align->padding_right = max(align->padding_right, video_info->dwWidth - aperture->OffsetX.value - aperture->Area.cx);
         align->padding_bottom = max(align->padding_bottom, video_info->dwHeight - aperture->OffsetY.value - aperture->Area.cy);
@@ -129,9 +130,24 @@ static void align_video_info_planes(MFVideoInfo *video_info, gsize plane_align,
         align->padding_bottom = top;
     }
 
-    align->stride_align[0] = plane_align;
-
-    gst_video_info_align(info, align);
+    /* TODO: set NV12 GstVideoInfo correctly when padding is present */
+    if (fix_nv12 && !align->padding_left && !align->padding_top && !align->padding_right && !align->padding_bottom)
+    {
+        /* NV12 minimum stride alignment is 2, and Windows expects 2,
+         * but gst_video_info_align() imposes a minimum of 4. */
+        gint aligned_height = GST_ROUND_UP_2(info->height);
+        info->stride[0] = GST_ROUND_UP_2(info->width);
+        info->stride[1] = info->stride[0];
+        info->offset[0] = 0;
+        info->offset[1] = info->stride[0] * aligned_height;
+        info->size = info->offset[1] + info->stride[0] * aligned_height / 2;
+        align->stride_align[0] = 1;
+    }
+    else
+    {
+        align->stride_align[0] = plane_align;
+        gst_video_info_align(info, align);
+    }
 
     if (video_info->VideoFlags & MFVideoFlag_BottomUpLinearRep)
     {
@@ -206,12 +222,16 @@ static WgVideoBufferPool *wg_video_buffer_pool_create(GstCaps *caps, gsize plane
 {
     WgVideoBufferPool *pool;
     GstStructure *config;
+    gsize max_size;
 
     if (!(pool = g_object_new(wg_video_buffer_pool_get_type(), NULL)))
         return NULL;
 
     gst_video_info_from_caps(&pool->info, caps);
+    max_size = pool->info.size;
     align_video_info_planes(video_info, plane_align, &pool->info, align);
+    /* GStreamer assumes NV12 pools must accommodate a stride alignment of 4, but we use 2 */
+    max_size = max(max_size, pool->info.size);
 
     if (!(config = gst_buffer_pool_get_config(GST_BUFFER_POOL(pool))))
         GST_ERROR("Failed to get %"GST_PTR_FORMAT" config.", pool);
@@ -221,7 +241,7 @@ static WgVideoBufferPool *wg_video_buffer_pool_create(GstCaps *caps, gsize plane
         gst_buffer_pool_config_add_option(config, GST_BUFFER_POOL_OPTION_VIDEO_ALIGNMENT);
         gst_buffer_pool_config_set_video_alignment(config, align);
 
-        gst_buffer_pool_config_set_params(config, caps, pool->info.size, 0, 0);
+        gst_buffer_pool_config_set_params(config, caps, max_size, 0, 0);
         gst_buffer_pool_config_set_allocator(config, allocator, NULL);
         if (!gst_buffer_pool_set_config(GST_BUFFER_POOL(pool), config))
             GST_ERROR("Failed to set %"GST_PTR_FORMAT" config.", pool);
@@ -495,29 +515,93 @@ static GstCaps *transform_get_parsed_caps(GstCaps *caps, const char *media_type)
     else if (gst_structure_get_int(structure, "wmvversion", &value))
         gst_caps_set_simple(parsed_caps, "parsed", G_TYPE_BOOLEAN, true, "wmvversion", G_TYPE_INT, value, NULL);
     else
-    {
-        if (!strcmp(media_type, "video/x-h264"))
-        {
-            gst_caps_set_simple(parsed_caps, "stream-format", G_TYPE_STRING, "byte-stream", NULL);
-            gst_caps_set_simple(parsed_caps, "alignment", G_TYPE_STRING, "au", NULL);
-        }
-
         gst_caps_set_simple(parsed_caps, "parsed", G_TYPE_BOOLEAN, true, NULL);
-    }
 
     return parsed_caps;
 }
+
+static GstBuffer *caps_get_buffer(const GstCaps *caps, const char *name, UINT32 *buffer_size)
+{
+    const GstStructure *structure = gst_caps_get_structure(caps, 0);
+    const GValue *buffer_value;
+
+    if ((buffer_value = gst_structure_get_value(structure, name)))
+    {
+        GstBuffer *buffer = gst_value_get_buffer(buffer_value);
+        *buffer_size = gst_buffer_get_size(buffer);
+        return buffer;
+    }
+
+    *buffer_size = 0;
+    return NULL;
+}
+
+static void push_vorbis_headers(struct wg_transform *transform)
+{
+    const uint8_t *ptr, *beg, *end;
+    GstBuffer *codec_data, *hdr;
+    UINT32 codec_data_size;
+    GstBufferMapInfo info;
+    int i, count, len;
+
+    if (!(codec_data = caps_get_buffer(transform->input_caps, "codec_data",
+            &codec_data_size)) || !codec_data_size) return;
+    gst_buffer_map(codec_data, &info, GST_MAP_READ);
+    ptr = info.data;
+    end = ptr + info.size;
+
+    for (len = 0, i = 0, count = *ptr++; ptr < end && i < count; i++)
+    {
+        while (ptr < end && *ptr++ == 0xff) len += 0xff;
+        len += ptr[-1];
+        GST_DEBUG("buffer %d: %u bytes", i, len);
+    }
+    if (len > end - ptr) goto failed;
+    beg = ptr;
+    ptr = info.data;
+
+    GST_DEBUG("%u stream headers, total length=%u bytes", count + 1, codec_data_size);
+    for (len = 0, i = 0, count = *ptr++; ptr < end && i < count; i++, len = 0)
+    {
+        while (ptr < end && *ptr++ == 0xff) len += 0xff;
+        len += ptr[-1];
+
+        if (!(hdr = gst_buffer_new_memdup(beg, len))) break;
+        GST_DEBUG("buffer %d: %u bytes", i, len);
+        GST_BUFFER_FLAG_SET(hdr, GST_BUFFER_FLAG_HEADER);
+        GST_MEMDUMP("data", beg, len);
+        gst_pad_push(transform->my_src, hdr);
+        beg += len;
+    }
+
+    if ((hdr = gst_buffer_new_memdup(beg, end - beg)))
+    {
+        GST_DEBUG("buffer %d: %zu bytes", i, end - beg);
+        GST_MEMDUMP("data", beg, end - beg);
+        GST_BUFFER_FLAG_SET(hdr, GST_BUFFER_FLAG_HEADER);
+        gst_pad_push(transform->my_src, hdr);
+    }
+
+failed:
+    gst_buffer_unmap(codec_data, &info);
+}
+
 
 static bool transform_create_decoder_elements(struct wg_transform *transform,
         const gchar *input_mime, const gchar *output_mime, GstElement **first, GstElement **last)
 {
     GstCaps *parsed_caps = NULL, *sink_caps = NULL;
-    GstElement *element;
+    GstElement *element, *capsfilter;
+    const char *shortname = NULL;
+    GstElementFactory *factory;
     bool ret = false;
     char *str;
 
     if (!strcmp(input_mime, "audio/x-raw") || !strcmp(input_mime, "video/x-raw"))
+    {
+        transform->attrs.input_queue_length = 16;
         return true;
+    }
 
     if (!(parsed_caps = transform_get_parsed_caps(transform->input_caps, input_mime)))
         return false;
@@ -535,15 +619,6 @@ static bool transform_create_decoder_elements(struct wg_transform *transform,
 
     if (element)
     {
-        if (!(element = create_element("capsfilter", "good")) ||
-                !append_element(transform->container, element, first, last))
-            goto done;
-        if ((str = gst_caps_to_string(parsed_caps)))
-        {
-            gst_util_set_object_arg(G_OBJECT(element), "caps", str);
-            free(str);
-        }
-
         /* We try to intercept buffers produced by the parser, so if we push a large buffer into the
          * parser, it won't push everything into the decoder all in one go.
          */
@@ -558,8 +633,38 @@ static bool transform_create_decoder_elements(struct wg_transform *transform,
         parsed_caps = gst_caps_ref(transform->input_caps);
     }
 
-    if (!(element = find_element(GST_ELEMENT_FACTORY_TYPE_DECODER, parsed_caps, sink_caps))
-            || !append_element(transform->container, element, first, last))
+    if (!(element = find_element(GST_ELEMENT_FACTORY_TYPE_DECODER, parsed_caps, sink_caps)))
+        goto done;
+
+    /* h264parse currently has a bug where it will send an avc caps without codec_data when it
+     * has received an SPS but not PPS. As a result, when a drain request is made, the caps is fixated
+     * to avc but no codec_data is provided to the decoder. This results in libav rejecting every
+     * packet it receives.
+     * As a workaround, we need to insert a capsfilter for avdec_h264 in order for it to use
+     * the byte-stream stream-format.
+     */
+    if ((factory = gst_element_get_factory(element)) &&
+            (shortname = gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(factory))) &&
+            !strcmp(shortname, "avdec_h264"))
+    {
+        if (!(capsfilter = create_element("capsfilter", "good")) ||
+                !append_element(transform->container, capsfilter, first, last))
+        {
+            g_object_unref(element);
+            goto done;
+        }
+
+        gst_caps_set_simple(parsed_caps, "stream-format", G_TYPE_STRING, "byte-stream", NULL);
+        gst_caps_set_simple(parsed_caps, "alignment", G_TYPE_STRING, "au", NULL);
+
+        if ((str = gst_caps_to_string(parsed_caps)))
+        {
+            gst_util_set_object_arg(G_OBJECT(capsfilter), "caps", str);
+            free(str);
+        }
+    }
+
+    if (!append_element(transform->container, element, first, last))
         goto done;
 
     set_max_threads(element);
@@ -651,6 +756,9 @@ NTSTATUS wg_transform_create(void *args)
     GST_INFO("transform %p input caps %"GST_PTR_FORMAT, transform, transform->input_caps);
     input_mime = gst_structure_get_name(gst_caps_get_structure(transform->input_caps, 0));
 
+    if (!strcmp(input_mime, "video/x-h264"))
+        touch_h264_used_tag();
+
     if (!(transform->output_caps = caps_from_media_type(&params->output_type)))
         goto out;
     GST_INFO("transform %p output caps %"GST_PTR_FORMAT, transform, transform->output_caps);
@@ -712,6 +820,20 @@ NTSTATUS wg_transform_create(void *args)
             || !push_event(transform->my_src, event))
         goto out;
 
+    /* Check that the caps event have been accepted */
+    if (!strcmp(input_mime, "video/x-h264"))
+    {
+        GstPad *peer;
+        if (!(peer = gst_pad_get_peer(transform->my_src)))
+            goto out;
+        else if (!gst_pad_has_current_caps(peer))
+        {
+            gst_object_unref(peer);
+            goto out;
+        }
+        gst_object_unref(peer);
+    }
+
     /* We need to use GST_FORMAT_TIME here because it's the only format
      * some elements such avdec_wmav2 correctly support. */
     gst_segment_init(&transform->segment, GST_FORMAT_TIME);
@@ -720,6 +842,9 @@ NTSTATUS wg_transform_create(void *args)
     if (!(event = gst_event_new_segment(&transform->segment))
             || !push_event(transform->my_src, event))
         goto out;
+
+    if (!strcmp(input_mime, "audio/x-vorbis"))
+        push_vorbis_headers(transform);
 
     GST_INFO("Created winegstreamer transform %p.", transform);
     params->transform = (wg_transform_t)(ULONG_PTR)transform;
@@ -1046,12 +1171,38 @@ static bool sample_needs_buffer_copy(struct wg_sample *sample, GstBuffer *buffer
     return needs_copy;
 }
 
+static void fill_frame_padded_bits(GstBuffer *buffer, const GstVideoAlignment *align, const GstVideoInfo *info)
+{
+    guint i, plane, padded_height, height, stride, padding = align->padding_bottom;
+    GstVideoFrame frame;
+
+    if (!padding || !gst_video_frame_map(&frame, info, buffer, GST_MAP_WRITE)) return;
+
+    /* Windows uses the data in the last scanline for its bottom padding */
+    for (plane = 0; plane < GST_VIDEO_FRAME_N_PLANES(&frame); plane++)
+    {
+        guint8 *data = GST_VIDEO_FRAME_PLANE_DATA(&frame, plane);
+        gint comp[GST_VIDEO_MAX_COMPONENTS];
+
+        gst_video_format_info_component(frame.info.finfo, plane, comp);
+        padded_height = GST_VIDEO_FORMAT_INFO_SCALE_HEIGHT(frame.info.finfo, comp[0], info->height + padding);
+        height = GST_VIDEO_FRAME_COMP_HEIGHT(&frame, comp[0]);
+        stride = GST_VIDEO_FRAME_PLANE_STRIDE(&frame, plane);
+        data += height * stride;
+
+        for (i = 0; i < padded_height - height; i++) memcpy(data + i * stride, data - stride, stride);
+    }
+
+    gst_video_frame_unmap(&frame);
+}
+
 static NTSTATUS read_transform_output_video(struct wg_sample *sample, GstBuffer *buffer,
-        GstVideoInfo *src_video_info, GstVideoInfo *dst_video_info)
+        const GstVideoInfo *src_video_info, const GstVideoInfo *dst_video_info, const GstVideoAlignment *align)
 {
     gsize total_size;
     NTSTATUS status;
     bool needs_copy;
+    const char *sgi;
 
     if (!(needs_copy = sample_needs_buffer_copy(sample, buffer, &total_size)))
         status = STATUS_SUCCESS;
@@ -1064,6 +1215,9 @@ static NTSTATUS read_transform_output_video(struct wg_sample *sample, GstBuffer 
         sample->size = 0;
         return status;
     }
+
+    if ((sgi = getenv("SteamGameId")) && !strcmp(sgi, "1449280"))
+        fill_frame_padded_bits(buffer, align, dst_video_info);
 
     set_sample_flags_from_buffer(sample, buffer, total_size);
 
@@ -1223,7 +1377,7 @@ NTSTATUS wg_transform_read_data(void *args)
 
     if (!strcmp(output_mime, "video/x-raw"))
         status = read_transform_output_video(sample, output_buffer,
-                &src_video_info, &dst_video_info);
+                &src_video_info, &dst_video_info, &align);
     else
         status = read_transform_output(sample, output_buffer);
 

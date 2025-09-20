@@ -112,6 +112,32 @@ void *pRtlUserThreadStart = NULL;
 void *p__wine_ctrl_routine = NULL;
 SYSTEM_DLL_INIT_BLOCK *pLdrSystemDllInitBlock = NULL;
 
+static void stub_syscall( const char *name )
+{
+    CONTEXT context = { .ContextFlags = CONTEXT_FULL };
+    EXCEPTION_RECORD rec =
+    {
+        .ExceptionCode = EXCEPTION_WINE_STUB,
+        .ExceptionFlags = EXCEPTION_NONCONTINUABLE,
+        .NumberParameters = 2,
+        .ExceptionInformation[0] = (ULONG_PTR)"ntdll",
+        .ExceptionInformation[1] = (ULONG_PTR)name,
+    };
+    NtGetContextThread( GetCurrentThread(), &context );
+#ifdef __i386__
+    rec.ExceptionAddress = (void *)context.Eip;
+#elif defined __x86_64__
+    rec.ExceptionAddress = (void *)context.Rip;
+#elif defined __arm__ || defined __aarch64__
+    rec.ExceptionAddress = (void *)context.Pc;
+#endif
+    NtRaiseException( &rec, &context, TRUE );
+}
+
+
+#define SYSCALL_STUB(name) static void name(void) { stub_syscall( #name ); }
+ALL_SYSCALL_STUBS
+
 static void * const syscalls[] =
 {
 #define SYSCALL_ENTRY(id,name,args) name,
@@ -186,39 +212,16 @@ static void set_max_limit( int limit )
     if (!getrlimit( limit, &rlimit ))
     {
         rlimit.rlim_cur = rlimit.rlim_max;
-
-        if (!setrlimit( limit, &rlimit ))
-            return;
-
-#if defined(__APPLE__) && defined(RLIMIT_NOFILE) && defined(OPEN_MAX)
+        if (!setrlimit( limit, &rlimit )) return;
+#ifdef __APPLE__
         if (limit == RLIMIT_NOFILE)
         {
+            /* macOS before Big Sur fails if rlim_max is larger than maxfilesperproc */
             unsigned int nlimit = 0;
-            size_t size;
-
-            /* On Leopard, setrlimit(RLIMIT_NOFILE, ...) fails on attempts to set
-             * rlim_cur above OPEN_MAX (even if rlim_max > OPEN_MAX).
-             *
-             * In later versions it can be set to kern.maxfilesperproc (from
-             * sysctl). In Big Sur and later it can be set to rlim_max. */
-            size = sizeof(nlimit);
-            if (sysctlbyname("kern.maxfilesperproc", &nlimit, &size, NULL, 0) != 0 || nlimit < OPEN_MAX)
-                rlimit.rlim_cur = OPEN_MAX;
-            else
-                rlimit.rlim_cur = nlimit;
-
-            if (!setrlimit( limit, &rlimit ))
-            {
-                TRACE("Fallback 1: RLIMIT_NOFILE to kern.maxfilesperproc\n");
-                return;
-            }
-
-            rlimit.rlim_cur = OPEN_MAX;
-            if (!setrlimit( limit, &rlimit ))
-            {
-                TRACE("Fallback 2: RLIMIT_NOFILE to OPEN_MAX(%d)\n", OPEN_MAX);
-                return;
-            }
+            size_t size = sizeof(nlimit);
+            sysctlbyname("kern.maxfilesperproc", &nlimit, &size, NULL, 0);
+            rlimit.rlim_cur = max( nlimit, OPEN_MAX );
+            if (!setrlimit( RLIMIT_NOFILE, &rlimit )) return;
         }
 #endif
         WARN("Failed to raise limit %d\n", limit);
@@ -1948,7 +1951,6 @@ static void start_main_thread(void)
     TEB *teb = virtual_alloc_first_teb();
 
     signal_init_threading();
-    signal_alloc_thread( teb );
     dbg_init();
     startup_info_size = server_init_process();
     virtual_map_user_shared_data();

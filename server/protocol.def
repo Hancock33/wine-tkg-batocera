@@ -507,10 +507,13 @@ enum apc_type
 struct user_apc
 {
     enum apc_type    type;     /* APC_USER */
-    int              __pad;
+    unsigned int     flags;    /* SERVER_USER_APC_* flags */
     client_ptr_t     func;     /* void (__stdcall *func)(ULONG_PTR,ULONG_PTR,ULONG_PTR); */
     apc_param_t      args[3];  /* arguments for user function */
 };
+
+#define SERVER_USER_APC_SPECIAL               0x01
+#define SERVER_USER_APC_CALLBACK_DATA_CONTEXT 0x02
 
 union apc_call
 {
@@ -968,6 +971,14 @@ union udp_endpoint
 /****************************************************************/
 /* shared session mapping structures */
 
+struct obj_locator
+{
+    object_id_t          id;               /* object unique id, object data is valid if != 0 */
+    mem_size_t           offset;           /* offset of the object in session shared memory */
+};
+
+#define MAX_ATOM_LEN     255
+
 struct shared_cursor
 {
     int                  x;                /* cursor position */
@@ -982,6 +993,7 @@ typedef volatile struct
     struct shared_cursor cursor;           /* global cursor information */
     unsigned char        keystate[256];    /* asynchronous key state */
     unsigned __int64     monitor_serial;   /* winstation monitor update counter */
+    unsigned __int64     keystate_serial;  /* keystate update counter */
 } desktop_shm_t;
 
 typedef volatile struct
@@ -1007,10 +1019,19 @@ typedef volatile struct
     int                  cursor_count;     /* cursor show count */
     unsigned char        keystate[256];    /* key state */
     int                  keystate_lock;    /* keystate is locked */
+    unsigned __int64     keystate_serial;  /* keystate update counter at last sync */
 } input_shm_t;
 
 typedef volatile struct
 {
+    data_size_t          name_offset;        /* offset in WCHAR of the unversioned class name, constant */
+    data_size_t          name_len;           /* len in bytes of the class name, constant */
+    WCHAR                name[MAX_ATOM_LEN]; /* class name, constant */
+} class_shm_t;
+
+typedef volatile struct
+{
+    struct obj_locator   class;            /* object locator for the window class shared object */
     unsigned int         dpi_context;      /* DPI awareness context */
 } window_shm_t;
 
@@ -1019,6 +1040,7 @@ typedef volatile union
     desktop_shm_t        desktop;
     queue_shm_t          queue;
     input_shm_t          input;
+    class_shm_t          class;
     window_shm_t         window;
 } object_shm_t;
 
@@ -1033,12 +1055,6 @@ typedef volatile struct
 {
     struct user_entry user_entries[MAX_USER_HANDLES];
 } session_shm_t;
-
-struct obj_locator
-{
-    object_id_t          id;               /* object unique id, object data is valid if != 0 */
-    mem_size_t           offset;           /* offset of the object in session shared memory */
-};
 
 /****************************************************************/
 /* Request declarations */
@@ -1103,7 +1119,6 @@ struct obj_locator
 @REQ(init_process_done)
     client_ptr_t teb;          /* TEB of new thread (in process address space) */
     client_ptr_t peb;          /* PEB of new process (in process address space) */
-    client_ptr_t ldt_copy;     /* address of LDT copy (in process address space) */
 @REPLY
     int          suspend;      /* is process suspended? */
 @END
@@ -1168,8 +1183,9 @@ struct obj_locator
     timeout_t    end_time;         /* process end time */
     unsigned int session_id;       /* process session id */
     int          exit_code;        /* process exit code */
-    int          priority;         /* priority class */
+    unsigned short priority;       /* priority class */
     unsigned short base_priority;  /* process base priority */
+    unsigned short disable_boost;  /* disable process priority boost */
     unsigned short machine;        /* process architecture */
     VARARG(image,pe_image_info);   /* image info for main exe */
 @END
@@ -1212,16 +1228,18 @@ struct obj_locator
 /* Set a process information */
 @REQ(set_process_info)
     obj_handle_t handle;       /* process handle */
+    affinity_t   affinity;     /* affinity mask */
     int          priority;     /* priority class */
     int          base_priority; /* process base priority */
-    affinity_t   affinity;     /* affinity mask */
+    int          disable_boost; /* disable process priority boost */
     obj_handle_t token;        /* primary token */
     int          mask;         /* setting mask (see below) */
 @END
 #define SET_PROCESS_INFO_PRIORITY      0x01
 #define SET_PROCESS_INFO_BASE_PRIORITY 0x02
-#define SET_PROCESS_INFO_AFFINITY      0x04
-#define SET_PROCESS_INFO_TOKEN         0x08
+#define SET_PROCESS_INFO_DISABLE_BOOST 0x04
+#define SET_PROCESS_INFO_AFFINITY      0x08
+#define SET_PROCESS_INFO_TOKEN         0x10
 
 
 /* Retrieve information about a thread */
@@ -1300,6 +1318,7 @@ struct obj_locator
 /* Queue an APC for a thread or process */
 @REQ(queue_apc)
     obj_handle_t handle;       /* thread or process handle */
+    obj_handle_t reserve_handle; /* APC object optional reserve handle */
     VARARG(call,apc_call);     /* call arguments */
 @REPLY
     obj_handle_t handle;       /* APC handle */
@@ -2210,17 +2229,6 @@ enum prefix_type
     VARARG(contexts,contexts); /* thread context(s) */
 @REPLY
     int          self;         /* was it a handle to the current thread? */
-@END
-
-
-/* Fetch a selector entry for a thread */
-@REQ(get_selector_entry)
-    obj_handle_t  handle;      /* thread handle */
-    int           entry;       /* LDT entry */
-@REPLY
-    unsigned int  base;        /* selector base */
-    unsigned int  limit;       /* selector limit */
-    unsigned char flags;       /* selector flags */
 @END
 
 
@@ -3249,7 +3257,8 @@ enum caret_state
     data_size_t    name_offset;    /* base class name offset for specified atom */
     VARARG(name,unicode_str);      /* class name */
 @REPLY
-    atom_t         atom;           /* resulting class atom */
+    struct obj_locator locator;    /* locator for the shared class object */
+    atom_t             atom;       /* resulting class atom */
 @END
 
 
@@ -3265,29 +3274,22 @@ enum caret_state
 
 /* Set some information in a class */
 @REQ(set_class_info)
-    user_handle_t  window;         /* handle to the window */
-    unsigned int   flags;          /* flags for info to set (see below) */
-    atom_t         atom;           /* class atom */
-    unsigned int   style;          /* class style */
-    int            win_extra;      /* number of window extra bytes */
-    mod_handle_t   instance;       /* module instance */
-    int            extra_offset;   /* offset to set in extra bytes */
-    data_size_t    extra_size;     /* size to set in extra bytes */
-    lparam_t       extra_value;    /* value to set in extra bytes */
+    user_handle_t  window;        /* handle to the window */
+    int            offset;        /* offset of the info */
+    data_size_t    size;          /* size of the info value to write */
+    lparam_t       new_info;      /* new class info value */
 @REPLY
-    atom_t         old_atom;       /* previous class atom */
-    atom_t         base_atom;      /* base class atom */
-    mod_handle_t   old_instance;   /* previous module instance */
-    lparam_t       old_extra_value; /* old value in extra bytes */
-    unsigned int   old_style;      /* previous class style */
-    int            old_extra;      /* previous number of class extra bytes */
-    int            old_win_extra;  /* previous number of window extra bytes */
+    lparam_t       old_info;      /* previous class info value */
 @END
-#define SET_CLASS_ATOM      0x0001
-#define SET_CLASS_STYLE     0x0002
-#define SET_CLASS_WINEXTRA  0x0004
-#define SET_CLASS_INSTANCE  0x0008
-#define SET_CLASS_EXTRA     0x0010
+
+/* Get some information in a class */
+@REQ(get_class_info)
+    user_handle_t  window;         /* handle to the window */
+    int            offset;         /* offset of the info */
+    data_size_t    size;           /* size of the info value to read */
+@REPLY
+    lparam_t       info;           /* current class info value */
+@END
 
 
 /* Open the clipboard */

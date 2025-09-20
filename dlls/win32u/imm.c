@@ -274,6 +274,17 @@ static struct imm_thread_data *get_imm_thread_data(void)
     return thread_info->imm_thread_data;
 }
 
+static BOOL needs_ime_window( HWND hwnd )
+{
+    static const WCHAR imeW[] = {'I','M','E'};
+    WCHAR nameW[MAX_ATOM_LEN + 1];
+    UNICODE_STRING name = RTL_CONSTANT_STRING(nameW);
+
+    if (NtUserGetClassLongW( hwnd, GCL_STYLE ) & CS_IME) return FALSE;
+    name.Length = NtUserGetClassName( hwnd, FALSE, &name ) * sizeof(WCHAR);
+    return name.Length != sizeof(imeW) || memcmp( name.Buffer, imeW, sizeof(imeW) );
+}
+
 BOOL register_imm_window( HWND hwnd )
 {
     struct imm_thread_data *thread_data;
@@ -297,7 +308,7 @@ BOOL register_imm_window( HWND hwnd )
         UNICODE_STRING class_name = RTL_CONSTANT_STRING( imeW );
         UNICODE_STRING name = RTL_CONSTANT_STRING( default_imeW );
 
-        thread_data->default_hwnd = NtUserCreateWindowEx( 0, &class_name, &class_name, &name,
+        thread_data->default_hwnd = NtUserCreateWindowEx( 0, &class_name, NULL, &name,
                                                           WS_POPUP | WS_DISABLED | WS_CLIPSIBLINGS,
                                                           0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, FALSE );
     }

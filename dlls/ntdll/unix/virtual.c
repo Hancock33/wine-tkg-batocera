@@ -185,7 +185,7 @@ static const UINT_PTR host_page_mask = 0xfff;
 #endif
 
 /* Note: these are Windows limits, you cannot change them. */
-#ifdef __i386__
+#if defined(__i386__) || defined(__x86_64__)
 static void *address_space_start = (void *)0x110000; /* keep DOS area clear */
 #else
 static void *address_space_start = (void *)0x10000;
@@ -4117,15 +4117,13 @@ NTSTATUS virtual_alloc_teb( TEB **ret_teb )
                                  MEM_COMMIT, PAGE_READWRITE );
     }
     *ret_teb = teb = init_teb( ptr, is_wow64() );
-    server_leave_uninterrupted_section( &virtual_mutex, &sigset );
 
     if ((status = signal_alloc_thread( teb )))
     {
-        server_enter_uninterrupted_section( &virtual_mutex, &sigset );
         *(void **)ptr = next_free_teb;
         next_free_teb = ptr;
-        server_leave_uninterrupted_section( &virtual_mutex, &sigset );
     }
+    server_leave_uninterrupted_section( &virtual_mutex, &sigset );
     return status;
 }
 
@@ -4141,7 +4139,6 @@ void virtual_free_teb( TEB *teb )
     sigset_t sigset;
     WOW_TEB *wow_teb = get_wow_teb( teb );
 
-    signal_free_thread( teb );
     if (teb->DeallocationStack)
     {
         size = 0;
@@ -4166,6 +4163,7 @@ void virtual_free_teb( TEB *teb )
     }
 
     server_enter_uninterrupted_section( &virtual_mutex, &sigset );
+    signal_free_thread( teb );
     list_remove( &thread_data->entry );
     ptr = teb;
     if (!is_win64) ptr = (char *)ptr - teb_offset;
@@ -4173,6 +4171,132 @@ void virtual_free_teb( TEB *teb )
     next_free_teb = ptr;
     server_leave_uninterrupted_section( &virtual_mutex, &sigset );
 }
+
+
+/* LDT support */
+
+#if defined(__i386__) || defined(__x86_64__)
+
+struct ldt_copy
+{
+    unsigned int    base[LDT_SIZE];
+    struct ldt_bits bits[LDT_SIZE];
+};
+C_ASSERT( sizeof(struct ldt_copy) == 8 * LDT_SIZE );
+
+static struct ldt_copy *ldt_copy;
+
+UINT ldt_bitmap[LDT_SIZE / 32] = { ~0u };
+
+/***********************************************************************
+ *           ldt_update_entry
+ */
+WORD ldt_update_entry( WORD sel, LDT_ENTRY entry )
+{
+    unsigned int index = sel >> 3;
+
+    if (!ldt_copy)
+    {
+        struct file_view *view;
+
+        if (map_view( &view, NULL, sizeof(*ldt_copy), MEM_TOP_DOWN,
+                      VPROT_COMMITTED | VPROT_READ | VPROT_WRITE,
+                      is_win64 ? limit_2g : 0, limit_4g, 0 )) return 0;
+        ldt_copy = view->base;
+        if (is_win64) wow_peb->SpareUlongs[0] = PtrToUlong( ldt_copy );
+        else peb->SpareUlongs[0] = PtrToUlong( ldt_copy );
+    }
+
+    ldt_set_entry( sel, entry );
+    ldt_copy->base[index]             = ldt_get_base( entry );
+    ldt_copy->bits[index].limit       = entry.LimitLow | (entry.HighWord.Bits.LimitHi << 16);
+    ldt_copy->bits[index].type        = entry.HighWord.Bits.Type;
+    ldt_copy->bits[index].granularity = entry.HighWord.Bits.Granularity;
+    ldt_copy->bits[index].default_big = entry.HighWord.Bits.Default_Big;
+    ldt_bitmap[index / 32] |= 1u << (index & 31);
+    return sel;
+}
+
+/***********************************************************************
+ *           ldt_get_entry
+ */
+NTSTATUS ldt_get_entry( WORD sel, CLIENT_ID client_id, LDT_ENTRY *entry )
+{
+    NTSTATUS status = STATUS_SUCCESS;
+    unsigned int base = 0;
+    struct ldt_bits bits = { 0 };
+    unsigned int idx = sel >> 3;
+
+    if (client_id.UniqueProcess == NtCurrentTeb()->ClientId.UniqueProcess)
+    {
+        if (ldt_copy)
+        {
+            base = ldt_copy->base[idx];
+            bits = ldt_copy->bits[idx];
+        }
+    }
+    else
+    {
+        HANDLE process;
+        ULONG ptr = 0;
+        PEB32 *peb32 = NULL;
+
+        if ((status = NtOpenProcess( &process, PROCESS_ALL_ACCESS, NULL, &client_id ))) return status;
+
+        if (!is_win64)
+        {
+            PROCESS_BASIC_INFORMATION pbi;
+
+            NtQueryInformationProcess( process, ProcessBasicInformation, &pbi, sizeof(pbi), NULL );
+            peb32 = (PEB32 *)pbi.PebBaseAddress;
+        }
+        else NtQueryInformationProcess( process, ProcessWow64Information, &peb32, sizeof(peb32), NULL );
+
+        if (!NtReadVirtualMemory( process, &peb32->SpareUlongs[0], &ptr, sizeof(ptr), NULL ) && ptr)
+        {
+            struct ldt_copy *ldt = ULongToPtr( ptr );
+            NtReadVirtualMemory( process, &ldt->base[idx], &base, sizeof(base), NULL );
+            NtReadVirtualMemory( process, &ldt->bits[idx], &bits, sizeof(bits), NULL );
+        }
+        NtClose( process );
+    }
+
+    if (base || bits.limit || bits.type) *entry = ldt_make_entry( base, bits );
+    else status = STATUS_UNSUCCESSFUL;
+
+    return status;
+}
+
+/******************************************************************************
+ *           NtSetLdtEntries   (NTDLL.@)
+ *           ZwSetLdtEntries   (NTDLL.@)
+ */
+NTSTATUS WINAPI NtSetLdtEntries( ULONG sel1, LDT_ENTRY entry1, ULONG sel2, LDT_ENTRY entry2 )
+{
+    sigset_t sigset;
+
+    if (is_win64 && !is_wow64()) return STATUS_NOT_IMPLEMENTED;
+    if (sel1 >> 16 || sel2 >> 16) return STATUS_INVALID_LDT_DESCRIPTOR;
+
+    server_enter_uninterrupted_section( &virtual_mutex, &sigset );
+    if (sel1) ldt_update_entry( sel1, entry1 );
+    if (sel2) ldt_update_entry( sel2, entry2 );
+    server_leave_uninterrupted_section( &virtual_mutex, &sigset );
+    return STATUS_SUCCESS;
+}
+
+#else /* defined(__i386__) || defined(__x86_64__) */
+
+/******************************************************************************
+ *           NtSetLdtEntries   (NTDLL.@)
+ *           ZwSetLdtEntries   (NTDLL.@)
+ */
+NTSTATUS WINAPI NtSetLdtEntries( ULONG sel1, LDT_ENTRY entry1, ULONG sel2, LDT_ENTRY entry2 )
+{
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+#endif /* defined(__i386__) || defined(__x86_64__) */
 
 
 /***********************************************************************
@@ -4936,13 +5060,16 @@ void virtual_set_large_address_space(void)
 {
     if (is_win64)
     {
-        if (is_wow64())
-            user_space_wow_limit = (is_large_address_aware() ? limit_4g : limit_2g) - 1;
+        if (!is_wow64())
+        {
+            address_space_start = (void *)0x10000;
 #ifndef __APPLE__  /* don't free the zerofill section on macOS */
-        else if ((main_image_info.DllCharacteristics & IMAGE_DLLCHARACTERISTICS_HIGH_ENTROPY_VA) &&
-                 (main_image_info.DllCharacteristics & IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE))
-            free_reserved_memory( 0, (char *)0x7ffe0000 );
+            if ((main_image_info.DllCharacteristics & IMAGE_DLLCHARACTERISTICS_HIGH_ENTROPY_VA) &&
+                (main_image_info.DllCharacteristics & IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE))
+                free_reserved_memory( 0, (char *)0x7ffe0000 );
 #endif
+        }
+        else user_space_wow_limit = (is_large_address_aware() ? limit_4g : limit_2g) - 1;
     }
     else
     {
@@ -5445,11 +5572,86 @@ NTSTATUS WINAPI NtProtectVirtualMemory( HANDLE process, PVOID *addr_ptr, SIZE_T 
 }
 
 
-static unsigned int fill_basic_memory_info( const void *addr, MEMORY_BASIC_INFORMATION *info )
+static struct file_view *get_memory_region_size( char *base, char **region_start, char **region_end,
+                                                 BOOL *fake_reserved )
 {
-    char *base, *alloc_base = 0, *alloc_end = working_set_limit;
     struct wine_rb_entry *ptr;
     struct file_view *view;
+
+    *fake_reserved = FALSE;
+    *region_start = NULL;
+    *region_end = working_set_limit;
+
+    ptr = views_tree.root;
+    while (ptr)
+    {
+        view = WINE_RB_ENTRY_VALUE( ptr, struct file_view, entry );
+        if ((char *)view->base > base)
+        {
+            *region_end = view->base;
+            ptr = ptr->left;
+        }
+        else if ((char *)view->base + view->size <= base)
+        {
+            *region_start = (char *)view->base + view->size;
+            ptr = ptr->right;
+        }
+        else
+        {
+            *region_start = view->base;
+            *region_end = (char *)view->base + view->size;
+            return view;
+        }
+    }
+#ifdef __i386__
+    {
+        struct reserved_area *area;
+
+        /* on i386, pretend that space outside of a reserved area is allocated,
+         * so that the app doesn't believe it's fully available */
+        LIST_FOR_EACH_ENTRY( area, &reserved_areas, struct reserved_area, entry )
+        {
+            char *area_start = area->base;
+            char *area_end = area_start + area->size;
+
+            if (area_end <= base)
+            {
+                if (*region_start < area_end) *region_start = area_end;
+                continue;
+            }
+            if (area_start <= base || area_start <= (char *)address_space_start)
+            {
+                if (area_end < *region_end) *region_end = area_end;
+                return NULL;
+            }
+            /* report the remaining part of the 64K after the view as free */
+            if ((UINT_PTR)*region_start & granularity_mask)
+            {
+                char *next = (char *)ROUND_ADDR( *region_start, granularity_mask ) + granularity_mask + 1;
+
+                if (base < next)
+                {
+                    *region_end = min( next, *region_end );
+                    return NULL;
+                }
+                else *region_start = base;
+            }
+            /* pretend it's allocated */
+            if (area_start < *region_end) *region_end = area_start;
+            break;
+        }
+        *fake_reserved = TRUE;
+    }
+#endif
+    return NULL;
+}
+
+
+static unsigned int fill_basic_memory_info( const void *addr, MEMORY_BASIC_INFORMATION *info )
+{
+    char *base, *alloc_base, *alloc_end;
+    struct file_view *view;
+    BOOL fake_reserved;
     sigset_t sigset;
 
     base = ROUND_ADDR( addr, page_mask );
@@ -5459,91 +5661,31 @@ static unsigned int fill_basic_memory_info( const void *addr, MEMORY_BASIC_INFOR
     /* Find the view containing the address */
 
     server_enter_uninterrupted_section( &virtual_mutex, &sigset );
-    ptr = views_tree.root;
-    while (ptr)
-    {
-        view = WINE_RB_ENTRY_VALUE( ptr, struct file_view, entry );
-        if ((char *)view->base > base)
-        {
-            alloc_end = view->base;
-            ptr = ptr->left;
-        }
-        else if ((char *)view->base + view->size <= base)
-        {
-            alloc_base = (char *)view->base + view->size;
-            ptr = ptr->right;
-        }
-        else
-        {
-            alloc_base = view->base;
-            alloc_end = (char *)view->base + view->size;
-            break;
-        }
-    }
+    view = get_memory_region_size( base, &alloc_base, &alloc_end, &fake_reserved );
 
     /* Fill the info structure */
 
     info->BaseAddress = base;
     info->RegionSize  = alloc_end - base;
 
-    if (!ptr)
+    if (!view)
     {
-        info->State             = MEM_FREE;
-        info->Protect           = PAGE_NOACCESS;
-        info->AllocationBase    = 0;
-        info->AllocationProtect = 0;
-        info->Type              = 0;
-
-#ifdef __i386__
-        /* on i386, pretend that space outside of a reserved area is allocated,
-         * so that the app doesn't believe it's fully available */
+        if (fake_reserved)
         {
-            struct reserved_area *area;
-            BOOL in_reserved = FALSE;
-
-            LIST_FOR_EACH_ENTRY( area, &reserved_areas, struct reserved_area, entry )
-            {
-                char *area_start = area->base;
-                char *area_end = area_start + area->size;
-
-                if (area_end <= base)
-                {
-                    if (alloc_base < area_end) alloc_base = area_end;
-                    continue;
-                }
-                if (area_start <= base || area_start <= (char *)address_space_start)
-                {
-                    if (area_end < alloc_end) info->RegionSize = area_end - base;
-                    in_reserved = TRUE;
-                    break;
-                }
-                /* report the remaining part of the 64K after the view as free */
-                if ((UINT_PTR)alloc_base & granularity_mask)
-                {
-                    char *next = (char *)ROUND_ADDR( alloc_base, granularity_mask ) + granularity_mask + 1;
-
-                    if (base < next)
-                    {
-                        info->RegionSize = min( next, alloc_end ) - base;
-                        in_reserved = TRUE;
-                        break;
-                    }
-                    else alloc_base = base;
-                }
-                /* pretend it's allocated */
-                if (area_start < alloc_end) info->RegionSize = area_start - base;
-                break;
-            }
-            if (!in_reserved)
-            {
-                info->State             = MEM_RESERVE;
-                info->Protect           = PAGE_NOACCESS;
-                info->AllocationBase    = alloc_base;
-                info->AllocationProtect = PAGE_NOACCESS;
-                info->Type              = MEM_PRIVATE;
-            }
+            info->State             = MEM_RESERVE;
+            info->Protect           = PAGE_NOACCESS;
+            info->AllocationBase    = alloc_base;
+            info->AllocationProtect = PAGE_NOACCESS;
+            info->Type              = MEM_PRIVATE;
         }
-#endif
+        else
+        {
+            info->State             = MEM_FREE;
+            info->Protect           = PAGE_NOACCESS;
+            info->AllocationBase    = 0;
+            info->AllocationProtect = 0;
+            info->Type              = 0;
+        }
     }
     else
     {
@@ -5610,8 +5752,12 @@ static unsigned int get_basic_memory_info( HANDLE process, LPCVOID addr,
 static unsigned int get_memory_region_info( HANDLE process, LPCVOID addr, MEMORY_REGION_INFORMATION *info,
                                             SIZE_T len, SIZE_T *res_len )
 {
-    MEMORY_BASIC_INFORMATION basic_info;
-    unsigned int status;
+    char *base, *region_start, *region_end;
+    struct file_view *view;
+    BYTE vprot, vprot_mask;
+    BOOL fake_reserved;
+    sigset_t sigset;
+    SIZE_T size;
 
     if (len < FIELD_OFFSET(MEMORY_REGION_INFORMATION, CommitSize))
         return STATUS_INFO_LENGTH_MISMATCH;
@@ -5622,15 +5768,48 @@ static unsigned int get_memory_region_info( HANDLE process, LPCVOID addr, MEMORY
         return STATUS_NOT_IMPLEMENTED;
     }
 
-    if ((status = fill_basic_memory_info( addr, &basic_info ))) return status;
+    base = ROUND_ADDR( addr, page_mask );
 
-    info->AllocationBase = basic_info.AllocationBase;
-    info->AllocationProtect = basic_info.AllocationProtect;
-    info->RegionType = 0; /* FIXME */
-    if (len >= FIELD_OFFSET(MEMORY_REGION_INFORMATION, CommitSize))
-        info->RegionSize = basic_info.RegionSize;
-    if (len >= FIELD_OFFSET(MEMORY_REGION_INFORMATION, PartitionId))
-        info->CommitSize = basic_info.State == MEM_COMMIT ? basic_info.RegionSize : 0;
+    if (is_beyond_limit( base, 1, working_set_limit )) return STATUS_INVALID_PARAMETER;
+
+    server_enter_uninterrupted_section( &virtual_mutex, &sigset );
+
+    if ((view = get_memory_region_size( base, &region_start, &region_end, &fake_reserved )))
+    {
+        info->AllocationBase = view->base;
+        info->AllocationProtect = get_win32_prot( view->protect, view->protect );
+        info->RegionType = 0; /* FIXME */
+        if (len >= FIELD_OFFSET(MEMORY_REGION_INFORMATION, CommitSize))
+            info->RegionSize = view->size;
+        if (len >= FIELD_OFFSET(MEMORY_REGION_INFORMATION, PartitionId))
+        {
+            base = region_start;
+            info->CommitSize = 0;
+            vprot_mask = VPROT_COMMITTED;
+            if (!is_view_valloc( view )) vprot_mask |= PAGE_WRITECOPY;
+            while (base != region_end &&
+                   (size = get_committed_size( view, base, ~(size_t)0, &vprot, vprot_mask )))
+            {
+                if ((vprot & vprot_mask) == vprot_mask) info->CommitSize += size;
+                base += size;
+            }
+        }
+    }
+    else
+    {
+        if (!fake_reserved)
+        {
+            server_leave_uninterrupted_section( &virtual_mutex, &sigset );
+            return STATUS_INVALID_ADDRESS;
+        }
+        info->AllocationBase = region_start;
+        info->AllocationProtect = PAGE_NOACCESS;
+        info->RegionType = 0; /* FIXME */
+        info->RegionSize = region_end - region_start;
+        info->CommitSize = 0;
+    }
+
+    server_leave_uninterrupted_section( &virtual_mutex, &sigset );
 
     if (res_len) *res_len = sizeof(*info);
     return STATUS_SUCCESS;

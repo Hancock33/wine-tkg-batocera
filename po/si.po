@@ -716,7 +716,7 @@ msgid "Font St&yle:"
 msgstr "ෆොන්ට විලාසය (&Y):"
 
 #: dlls/comdlg32/comdlg32.rc:260 dlls/comdlg32/comdlg32.rc:439
-#: programs/winecfg/winecfg.rc:300
+#: programs/winecfg/winecfg.rc:302
 msgid "&Size:"
 msgstr "තරම (&S):"
 
@@ -732,7 +732,7 @@ msgstr "මැදි ඉරැති (&K)"
 msgid "&Underline"
 msgstr "යටිඉරි (&U)"
 
-#: dlls/comdlg32/comdlg32.rc:270 programs/winecfg/winecfg.rc:298
+#: dlls/comdlg32/comdlg32.rc:270 programs/winecfg/winecfg.rc:300
 msgid "&Color:"
 msgstr "පාට (&C)"
 
@@ -911,7 +911,7 @@ msgstr "පිටපත් ගණන (&C):"
 msgid "C&ollate"
 msgstr "සංසන්දනය කරන්න (&O)"
 
-#: dlls/comdlg32/comdlg32.rc:414 programs/winecfg/winecfg.rc:306
+#: dlls/comdlg32/comdlg32.rc:414 programs/winecfg/winecfg.rc:308
 msgid "Si&ze:"
 msgstr "තරම (&Z):"
 
@@ -2448,7 +2448,7 @@ msgid "&File name:"
 msgstr "ගොනුව නම (&F):"
 
 #: dlls/cryptui/cryptui.rc:301 dlls/cryptui/cryptui.rc:323
-#: dlls/cryptui/cryptui.rc:437 programs/winecfg/winecfg.rc:319
+#: dlls/cryptui/cryptui.rc:437 programs/winecfg/winecfg.rc:321
 msgid "B&rowse..."
 msgstr "පිරික්සන්න... (&R)"
 
@@ -3841,7 +3841,7 @@ msgstr ""
 
 #: dlls/joy.cpl/joy.rc:67
 msgid ""
-"Press any button in the controller to activate the chosen effect. The effect "
+"Hold any button in the controller to play the chosen effect. The effect "
 "direction can be changed with the controller axis."
 msgstr ""
 
@@ -4022,21 +4022,21 @@ msgstr ""
 msgid "Expected '@'"
 msgstr "අපේක්ෂා කරේ '='"
 
-#: dlls/jscript/jscript.rc:90
+#: dlls/jscript/jscript.rc:92
 msgid "Microsoft JScript compilation error"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:91
+#: dlls/jscript/jscript.rc:93
 msgid "Microsoft JScript runtime error"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:92 dlls/vbscript/vbscript.rc:64
+#: dlls/jscript/jscript.rc:94 dlls/vbscript/vbscript.rc:64
 #, fuzzy
 #| msgid "Unknown error"
 msgid "Unknown runtime error"
 msgstr "දන්නේ නැති දෝෂයක්"
 
-#: dlls/jscript/jscript.rc:56
+#: dlls/jscript/jscript.rc:57
 msgid "Number expected"
 msgstr "නොම්බරයක් අපේක්ෂා කරේ"
 
@@ -4045,150 +4045,162 @@ msgid "Function expected"
 msgstr "ශ්රිතයක් අපේක්ෂා කරේ"
 
 #: dlls/jscript/jscript.rc:55
+#, fuzzy
+#| msgid "'%s' is not a valid port name"
+msgid "'[object]' is not a string object"
+msgstr "'%s' වලංගු තොට නමක් නෙමෙයි."
+
+#: dlls/jscript/jscript.rc:56
 msgid "'[object]' is not a date object"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:57
+#: dlls/jscript/jscript.rc:58
 msgid "Object expected"
 msgstr "වස්තුවක් අපේක්ෂා කරේ"
 
-#: dlls/jscript/jscript.rc:58
+#: dlls/jscript/jscript.rc:59
 msgid "Illegal assignment"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:59
+#: dlls/jscript/jscript.rc:60
 msgid "'|' is undefined"
 msgstr "'|' නිර්ණය නොකළ"
 
-#: dlls/jscript/jscript.rc:60
+#: dlls/jscript/jscript.rc:61
 msgid "Boolean object expected"
 msgstr "බූලීය වස්තුවක් අපේක්ෂා කරේ"
 
-#: dlls/jscript/jscript.rc:61
+#: dlls/jscript/jscript.rc:62
 msgid "Cannot delete '|'"
 msgstr "'|' මකන්න බැහැ"
 
-#: dlls/jscript/jscript.rc:62
+#: dlls/jscript/jscript.rc:63
 msgid "VBArray object expected"
 msgstr "VBArray වස්තුවක් අපේක්ෂා කරේ"
 
-#: dlls/jscript/jscript.rc:63
+#: dlls/jscript/jscript.rc:64
 msgid "JScript object expected"
 msgstr "JScript වස්තුවක් අපේක්ෂා කරේ"
 
-#: dlls/jscript/jscript.rc:64
+#: dlls/jscript/jscript.rc:65
 #, fuzzy
 #| msgid "Array object expected"
 msgid "Enumerator object expected"
 msgstr "ආරාව වස්තුවක් අපේක්ෂා කරේ"
 
-#: dlls/jscript/jscript.rc:65
+#: dlls/jscript/jscript.rc:66
 #, fuzzy
 #| msgid "Boolean object expected"
 msgid "Regular Expression object expected"
 msgstr "බූලීය වස්තුවක් අපේක්ෂා කරේ"
 
-#: dlls/jscript/jscript.rc:66
+#: dlls/jscript/jscript.rc:67
 msgid "Syntax error in regular expression"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:67
+#: dlls/jscript/jscript.rc:68
 #, fuzzy
 #| msgid "Expected identifier"
 msgid "Unexpected quantifier"
 msgstr "අපේක්ෂා කරේ අනන්යකාරකයක්"
 
-#: dlls/jscript/jscript.rc:68
+#: dlls/jscript/jscript.rc:69
 msgid "Exception thrown and not caught"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:70
+#: dlls/jscript/jscript.rc:71
 msgid "URI to be encoded contains invalid characters"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:69
+#: dlls/jscript/jscript.rc:70
 msgid "URI to be decoded is incorrect"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:71
+#: dlls/jscript/jscript.rc:72
 msgid "Number of fraction digits is out of range"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:72
+#: dlls/jscript/jscript.rc:73
 msgid "Precision is out of range"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:73
-msgid "Array length must be a finite positive integer"
-msgstr ""
-
 #: dlls/jscript/jscript.rc:74
-msgid "Array object expected"
+#, fuzzy
+#| msgid "Array object expected"
+msgid "Array or arguments object expected"
 msgstr "ආරාව වස්තුවක් අපේක්ෂා කරේ"
 
 #: dlls/jscript/jscript.rc:75
+msgid "Array length must be a finite positive integer"
+msgstr ""
+
+#: dlls/jscript/jscript.rc:76
+msgid "Array object expected"
+msgstr "ආරාව වස්තුවක් අපේක්ෂා කරේ"
+
+#: dlls/jscript/jscript.rc:77
 msgid ""
 "'writable' attribute on the property descriptor cannot be set to 'true' on "
 "this object"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:76
+#: dlls/jscript/jscript.rc:78
 msgid "Cyclic __proto__ value"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:77
+#: dlls/jscript/jscript.rc:79
 msgid "Cannot create property for a non-extensible object"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:78
+#: dlls/jscript/jscript.rc:80
 msgid "Cannot define property '|': object is not extensible"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:79
+#: dlls/jscript/jscript.rc:81
 msgid "Cannot redefine non-configurable property '|'"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:80
+#: dlls/jscript/jscript.rc:82
 msgid "Cannot modify non-writable property '|'"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:81
+#: dlls/jscript/jscript.rc:83
 #, fuzzy
 #| msgid "'%s' is not a valid port name"
 msgid "'this' is not a DataView object"
 msgstr "'%s' වලංගු තොට නමක් නෙමෙයි."
 
-#: dlls/jscript/jscript.rc:82
+#: dlls/jscript/jscript.rc:84
 msgid "Required argument offset or value in DataView method is not specified"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:83
+#: dlls/jscript/jscript.rc:85
 msgid "DataView operation access beyond specified buffer length"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:84
+#: dlls/jscript/jscript.rc:86
 msgid "DataView constructor argument offset is invalid"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:85
+#: dlls/jscript/jscript.rc:87
 #, fuzzy
 #| msgid "'%s' is not a valid port name"
 msgid "'this' is not a | object"
 msgstr "'%s' වලංගු තොට නමක් නෙමෙයි."
 
-#: dlls/jscript/jscript.rc:86
+#: dlls/jscript/jscript.rc:88
 #, fuzzy
 #| msgid "'%s' is not a valid port name"
 msgid "'key' is not an object"
 msgstr "'%s' වලංගු තොට නමක් නෙමෙයි."
 
-#: dlls/jscript/jscript.rc:87
+#: dlls/jscript/jscript.rc:89
 #, fuzzy
 #| msgid "Array object expected"
 msgid "ArrayBuffer object expected"
 msgstr "ආරාව වස්තුවක් අපේක්ෂා කරේ"
 
-#: dlls/jscript/jscript.rc:88
+#: dlls/jscript/jscript.rc:90
 msgid "Property cannot have both accessors and a value"
 msgstr ""
 
@@ -14117,7 +14129,7 @@ msgid "Digi&tal"
 msgstr "ඩිජිටල් (&T)"
 
 #: programs/clock/clock.rc:35 programs/notepad/notepad.rc:59
-#: programs/winecfg/winecfg.rc:313 programs/winefile/winefile.rc:63
+#: programs/winecfg/winecfg.rc:315 programs/winefile/winefile.rc:63
 #: programs/wordpad/wordpad.rc:84
 msgid "&Font..."
 msgstr "ෆොන්ටය... (&F)"
@@ -18670,76 +18682,82 @@ msgid "Driver diagnostics"
 msgstr "ධාවක දෝෂ නිර්ණය"
 
 #: programs/winecfg/winecfg.rc:271
-msgid "Defaults"
-msgstr "පෙරනිමි"
-
-#: programs/winecfg/winecfg.rc:272
-msgid "Output device:"
-msgstr "ප්‍රතිදාන ආම්පන්නය:"
-
-#: programs/winecfg/winecfg.rc:273
-msgid "Voice output device:"
-msgstr "හඬ ප්‍රතිදාන ආම්පන්නය:"
-
-#: programs/winecfg/winecfg.rc:274
-msgid "Input device:"
-msgstr "ආදාන ආම්පන්නය:"
-
-#: programs/winecfg/winecfg.rc:275
-msgid "Voice input device:"
-msgstr "හඬ ආදාන ආම්පන්නය:"
-
-#: programs/winecfg/winecfg.rc:280
 msgid "&Test Sound"
 msgstr "ශ්‍රව්‍ය පරික්‍ෂණ කරන්න (&T)"
 
-#: programs/winecfg/winecfg.rc:281 programs/winecfg/winecfg.rc:89
+#: programs/winecfg/winecfg.rc:272
+msgid "Defaults"
+msgstr "පෙරනිමි"
+
+#: programs/winecfg/winecfg.rc:273
+msgid "Output device:"
+msgstr "ප්‍රතිදාන ආම්පන්නය:"
+
+#: programs/winecfg/winecfg.rc:274
+msgid "Voice output device:"
+msgstr "හඬ ප්‍රතිදාන ආම්පන්නය:"
+
+#: programs/winecfg/winecfg.rc:275
+msgid "Input device:"
+msgstr "ආදාන ආම්පන්නය:"
+
+#: programs/winecfg/winecfg.rc:276
+msgid "Voice input device:"
+msgstr "හඬ ආදාන ආම්පන්නය:"
+
+#: programs/winecfg/winecfg.rc:277
+#, fuzzy
+#| msgid "Output device:"
+msgid "MIDI output device:"
+msgstr "ප්‍රතිදාන ආම්පන්නය:"
+
+#: programs/winecfg/winecfg.rc:283 programs/winecfg/winecfg.rc:89
 msgid "Speaker configuration"
 msgstr "ස්පීකර වින්‍යාසය"
 
-#: programs/winecfg/winecfg.rc:284
+#: programs/winecfg/winecfg.rc:286
 msgid "Speakers:"
 msgstr "ස්පීකර"
 
-#: programs/winecfg/winecfg.rc:292
+#: programs/winecfg/winecfg.rc:294
 msgid "Appearance"
 msgstr "පෙනුම"
 
-#: programs/winecfg/winecfg.rc:293
+#: programs/winecfg/winecfg.rc:295
 msgid "&Theme:"
 msgstr "තේමාව (&T):"
 
-#: programs/winecfg/winecfg.rc:295
+#: programs/winecfg/winecfg.rc:297
 #, fuzzy
 #| msgid "&Theme:"
 msgid "&WinRT theme:"
 msgstr "තේමාව (&T):"
 
-#: programs/winecfg/winecfg.rc:297
+#: programs/winecfg/winecfg.rc:299
 msgid "&Install theme..."
 msgstr "තේමාව ස්ථාපනය කරන්න... (&I)"
 
-#: programs/winecfg/winecfg.rc:302
+#: programs/winecfg/winecfg.rc:304
 msgid "It&em:"
 msgstr "අයිතමය (&E):"
 
-#: programs/winecfg/winecfg.rc:304
+#: programs/winecfg/winecfg.rc:306
 msgid "C&olor:"
 msgstr "පාට (&O):"
 
-#: programs/winecfg/winecfg.rc:310
+#: programs/winecfg/winecfg.rc:312
 msgid "MIME types"
 msgstr "MIME වර්ග"
 
-#: programs/winecfg/winecfg.rc:311
+#: programs/winecfg/winecfg.rc:313
 msgid "Manage file and protocol &associations"
 msgstr ""
 
-#: programs/winecfg/winecfg.rc:314
+#: programs/winecfg/winecfg.rc:316
 msgid "Folders"
 msgstr "ෆෝල්ඩර"
 
-#: programs/winecfg/winecfg.rc:317
+#: programs/winecfg/winecfg.rc:319
 msgid "&Link to:"
 msgstr ""
 
@@ -19532,6 +19550,10 @@ msgstr "දෝෂය: PATH එකේ වාග් රීති වලංගු �
 #| msgid "Bad command.\n"
 msgid "Supply a command\n"
 msgstr "හොඳ නැති විධානය.\n"
+
+#: programs/wmic/wmic.rc:33
+msgid "Example usage: wmic ALIAS get PROPERTY[,PROPERTY2,...]\n"
+msgstr ""
 
 #: programs/wordpad/wordpad.rc:31
 msgid "&New...\tCtrl+N"

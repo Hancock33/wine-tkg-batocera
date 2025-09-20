@@ -405,7 +405,7 @@ static int wait_select_reply( void *cookie )
  */
 static NTSTATUS invoke_user_apc( CONTEXT *context, const struct user_apc *apc, NTSTATUS status )
 {
-    return call_user_apc_dispatcher( context, apc->args[0], apc->args[1], apc->args[2],
+    return call_user_apc_dispatcher( context, apc->flags, apc->args[0], apc->args[1], apc->args[2],
                                      wine_server_get_ptr( apc->func ), status );
 }
 
@@ -1782,11 +1782,8 @@ void server_init_process_done(void)
     /* Signal the parent process to continue */
     SERVER_START_REQ( init_process_done )
     {
-        req->teb      = wine_server_client_ptr( teb );
-        req->peb      = NtCurrentTeb64() ? NtCurrentTeb64()->Peb : wine_server_client_ptr( peb );
-#ifdef __i386__
-        req->ldt_copy = wine_server_client_ptr( &__wine_ldt_copy );
-#endif
+        req->teb = wine_server_client_ptr( teb );
+        req->peb = NtCurrentTeb64() ? NtCurrentTeb64()->Peb : wine_server_client_ptr( peb );
         status = wine_server_call( req );
         suspend = reply->suspend;
     }

@@ -1410,6 +1410,15 @@ NTSTATUS WINAPI NtSetEvent( HANDLE handle, LONG *prev_state )
 
 
 /******************************************************************************
+ *              NtSetEventBoostPriority (NTDLL.@)
+ */
+NTSTATUS WINAPI NtSetEventBoostPriority( HANDLE handle )
+{
+    return NtSetEvent( handle, NULL );
+}
+
+
+/******************************************************************************
  *              NtResetEvent (NTDLL.@)
  */
 NTSTATUS WINAPI NtResetEvent( HANDLE handle, LONG *prev_state )
@@ -3339,6 +3348,27 @@ NTSTATUS WINAPI NtCompleteConnectPort( HANDLE handle )
 
 
 /***********************************************************************
+ *             NtImpersonateClientOfPort (NTDLL.@)
+ */
+NTSTATUS WINAPI NtImpersonateClientOfPort( HANDLE handle, LPC_MESSAGE *request )
+{
+    FIXME( "(%p,%p),stub!\n", handle, request );
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+
+/***********************************************************************
+ *             NtReadRequestData (NTDLL.@)
+ */
+NTSTATUS WINAPI NtReadRequestData( HANDLE handle, LPC_MESSAGE *request, ULONG id,
+                                   void *buffer, ULONG len, ULONG *retlen )
+{
+    FIXME( "(%p,%p,%u,%p,%u,%p),stub!\n", handle, request, id, buffer, len, retlen );
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+
+/***********************************************************************
  *             NtRegisterThreadTerminatePort (NTDLL.@)
  */
 NTSTATUS WINAPI NtRegisterThreadTerminatePort( HANDLE handle )
@@ -3364,6 +3394,16 @@ NTSTATUS WINAPI NtRequestWaitReplyPort( HANDLE handle, LPC_MESSAGE *msg_in, LPC_
 
 
 /***********************************************************************
+ *             NtReplyPort (NTDLL.@)
+ */
+NTSTATUS WINAPI NtReplyPort( HANDLE handle, LPC_MESSAGE *reply )
+{
+    FIXME("(%p,%p),stub!\n", handle, reply );
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+
+/***********************************************************************
  *             NtReplyWaitReceivePort (NTDLL.@)
  */
 NTSTATUS WINAPI NtReplyWaitReceivePort( HANDLE handle, ULONG *id, LPC_MESSAGE *reply, LPC_MESSAGE *msg )
@@ -3372,6 +3412,27 @@ NTSTATUS WINAPI NtReplyWaitReceivePort( HANDLE handle, ULONG *id, LPC_MESSAGE *r
     return STATUS_NOT_IMPLEMENTED;
 }
 
+
+/***********************************************************************
+ *             NtReplyWaitReceivePortEx (NTDLL.@)
+ */
+NTSTATUS WINAPI NtReplyWaitReceivePortEx( HANDLE handle, ULONG *id, LPC_MESSAGE *reply, LPC_MESSAGE *msg,
+                                          LARGE_INTEGER *timeout )
+{
+    FIXME("(%p,%p,%p,%p,%p),stub!\n", handle, id, reply, msg, timeout );
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+
+/***********************************************************************
+ *             NtWriteRequestData (NTDLL.@)
+ */
+NTSTATUS WINAPI NtWriteRequestData( HANDLE handle, LPC_MESSAGE *request, ULONG id,
+                                    void *buffer, ULONG len, ULONG *retlen )
+{
+    FIXME( "(%p,%p,%u,%p,%u,%p),stub!\n", handle, request, id, buffer, len, retlen );
+    return STATUS_NOT_IMPLEMENTED;
+}
 
 #define MAX_ATOM_LEN  255
 #define IS_INTATOM(x) (((ULONG_PTR)(x) >> 16) == 0)

@@ -62,6 +62,7 @@ D3DFORMAT d3dformat_from_d3dx_pixel_format_id(enum d3dx_pixel_format_id format)
         case D3DX_PIXEL_FORMAT_P8_UINT_A8_UNORM:         return D3DFMT_A8P8;
         case D3DX_PIXEL_FORMAT_U8V8W8Q8_SNORM:           return D3DFMT_Q8W8V8U8;
         case D3DX_PIXEL_FORMAT_U8V8_SNORM:               return D3DFMT_V8U8;
+        case D3DX_PIXEL_FORMAT_U8V8_SNORM_Cx:            return D3DFMT_CxV8U8;
         case D3DX_PIXEL_FORMAT_U16V16_SNORM:             return D3DFMT_V16U16;
         case D3DX_PIXEL_FORMAT_U8V8_SNORM_L8X8_UNORM:    return D3DFMT_X8L8V8U8;
         case D3DX_PIXEL_FORMAT_U10V10W10_SNORM_A2_UNORM: return D3DFMT_A2W10V10U10;
@@ -71,9 +72,13 @@ D3DFORMAT d3dformat_from_d3dx_pixel_format_id(enum d3dx_pixel_format_id format)
         case D3DX_PIXEL_FORMAT_UYVY:                     return D3DFMT_UYVY;
         case D3DX_PIXEL_FORMAT_YUY2:                     return D3DFMT_YUY2;
         default:
-            if (!is_internal_format(get_d3dx_pixel_format_info(format)))
+        {
+            const struct pixel_format_desc *fmt_desc = get_d3dx_pixel_format_info(format);
+
+            if (!is_internal_format(fmt_desc) && !is_dxgi_format(fmt_desc))
                 FIXME("Unknown d3dx_pixel_format_id %u.\n", format);
             return D3DFMT_UNKNOWN;
+        }
     }
 }
 
@@ -117,6 +122,7 @@ enum d3dx_pixel_format_id d3dx_pixel_format_id_from_d3dformat(D3DFORMAT format)
         case D3DFMT_A8P8:          return D3DX_PIXEL_FORMAT_P8_UINT_A8_UNORM;
         case D3DFMT_Q8W8V8U8:      return D3DX_PIXEL_FORMAT_U8V8W8Q8_SNORM;
         case D3DFMT_V8U8:          return D3DX_PIXEL_FORMAT_U8V8_SNORM;
+        case D3DFMT_CxV8U8:        return D3DX_PIXEL_FORMAT_U8V8_SNORM_Cx;
         case D3DFMT_V16U16:        return D3DX_PIXEL_FORMAT_U16V16_SNORM;
         case D3DFMT_X8L8V8U8:      return D3DX_PIXEL_FORMAT_U8V8_SNORM_L8X8_UNORM;
         case D3DFMT_A2W10V10U10:   return D3DX_PIXEL_FORMAT_U10V10W10_SNORM_A2_UNORM;

@@ -376,7 +376,7 @@ struct nsi_tcp_conn_key
 struct nsi_tcp_conn_dynamic
 {
     UINT state;
-    UINT unk[4];
+    UINT unk[5];
 };
 
 struct nsi_tcp_conn_static
@@ -476,6 +476,7 @@ struct nsiproxy_icmp_echo
     UINT opt_size;
     UINT req_size;
     UINT timeout;
+    int hop_limit;
     BYTE data[1]; /* ((opt_size + 3) & ~3) + req_size */
 };
 

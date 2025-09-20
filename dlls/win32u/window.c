@@ -149,6 +149,20 @@ static NTSTATUS get_shared_window( HANDLE handle, struct object_lock *lock, cons
     return STATUS_SUCCESS;
 }
 
+struct obj_locator get_window_class_locator( HWND hwnd )
+{
+    struct object_lock lock = OBJECT_LOCK_INIT;
+    const window_shm_t *window_shm = NULL;
+    struct obj_locator locator = {0};
+    NTSTATUS status;
+
+    while ((status = get_shared_window( hwnd, &lock, &window_shm )) == STATUS_PENDING)
+        locator = window_shm->class;
+    if (status) memset( &locator, 0, sizeof(locator) );
+
+    return locator;
+}
+
 /***********************************************************************
  *           get_user_handle_ptr
  */
@@ -237,7 +251,7 @@ void *free_user_handle( HANDLE handle, unsigned short type )
 static pthread_mutex_t surfaces_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct list client_surfaces = LIST_INIT( client_surfaces );
 
-static void detach_client_surfaces( HWND hwnd )
+void detach_client_surfaces( HWND hwnd )
 {
     struct list detached = LIST_INIT( detached );
     struct client_surface *surface, *next;
@@ -324,20 +338,32 @@ void client_surface_release( struct client_surface *surface )
     }
 }
 
-void client_surface_present( struct client_surface *surface, HDC hdc )
+void client_surface_present( struct client_surface *surface )
 {
+    HDC hdc = 0;
     HWND hwnd;
-    HDC tmp;
 
     pthread_mutex_lock( &surfaces_lock );
     if ((hwnd = surface->hwnd))
     {
-        if (hdc || !surface->offscreen) tmp = hdc;
-        else tmp = NtUserGetDCEx( hwnd, 0, DCX_CACHE | DCX_USESTYLE );
-        surface->funcs->present( surface, surface->offscreen ? tmp : NULL );
-        if (tmp && tmp != hdc) NtUserReleaseDC( hwnd, tmp );
+        if (surface->offscreen) hdc = NtUserGetDCEx( hwnd, 0, DCX_CACHE | DCX_USESTYLE );
+        surface->funcs->present( surface, hdc );
+        if (hdc) NtUserReleaseDC( hwnd, hdc );
     }
     pthread_mutex_unlock( &surfaces_lock );
+}
+
+BOOL is_client_surface_window( struct client_surface *surface, HWND hwnd )
+{
+    BOOL ret;
+
+    if (!surface) return FALSE;
+    pthread_mutex_lock( &surfaces_lock );
+    if (hwnd) ret = surface->hwnd == hwnd;
+    else ret = surface->hwnd != NULL;
+    pthread_mutex_unlock( &surfaces_lock );
+
+    return ret;
 }
 
 /*******************************************************************
@@ -3024,11 +3050,10 @@ HWND WINAPI NtUserFindWindowEx( HWND parent, HWND child, UNICODE_STRING *class, 
     user_handle_t *list;
     HWND retvalue = 0;
     int i = 0, size = 128, title_len;
-    ATOM atom = class ? get_int_atom_value( class ) : 0;
     NTSTATUS status;
 
     /* empty class is not the same as NULL class */
-    if (!atom && class && !class->Length) return 0;
+    if (class && !class->Length && !IS_INTRESOURCE(class->Buffer)) return 0;
 
     if (parent == HWND_MESSAGE) parent = get_hwnd_message_parent();
 
@@ -3040,8 +3065,7 @@ HWND WINAPI NtUserFindWindowEx( HWND parent, HWND child, UNICODE_STRING *class, 
         {
             req->parent = wine_server_user_handle( parent );
             req->child  = wine_server_user_handle( child );
-            req->atom   = atom;
-            if (!atom && class) wine_server_add_data( req, class->Buffer, class->Length );
+            if (class) req->atom = wine_server_add_atom( req, class );
             wine_server_set_reply( req, list, size * sizeof(user_handle_t) );
             status = wine_server_call( req );
             size = reply->count;
@@ -5191,7 +5215,8 @@ LRESULT destroy_window( HWND hwnd )
     }
 
     detach_client_surfaces( hwnd );
-    if (win->opengl_drawable) opengl_drawable_release( win->opengl_drawable );
+    if (win->current_drawable) opengl_drawable_release( win->current_drawable );
+    if (win->unused_drawable) opengl_drawable_release( win->unused_drawable );
     user_driver->pDestroyWindow( hwnd );
 
     free_window_handle( hwnd );
@@ -5296,7 +5321,8 @@ void destroy_thread_windows(void)
         HWND handle;
         HMENU menu;
         HMENU sys_menu;
-        struct opengl_drawable *opengl_drawable;
+        struct opengl_drawable *current_drawable;
+        struct opengl_drawable *unused_drawable;
         struct window_surface *surface;
         struct destroy_entry *next;
     } *entry, *free_list = NULL;
@@ -5322,7 +5348,8 @@ void destroy_thread_windows(void)
         tmp.handle = win->handle;
         if (!is_child) tmp.menu = (HMENU)win->wIDmenu;
         tmp.sys_menu = win->hSysMenu;
-        tmp.opengl_drawable = win->opengl_drawable;
+        tmp.current_drawable = win->current_drawable;
+        tmp.unused_drawable = win->unused_drawable;
         tmp.surface = win->surface;
         *entry = tmp;
 
@@ -5347,7 +5374,8 @@ void destroy_thread_windows(void)
 
         detach_client_surfaces( entry->handle );
         user_driver->pDestroyWindow( entry->handle );
-        if (entry->opengl_drawable) opengl_drawable_release( entry->opengl_drawable );
+        if (entry->current_drawable) opengl_drawable_release( entry->current_drawable );
+        if (entry->unused_drawable) opengl_drawable_release( entry->unused_drawable );
 
         NtUserDestroyMenu( entry->menu );
         NtUserDestroyMenu( entry->sys_menu );
@@ -5383,8 +5411,7 @@ static WND *create_window_handle( HWND parent, HWND owner, UNICODE_STRING *name,
         req->dpi_context     = dpi_context;
         req->style           = style;
         req->ex_style        = ex_style;
-        if (!(req->atom = get_int_atom_value( name )) && name->Length)
-            wine_server_add_data( req, name->Buffer, name->Length );
+        req->atom            = wine_server_add_atom( req, name );
         if (!wine_server_call_err( req ))
         {
             handle      = wine_server_ptr_handle( reply->handle );
@@ -5418,7 +5445,7 @@ static WND *create_window_handle( HWND parent, HWND owner, UNICODE_STRING *name,
     {
         struct ntuser_thread_info *thread_info = NtUserGetThreadInfo();
 
-        if (name->Buffer == (const WCHAR *)DESKTOP_CLASS_ATOM)
+        if (is_desktop_class( name ))
         {
             if (!thread_info->top_window) thread_info->top_window = HandleToUlong( full_parent ? full_parent : handle );
             else assert( full_parent == UlongToHandle( thread_info->top_window ));
@@ -5547,7 +5574,10 @@ HWND WINAPI NtUserCreateWindowEx( DWORD ex_style, UNICODE_STRING *class_name,
     RECT surface_rect;
     WND *win;
 
-    static const WCHAR messageW[] = {'M','e','s','s','a','g','e'};
+    TRACE( "ex_style %#x, class_name %s, version %s, window_name %s, style %#x, x %u, y %u, cx %u, cy %u, "
+           "parent %p, menu %p, class_instance %p, params %p, flags %#x, instance %p, unk %u, ansi %u\n",
+           ex_style, debugstr_us(class_name), debugstr_us(version), debugstr_us(window_name), style, x, y, cx, cy,
+           parent, menu, class_instance, params, flags, instance, unk, ansi );
 
     cs.lpCreateParams = params;
     cs.hInstance  = instance ? instance : class_instance;
@@ -5591,9 +5621,7 @@ HWND WINAPI NtUserCreateWindowEx( DWORD ex_style, UNICODE_STRING *class_name,
         }
 
         /* are we creating the desktop or HWND_MESSAGE parent itself? */
-        if (class_name->Buffer != (LPCWSTR)DESKTOP_CLASS_ATOM &&
-            (class_name->Length != sizeof(messageW) ||
-             wcsnicmp( class_name->Buffer, messageW, ARRAYSIZE(messageW) )))
+        if (!is_desktop_class( class_name ) && !is_message_class( class_name ))
         {
             if (get_process_layout() & LAYOUT_RTL) cs.dwExStyle |= WS_EX_LAYOUTRTL;
             parent = get_desktop_window();

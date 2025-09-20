@@ -1697,7 +1697,7 @@ WINE_NOTICE_WITH(ffmpeg,[test "x$FFMPEG_LIBS" = x],
 dnl **** Check for gstreamer ****
 if test "x$with_gstreamer" != "xno"
 then
-    WINE_PACKAGE_FLAGS(GSTREAMER,[gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0],,,,
+    WINE_PACKAGE_FLAGS(GSTREAMER,[gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0 gstreamer-gl-1.0],,,,
         [AC_CHECK_HEADER([gst/gst.h],
             [AC_MSG_CHECKING([whether gint64 defined by gst/gst.h is indeed 64-bit])
               AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <gst/gst.h>]],
@@ -2542,6 +2542,8 @@ WINE_CONFIG_MAKEFILE(dlls/cryptowinrt/tests)
 WINE_CONFIG_MAKEFILE(dlls/cryptsp)
 WINE_CONFIG_MAKEFILE(dlls/cryptui)
 WINE_CONFIG_MAKEFILE(dlls/cryptui/tests)
+WINE_CONFIG_MAKEFILE(dlls/cryptxml)
+WINE_CONFIG_MAKEFILE(dlls/cryptxml/tests)
 WINE_CONFIG_MAKEFILE(dlls/ctapi32)
 WINE_CONFIG_MAKEFILE(dlls/ctl3d.dll16)
 WINE_CONFIG_MAKEFILE(dlls/ctl3d32)
@@ -2586,6 +2588,7 @@ WINE_CONFIG_MAKEFILE(dlls/d3dim700)
 WINE_CONFIG_MAKEFILE(dlls/d3drm)
 WINE_CONFIG_MAKEFILE(dlls/d3drm/tests)
 WINE_CONFIG_MAKEFILE(dlls/d3dx10_33)
+WINE_CONFIG_MAKEFILE(dlls/d3dx10_33/tests)
 WINE_CONFIG_MAKEFILE(dlls/d3dx10_34)
 WINE_CONFIG_MAKEFILE(dlls/d3dx10_34/tests)
 WINE_CONFIG_MAKEFILE(dlls/d3dx10_35)
@@ -2741,6 +2744,7 @@ WINE_CONFIG_MAKEFILE(dlls/fontsub)
 WINE_CONFIG_MAKEFILE(dlls/fusion)
 WINE_CONFIG_MAKEFILE(dlls/fusion/tests)
 WINE_CONFIG_MAKEFILE(dlls/fwpuclnt)
+WINE_CONFIG_MAKEFILE(dlls/gameinput)
 WINE_CONFIG_MAKEFILE(dlls/gameux)
 WINE_CONFIG_MAKEFILE(dlls/gameux/tests)
 WINE_CONFIG_MAKEFILE(dlls/gamingtcui)
@@ -3286,6 +3290,7 @@ WINE_CONFIG_MAKEFILE(dlls/win32u)
 WINE_CONFIG_MAKEFILE(dlls/win32u/tests)
 WINE_CONFIG_MAKEFILE(dlls/win87em.dll16)
 WINE_CONFIG_MAKEFILE(dlls/winaspi.dll16)
+WINE_CONFIG_MAKEFILE(dlls/winbio)
 WINE_CONFIG_MAKEFILE(dlls/windebug.dll16)
 WINE_CONFIG_MAKEFILE(dlls/windows.applicationmodel)
 WINE_CONFIG_MAKEFILE(dlls/windows.applicationmodel/tests)
@@ -3305,6 +3310,10 @@ WINE_CONFIG_MAKEFILE(dlls/windows.media.devices)
 WINE_CONFIG_MAKEFILE(dlls/windows.media.devices/tests)
 WINE_CONFIG_MAKEFILE(dlls/windows.media.mediacontrol)
 WINE_CONFIG_MAKEFILE(dlls/windows.media.mediacontrol/tests)
+WINE_CONFIG_MAKEFILE(dlls/windows.media.playback.backgroundmediaplayer)
+WINE_CONFIG_MAKEFILE(dlls/windows.media.playback.backgroundmediaplayer/tests)
+WINE_CONFIG_MAKEFILE(dlls/windows.media.playback.mediaplayer)
+WINE_CONFIG_MAKEFILE(dlls/windows.media.playback.mediaplayer/tests)
 WINE_CONFIG_MAKEFILE(dlls/windows.media.speech)
 WINE_CONFIG_MAKEFILE(dlls/windows.media.speech/tests)
 WINE_CONFIG_MAKEFILE(dlls/windows.media)
@@ -3676,7 +3685,7 @@ fi
 AC_CONFIG_COMMANDS([Makefile], [wine_fn_output_makefile Makefile],
 [wine_fn_output_makefile ()
 {
-    cat <<\_WINE_EOF >\$tmp/makefile && mv -f \$tmp/makefile \$[]1 && "$wine_makedep"$makedep_flags && return
+    cat <<\_WINE_EOF >\$tmp/makefile && "$wine_makedep"$makedep_flags -i\$tmp/makefile && return
 # This Makefile understands the following targets:
 #
 # all (default):   build wine
@@ -3748,7 +3757,7 @@ dnl Rules for generated source files
 
 WINE_APPEND_RULE(
 [dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-10.13.r0.ga8a6d7b0\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
+	@version=\`(echo \"wine-10.15.r11.g64988e15\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$[@]) || echo \$\$build >\$[@] || (rm -f \$[@] && exit 1)
 dlls/wineandroid.drv/wine-debug.apk: dlls/wineandroid.drv/build.gradle ${wine_srcdir}dlls/wineandroid.drv/AndroidManifest.xml ${wine_srcdir}dlls/wineandroid.drv/WineActivity.java ${wine_srcdir}dlls/wineandroid.drv/wine.svg

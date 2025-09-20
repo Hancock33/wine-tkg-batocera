@@ -9333,7 +9333,7 @@ static void test_video_processor(BOOL use_2d_buffer)
             .output_buffer_desc = use_2d_buffer ? nv12_crop : NULL,
             .output_sample_desc = &nv12_crop_sample_desc, .output_sample_2d_desc = &nv12_crop_sample_2d_desc,
             .delta = 2, /* Windows returns 1, Wine needs 2 */
-            .todo = TRUE, /* Would need special handling to convert gstreamer NV12 buffer to Windows alignment */
+            .todo = use_2d_buffer,
         },
     };
 
@@ -9497,8 +9497,17 @@ static void test_video_processor(BOOL use_2d_buffer)
     hr = IMFMediaType_SetGUID(media_type, &MF_MT_SUBTYPE, &MFVideoFormat_RGB32);
     ok(hr == S_OK, "Failed to set attribute, hr %#lx.\n", hr);
 
+    hr = IMFTransform_GetOutputStatus(transform, &flags);
+    ok(hr == MF_E_TRANSFORM_TYPE_NOT_SET, "GetOutputStatus returned %#lx.\n", hr);
+
     hr = IMFTransform_SetOutputType(transform, 0, media_type, 0);
     ok(hr == S_OK, "Failed to set output type, hr %#lx.\n", hr);
+
+    flags = 0xdeadbeef;
+    hr = IMFTransform_GetOutputStatus(transform, &flags);
+    ok(hr == S_OK, "GetOutputStatus returned %#lx.\n", hr);
+    todo_wine
+    ok(flags == 0, "Unexpected output status %#lx.\n", flags);
 
     hr = MFCalculateImageSize(&MFVideoFormat_IYUV, 16, 16, (UINT32 *)&input_info.cbSize);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
@@ -9520,6 +9529,11 @@ static void test_video_processor(BOOL use_2d_buffer)
     hr = IMFTransform_ProcessInput(transform, 0, input_sample, 0);
     todo_wine
     ok(hr == S_OK, "Failed to push a sample, hr %#lx.\n", hr);
+
+    flags = 0xdeadbeef;
+    hr = IMFTransform_GetOutputStatus(transform, &flags);
+    ok(hr == S_OK, "GetOutputStatus returned %#lx.\n", hr);
+    ok(flags == MFT_OUTPUT_STATUS_SAMPLE_READY, "Unexpected output status %#lx.\n", flags);
 
     hr = IMFTransform_ProcessInput(transform, 0, input_sample, 0);
     todo_wine
@@ -9552,6 +9566,12 @@ static void test_video_processor(BOOL use_2d_buffer)
     {
         hr = check_mft_process_output(transform, output_sample, &output_status);
         ok(hr == MF_E_TRANSFORM_NEED_MORE_INPUT, "Unexpected hr %#lx.\n", hr);
+
+        flags = 0xdeadbeef;
+        hr = IMFTransform_GetOutputStatus(transform, &flags);
+        ok(hr == S_OK, "GetOutputStatus returned %#lx.\n", hr);
+        todo_wine
+        ok(flags == 0, "Unexpected output status %#lx.\n", flags);
     }
 
     ref = IMFTransform_Release(transform);
@@ -9773,7 +9793,6 @@ static void test_video_processor(BOOL use_2d_buffer)
         output_sample = create_sample_(NULL, output_info.cbSize, test->output_buffer_desc);
         hr = check_mft_process_output(transform, output_sample, &output_status);
 
-        todo_wine_if(test->output_sample_desc == &nv12_crop_sample_desc)
         ok(hr == S_OK || broken(hr == MF_E_SHUTDOWN) /* w8 */, "ProcessOutput returned %#lx\n", hr);
         if (hr != S_OK)
         {
