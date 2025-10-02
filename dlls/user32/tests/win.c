@@ -10206,7 +10206,7 @@ static void test_FlashWindowEx(void)
 
     SetLastError(0xdeadbeef);
     ret = pFlashWindowEx(&finfo);
-    ok(!ret, "previous window state should not be active\n");
+    todo_wine ok(!ret, "previous window state should not be active\n");
 
     finfo.cbSize = sizeof(FLASHWINFO) - 1;
     SetLastError(0xdeadbeef);
@@ -10257,7 +10257,7 @@ static void test_FlashWindowEx(void)
     finfo.dwFlags = FLASHW_STOP;
     SetLastError(0xdeadbeef);
     ret = pFlashWindowEx(&finfo);
-    todo_wine ok(prev != ret, "previous window state should be different\n");
+    ok(prev != ret, "previous window state should be different\n");
 
     DestroyWindow( hwnd );
 }

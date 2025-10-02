@@ -4248,6 +4248,7 @@ static void tpf_handle_instruction(struct tpf_compiler *tpf, const struct vkd3d_
         case VSIR_OP_BREAK:
         case VSIR_OP_CASE:
         case VSIR_OP_CONTINUE:
+        case VSIR_OP_COUNTBITS:
         case VSIR_OP_CUT:
         case VSIR_OP_CUT_STREAM:
         case VSIR_OP_DCL_STREAM:
@@ -4273,6 +4274,9 @@ static void tpf_handle_instruction(struct tpf_compiler *tpf, const struct vkd3d_
         case VSIR_OP_EXP:
         case VSIR_OP_F16TOF32:
         case VSIR_OP_F32TOF16:
+        case VSIR_OP_FIRSTBIT_HI:
+        case VSIR_OP_FIRSTBIT_LO:
+        case VSIR_OP_FIRSTBIT_SHI:
         case VSIR_OP_FRC:
         case VSIR_OP_FTOI:
         case VSIR_OP_FTOU:

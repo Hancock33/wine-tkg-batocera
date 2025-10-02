@@ -323,6 +323,7 @@ static struct msg_queue *create_msg_queue( struct thread *thread, struct thread_
         queue->ignore_post_msg = 0;
         queue->inproc_sync     = create_inproc_event( TRUE, FALSE );
         queue->in_inproc_wait  = 0;
+
         list_init( &queue->send_result );
         list_init( &queue->callback_result );
         list_init( &queue->pending_timers );

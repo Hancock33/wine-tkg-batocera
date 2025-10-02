@@ -486,6 +486,10 @@ static enum msl_data_type msl_print_register_name(struct vkd3d_string_buffer *bu
             vkd3d_string_buffer_printf(buffer, "o_mask");
             return MSL_DATA_UNION;
 
+        case VKD3DSPR_THREADID:
+            vkd3d_string_buffer_printf(buffer, "v_thread_id");
+            return MSL_DATA_UNION;
+
         default:
             msl_compiler_error(gen, VKD3D_SHADER_ERROR_MSL_INTERNAL,
                     "Internal compiler error: Unhandled register type %#x.", reg->type);
@@ -1456,12 +1460,21 @@ static void msl_handle_instruction(struct msl_generator *gen, const struct vkd3d
 
     switch (ins->opcode)
     {
+        case VSIR_OP_ACOS:
+            msl_intrinsic(gen, ins, "acos");
+            break;
         case VSIR_OP_ADD:
         case VSIR_OP_IADD:
             msl_binop(gen, ins, "+");
             break;
         case VSIR_OP_AND:
             msl_binop(gen, ins, "&");
+            break;
+        case VSIR_OP_ASIN:
+            msl_intrinsic(gen, ins, "asin");
+            break;
+        case VSIR_OP_ATAN:
+            msl_intrinsic(gen, ins, "atan");
             break;
         case VSIR_OP_BREAK:
             msl_break(gen);
@@ -1471,6 +1484,9 @@ static void msl_handle_instruction(struct msl_generator *gen, const struct vkd3d
             break;
         case VSIR_OP_CONTINUE:
             msl_continue(gen);
+            break;
+        case VSIR_OP_COS:
+            msl_intrinsic(gen, ins, "cos");
             break;
         case VSIR_OP_DCL_INDEXABLE_TEMP:
             msl_dcl_indexable_temp(gen, ins);
@@ -1527,6 +1543,9 @@ static void msl_handle_instruction(struct msl_generator *gen, const struct vkd3d
         case VSIR_OP_FRC:
             msl_intrinsic(gen, ins, "fract");
             break;
+        case VSIR_OP_FREM:
+            msl_intrinsic(gen, ins, "fmod");
+            break;
         case VSIR_OP_FTOI:
             msl_cast(gen, ins, "int");
             break;
@@ -1548,6 +1567,15 @@ static void msl_handle_instruction(struct msl_generator *gen, const struct vkd3d
         case VSIR_OP_IGE:
         case VSIR_OP_UGE:
             msl_relop(gen, ins, ">=");
+            break;
+        case VSIR_OP_HCOS:
+            msl_intrinsic(gen, ins, "cosh");
+            break;
+        case VSIR_OP_HSIN:
+            msl_intrinsic(gen, ins, "sinh");
+            break;
+        case VSIR_OP_HTAN:
+            msl_intrinsic(gen, ins, "tanh");
             break;
         case VSIR_OP_IF:
             msl_if(gen, ins);
@@ -1633,6 +1661,9 @@ static void msl_handle_instruction(struct msl_generator *gen, const struct vkd3d
         case VSIR_OP_RSQ:
             msl_intrinsic(gen, ins, "rsqrt");
             break;
+        case VSIR_OP_SIN:
+            msl_intrinsic(gen, ins, "sin");
+            break;
         case VSIR_OP_SQRT:
             msl_intrinsic(gen, ins, "sqrt");
             break;
@@ -1641,6 +1672,9 @@ static void msl_handle_instruction(struct msl_generator *gen, const struct vkd3d
             break;
         case VSIR_OP_SWITCH:
             msl_switch(gen, ins);
+            break;
+        case VSIR_OP_TAN:
+            msl_intrinsic(gen, ins, "tan");
             break;
         case VSIR_OP_XOR:
             msl_binop(gen, ins, "^");
@@ -1982,6 +2016,12 @@ static void msl_generate_entrypoint_prologue(struct msl_generator *gen)
         msl_print_write_mask(buffer, e->mask);
         vkd3d_string_buffer_printf(buffer, ";\n");
     }
+
+    if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_THREADID))
+    {
+        msl_print_indent(gen->buffer, 1);
+        vkd3d_string_buffer_printf(buffer, "v_thread_id.u = uint4(thread_id, 0u);\n");
+    }
 }
 
 static void msl_generate_entrypoint_epilogue(struct msl_generator *gen)
@@ -2068,6 +2108,12 @@ static void msl_generate_entrypoint(struct msl_generator *gen)
         vkd3d_string_buffer_printf(gen->buffer, "uint vertex_id [[vertex_id]],\n");
     }
 
+    if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_THREADID))
+    {
+        msl_print_indent(gen->buffer, 2);
+        vkd3d_string_buffer_printf(gen->buffer, "uint3 thread_id [[thread_position_in_grid]],\n");
+    }
+
     msl_print_indent(gen->buffer, 2);
     vkd3d_string_buffer_printf(gen->buffer, "vkd3d_%s_in input [[stage_in]])\n{\n", gen->prefix);
 
@@ -2077,6 +2123,8 @@ static void msl_generate_entrypoint(struct msl_generator *gen)
     vkd3d_string_buffer_printf(gen->buffer, "    vkd3d_%s_out output;\n", gen->prefix);
     if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_SAMPLEMASK))
         vkd3d_string_buffer_printf(gen->buffer, "    vkd3d_scalar o_mask;\n");
+    if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_THREADID))
+        vkd3d_string_buffer_printf(gen->buffer, "    vkd3d_vec4 v_thread_id;\n");
     vkd3d_string_buffer_printf(gen->buffer, "\n");
 
     msl_generate_entrypoint_prologue(gen);
@@ -2088,6 +2136,8 @@ static void msl_generate_entrypoint(struct msl_generator *gen)
         vkd3d_string_buffer_printf(gen->buffer, ", output.shader_out_depth");
     if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_SAMPLEMASK))
         vkd3d_string_buffer_printf(gen->buffer, ", o_mask");
+    if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_THREADID))
+        vkd3d_string_buffer_printf(gen->buffer, ", v_thread_id");
     if (gen->program->descriptors.descriptor_count)
         vkd3d_string_buffer_printf(gen->buffer, ", descriptors");
     vkd3d_string_buffer_printf(gen->buffer, ");\n\n");
@@ -2161,6 +2211,8 @@ static int msl_generator_generate(struct msl_generator *gen, struct vkd3d_shader
         vkd3d_string_buffer_printf(gen->buffer, ", thread float &o_depth");
     if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_SAMPLEMASK))
         vkd3d_string_buffer_printf(gen->buffer, ", thread vkd3d_scalar &o_mask");
+    if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_THREADID))
+        vkd3d_string_buffer_printf(gen->buffer, ", thread vkd3d_vec4 &v_thread_id");
     if (gen->program->descriptors.descriptor_count)
         vkd3d_string_buffer_printf(gen->buffer, ", constant descriptor *descriptors");
     vkd3d_string_buffer_printf(gen->buffer, ")\n{\n");

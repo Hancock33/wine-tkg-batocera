@@ -857,9 +857,12 @@ call :setError 666 & ((echo A | choice /C:BA) >NUL &&echo SUCCESS !errorlevel!||
 call :setError 666 & (choice /C:BA <NUL >NUL &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!)
 rem syntax errors in command return INVALID_FUNCTION, need to find a test for returning 255
 echo --- success/failure for MORE command
+echo a>filea
 call :setError 666 & (more NUL &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!)
-call :setError 666 & (more I\dont\exist.txt > NUL 2>&1 &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!)
 call :setError 666 & (echo foo | more &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!)
+rem native 'MORE file' outputs to CONOUT$, not stdout!
+call :setError 666 & (more filea I\dont\exist.txt &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!)
+erase filea
 echo --- success/failure for PAUSE command
 call :setError 666 & (pause < NUL > NUL 2>&1 &&echo SUCCESS !errorlevel!||echo FAILURE !errorlevel!)
 rem TODO: pause is harder to test when fd 1 is a console handle as we don't control output
@@ -1405,6 +1408,20 @@ echo ---6
 type foobaw
 echo ---7
 del foobaz foobay foobax foobaw
+echo ---8
+rem generating sequence ab<ctrl-Z>c\n\r
+echo 61621A630D0A>seq.hex
+certutil -decodehex seq.hex seq.bin > nul
+type seq.bin > foo0
+call :CompareFileSizes seq.bin foo0
+erase seq.hex seq.bin foo0
+echo ---9
+rem generating sequence ab<NUL>c\n\r
+echo 616200630D0A>seq.hex
+certutil -decodehex seq.hex seq.bin > nul
+type seq.bin > foo0
+call :CompareFileSizes seq.bin foo0
+erase seq.hex seq.bin foo0
 
 echo ------------ Testing NUL ------------
 md foobar & cd foobar
@@ -3065,6 +3082,10 @@ echo ---
 dir /B /O:G-NE
 echo ---
 dir /B /O:G-E-N
+echo ---
+set DIRCMD=/O:GN
+dir /B /O:G-N
+set DIRCMD=
 cd .. & rd /s/q foobar
 echo ------------ Testing attrib ------------
 rem FIXME Add tests for archive, hidden and system attributes + mixed attributes modifications
@@ -3514,6 +3535,10 @@ if "%WINE_filesize%"=="%2" (
 shift
 shift
 if not "%1"=="" goto :CheckFileSize
+goto :eof
+
+:CompareFileSizes
+if "%~z1"=="%~z2" (echo passed) else (echo failed)
 goto :eof
 
 :testcopy

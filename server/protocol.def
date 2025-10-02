@@ -34,6 +34,7 @@
 
 typedef unsigned int obj_handle_t;
 typedef unsigned int user_handle_t;
+typedef unsigned int d3dkmt_handle_t;
 typedef unsigned int atom_t;
 typedef unsigned int process_id_t;
 typedef unsigned int thread_id_t;
@@ -966,6 +967,17 @@ union udp_endpoint
         unsigned int scope_id;
         unsigned int port;
     } ipv6;
+};
+
+enum d3dkmt_type
+{
+    D3DKMT_ADAPTER      = 1,
+    D3DKMT_DEVICE       = 2,
+    D3DKMT_SOURCE       = 3,
+    D3DKMT_MUTEX        = 4,
+    D3DKMT_SYNC         = 5,
+    D3DKMT_RESOURCE     = 6,
+    D3DKMT_ALLOCATION   = 7,
 };
 
 /****************************************************************/
@@ -4140,6 +4152,63 @@ struct handle_info
     int period;                /* auto-repeat period in ms */
 @REPLY
     int enable;                /* previous state of auto-repeat enable */
+@END
+
+
+/* Create a global d3dkmt object */
+@REQ(d3dkmt_object_create)
+    unsigned int        type;           /* d3dkmt object type */
+    VARARG(runtime,bytes);              /* client runtime data */
+@REPLY
+    d3dkmt_handle_t     global;         /* global d3dkmt handle */
+    obj_handle_t        handle;         /* internal handle of the server object */
+@END
+
+
+/* Query a global/shared d3dkmt object */
+@REQ(d3dkmt_object_query)
+    unsigned int        type;           /* d3dkmt object type */
+    d3dkmt_handle_t     global;         /* global d3dkmt handle */
+    obj_handle_t        handle;         /* shared object handle */
+@REPLY
+    data_size_t         runtime_size;   /* size of client runtime data */
+@END
+
+
+/* Open a global/shared d3dkmt object */
+@REQ(d3dkmt_object_open)
+    unsigned int        type;           /* d3dkmt object type */
+    d3dkmt_handle_t     global;         /* global d3dkmt handle */
+    obj_handle_t        handle;         /* shared object handle */
+@REPLY
+    d3dkmt_handle_t     global;         /* global d3dkmt handle */
+    obj_handle_t        handle;         /* internal handle of the server object */
+    data_size_t         runtime_size;   /* size of client runtime data */
+    VARARG(runtime,bytes);              /* client runtime data */
+@END
+
+
+/* Share d3dkmt objects together */
+@REQ(d3dkmt_share_objects)
+    d3dkmt_handle_t     resource;       /* resource global handle */
+    d3dkmt_handle_t     mutex;          /* mutex global handle */
+    d3dkmt_handle_t     sync;           /* sync global handle */
+    unsigned int        access;         /* wanted access rights */
+    VARARG(objattr,object_attributes);  /* object attributes */
+@REPLY
+    obj_handle_t        handle;         /* shared object handle */
+@END
+
+
+/* Open a shared d3dkmt object from a name */
+@REQ(d3dkmt_object_open_name)
+    unsigned int        type;           /* d3dkmt object type */
+    unsigned int        access;         /* wanted access rights */
+    unsigned int        attributes;     /* object attributes */
+    obj_handle_t        rootdir;        /* root directory */
+    VARARG(name,unicode_str);           /* object name */
+@REPLY
+    obj_handle_t        handle;         /* shared object handle */
 @END
 
 enum inproc_sync_type

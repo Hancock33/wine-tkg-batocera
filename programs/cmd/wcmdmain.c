@@ -59,11 +59,13 @@ WCHAR quals[MAXSTRING], param1[MAXSTRING], param2[MAXSTRING];
 FOR_CONTEXT *forloopcontext; /* The 'for' loop context */
 BOOL delayedsubst = FALSE; /* The current delayed substitution setting */
 
-BOOL echo_mode = TRUE;
-
 WCHAR anykey[100], version_string[100];
 
 static BOOL unicodeOutput = FALSE;
+
+/* input handling */
+static HANDLE console_input;
+BOOL echo_mode = TRUE;
 
 /* Variables pertaining to paging */
 static BOOL paged_mode;
@@ -74,7 +76,6 @@ static int max_height;
 static HANDLE control_c_event;
 
 #define MAX_WRITECONSOLE_SIZE 65535
-
 
 static BOOL is_directory_operation(WCHAR *inputBuffer)
 {
@@ -558,17 +559,14 @@ WCHAR* WINAPIV WCMD_format_string (const WCHAR *format, ...)
 
 void WCMD_enter_paged_mode(const WCHAR *msg)
 {
-  CONSOLE_SCREEN_BUFFER_INFO consoleInfo;
+    CONSOLE_SCREEN_BUFFER_INFO consoleInfo;
 
-  if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &consoleInfo)) {
     /* Use console window dimensions, not screen buffer dimensions. */
-    max_height = consoleInfo.srWindow.Bottom - consoleInfo.srWindow.Top + 1;
-  } else {
-    max_height = 25;
-  }
-  paged_mode = TRUE;
-  line_count = 0;
-  pagedMessage = (msg==NULL)? anykey : msg;
+    max_height = GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &consoleInfo) ?
+        consoleInfo.srWindow.Bottom - consoleInfo.srWindow.Top + 1 : 65535;
+    paged_mode = TRUE;
+    line_count = 0;
+    pagedMessage = msg ? msg : anykey;
 }
 
 void WCMD_leave_paged_mode(void)
@@ -603,26 +601,25 @@ static BOOL has_pending_char_events(HANDLE h)
  */
 RETURN_CODE WCMD_wait_for_input(HANDLE hIn)
 {
+    HANDLE h[2] = {hIn, control_c_event};
     RETURN_CODE return_code;
     DWORD oldmode;
     DWORD count;
-    WCHAR key;
+    char key;
 
-    return_code = ERROR_INVALID_FUNCTION;
+    return_code = ERROR_SIGNAL_PENDING; /* some never returned value */
     if (GetConsoleMode(hIn, &oldmode))
     {
-        HANDLE h[2] = {hIn, control_c_event};
-
         SetConsoleMode(hIn, oldmode & ~ENABLE_LINE_INPUT);
         FlushConsoleInputBuffer(hIn);
-        while (return_code == ERROR_INVALID_FUNCTION)
+        while (return_code == ERROR_SIGNAL_PENDING)
         {
             switch (WaitForMultipleObjects(2, h, FALSE, INFINITE))
             {
             case WAIT_OBJECT_0:
                 if (has_pending_char_events(hIn))
                     return_code = NO_ERROR;
-                /* will make both hIn no long signaled, and also process the pending input record */
+                /* will make both hIn no longer signaled, and also process the pending input record */
                 FlushConsoleInputBuffer(hIn);
                 break;
             case WAIT_OBJECT_0 + 1:
@@ -633,36 +630,32 @@ RETURN_CODE WCMD_wait_for_input(HANDLE hIn)
         }
         SetConsoleMode(hIn, oldmode);
     }
-    else if (WCMD_ReadFile(hIn, &key, 1, &count) && count)
-        return_code = NO_ERROR;
     else
-        return_code = ERROR_INVALID_FUNCTION;
+    {
+        while (return_code == ERROR_SIGNAL_PENDING)
+        {
+            switch (WaitForMultipleObjects(2, h, FALSE, INFINITE))
+            {
+            case WAIT_OBJECT_0:
+                if (ReadFile(hIn, &key, 1, &count, NULL) && count)
+                    return_code = NO_ERROR;
+                else
+                    return_code = ERROR_INVALID_FUNCTION;
+                break;
+            case WAIT_OBJECT_0 + 1:
+                return_code = STATUS_CONTROL_C_EXIT;
+                break;
+            default: break;
+            }
+        }
+    }
+
     return return_code;
 }
 
-/***************************************************************************
- * WCMD_ReadFile
- *
- *	Read characters in from a console/file, returning result in Unicode
- */
-BOOL WCMD_ReadFile(const HANDLE hIn, WCHAR *intoBuf, const DWORD maxChars, LPDWORD charsRead)
+RETURN_CODE WCMD_wait_for_console_input(void)
 {
-    DWORD numRead;
-    char *buffer;
-
-    /* Try to read from console as Unicode */
-    if (VerifyConsoleIoHandle(hIn) && ReadConsoleW(hIn, intoBuf, maxChars, charsRead, NULL)) return TRUE;
-
-    /* We assume it's a file handle and read then convert from assumed OEM codepage */
-    if (!(buffer = get_file_buffer()))
-        return FALSE;
-
-    if (!ReadFile(hIn, buffer, maxChars, &numRead, NULL))
-        return FALSE;
-
-    *charsRead = MultiByteToWideChar(GetConsoleCP(), 0, buffer, numRead, intoBuf, maxChars);
-
-    return TRUE;
+    return WCMD_wait_for_input(console_input);
 }
 
 /*******************************************************************
@@ -676,6 +669,8 @@ RETURN_CODE WCMD_output_asis(const WCHAR *message)
     RETURN_CODE return_code = NO_ERROR;
     const WCHAR* ptr;
     HANDLE handle = GetStdHandle(STD_OUTPUT_HANDLE);
+    DWORD dummy;
+    BOOL is_output_console = GetConsoleMode(handle, &dummy);
 
     if (!message) /* Hack for flushing */
     {
@@ -694,9 +689,11 @@ RETURN_CODE WCMD_output_asis(const WCHAR *message)
             if (paged_mode && ++line_count >= max_height - 1)
             {
                 line_count = 0;
-                WCMD_output_unbuffered(pagedMessage, -1, handle);
-                return_code = WCMD_wait_for_input(GetStdHandle(STD_INPUT_HANDLE));
-                WCMD_output_unbuffered(L"\r\n", 2, handle);
+                if (is_output_console)
+                    WCMD_output_unbuffered(pagedMessage, -1, handle);
+                return_code = WCMD_wait_for_input(console_input);
+                if (is_output_console)
+                    WCMD_output_unbuffered(L"\r", 1, handle);
             }
         }
         else
@@ -4513,6 +4510,8 @@ int __cdecl wmain(int argc, WCHAR *argvW[])
 
     control_c_event = CreateEventW(NULL, TRUE, FALSE, NULL);
     SetConsoleCtrlHandler(my_event_handler, TRUE);
+    console_input = CreateFileW(L"CONIN$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING,
+                                FILE_ATTRIBUTE_NORMAL, 0);
 
     if (parameters.opt_c)
     {

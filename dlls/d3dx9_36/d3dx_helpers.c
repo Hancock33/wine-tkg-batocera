@@ -53,15 +53,6 @@ WINE_DEFAULT_DEBUG_CHANNEL(d3dx);
 #define D3DX_FILTER_SRGB_OUT         0x00400000
 #define D3DX_FILTER_SRGB             0x00600000
 
-#define D3DX_FILTER_INVALID_BITS     0xff80fff8
-HRESULT d3dx_validate_filter(uint32_t filter)
-{
-    if ((filter & D3DX_FILTER_INVALID_BITS) || !(filter & 0x7) || ((filter & 0x7) > D3DX_FILTER_BOX))
-        return D3DERR_INVALIDCALL;
-
-    return D3D_OK;
-}
-
 HRESULT WINAPI WICCreateImagingFactory_Proxy(UINT, IWICImagingFactory**);
 
 /************************************************************
@@ -443,28 +434,6 @@ void d3dx_get_next_mip_level_size(struct volume *size)
     size->width  = max(size->width  / 2, 1);
     size->height = max(size->height / 2, 1);
     size->depth  = max(size->depth  / 2, 1);
-}
-
-void d3dx_get_mip_level_size(struct volume *size, uint32_t level)
-{
-    uint32_t i;
-
-    for (i = 0; i < level; ++i)
-        d3dx_get_next_mip_level_size(size);
-}
-
-uint32_t d3dx_get_max_mip_levels_for_size(uint32_t width, uint32_t height, uint32_t depth)
-{
-    struct volume tmp = { width, height, depth };
-    uint32_t mip_levels = 1;
-
-    while (!(tmp.width == 1 && tmp.height == 1 && tmp.depth == 1))
-    {
-        d3dx_get_next_mip_level_size(&tmp);
-        mip_levels++;
-    }
-
-    return mip_levels;
 }
 
 static const char *debug_volume(const struct volume *volume)
@@ -1225,9 +1194,16 @@ static HRESULT d3dx_initialize_image_from_dds(const void *src_data, uint32_t src
     expected_src_data_size = (image->layer_pitch * image->layer_count) + header_size;
     if (src_data_size < expected_src_data_size)
     {
+        const uint32_t dxt10_info_only_flags = D3DX_IMAGE_INFO_ONLY | D3DX_IMAGE_SUPPORT_DXT10;
+
         WARN("File is too short %u, expected at least %u bytes.\n", src_data_size, expected_src_data_size);
-        /* D3DX10/D3DX11 do not validate the size of the pixels, only the header. */
-        if (!(flags & D3DX_IMAGE_SUPPORT_DXT10))
+        /*
+         * D3DX10/D3DX11 do not validate the size of the pixels, only the header.
+         * This is safe if we're only getting image info, but we should avoid
+         * matching native behavior here when loading image data until we have
+         * a reason to do otherwise.
+         */
+        if ((flags & dxt10_info_only_flags) != dxt10_info_only_flags)
             return D3DXERR_INVALIDDATA;
     }
 
@@ -3172,51 +3148,4 @@ void get_aligned_rect(uint32_t left, uint32_t top, uint32_t right, uint32_t bott
     if (aligned_rect->bottom & (fmt_desc->block_height - 1) && aligned_rect->bottom != height)
         aligned_rect->bottom = min((aligned_rect->bottom + fmt_desc->block_height - 1)
                 & ~(fmt_desc->block_height - 1), height);
-}
-
-HRESULT d3dx_create_subresource_data_for_texture(uint32_t width, uint32_t height, uint32_t depth,
-        uint32_t mip_levels, uint32_t layer_count, const struct pixel_format_desc *fmt_desc,
-        struct d3dx_subresource_data **out_sub_rsrc_data)
-{
-    struct d3dx_subresource_data *sub_rsrcs = NULL;
-    uint8_t *sub_rsrc_data = NULL, *pixels_ptr;
-    uint32_t pixels_size, pixels_offset;
-    unsigned int i, j;
-    HRESULT hr = S_OK;
-
-    *out_sub_rsrc_data = NULL;
-    pixels_offset = sizeof(*sub_rsrcs) * mip_levels * layer_count;
-    pixels_size = d3dx_calculate_layer_pixels_size(fmt_desc->format, width, height, depth, mip_levels) * layer_count;
-    if (!(sub_rsrc_data = malloc(pixels_size + pixels_offset)))
-        return E_OUTOFMEMORY;
-
-    sub_rsrcs = (struct d3dx_subresource_data *)sub_rsrc_data;
-    pixels_ptr = sub_rsrc_data + pixels_offset;
-    for (i = 0; i < layer_count; ++i)
-    {
-        struct volume size = { width, height, depth };
-
-        for (j = 0; j < mip_levels; ++j)
-        {
-            uint32_t row_pitch, slice_pitch;
-
-            hr = d3dx_calculate_pixels_size(fmt_desc->format, size.width, size.height, &row_pitch, &slice_pitch);
-            if (FAILED(hr))
-                goto exit;
-
-            sub_rsrcs[i * mip_levels + j].data = pixels_ptr;
-            sub_rsrcs[i * mip_levels + j].row_pitch = row_pitch;
-            sub_rsrcs[i * mip_levels + j].slice_pitch = slice_pitch;
-
-            pixels_ptr += slice_pitch * size.depth;
-            d3dx_get_next_mip_level_size(&size);
-        }
-    }
-
-    *out_sub_rsrc_data = sub_rsrcs;
-    sub_rsrc_data = NULL;
-
-exit:
-    free(sub_rsrc_data);
-    return hr;
 }

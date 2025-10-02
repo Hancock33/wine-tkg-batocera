@@ -1428,9 +1428,9 @@ struct vkd3d_shader_instruction_array
     size_t count;
 };
 
+struct vkd3d_shader_instruction *shader_instruction_array_append(struct vkd3d_shader_instruction_array *array);
+bool shader_instruction_array_insert_at(struct vkd3d_shader_instruction_array *instructions, size_t idx, size_t count);
 bool shader_instruction_array_reserve(struct vkd3d_shader_instruction_array *instructions, size_t reserve);
-bool shader_instruction_array_insert_at(struct vkd3d_shader_instruction_array *instructions,
-        size_t idx, size_t count);
 
 struct vsir_program_iterator
 {
@@ -1486,8 +1486,9 @@ static inline struct vkd3d_shader_instruction *vsir_program_iterator_prev(
 }
 
 /* When insertion takes place, argument `it' is updated to point to the same
- * instruction as before the insertion, but all other iterators and pointers
- * to the same container are invalidated and cannot be used any more. */
+ * instruction as before the insertion, but all existing pointers to the same
+ * container, as well as any iterators pointing to instructions after the
+ * insertion point should be considered invalid. */
 static inline bool vsir_program_iterator_insert_after(struct vsir_program_iterator *it, size_t count)
 {
     return shader_instruction_array_insert_at(it->array, it->idx + 1, count);
@@ -1651,12 +1652,7 @@ bool vsir_instruction_init_with_params(struct vsir_program *program,
 
 static inline struct vkd3d_shader_instruction *vsir_program_append(struct vsir_program *program)
 {
-    struct vkd3d_shader_instruction_array *array = &program->instructions;
-
-    if (!shader_instruction_array_insert_at(array, array->count, 1))
-        return NULL;
-
-    return &array->elements[array->count - 1];
+    return shader_instruction_array_append(&program->instructions);
 }
 
 static inline struct vkd3d_shader_dst_param *vsir_program_get_dst_params(

@@ -1112,15 +1112,25 @@ static void session_reset_transforms(struct media_session *session, BOOL drop)
 static void session_start(struct media_session *session, const GUID *time_format, const PROPVARIANT *start_position)
 {
     struct media_source *source;
+    BOOL keep_position;
     BOOL unpause_seek;
     MFTIME duration;
     HRESULT hr;
+
+    keep_position = IsEqualGUID(time_format, &GUID_NULL) && start_position->vt == VT_EMPTY;
+
+    /* No position change - nothing to do. */
+    if (session->state == SESSION_STATE_STARTED && keep_position)
+    {
+        session_command_complete_with_event(session, MESessionStarted, S_OK, NULL);
+        return;
+    }
 
     switch (session->state)
     {
         case SESSION_STATE_PAUSED:
         case SESSION_STATE_STARTED:
-            if (!IsEqualGUID(time_format, &GUID_NULL) || start_position->vt != VT_EMPTY)
+            if (!keep_position)
             {
                 session->command_state = COMMAND_STATE_RESTARTING_SOURCES;
 
