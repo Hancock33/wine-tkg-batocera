@@ -42,7 +42,6 @@ struct async;
 struct async_queue;
 struct winstation;
 struct object_type;
-struct inproc_sync;
 
 
 struct unicode_str
@@ -81,10 +80,12 @@ struct object_ops
     int  (*signaled)(struct object *,struct wait_queue_entry *);
     /* wait satisfied */
     void (*satisfied)(struct object *,struct wait_queue_entry *);
-    /* signal an object */
-    int  (*signal)(struct object *, unsigned int);
+    /* signal/reset an object */
+    int  (*signal)(struct object *,unsigned int,int);
     /* return an fd object that can be used to read/write from the object */
     struct fd *(*get_fd)(struct object *);
+    /* return a sync that can be used to wait/signal the object */
+    struct object *(*get_sync)(struct object *);
     /* map access rights to the specific rights for this object */
     unsigned int (*map_access)(struct object *, unsigned int);
     /* returns the security descriptor of the object */
@@ -104,8 +105,6 @@ struct object_ops
                                 unsigned int options);
     /* return list of kernel objects */
     struct list *(*get_kernel_obj_list)(struct object *);
-    /* get a client-waitable in-process synchronization fd for this object */
-    int (*get_inproc_sync)(struct object *, enum inproc_sync_type *type);
     /* close a handle to this object */
     int (*close_handle)(struct object *,struct process *,obj_handle_t);
     /* destroy on refcount == 0 */
@@ -171,8 +170,10 @@ extern struct object *find_object( const struct namespace *namespace, const stru
 extern struct object *find_object_index( const struct namespace *namespace, unsigned int index );
 extern int no_add_queue( struct object *obj, struct wait_queue_entry *entry );
 extern void no_satisfied( struct object *obj, struct wait_queue_entry *entry );
-extern int no_signal( struct object *obj, unsigned int access );
+extern int no_signal( struct object *obj, unsigned int access, int signal );
 extern struct fd *no_get_fd( struct object *obj );
+extern struct object *default_get_sync( struct object *obj );
+static inline struct object *get_obj_sync( struct object *obj ) { return obj->ops->get_sync( obj ); }
 extern unsigned int default_map_access( struct object *obj, unsigned int access );
 extern struct security_descriptor *default_get_sd( struct object *obj );
 extern int default_set_sd( struct object *obj, const struct security_descriptor *sd, unsigned int set_info );
@@ -221,7 +222,13 @@ static inline void *mem_append( void *ptr, const void *src, data_size_t len )
 /* event functions */
 
 struct event;
+struct event_sync;
 struct keyed_event;
+
+extern struct event_sync *create_server_internal_sync( int manual, int signaled );
+extern struct object *create_internal_sync( int manual, int signaled );
+extern void signal_sync( struct object *sync );
+extern void reset_sync( struct object *sync );
 
 extern struct event *create_event( struct object *root, const struct unicode_str *name,
                                    unsigned int attr, int manual_reset, int initial_state,
@@ -239,14 +246,16 @@ extern void abandon_mutexes( struct thread *thread );
 
 /* in-process synchronization functions */
 
-extern int use_inproc_sync(void);
-extern int create_inproc_event( int manual_reset, int signaled );
-extern int create_inproc_mutex( thread_id_t owner, unsigned int count );
-extern int create_inproc_semaphore( unsigned int count, unsigned int max );
-extern int no_get_inproc_sync( struct object *obj, enum inproc_sync_type *type );
-extern void set_inproc_event( int event );
-extern void reset_inproc_event( int event );
-extern void abandon_inproc_mutex( thread_id_t tid, int mutex );
+struct inproc_sync;
+extern int get_inproc_device_fd(void);
+extern int get_inproc_sync_fd( struct inproc_sync *sync );
+extern struct inproc_sync *create_inproc_internal_sync( int manual, int signaled );
+extern struct inproc_sync *create_inproc_event_sync( int manual, int signaled );
+extern struct inproc_sync *create_inproc_semaphore_sync( unsigned int initial, unsigned int max );
+extern struct inproc_sync *create_inproc_mutex_sync( thread_id_t owner, unsigned int count );
+extern void abandon_inproc_mutexes( thread_id_t owner );
+extern void signal_inproc_sync( struct inproc_sync *sync );
+extern void reset_inproc_sync( struct inproc_sync *sync );
 
 /* serial functions */
 

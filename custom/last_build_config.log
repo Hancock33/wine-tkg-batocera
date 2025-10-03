@@ -1,9 +1,9 @@
-# Last wine-tkg-staging-ntsync-git configuration - Thu  2 Oct 19:54:42 BST 2025 :
+# Last wine-tkg-staging-ntsync-git configuration - Fri  3 Oct 23:13:19 BST 2025 :
 
 Local cfg files used
 
-Wine (plain) version: 10.15.r323.g192d335facd
-Using wine-staging patchset (version 10.15.r19.g9c06e8ea)
+Wine (plain) version: 10.16.r0.g01269452e0f
+Using wine-staging patchset (version 10.15.r20.g38d4b8ca)
 
 Not using vkd3d native library for d3d12 translation (allows using vkd3d-proton)
 
@@ -19,9 +19,7 @@ gstreamer-patch1.patch -- ( Applied Proton 10 MF patches - part 1 )
 gstreamer-patch2.patch -- ( Applied Proton 10 MF patches - part 2 )
 LAA-unix-staging-wow64.patch -- ( Applied large address aware override support )
 
-ntsync5-staging.patch -- ( Using ntsync patchset )
 vulkan-1-Prefer-builtin.patch -- ( Prefer build vulkan-1 patch )
-ntoskrnl-server-Support-referencing-section-objects-ntsync.patch -- ( ntoskrnl, server: Support referencing section objects. (Ntsync) )
 proton10-winevulkan.patch -- ( Using Proton 10 winevulkan patches )
 proton-win10-default.patch -- ( Enforce win10 as default wine version )
 proton_battleye.patch -- ( Add support for Proton's Battleye runtime )

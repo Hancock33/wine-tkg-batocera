@@ -304,16 +304,13 @@ DECL_HANDLER(resume_process);
 DECL_HANDLER(get_next_process);
 DECL_HANDLER(get_next_thread);
 DECL_HANDLER(set_keyboard_repeat);
+DECL_HANDLER(get_inproc_sync_fd);
+DECL_HANDLER(get_inproc_alert_fd);
 DECL_HANDLER(d3dkmt_object_create);
 DECL_HANDLER(d3dkmt_object_query);
 DECL_HANDLER(d3dkmt_object_open);
 DECL_HANDLER(d3dkmt_share_objects);
 DECL_HANDLER(d3dkmt_object_open_name);
-DECL_HANDLER(get_linux_sync_device);
-DECL_HANDLER(get_linux_sync_obj);
-DECL_HANDLER(select_inproc_queue);
-DECL_HANDLER(unselect_inproc_queue);
-DECL_HANDLER(get_inproc_alert_event);
 
 typedef void (*req_handler)( const void *req, void *reply );
 static const req_handler req_handlers[REQ_NB_REQUESTS] =
@@ -615,16 +612,13 @@ static const req_handler req_handlers[REQ_NB_REQUESTS] =
     (req_handler)req_get_next_process,
     (req_handler)req_get_next_thread,
     (req_handler)req_set_keyboard_repeat,
+    (req_handler)req_get_inproc_sync_fd,
+    (req_handler)req_get_inproc_alert_fd,
     (req_handler)req_d3dkmt_object_create,
     (req_handler)req_d3dkmt_object_query,
     (req_handler)req_d3dkmt_object_open,
     (req_handler)req_d3dkmt_share_objects,
     (req_handler)req_d3dkmt_object_open_name,
-    (req_handler)req_get_linux_sync_device,
-    (req_handler)req_get_linux_sync_obj,
-    (req_handler)req_select_inproc_queue,
-    (req_handler)req_unselect_inproc_queue,
-    (req_handler)req_get_inproc_alert_event,
 };
 
 C_ASSERT( sizeof(abstime_t) == 8 );
@@ -727,8 +721,9 @@ C_ASSERT( offsetof(struct init_first_thread_reply, pid) == 8 );
 C_ASSERT( offsetof(struct init_first_thread_reply, tid) == 12 );
 C_ASSERT( offsetof(struct init_first_thread_reply, server_start) == 16 );
 C_ASSERT( offsetof(struct init_first_thread_reply, session_id) == 24 );
-C_ASSERT( offsetof(struct init_first_thread_reply, info_size) == 28 );
-C_ASSERT( sizeof(struct init_first_thread_reply) == 32 );
+C_ASSERT( offsetof(struct init_first_thread_reply, inproc_device) == 28 );
+C_ASSERT( offsetof(struct init_first_thread_reply, info_size) == 32 );
+C_ASSERT( sizeof(struct init_first_thread_reply) == 40 );
 C_ASSERT( offsetof(struct init_thread_request, unix_tid) == 12 );
 C_ASSERT( offsetof(struct init_thread_request, reply_fd) == 16 );
 C_ASSERT( offsetof(struct init_thread_request, wait_fd) == 20 );
@@ -1328,7 +1323,7 @@ C_ASSERT( offsetof(struct set_queue_fd_request, handle) == 12 );
 C_ASSERT( sizeof(struct set_queue_fd_request) == 16 );
 C_ASSERT( offsetof(struct set_queue_mask_request, wake_mask) == 12 );
 C_ASSERT( offsetof(struct set_queue_mask_request, changed_mask) == 16 );
-C_ASSERT( offsetof(struct set_queue_mask_request, skip_wait) == 20 );
+C_ASSERT( offsetof(struct set_queue_mask_request, poll_events) == 20 );
 C_ASSERT( sizeof(struct set_queue_mask_request) == 24 );
 C_ASSERT( offsetof(struct set_queue_mask_reply, wake_bits) == 8 );
 C_ASSERT( offsetof(struct set_queue_mask_reply, changed_bits) == 12 );
@@ -2313,6 +2308,14 @@ C_ASSERT( offsetof(struct set_keyboard_repeat_request, period) == 20 );
 C_ASSERT( sizeof(struct set_keyboard_repeat_request) == 24 );
 C_ASSERT( offsetof(struct set_keyboard_repeat_reply, enable) == 8 );
 C_ASSERT( sizeof(struct set_keyboard_repeat_reply) == 16 );
+C_ASSERT( offsetof(struct get_inproc_sync_fd_request, handle) == 12 );
+C_ASSERT( sizeof(struct get_inproc_sync_fd_request) == 16 );
+C_ASSERT( offsetof(struct get_inproc_sync_fd_reply, type) == 8 );
+C_ASSERT( offsetof(struct get_inproc_sync_fd_reply, access) == 12 );
+C_ASSERT( sizeof(struct get_inproc_sync_fd_reply) == 16 );
+C_ASSERT( sizeof(struct get_inproc_alert_fd_request) == 16 );
+C_ASSERT( offsetof(struct get_inproc_alert_fd_reply, handle) == 8 );
+C_ASSERT( sizeof(struct get_inproc_alert_fd_reply) == 16 );
 C_ASSERT( offsetof(struct d3dkmt_object_create_request, type) == 12 );
 C_ASSERT( sizeof(struct d3dkmt_object_create_request) == 16 );
 C_ASSERT( offsetof(struct d3dkmt_object_create_reply, global) == 8 );
@@ -2346,15 +2349,3 @@ C_ASSERT( offsetof(struct d3dkmt_object_open_name_request, rootdir) == 24 );
 C_ASSERT( sizeof(struct d3dkmt_object_open_name_request) == 32 );
 C_ASSERT( offsetof(struct d3dkmt_object_open_name_reply, handle) == 8 );
 C_ASSERT( sizeof(struct d3dkmt_object_open_name_reply) == 16 );
-C_ASSERT( sizeof(struct get_linux_sync_device_request) == 16 );
-C_ASSERT( offsetof(struct get_linux_sync_obj_request, handle) == 12 );
-C_ASSERT( sizeof(struct get_linux_sync_obj_request) == 16 );
-C_ASSERT( offsetof(struct get_linux_sync_obj_reply, type) == 8 );
-C_ASSERT( offsetof(struct get_linux_sync_obj_reply, access) == 12 );
-C_ASSERT( sizeof(struct get_linux_sync_obj_reply) == 16 );
-C_ASSERT( sizeof(struct select_inproc_queue_request) == 16 );
-C_ASSERT( offsetof(struct unselect_inproc_queue_request, signaled) == 12 );
-C_ASSERT( sizeof(struct unselect_inproc_queue_request) == 16 );
-C_ASSERT( sizeof(struct get_inproc_alert_event_request) == 16 );
-C_ASSERT( offsetof(struct get_inproc_alert_event_reply, handle) == 8 );
-C_ASSERT( sizeof(struct get_inproc_alert_event_reply) == 16 );

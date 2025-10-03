@@ -108,6 +108,7 @@ struct ntdll_thread_data
     int                       request_fd;    /* fd for sending server requests */
     int                       reply_fd;      /* fd for receiving server replies */
     int                       wait_fd[2];    /* fd for sleeping server requests */
+    int                       alert_fd;      /* inproc sync fd for user apc alerts */
     BOOL                      allow_writes;  /* ThreadAllowWrites flags */
     pthread_t                 pthread_id;    /* pthread thread id */
     void                     *kernel_stack;  /* stack for thread startup and kernel syscalls */
@@ -115,7 +116,6 @@ struct ntdll_thread_data
     PRTL_THREAD_START_ROUTINE start;         /* thread entry point */
     void                     *param;         /* thread entry point parameter */
     void                     *jmp_buf;       /* setjmp buffer for exception handling */
-    int                       linux_alert_obj; /* fd for the linux in-process alert event */
 };
 
 C_ASSERT( sizeof(struct ntdll_thread_data) <= sizeof(((TEB *)0)->GdiTebBatch) );
@@ -199,8 +199,10 @@ extern unsigned int supported_machines_count;
 extern USHORT supported_machines[8];
 extern BOOL process_exiting;
 extern HANDLE keyed_event;
+extern int inproc_device_fd;
 extern timeout_t server_start_time;
 extern sigset_t server_block_set;
+extern pthread_mutex_t fd_cache_mutex;
 extern struct _KUSER_SHARED_DATA *user_shared_data;
 
 extern void init_environment(void);
@@ -219,8 +221,6 @@ extern NTSTATUS load_main_exe( UNICODE_STRING *nt_name, USHORT load_machine, voi
 extern NTSTATUS load_start_exe( UNICODE_STRING *nt_name, void **module );
 extern ULONG_PTR redirect_arm64ec_rva( void *module, ULONG_PTR rva, const IMAGE_ARM64EC_METADATA *metadata );
 extern void start_server( BOOL debug );
-
-extern pthread_mutex_t fd_cache_mutex;
 
 extern unsigned int server_call_unlocked( void *req_ptr );
 extern void server_enter_uninterrupted_section( pthread_mutex_t *mutex, sigset_t *sigset );
@@ -391,7 +391,7 @@ extern NTSTATUS wow64_wine_spawnvp( void *args );
 
 extern void dbg_init(void);
 
-extern void close_inproc_sync_obj( HANDLE handle );
+extern void close_inproc_sync( HANDLE handle );
 
 extern NTSTATUS call_user_apc_dispatcher( CONTEXT *context_ptr, unsigned int flags, ULONG_PTR arg1, ULONG_PTR arg2,
                                           ULONG_PTR arg3, PNTAPCFUNC func, NTSTATUS status );
