@@ -145,11 +145,6 @@ static void shader_dump_global_flags(struct vkd3d_d3d_asm_compiler *compiler, en
 
 static void shader_dump_atomic_op_flags(struct vkd3d_d3d_asm_compiler *compiler, uint32_t atomic_flags)
 {
-    if (atomic_flags & VKD3DARF_SEQ_CST)
-    {
-        vkd3d_string_buffer_printf(&compiler->buffer, "_seqCst");
-        atomic_flags &= ~VKD3DARF_SEQ_CST;
-    }
     if (atomic_flags & VKD3DARF_VOLATILE)
     {
         vkd3d_string_buffer_printf(&compiler->buffer, "_volatile");

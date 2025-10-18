@@ -248,6 +248,7 @@ struct hlsl_semantic
     const char *name;
     uint32_t index;
     uint32_t stream_index;
+    uint32_t modifiers;
 
     /* Name exactly as it appears in the sources. */
     const char *raw_name;
@@ -533,6 +534,8 @@ struct hlsl_ir_var
     struct
     {
         bool used;
+        bool uav_read;
+        bool uav_atomics;
         enum hlsl_sampler_dim sampler_dim;
         struct vkd3d_shader_location first_sampler_dim_loc;
     } *objects_usage[HLSL_REGSET_LAST_OBJECT + 1];
@@ -1598,7 +1601,7 @@ void hlsl_block_add_loop(struct hlsl_ctx *ctx, struct hlsl_block *block,
         unsigned int unroll_limit, const struct vkd3d_shader_location *loc);
 struct hlsl_ir_node *hlsl_block_add_resource_load(struct hlsl_ctx *ctx, struct hlsl_block *block,
         const struct hlsl_resource_load_params *params, const struct vkd3d_shader_location *loc);
-void hlsl_block_add_resource_store(struct hlsl_ctx *ctx, struct hlsl_block *block,
+struct hlsl_ir_node *hlsl_block_add_resource_store(struct hlsl_ctx *ctx, struct hlsl_block *block,
         enum hlsl_resource_store_type type, const struct hlsl_deref *resource, struct hlsl_ir_node *coords,
         struct hlsl_ir_node *value, uint32_t writemask, const struct vkd3d_shader_location *loc);
 struct hlsl_ir_node *hlsl_block_add_simple_load(struct hlsl_ctx *ctx, struct hlsl_block *block,

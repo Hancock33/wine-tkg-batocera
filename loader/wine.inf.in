@@ -153,7 +153,6 @@ AddService=Winmgmt,0,WinmgmtService
 AddService=wuauserv,0,wuauService
 AddService=NDIS,0x800,NDISService
 AddService=nsiproxy,0x800,NsiProxyService
-AddService=SharedGpuResources,0x800,SharedGpuResourcesService
 
 [DefaultInstall.ntx86.Services]
 AddService=BITS,0,BITSService
@@ -174,7 +173,6 @@ AddService=Winmgmt,0,WinmgmtService
 AddService=wuauserv,0,wuauService
 AddService=NDIS,0x800,NDISService
 AddService=nsiproxy,0x800,NsiProxyService
-AddService=SharedGpuResources,0x800,SharedGpuResourcesService
 
 [DefaultInstall.ntamd64.Services]
 AddService=BITS,0,BITSService
@@ -195,7 +193,6 @@ AddService=Winmgmt,0,WinmgmtService
 AddService=wuauserv,0,wuauService
 AddService=NDIS,0x800,NDISService
 AddService=nsiproxy,0x800,NsiProxyService
-AddService=SharedGpuResources,0x800,SharedGpuResourcesService
 
 [DefaultInstall.ntarm64.Services]
 AddService=BITS,0,BITSService
@@ -216,7 +213,6 @@ AddService=Winmgmt,0,WinmgmtService
 AddService=wuauserv,0,wuauService
 AddService=NDIS,0x800,NDISService
 AddService=nsiproxy,0x800,NsiProxyService
-AddService=SharedGpuResources,0x800,SharedGpuResourcesService
 
 [Strings]
 MciExtStr="Software\Microsoft\Windows NT\CurrentVersion\MCI Extensions"
@@ -1041,6 +1037,7 @@ HKLM,SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x86,"Version",2,"14.42.344
 12,,*.sys,-
 11,,*.msstyles,-
 11,,*
+11,,comctl32_v6.dll,-
 
 [FakeDlls]
 ; create some directories first
@@ -1107,6 +1104,7 @@ HKLM,SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x86,"Version",2,"14.42.344
 55,,winprint.dll
 12,,*.sys
 11,,*
+11,,comctl32_v6.dll,-
 
 [SystemIni]
 system.ini, mci,,"MPEGVideo=mciqtz32.dll"
@@ -1200,15 +1198,6 @@ LoadOrderGroup="System Bus Extender"
 
 [NsiProxyServiceKeys]
 HKR,,"Tag",0x10001,1
-
-[SharedGpuResourcesService]
-Description="Shared GPU Resources Manager Service"
-DisplayName="Shared GPU Resources Manager"
-ServiceBinary="%12%\sharedgpures.sys"
-ServiceType=1
-StartType=2
-ErrorControl=1
-LoadOrderGroup="System Bus Extender"
 
 [RpcSsService]
 Description="RPC service"

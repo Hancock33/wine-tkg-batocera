@@ -205,12 +205,12 @@ struct environment
     UINT32 sources_idx;
     void  *sources_key;
     BOOL   sources_system;
-    UINT32 driver_ver;
 };
 
 struct connection
 {
     struct object hdr;
+    UINT32 driver_odbc_ver;
     /* attributes */
     UINT32 attr_con_timeout;
     UINT32 attr_login_timeout;

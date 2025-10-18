@@ -883,9 +883,11 @@ static void dump_get_mapping_info_reply( const struct get_mapping_info_reply *re
     dump_uint64( " size=", &req->size );
     fprintf( stderr, ", flags=%08x", req->flags );
     fprintf( stderr, ", shared_file=%04x", req->shared_file );
+    fprintf( stderr, ", name_len=%u", req->name_len );
     fprintf( stderr, ", total=%u", req->total );
     dump_varargs_pe_image_info( ", image=", cur_size );
-    dump_varargs_unicode_str( ", name=", cur_size );
+    dump_varargs_unicode_str( ", name=", min( cur_size, req->name_len ));
+    dump_varargs_string( ", exp_name=", cur_size );
 }
 
 static void dump_get_image_map_address_request( const struct get_image_map_address_request *req )
@@ -2395,9 +2397,9 @@ static void dump_create_class_request( const struct create_class_request *req )
     fprintf( stderr, ", atom=%04x", req->atom );
     fprintf( stderr, ", style=%08x", req->style );
     dump_uint64( ", instance=", &req->instance );
-    fprintf( stderr, ", extra=%d", req->extra );
-    fprintf( stderr, ", win_extra=%d", req->win_extra );
     dump_uint64( ", client_ptr=", &req->client_ptr );
+    fprintf( stderr, ", cls_extra=%d", req->cls_extra );
+    fprintf( stderr, ", win_extra=%d", req->win_extra );
     fprintf( stderr, ", name_offset=%u", req->name_offset );
     dump_varargs_unicode_str( ", name=", cur_size );
 }
@@ -3413,6 +3415,7 @@ static void dump_get_inproc_alert_fd_reply( const struct get_inproc_alert_fd_rep
 static void dump_d3dkmt_object_create_request( const struct d3dkmt_object_create_request *req )
 {
     fprintf( stderr, " type=%08x", req->type );
+    fprintf( stderr, ", fd=%d", req->fd );
     dump_varargs_bytes( ", runtime=", cur_size );
 }
 
@@ -3420,6 +3423,13 @@ static void dump_d3dkmt_object_create_reply( const struct d3dkmt_object_create_r
 {
     fprintf( stderr, " global=%08x", req->global );
     fprintf( stderr, ", handle=%04x", req->handle );
+}
+
+static void dump_d3dkmt_object_update_request( const struct d3dkmt_object_update_request *req )
+{
+    fprintf( stderr, " type=%08x", req->type );
+    fprintf( stderr, ", global=%08x", req->global );
+    dump_varargs_bytes( ", runtime=", cur_size );
 }
 
 static void dump_d3dkmt_object_query_request( const struct d3dkmt_object_query_request *req )
@@ -3781,6 +3791,7 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] =
     (dump_func)dump_get_inproc_sync_fd_request,
     (dump_func)dump_get_inproc_alert_fd_request,
     (dump_func)dump_d3dkmt_object_create_request,
+    (dump_func)dump_d3dkmt_object_update_request,
     (dump_func)dump_d3dkmt_object_query_request,
     (dump_func)dump_d3dkmt_object_open_request,
     (dump_func)dump_d3dkmt_share_objects_request,
@@ -4089,6 +4100,7 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] =
     (dump_func)dump_get_inproc_sync_fd_reply,
     (dump_func)dump_get_inproc_alert_fd_reply,
     (dump_func)dump_d3dkmt_object_create_reply,
+    NULL,
     (dump_func)dump_d3dkmt_object_query_reply,
     (dump_func)dump_d3dkmt_object_open_reply,
     (dump_func)dump_d3dkmt_share_objects_reply,
@@ -4397,6 +4409,7 @@ static const char * const req_names[REQ_NB_REQUESTS] =
     "get_inproc_sync_fd",
     "get_inproc_alert_fd",
     "d3dkmt_object_create",
+    "d3dkmt_object_update",
     "d3dkmt_object_query",
     "d3dkmt_object_open",
     "d3dkmt_share_objects",
@@ -4500,7 +4513,6 @@ static const struct
     { "NO_IMPERSONATION_TOKEN",      STATUS_NO_IMPERSONATION_TOKEN },
     { "NO_MEMORY",                   STATUS_NO_MEMORY },
     { "NO_MORE_ENTRIES",             STATUS_NO_MORE_ENTRIES },
-    { "NO_MORE_FILES",               STATUS_NO_MORE_FILES },
     { "NO_SUCH_DEVICE",              STATUS_NO_SUCH_DEVICE },
     { "NO_SUCH_FILE",                STATUS_NO_SUCH_FILE },
     { "NO_TOKEN",                    STATUS_NO_TOKEN },

@@ -40,6 +40,7 @@ AC_ARG_WITH(gphoto,    AS_HELP_STRING([--without-gphoto],[do not use gphoto (Dig
 AC_ARG_WITH(gnutls,    AS_HELP_STRING([--without-gnutls],[do not use GnuTLS (schannel support)]))
 AC_ARG_WITH(gssapi,    AS_HELP_STRING([--without-gssapi],[do not use GSSAPI (Kerberos SSP support)]))
 AC_ARG_WITH(gstreamer, AS_HELP_STRING([--without-gstreamer],[do not use GStreamer (codecs support)]))
+AC_ARG_WITH(hwloc,     AS_HELP_STRING([--without-hwloc],[do not use hwloc (CPU/cache topology detection on FreeBSD)]))
 AC_ARG_WITH(inotify,   AS_HELP_STRING([--without-inotify],[do not use inotify (filesystem change notifications)]))
 AC_ARG_WITH(krb5,      AS_HELP_STRING([--without-krb5],[do not use krb5 (Kerberos)]))
 AC_ARG_WITH(mingw,     AS_HELP_STRING([--without-mingw],[do not use the MinGW cross-compiler]))
@@ -1417,11 +1418,9 @@ then
                             [`test -n "$PKG_CONFIG" && $PKG_CONFIG --variable=wayland_scanner wayland-scanner 2>/dev/null`])],
               [WAYLAND_CLIENT_LIBS=""],[$WAYLAND_CLIENT_LIBS])])])
     WINE_PACKAGE_FLAGS(XKBCOMMON,[xkbcommon],,,,
-        [AC_CHECK_HEADERS([xkbcommon/xkbcommon.h])
-         AC_CHECK_LIB(xkbcommon,xkb_context_new,[:],[XKBCOMMON_LIBS=""],[$XKBCOMMON_LIBS])])
+        [AC_CHECK_LIB(xkbcommon,xkb_context_new,[:],[XKBCOMMON_LIBS=""],[$XKBCOMMON_LIBS])])
     WINE_PACKAGE_FLAGS(XKBREGISTRY,[xkbregistry],,,,
-        [AC_CHECK_HEADERS([xkbcommon/xkbregistry.h])
-         AC_CHECK_LIB(xkbregistry,rxkb_context_new,[:],[XKBREGISTRY_LIBS=""],[$XKBREGISTRY_LIBS])])
+        [AC_CHECK_LIB(xkbregistry,rxkb_context_new,[:],[XKBREGISTRY_LIBS=""],[$XKBREGISTRY_LIBS])])
     if test "x$with_opengl" != "xno"
     then
         WINE_PACKAGE_FLAGS(WAYLAND_EGL,[wayland-egl],,,,
@@ -1521,6 +1520,24 @@ then
 fi
 WINE_WARNING_WITH(gnutls,[test "x$ac_cv_lib_soname_gnutls" = "x"],
                  [libgnutls ${notice_platform}development files not found, no schannel support.])
+
+dnl **** Check for hwloc ***
+if test "x$with_hwloc" != "xno"
+then
+    case $host_os in
+      freebsd*)
+        WINE_PACKAGE_FLAGS(HWLOC,[hwloc],,,,
+            [AC_CHECK_HEADER([hwloc.h],
+                [AC_CHECK_LIB(hwloc,hwloc_topology_init,
+                    [AC_DEFINE(HAVE_LIBHWLOC, 1, [Define to 1 if you have the 'hwloc' library (-lhwloc).])],
+                    [HWLOC_LIBS=""],
+                    [$HWLOC_LIBS])],
+                [HWLOC_LIBS=""])])
+        WINE_NOTICE_WITH(hwloc,[test "$ac_cv_lib_hwloc_hwloc_topology_init" != "yes"],
+                         [hwloc ${notice_platform}development files not found, detailed CPU info on FreeBSD won't be supported.])
+        ;;
+    esac
+fi
 
 dnl **** Check for SANE ****
 if test "x$with_sane" != "xno"
@@ -2353,8 +2370,6 @@ AC_CHECK_MEMBERS([struct sysinfo.totalram, struct sysinfo.mem_unit],,,
 # include <sys/sysinfo.h>
 #endif])
 
-LIBS="$ac_save_LIBS"
-
 dnl Check for __builtin_popcount
 AC_CACHE_CHECK([for __builtin_popcount], ac_cv_have___builtin_popcount,
                AC_LINK_IFELSE([AC_LANG_PROGRAM(,[[return __builtin_popcount(1)]])],
@@ -2510,6 +2525,7 @@ WINE_CONFIG_MAKEFILE(dlls/comcat)
 WINE_CONFIG_MAKEFILE(dlls/comcat/tests)
 WINE_CONFIG_MAKEFILE(dlls/comctl32)
 WINE_CONFIG_MAKEFILE(dlls/comctl32/tests)
+WINE_CONFIG_MAKEFILE(dlls/comctl32_v6)
 WINE_CONFIG_MAKEFILE(dlls/comdlg32)
 WINE_CONFIG_MAKEFILE(dlls/comdlg32/tests)
 WINE_CONFIG_MAKEFILE(dlls/coml2)
@@ -3156,7 +3172,6 @@ WINE_CONFIG_MAKEFILE(dlls/setupapi/tests)
 WINE_CONFIG_MAKEFILE(dlls/setupx.dll16)
 WINE_CONFIG_MAKEFILE(dlls/sfc)
 WINE_CONFIG_MAKEFILE(dlls/sfc_os)
-WINE_CONFIG_MAKEFILE(dlls/sharedgpures.sys)
 WINE_CONFIG_MAKEFILE(dlls/shcore)
 WINE_CONFIG_MAKEFILE(dlls/shcore/tests)
 WINE_CONFIG_MAKEFILE(dlls/shdoclc)
@@ -3291,6 +3306,7 @@ WINE_CONFIG_MAKEFILE(dlls/win32u/tests)
 WINE_CONFIG_MAKEFILE(dlls/win87em.dll16)
 WINE_CONFIG_MAKEFILE(dlls/winaspi.dll16)
 WINE_CONFIG_MAKEFILE(dlls/winbio)
+WINE_CONFIG_MAKEFILE(dlls/winbrand)
 WINE_CONFIG_MAKEFILE(dlls/windebug.dll16)
 WINE_CONFIG_MAKEFILE(dlls/windows.applicationmodel)
 WINE_CONFIG_MAKEFILE(dlls/windows.applicationmodel/tests)
@@ -3758,7 +3774,7 @@ dnl Rules for generated source files
 
 WINE_APPEND_RULE(
 [dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-10.15.r20.g38d4b8ca\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging NTsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
+	@version=\`(echo \"wine-10.17.r0.gf686957b\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$[@]) || echo \$\$build >\$[@] || (rm -f \$[@] && exit 1)
 dlls/wineandroid.drv/wine-debug.apk: dlls/wineandroid.drv/build.gradle ${wine_srcdir}dlls/wineandroid.drv/AndroidManifest.xml ${wine_srcdir}dlls/wineandroid.drv/WineActivity.java ${wine_srcdir}dlls/wineandroid.drv/wine.svg

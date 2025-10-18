@@ -2205,11 +2205,11 @@ static struct hlsl_ir_node *hlsl_new_resource_store(struct hlsl_ctx *ctx,
     return &store->node;
 }
 
-void hlsl_block_add_resource_store(struct hlsl_ctx *ctx, struct hlsl_block *block,
+struct hlsl_ir_node *hlsl_block_add_resource_store(struct hlsl_ctx *ctx, struct hlsl_block *block,
         enum hlsl_resource_store_type type, const struct hlsl_deref *resource, struct hlsl_ir_node *coords,
         struct hlsl_ir_node *value, uint32_t writemask, const struct vkd3d_shader_location *loc)
 {
-    append_new_instr(ctx, block, hlsl_new_resource_store(ctx, type, resource, coords, value, writemask, loc));
+    return append_new_instr(ctx, block, hlsl_new_resource_store(ctx, type, resource, coords, value, writemask, loc));
 }
 
 struct hlsl_ir_node *hlsl_new_swizzle(struct hlsl_ctx *ctx, uint32_t s, unsigned int component_count,

@@ -2862,16 +2862,7 @@ REBAR_SetUnicodeFormat (REBAR_INFO *infoPtr, BOOL unicode)
 static LRESULT
 REBAR_SetVersion (REBAR_INFO *infoPtr, INT iVersion)
 {
-    INT iOldVersion = infoPtr->iVersion;
-
-    if (iVersion > COMCTL32_VERSION)
-	return -1;
-
-    infoPtr->iVersion = iVersion;
-
-    TRACE("new version %d\n", iVersion);
-
-    return iOldVersion;
+    return COMCTL32_SetVersion(&infoPtr->iVersion, iVersion);
 }
 
 
@@ -3264,6 +3255,11 @@ REBAR_NCCreate (HWND hwnd, const CREATESTRUCTW *cs)
     infoPtr->fStatus = 0;
     infoPtr->hFont = GetStockObject (SYSTEM_FONT);
     infoPtr->bands = DPA_Create(8);
+#if __WINE_COMCTL32_VERSION == 6
+    infoPtr->iVersion = 6;
+#else
+    infoPtr->iVersion = 0;
+#endif
 
     /* issue WM_NOTIFYFORMAT to get unicode status of parent */
     REBAR_NotifyFormat(infoPtr, NF_REQUERY);

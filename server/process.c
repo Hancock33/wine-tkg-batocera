@@ -1719,7 +1719,7 @@ static void set_process_disable_boost( struct process *process, int disable_boos
 
     LIST_FOR_EACH_ENTRY( thread, &process->thread_list, struct thread, proc_entry )
     {
-        thread->disable_boost = disable_boost;
+        set_thread_disable_boost( thread, disable_boost );
     }
 }
 
@@ -1939,11 +1939,16 @@ DECL_HANDLER(process_in_job)
 /* retrieve information about a job */
 DECL_HANDLER(get_job_info)
 {
-    struct job *job = get_job_obj( current->process, req->handle, JOB_OBJECT_QUERY );
+    struct job *job;
     process_id_t *pids;
     data_size_t len;
 
-    if (!job) return;
+    if (!req->handle && current->process->job) job = (struct job *)grab_object( current->process->job );
+    else
+    {
+        job = get_job_obj( current->process, req->handle, JOB_OBJECT_QUERY );
+        if (!job) return;
+    }
 
     reply->total_processes = job->total_processes;
     reply->active_processes = job->num_processes;
@@ -2102,7 +2107,7 @@ DECL_HANDLER(list_processes)
             thread_info->start_time = thread->creation_time;
             thread_info->tid = thread->id;
             thread_info->base_priority = thread->base_priority;
-            thread_info->current_priority = thread->priority;
+            thread_info->current_priority = get_effective_thread_priority( thread );
             thread_info->unix_tid = thread->unix_tid;
             thread_info->entry_point = thread->entry_point;
             thread_info->teb = thread->teb;

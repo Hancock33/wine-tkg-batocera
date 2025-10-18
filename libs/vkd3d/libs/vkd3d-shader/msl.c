@@ -490,6 +490,18 @@ static enum msl_data_type msl_print_register_name(struct vkd3d_string_buffer *bu
             vkd3d_string_buffer_printf(buffer, "v_thread_id");
             return MSL_DATA_UNION;
 
+        case VKD3DSPR_THREADGROUPID:
+            vkd3d_string_buffer_printf(buffer, "v_thread_group_id");
+            return MSL_DATA_UNION;
+
+        case VKD3DSPR_LOCALTHREADID:
+            vkd3d_string_buffer_printf(buffer, "v_local_thread_id");
+            return MSL_DATA_UNION;
+
+        case VKD3DSPR_LOCALTHREADINDEX:
+            vkd3d_string_buffer_printf(buffer, "v_local_thread_index");
+            return MSL_DATA_UNION;
+
         default:
             msl_compiler_error(gen, VKD3D_SHADER_ERROR_MSL_INTERNAL,
                     "Internal compiler error: Unhandled register type %#x.", reg->type);
@@ -571,7 +583,7 @@ static void msl_print_src_with_type(struct vkd3d_string_buffer *buffer, struct m
     const struct vkd3d_shader_src_param *vsir_src, uint32_t mask, enum vsir_data_type data_type)
 {
     const struct vkd3d_shader_register *reg = &vsir_src->reg;
-    struct vkd3d_string_buffer *register_name, *str;
+    struct vkd3d_string_buffer *register_name;
     enum msl_data_type src_data_type;
 
     register_name = vkd3d_string_buffer_get(&gen->string_buffers);
@@ -580,39 +592,10 @@ static void msl_print_src_with_type(struct vkd3d_string_buffer *buffer, struct m
         msl_compiler_error(gen, VKD3D_SHADER_ERROR_MSL_INTERNAL,
                 "Internal compiler error: Unhandled 'non-uniform' modifier.");
 
-    if (!vsir_src->modifiers)
-        str = buffer;
-    else
-        str = vkd3d_string_buffer_get(&gen->string_buffers);
-
     src_data_type = msl_print_register_name(register_name, gen, reg);
-    msl_print_bitcast(str, gen, register_name->buffer, data_type, src_data_type, reg->dimension);
+    msl_print_bitcast(buffer, gen, register_name->buffer, data_type, src_data_type, reg->dimension);
     if (reg->dimension == VSIR_DIMENSION_VEC4)
-        msl_print_swizzle(str, vsir_src->swizzle, mask);
-
-    switch (vsir_src->modifiers)
-    {
-        case VKD3DSPSM_NONE:
-            break;
-        case VKD3DSPSM_NEG:
-            vkd3d_string_buffer_printf(buffer, "-%s", str->buffer);
-            break;
-        case VKD3DSPSM_ABS:
-            vkd3d_string_buffer_printf(buffer, "abs(%s)", str->buffer);
-            break;
-        case VKD3DSPSM_ABSNEG:
-            vkd3d_string_buffer_printf(buffer, "-abs(%s)", str->buffer);
-            break;
-        default:
-            vkd3d_string_buffer_printf(buffer, "<unhandled modifier %#x>(%s)",
-                    vsir_src->modifiers, str->buffer);
-            msl_compiler_error(gen, VKD3D_SHADER_ERROR_MSL_INTERNAL,
-                    "Internal compiler error: Unhandled source modifier(s) %#x.", vsir_src->modifiers);
-            break;
-    }
-
-    if (str != buffer)
-        vkd3d_string_buffer_release(&gen->string_buffers, str);
+        msl_print_swizzle(buffer, vsir_src->swizzle, mask);
 }
 
 static void msl_src_init(struct msl_src *msl_src, struct msl_generator *gen,
@@ -676,31 +659,18 @@ static void msl_print_subscript(struct vkd3d_string_buffer *buffer, struct msl_g
 static void VKD3D_PRINTF_FUNC(3, 4) msl_print_assignment(
         struct msl_generator *gen, struct msl_dst *dst, const char *format, ...)
 {
-    uint32_t modifiers = dst->vsir->modifiers;
     va_list args;
-
-    /* It is always legitimate to ignore _pp. */
-    modifiers &= ~VKD3DSPDM_PARTIALPRECISION;
 
     if (dst->vsir->shift)
         msl_compiler_error(gen, VKD3D_SHADER_ERROR_MSL_INTERNAL,
                 "Internal compiler error: Unhandled destination shift %#x.", dst->vsir->shift);
-    if (modifiers & ~VKD3DSPDM_SATURATE)
-        msl_compiler_error(gen, VKD3D_SHADER_ERROR_MSL_INTERNAL,
-                "Internal compiler error: Unhandled destination modifier(s) %#x.", modifiers);
 
     msl_print_indent(gen->buffer, gen->indent);
     vkd3d_string_buffer_printf(gen->buffer, "%s%s = ", dst->register_name->buffer, dst->mask->buffer);
 
-    if (modifiers & VKD3DSPDM_SATURATE)
-        vkd3d_string_buffer_printf(gen->buffer, "saturate(");
-
     va_start(args, format);
     vkd3d_string_buffer_vprintf(gen->buffer, format, args);
     va_end(args);
-
-    if (modifiers & VKD3DSPDM_SATURATE)
-        vkd3d_string_buffer_printf(gen->buffer, ")");
 
     vkd3d_string_buffer_printf(gen->buffer, ";\n");
 }
@@ -1460,6 +1430,9 @@ static void msl_handle_instruction(struct msl_generator *gen, const struct vkd3d
 
     switch (ins->opcode)
     {
+        case VSIR_OP_ABS:
+            msl_intrinsic(gen, ins, "abs");
+            break;
         case VSIR_OP_ACOS:
             msl_intrinsic(gen, ins, "acos");
             break;
@@ -1577,8 +1550,16 @@ static void msl_handle_instruction(struct msl_generator *gen, const struct vkd3d
         case VSIR_OP_HTAN:
             msl_intrinsic(gen, ins, "tanh");
             break;
+        case VSIR_OP_IDIV:
+        case VSIR_OP_UDIV_SIMPLE:
+            msl_binop(gen, ins, "/");
+            break;
         case VSIR_OP_IF:
             msl_if(gen, ins);
+            break;
+        case VSIR_OP_IREM:
+        case VSIR_OP_UREM:
+            msl_binop(gen, ins, "%");
             break;
         case VSIR_OP_ISHL:
             msl_binop(gen, ins, "<<");
@@ -1612,6 +1593,7 @@ static void msl_handle_instruction(struct msl_generator *gen, const struct vkd3d
             msl_relop(gen, ins, "!=");
             break;
         case VSIR_OP_INEG:
+        case VSIR_OP_NEG:
             msl_unary_op(gen, ins, "-");
             break;
         case VSIR_OP_ITOF:
@@ -1660,6 +1642,9 @@ static void msl_handle_instruction(struct msl_generator *gen, const struct vkd3d
             break;
         case VSIR_OP_RSQ:
             msl_intrinsic(gen, ins, "rsqrt");
+            break;
+        case VSIR_OP_SATURATE:
+            msl_intrinsic(gen, ins, "saturate");
             break;
         case VSIR_OP_SIN:
             msl_intrinsic(gen, ins, "sin");
@@ -2022,6 +2007,24 @@ static void msl_generate_entrypoint_prologue(struct msl_generator *gen)
         msl_print_indent(gen->buffer, 1);
         vkd3d_string_buffer_printf(buffer, "v_thread_id.u = uint4(thread_id, 0u);\n");
     }
+
+    if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_THREADGROUPID))
+    {
+        msl_print_indent(gen->buffer, 1);
+        vkd3d_string_buffer_printf(buffer, "v_thread_group_id.u = uint4(thread_group_id, 0u);\n");
+    }
+
+    if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_LOCALTHREADID))
+    {
+        msl_print_indent(gen->buffer, 1);
+        vkd3d_string_buffer_printf(buffer, "v_local_thread_id.u = uint4(local_thread_id, 0u);\n");
+    }
+
+    if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_LOCALTHREADINDEX))
+    {
+        msl_print_indent(gen->buffer, 1);
+        vkd3d_string_buffer_printf(buffer, "v_local_thread_index.u = uint4(local_thread_index, 0u, 0u, 0u);\n");
+    }
 }
 
 static void msl_generate_entrypoint_epilogue(struct msl_generator *gen)
@@ -2114,6 +2117,24 @@ static void msl_generate_entrypoint(struct msl_generator *gen)
         vkd3d_string_buffer_printf(gen->buffer, "uint3 thread_id [[thread_position_in_grid]],\n");
     }
 
+    if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_THREADGROUPID))
+    {
+        msl_print_indent(gen->buffer, 2);
+        vkd3d_string_buffer_printf(gen->buffer, "uint3 thread_group_id [[threadgroup_position_in_grid]],\n");
+    }
+
+    if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_LOCALTHREADID))
+    {
+        msl_print_indent(gen->buffer, 2);
+        vkd3d_string_buffer_printf(gen->buffer, "uint3 local_thread_id [[thread_position_in_threadgroup]],\n");
+    }
+
+    if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_LOCALTHREADINDEX))
+    {
+        msl_print_indent(gen->buffer, 2);
+        vkd3d_string_buffer_printf(gen->buffer, "uint local_thread_index [[thread_index_in_threadgroup]],\n");
+    }
+
     msl_print_indent(gen->buffer, 2);
     vkd3d_string_buffer_printf(gen->buffer, "vkd3d_%s_in input [[stage_in]])\n{\n", gen->prefix);
 
@@ -2125,6 +2146,12 @@ static void msl_generate_entrypoint(struct msl_generator *gen)
         vkd3d_string_buffer_printf(gen->buffer, "    vkd3d_scalar o_mask;\n");
     if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_THREADID))
         vkd3d_string_buffer_printf(gen->buffer, "    vkd3d_vec4 v_thread_id;\n");
+    if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_THREADGROUPID))
+        vkd3d_string_buffer_printf(gen->buffer, "    vkd3d_vec4 v_thread_group_id;\n");
+    if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_LOCALTHREADID))
+        vkd3d_string_buffer_printf(gen->buffer, "    vkd3d_vec4 v_local_thread_id;\n");
+    if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_LOCALTHREADINDEX))
+        vkd3d_string_buffer_printf(gen->buffer, "    vkd3d_vec4 v_local_thread_index;\n");
     vkd3d_string_buffer_printf(gen->buffer, "\n");
 
     msl_generate_entrypoint_prologue(gen);
@@ -2138,6 +2165,12 @@ static void msl_generate_entrypoint(struct msl_generator *gen)
         vkd3d_string_buffer_printf(gen->buffer, ", o_mask");
     if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_THREADID))
         vkd3d_string_buffer_printf(gen->buffer, ", v_thread_id");
+    if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_THREADGROUPID))
+        vkd3d_string_buffer_printf(gen->buffer, ", v_thread_group_id");
+    if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_LOCALTHREADID))
+        vkd3d_string_buffer_printf(gen->buffer, ", v_local_thread_id");
+    if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_LOCALTHREADINDEX))
+        vkd3d_string_buffer_printf(gen->buffer, ", v_local_thread_index");
     if (gen->program->descriptors.descriptor_count)
         vkd3d_string_buffer_printf(gen->buffer, ", descriptors");
     vkd3d_string_buffer_printf(gen->buffer, ");\n\n");
@@ -2213,6 +2246,12 @@ static int msl_generator_generate(struct msl_generator *gen, struct vkd3d_shader
         vkd3d_string_buffer_printf(gen->buffer, ", thread vkd3d_scalar &o_mask");
     if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_THREADID))
         vkd3d_string_buffer_printf(gen->buffer, ", thread vkd3d_vec4 &v_thread_id");
+    if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_THREADGROUPID))
+        vkd3d_string_buffer_printf(gen->buffer, ", thread vkd3d_vec4 &v_thread_group_id");
+    if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_LOCALTHREADID))
+        vkd3d_string_buffer_printf(gen->buffer, ", thread vkd3d_vec4 &v_local_thread_id");
+    if (bitmap_is_set(gen->program->io_dcls, VKD3DSPR_LOCALTHREADINDEX))
+        vkd3d_string_buffer_printf(gen->buffer, ", thread vkd3d_vec4 &v_local_thread_index");
     if (gen->program->descriptors.descriptor_count)
         vkd3d_string_buffer_printf(gen->buffer, ", constant descriptor *descriptors");
     vkd3d_string_buffer_printf(gen->buffer, ")\n{\n");

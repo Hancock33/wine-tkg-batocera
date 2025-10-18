@@ -327,7 +327,7 @@ typedef struct tagLISTVIEW_INFO
   BOOL redraw;             /* WM_SETREDRAW switch */
 
   /* misc */
-  DWORD iVersion;          /* CCM_[G,S]ETVERSION */
+  INT iVersion;            /* CCM_[G,S]ETVERSION */
 } LISTVIEW_INFO;
 
 /*
@@ -9624,7 +9624,11 @@ static LRESULT LISTVIEW_NCCreate(HWND hwnd, WPARAM wParam, const CREATESTRUCTW *
   infoPtr->nMeasureItemHeight = 0;
   infoPtr->xTrackLine = -1;  /* no track line */
   infoPtr->itemEdit.fEnabled = FALSE;
-  infoPtr->iVersion = COMCTL32_VERSION;
+#if __WINE_COMCTL32_VERSION == 6
+  infoPtr->iVersion = 6;
+#else
+  infoPtr->iVersion = 0;
+#endif
   infoPtr->colRectsDirty = FALSE;
   infoPtr->selected_column = -1;
   infoPtr->hHotCursor = LoadCursorW(NULL, (LPWSTR)IDC_HAND);
@@ -11437,18 +11441,9 @@ static inline LRESULT LISTVIEW_GetVersion(const LISTVIEW_INFO *infoPtr)
  * -1 when requested version is greater than DLL version;
  * previous version otherwise
  */
-static LRESULT LISTVIEW_SetVersion(LISTVIEW_INFO *infoPtr, DWORD iVersion)
+static LRESULT LISTVIEW_SetVersion(LISTVIEW_INFO *infoPtr, INT iVersion)
 {
-  INT iOldVersion = infoPtr->iVersion;
-
-  if (iVersion > COMCTL32_VERSION)
-    return -1;
-
-  infoPtr->iVersion = iVersion;
-
-  TRACE("new version %ld\n", iVersion);
-
-  return iOldVersion;
+    return COMCTL32_SetVersion(&infoPtr->iVersion, iVersion);
 }
 
 /***

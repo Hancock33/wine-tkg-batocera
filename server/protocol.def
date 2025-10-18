@@ -1040,9 +1040,16 @@ typedef volatile struct
 
 typedef volatile struct
 {
+    atom_t               atom;               /* class atom */
+    unsigned int         style;              /* class style */
+    unsigned int         cls_extra;          /* number of class extra bytes */
+    unsigned int         win_extra;          /* number of window extra bytes */
+    mod_handle_t         instance;           /* module instance */
     data_size_t          name_offset;        /* offset in WCHAR of the unversioned class name, constant */
     data_size_t          name_len;           /* len in bytes of the class name, constant */
     WCHAR                name[MAX_ATOM_LEN]; /* class name, constant */
+    unsigned short       __pad;
+    char                 extra[];            /* extra bytes storage */
 } class_shm_t;
 
 typedef volatile struct
@@ -1815,9 +1822,11 @@ enum server_fd_type
     mem_size_t   size;          /* mapping size */
     unsigned int flags;         /* SEC_* flags */
     obj_handle_t shared_file;   /* shared mapping file handle */
+    data_size_t  name_len;      /* length of file name  */
     data_size_t  total;         /* total required buffer size in bytes */
     VARARG(image,pe_image_info);/* image info for SEC_IMAGE mappings */
-    VARARG(name,unicode_str);   /* filename for SEC_IMAGE mappings */
+    VARARG(name,unicode_str,name_len);  /* filename for SEC_IMAGE mappings */
+    VARARG(exp_name,string);    /* exported name for SEC_IMAGE mappings */
 @END
 
 
@@ -3268,9 +3277,9 @@ enum caret_state
     atom_t         atom;           /* class atom */
     unsigned int   style;          /* class style */
     mod_handle_t   instance;       /* module instance */
-    int            extra;          /* number of extra class bytes */
-    int            win_extra;      /* number of window extra bytes */
     client_ptr_t   client_ptr;     /* pointer to class in client address space */
+    short int      cls_extra;      /* number of extra class bytes */
+    short int      win_extra;      /* number of window extra bytes */
     data_size_t    name_offset;    /* base class name offset for specified atom */
     VARARG(name,unicode_str);      /* class name */
 @REPLY
@@ -4188,10 +4197,19 @@ enum inproc_sync_type
 /* Create a global d3dkmt object */
 @REQ(d3dkmt_object_create)
     unsigned int        type;           /* d3dkmt object type */
+    int                 fd;             /* host specific fd */
     VARARG(runtime,bytes);              /* client runtime data */
 @REPLY
     d3dkmt_handle_t     global;         /* global d3dkmt handle */
     obj_handle_t        handle;         /* internal handle of the server object */
+@END
+
+
+/* Update a global/shared d3dkmt object runtime data */
+@REQ(d3dkmt_object_update)
+    unsigned int        type;           /* d3dkmt object type */
+    d3dkmt_handle_t     global;         /* global d3dkmt handle */
+    VARARG(runtime,bytes);              /* client runtime data */
 @END
 
 

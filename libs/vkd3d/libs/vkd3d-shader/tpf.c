@@ -2976,13 +2976,13 @@ int tpf_parse(const struct vkd3d_shader_compile_info *compile_info, uint64_t con
         }
     }
     if (program->shader_version.type == VKD3D_SHADER_TYPE_HULL
-            && !sm4.has_control_point_phase && !sm4.p.failed)
+            && !sm4.has_control_point_phase && sm4.p.status >= 0)
         shader_sm4_validate_default_phase_index_ranges(&sm4);
 
-    if (sm4.p.failed)
+    if (sm4.p.status < 0)
     {
         vsir_program_cleanup(program);
-        return VKD3D_ERROR_INVALID_SHADER;
+        return sm4.p.status;
     }
 
     return VKD3D_OK;
@@ -3874,8 +3874,11 @@ static void tpf_dcl_texture(const struct tpf_compiler *tpf, const struct vkd3d_s
 
     if (ins->opcode == VSIR_OP_DCL || ins->opcode == VSIR_OP_DCL_UAV_TYPED)
     {
+        enum vkd3d_sm4_resource_type resource_type = sm4_resource_dimension(ins->declaration.semantic.resource_type);
+
         instr.idx[0] = pack_resource_data_type(ins->declaration.semantic.resource_data_type);
         instr.idx_count = 1;
+        instr.extra_bits |= resource_type << VKD3D_SM4_RESOURCE_TYPE_SHIFT;
         instr.extra_bits |= ins->declaration.semantic.sample_count << VKD3D_SM4_RESOURCE_SAMPLE_COUNT_SHIFT;
         resource = &ins->declaration.semantic.resource;
     }
@@ -3909,8 +3912,6 @@ static void tpf_dcl_texture(const struct tpf_compiler *tpf, const struct vkd3d_s
 
     if (uav)
         instr.extra_bits |= ins->flags << VKD3D_SM5_UAV_FLAGS_SHIFT;
-
-    instr.extra_bits |= (sm4_resource_dimension(ins->resource_type) << VKD3D_SM4_RESOURCE_TYPE_SHIFT);
 
     write_sm4_instruction(tpf, &instr);
 }
@@ -4169,6 +4170,9 @@ static void tpf_handle_instruction(struct tpf_compiler *tpf, const struct vkd3d_
 {
     switch (ins->opcode)
     {
+        case VSIR_OP_NOP:
+            break;
+
         case VSIR_OP_DCL_CONSTANT_BUFFER:
             tpf_dcl_constant_buffer(tpf, ins);
             break;
@@ -4519,7 +4523,8 @@ static void tpf_write_section(struct tpf_compiler *tpf, uint32_t tag, const stru
     add_section(tpf, tag, &buffer);
 }
 
-int tpf_compile(struct vsir_program *program, uint64_t config_flags, const struct vkd3d_shader_code *rdef,
+int tpf_compile(struct vsir_program *program, uint64_t config_flags,
+        const struct vkd3d_shader_compile_info *compile_info, const struct vkd3d_shader_code *rdef,
         struct vkd3d_shader_code *out, struct vkd3d_shader_message_context *message_context)
 {
     enum vkd3d_shader_type shader_type = program->shader_version.type;
@@ -4527,6 +4532,9 @@ int tpf_compile(struct vsir_program *program, uint64_t config_flags, const struc
     struct sm4_stat stat = {0};
     size_t i;
     int ret;
+
+    if ((ret = vsir_program_optimize(program, config_flags, compile_info, message_context)))
+        return ret;
 
     if ((ret = vsir_allocate_temp_registers(program, message_context)))
         return ret;

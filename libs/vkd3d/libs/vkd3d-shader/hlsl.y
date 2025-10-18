@@ -614,10 +614,6 @@ static struct hlsl_default_value evaluate_static_expression(struct hlsl_ctx *ctx
         if (!(ret.string = vkd3d_strdup(string->string)))
             return ret;
     }
-    else if (node->type == HLSL_IR_STRING_CONSTANT)
-    {
-        hlsl_fixme(ctx, &node->loc, "Evaluate string constants as static expressions.");
-    }
     else
     {
         hlsl_error(ctx, &node->loc, VKD3D_SHADER_ERROR_HLSL_INVALID_SYNTAX,
@@ -1082,7 +1078,7 @@ static bool gen_struct_fields(struct hlsl_ctx *ctx, struct parse_fields *fields,
         field->loc = v->loc;
         field->name = v->name;
         field->semantic = v->semantic;
-        field->storage_modifiers = modifiers;
+        field->storage_modifiers = modifiers | v->semantic.modifiers;
         if (v->initializer.args_count)
         {
             hlsl_error(ctx, &v->loc, VKD3D_SHADER_ERROR_HLSL_INVALID_SYNTAX, "Illegal initializer on a struct field.");
@@ -1211,16 +1207,17 @@ static void initialize_var_components(struct hlsl_ctx *ctx, struct hlsl_block *i
 static bool add_func_parameter(struct hlsl_ctx *ctx, struct hlsl_func_parameters *parameters,
         struct parse_parameter *param, const struct vkd3d_shader_location *loc)
 {
+    uint32_t modifiers = param->modifiers | param->semantic.modifiers;
     struct hlsl_ir_var *var;
 
     if (param->type->class == HLSL_CLASS_MATRIX)
         VKD3D_ASSERT(param->type->modifiers & HLSL_MODIFIERS_MAJORITY_MASK);
 
-    if ((param->modifiers & HLSL_STORAGE_OUT) && (param->modifiers & HLSL_STORAGE_UNIFORM))
+    if ((modifiers & HLSL_STORAGE_OUT) && (modifiers & HLSL_STORAGE_UNIFORM))
         hlsl_error(ctx, loc, VKD3D_SHADER_ERROR_HLSL_INVALID_MODIFIER,
                 "Parameter '%s' is declared as both \"out\" and \"uniform\".", param->name);
 
-    if ((param->modifiers & HLSL_STORAGE_OUT) && !(param->modifiers & HLSL_STORAGE_IN)
+    if ((modifiers & HLSL_STORAGE_OUT) && !(modifiers & HLSL_STORAGE_IN)
             && (param->type->modifiers & HLSL_MODIFIER_CONST))
         hlsl_error(ctx, loc, VKD3D_SHADER_ERROR_HLSL_INVALID_MODIFIER,
                 "Parameter '%s' is declared as both \"out\" and \"const\".", param->name);
@@ -1234,14 +1231,14 @@ static bool add_func_parameter(struct hlsl_ctx *ctx, struct hlsl_func_parameters
         hlsl_error(ctx, loc, VKD3D_SHADER_ERROR_HLSL_MISSING_INITIALIZER,
                 "Missing default value for parameter '%s'.", param->name);
 
-    if (param->initializer.args_count && (param->modifiers & HLSL_STORAGE_OUT))
+    if (param->initializer.args_count && (modifiers & HLSL_STORAGE_OUT))
         hlsl_error(ctx, loc, VKD3D_SHADER_ERROR_HLSL_INVALID_MODIFIER,
                 "Output parameter '%s' has a default value.", param->name);
 
     if (hlsl_get_stream_output_type(param->type))
         check_invalid_stream_output_object(ctx, param->type, param->name, loc);
 
-    if (!(var = hlsl_new_var(ctx, param->name, param->type, loc, &param->semantic, param->modifiers,
+    if (!(var = hlsl_new_var(ctx, param->name, param->type, loc, &param->semantic, modifiers,
             &param->reg_reservation)))
         return false;
     var->is_param = 1;
@@ -2408,10 +2405,10 @@ static void check_invalid_object_fields(struct hlsl_ctx *ctx, const struct hlsl_
 
 static void declare_var(struct hlsl_ctx *ctx, struct parse_variable_def *v)
 {
+    uint32_t modifiers = v->modifiers | v->semantic.modifiers;
     struct hlsl_type *basic_type = v->basic_type;
     struct hlsl_ir_function_decl *func;
     struct hlsl_semantic new_semantic;
-    uint32_t modifiers = v->modifiers;
     bool unbounded_res_array = false;
     bool constant_buffer = false;
     struct hlsl_ir_var *var;
@@ -5336,6 +5333,23 @@ static bool intrinsic_AllMemoryBarrierWithGroupSync(struct hlsl_ctx *ctx,
             | VKD3DSSF_GROUP_SHARED_MEMORY | VKD3DSSF_THREAD_GROUP, loc);
 }
 
+static bool intrinsic_ConstructGSWithSO(struct hlsl_ctx *ctx,
+        const struct parse_initializer *params, const struct vkd3d_shader_location *loc)
+{
+    struct hlsl_ir_node *compile;
+
+    if (params->args_count != 2 && params->args_count != 6)
+        hlsl_error(ctx, loc, VKD3D_SHADER_ERROR_HLSL_WRONG_PARAMETER_COUNT,
+                "Wrong number of arguments to ConstructGSWithSO(): expected 2 or 6, but got %u.", params->args_count);
+
+    if (!(compile = hlsl_new_compile(ctx, HLSL_COMPILE_TYPE_CONSTRUCTGSWITHSO,
+            NULL, params->args, params->args_count, params->instrs, loc)))
+        return false;
+
+    hlsl_block_add_instr(params->instrs, compile);
+    return true;
+}
+
 static bool intrinsic_DeviceMemoryBarrier(struct hlsl_ctx *ctx,
         const struct parse_initializer *params, const struct vkd3d_shader_location *loc)
 {
@@ -5385,6 +5399,7 @@ intrinsic_functions[] =
     /* Note: these entries should be kept in alphabetical order. */
     {"AllMemoryBarrier",                    0, true,  intrinsic_AllMemoryBarrier},
     {"AllMemoryBarrierWithGroupSync",       0, true,  intrinsic_AllMemoryBarrierWithGroupSync},
+    {"ConstructGSWithSO",                  -1, false, intrinsic_ConstructGSWithSO},
     {"D3DCOLORtoUBYTE4",                    1, true,  intrinsic_d3dcolor_to_ubyte4},
     {"DeviceMemoryBarrier",                 0, true,  intrinsic_DeviceMemoryBarrier},
     {"DeviceMemoryBarrierWithGroupSync",    0, true,  intrinsic_DeviceMemoryBarrierWithGroupSync},
@@ -5619,36 +5634,6 @@ static struct hlsl_block *add_shader_compilation(struct hlsl_ctx *ctx, const cha
 
     if (!(compile = hlsl_new_compile(ctx, HLSL_COMPILE_TYPE_COMPILE,
             profile_name, &call_to_compile, 1, args->instrs, loc)))
-    {
-        free_parse_initializer(args);
-        return NULL;
-    }
-
-    free_parse_initializer(args);
-    return make_block(ctx, compile);
-}
-
-static struct hlsl_block *add_compile_variant(struct hlsl_ctx *ctx, enum hlsl_compile_type compile_type,
-        struct parse_initializer *args, const struct vkd3d_shader_location *loc)
-{
-    struct hlsl_ir_node *compile;
-
-    switch (compile_type)
-    {
-        case HLSL_COMPILE_TYPE_COMPILE:
-            vkd3d_unreachable();
-
-        case HLSL_COMPILE_TYPE_CONSTRUCTGSWITHSO:
-            if (args->args_count != 2 && args->args_count != 6)
-            {
-                hlsl_error(ctx, loc, VKD3D_SHADER_ERROR_HLSL_WRONG_PARAMETER_COUNT,
-                        "Wrong number of arguments to ConstructGSWithSO: expected 2 or 6, but got %u.",
-                        args->args_count);
-            }
-            break;
-    }
-
-    if (!(compile = hlsl_new_compile(ctx, compile_type, NULL, args->args, args->args_count, args->instrs, loc)))
     {
         free_parse_initializer(args);
         return NULL;
@@ -6938,7 +6923,6 @@ static void validate_uav_type(struct hlsl_ctx *ctx, enum hlsl_sampler_dim dim,
 %token KW_COMPILESHADER
 %token KW_COMPUTESHADER
 %token KW_CONST
-%token KW_CONSTRUCTGSWITHSO
 %token KW_CONTINUE
 %token KW_DEFAULT
 %token KW_DEPTHSTENCILSTATE
@@ -7847,15 +7831,28 @@ colon_attributes:
 semantic:
       ':' any_identifier
         {
+            static const char *centroid_suffix = "_centroid";
+            uint32_t modifiers = 0;
+            size_t len;
             char *p;
 
             if (!($$.raw_name = hlsl_strdup(ctx, $2)))
                 YYABORT;
 
-            for (p = $2 + strlen($2); p > $2 && isdigit(p[-1]); --p)
+            len = strlen($2);
+            if (ascii_strncasecmp($2, "sv_", 3)
+                    && len > strlen(centroid_suffix)
+                    && !ascii_strcasecmp($2 + (len - strlen(centroid_suffix)), centroid_suffix))
+            {
+                modifiers = HLSL_STORAGE_CENTROID;
+                len -= strlen(centroid_suffix);
+            }
+
+            for (p = $2 + len; p > $2 && isdigit(p[-1]); --p)
                 ;
             $$.name = $2;
             $$.index = atoi(p);
+            $$.modifiers = modifiers;
             $$.reported_missing = false;
             $$.reported_duplicated_output_next_index = 0;
             $$.reported_duplicated_input_incompatible_next_index = 0;
@@ -9438,11 +9435,6 @@ primary_expr:
             }
             vkd3d_free($3);
             vkd3d_free($5);
-        }
-    | KW_CONSTRUCTGSWITHSO '(' func_arguments ')'
-        {
-            if (!($$ = add_compile_variant(ctx, HLSL_COMPILE_TYPE_CONSTRUCTGSWITHSO, &$3, &@1)))
-                YYABORT;
         }
     | var_identifier '(' func_arguments ')'
         {
