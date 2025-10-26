@@ -1535,6 +1535,7 @@ enable_windows_storage_applicationdata
 enable_windows_storage
 enable_windows_system_profile_systemid
 enable_windows_system_profile_systemmanufacturers
+enable_windows_ui_core_textinput
 enable_windows_ui_xaml
 enable_windows_ui
 enable_windows_web
@@ -2758,12 +2759,10 @@ Some influential environment variables:
               pkg-config
   GSTREAMER_CFLAGS
               C compiler flags for gstreamer-1.0 gstreamer-video-1.0
-              gstreamer-audio-1.0 gstreamer-tag-1.0 gstreamer-gl-1.0,
-              overriding pkg-config
+              gstreamer-audio-1.0 gstreamer-tag-1.0, overriding pkg-config
   GSTREAMER_LIBS
               Linker flags for gstreamer-1.0 gstreamer-video-1.0
-              gstreamer-audio-1.0 gstreamer-tag-1.0 gstreamer-gl-1.0,
-              overriding pkg-config
+              gstreamer-audio-1.0 gstreamer-tag-1.0, overriding pkg-config
   ALSA_CFLAGS C compiler flags for alsa, overriding pkg-config
   ALSA_LIBS   Linker flags for alsa, overriding pkg-config
   UDEV_CFLAGS C compiler flags for libudev, overriding pkg-config
@@ -4286,7 +4285,6 @@ ac_config_headers="$ac_config_headers include/config.h"
 
 
 
-libwine_version="1.0"
 
 
 # Check whether --enable-archs was given.
@@ -17544,7 +17542,7 @@ if ${GSTREAMER_CFLAGS:+false} :
 then :
   if test ${PKG_CONFIG+y}
 then :
-  GSTREAMER_CFLAGS=`$PKG_CONFIG --cflags gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0 gstreamer-gl-1.0 2>conftest.err`
+  GSTREAMER_CFLAGS=`$PKG_CONFIG --cflags gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0 2>conftest.err`
 fi
 fi
 
@@ -17552,15 +17550,15 @@ if ${GSTREAMER_LIBS:+false} :
 then :
   if test ${PKG_CONFIG+y}
 then :
-  GSTREAMER_LIBS=`$PKG_CONFIG --libs gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0 gstreamer-gl-1.0 2>/dev/null`
+  GSTREAMER_LIBS=`$PKG_CONFIG --libs gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0 2>/dev/null`
 fi
 fi
 
 
-printf "%s\n" "$as_me:${as_lineno-$LINENO}: gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0 gstreamer-gl-1.0 cflags: $GSTREAMER_CFLAGS" >&5
-printf "%s\n" "$as_me:${as_lineno-$LINENO}: gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0 gstreamer-gl-1.0 libs: $GSTREAMER_LIBS" >&5
+printf "%s\n" "$as_me:${as_lineno-$LINENO}: gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0 cflags: $GSTREAMER_CFLAGS" >&5
+printf "%s\n" "$as_me:${as_lineno-$LINENO}: gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0 libs: $GSTREAMER_LIBS" >&5
 if test -s conftest.err; then
-     printf %s "$as_me:${as_lineno-$LINENO}: gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0 gstreamer-gl-1.0 errors: " >&5
+     printf %s "$as_me:${as_lineno-$LINENO}: gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0 errors: " >&5
      cat conftest.err >&5
 fi
 rm -f conftest.err
@@ -20480,17 +20478,6 @@ printf "%s\n" "#define HAVE_SCHED_SETAFFINITY 1" >>confdefs.h
 fi
 
 
-ac_fn_c_check_type "$LINENO" "request_sense" "ac_cv_type_request_sense" "#include <linux/cdrom.h>
-"
-if test "x$ac_cv_type_request_sense" = xyes
-then :
-
-printf "%s\n" "#define HAVE_REQUEST_SENSE 1" >>confdefs.h
-
-
-fi
-
-
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether we can use re-entrant gethostbyname_r Linux style" >&5
 printf %s "checking whether we can use re-entrant gethostbyname_r Linux style... " >&6; }
 if test ${wine_cv_linux_gethostbyname_r_6+y}
@@ -20555,18 +20542,6 @@ printf "%s\n" "#define HAVE_STRUCT_SOCKADDR_UN_SUN_LEN 1" >>confdefs.h
 fi
 
 
-ac_fn_c_check_member "$LINENO" "scsireq_t" "cmd" "ac_cv_member_scsireq_t_cmd" "#include <sys/types.h>
-#ifdef HAVE_SCSI_SG_H
-#include <scsi/sg.h>
-#endif
-"
-if test "x$ac_cv_member_scsireq_t_cmd" = xyes
-then :
-
-printf "%s\n" "#define HAVE_SCSIREQ_T_CMD 1" >>confdefs.h
-
-
-fi
 ac_fn_c_check_member "$LINENO" "sg_io_hdr_t" "interface_id" "ac_cv_member_sg_io_hdr_t_interface_id" "#include <sys/types.h>
 #ifdef HAVE_SCSI_SG_H
 #include <scsi/sg.h>
@@ -22145,6 +22120,8 @@ wine_fn_config_makefile dlls/windows.system.profile.systemid enable_windows_syst
 wine_fn_config_makefile dlls/windows.system.profile.systemid/tests enable_tests
 wine_fn_config_makefile dlls/windows.system.profile.systemmanufacturers enable_windows_system_profile_systemmanufacturers
 wine_fn_config_makefile dlls/windows.system.profile.systemmanufacturers/tests enable_tests
+wine_fn_config_makefile dlls/windows.ui.core.textinput enable_windows_ui_core_textinput
+wine_fn_config_makefile dlls/windows.ui.core.textinput/tests enable_tests
 wine_fn_config_makefile dlls/windows.ui.xaml enable_windows_ui_xaml
 wine_fn_config_makefile dlls/windows.ui.xaml/tests enable_tests
 wine_fn_config_makefile dlls/windows.ui enable_windows_ui
@@ -22534,7 +22511,7 @@ fi
 
 as_fn_append wine_rules "
 dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-10.17.r0.gf686957b\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
+	@version=\`(echo \"wine-10.17.r5.gfa2f3233\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$@) || echo \$\$build >\$@ || (rm -f \$@ && exit 1)
 dlls/wineandroid.drv/wine-debug.apk: dlls/wineandroid.drv/build.gradle ${wine_srcdir}dlls/wineandroid.drv/AndroidManifest.xml ${wine_srcdir}dlls/wineandroid.drv/WineActivity.java ${wine_srcdir}dlls/wineandroid.drv/wine.svg

@@ -9,9 +9,10 @@ AC_PREREQ(2.63b)
 AC_INIT([Wine],[WINE_VERSION],[wine-devel@winehq.org],[wine],[https://www.winehq.org])
 AC_CONFIG_SRCDIR(server/atom.c)
 AC_CONFIG_HEADERS(include/config.h)
-AC_CONFIG_AUX_DIR(tools)
 
-libwine_version="1.0"
+dnl Work around install-sh requirement in autoconf <= 2.69
+AC_PREREQ([2.69d],[AC_CONFIG_AUX_DIR(tools)],
+                  [AC_PROVIDE([AC_CONFIG_AUX_DIR_DEFAULT])ac_aux_dir="${srcdir}/tools"])
 
 dnl **** Command-line arguments ****
 
@@ -1714,7 +1715,7 @@ WINE_NOTICE_WITH(ffmpeg,[test "x$FFMPEG_LIBS" = x],
 dnl **** Check for gstreamer ****
 if test "x$with_gstreamer" != "xno"
 then
-    WINE_PACKAGE_FLAGS(GSTREAMER,[gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0 gstreamer-gl-1.0],,,,
+    WINE_PACKAGE_FLAGS(GSTREAMER,[gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0],,,,
         [AC_CHECK_HEADER([gst/gst.h],
             [AC_MSG_CHECKING([whether gint64 defined by gst/gst.h is indeed 64-bit])
               AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <gst/gst.h>]],
@@ -2172,8 +2173,6 @@ fi
 
 dnl **** Check for types ****
 
-AC_CHECK_TYPES([request_sense],,,[#include <linux/cdrom.h>])
-
 AC_CACHE_CHECK([whether we can use re-entrant gethostbyname_r Linux style],
    	wine_cv_linux_gethostbyname_r_6,
 	AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <netdb.h>]],[[
@@ -2205,8 +2204,8 @@ AC_CHECK_MEMBERS([struct sockaddr_un.sun_len],,,
 # include <sys/un.h>
 #endif])
 
-dnl Check for scsireq_t and sg_io_hdr_t members
-AC_CHECK_MEMBERS([scsireq_t.cmd, sg_io_hdr_t.interface_id],,,
+dnl Check for sg_io_hdr_t members
+AC_CHECK_MEMBERS([sg_io_hdr_t.interface_id],,,
 [#include <sys/types.h>
 #ifdef HAVE_SCSI_SG_H
 #include <scsi/sg.h>
@@ -3353,6 +3352,8 @@ WINE_CONFIG_MAKEFILE(dlls/windows.system.profile.systemid)
 WINE_CONFIG_MAKEFILE(dlls/windows.system.profile.systemid/tests)
 WINE_CONFIG_MAKEFILE(dlls/windows.system.profile.systemmanufacturers)
 WINE_CONFIG_MAKEFILE(dlls/windows.system.profile.systemmanufacturers/tests)
+WINE_CONFIG_MAKEFILE(dlls/windows.ui.core.textinput)
+WINE_CONFIG_MAKEFILE(dlls/windows.ui.core.textinput/tests)
 WINE_CONFIG_MAKEFILE(dlls/windows.ui.xaml)
 WINE_CONFIG_MAKEFILE(dlls/windows.ui.xaml/tests)
 WINE_CONFIG_MAKEFILE(dlls/windows.ui)
@@ -3774,7 +3775,7 @@ dnl Rules for generated source files
 
 WINE_APPEND_RULE(
 [dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-10.17.r0.gf686957b\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
+	@version=\`(echo \"wine-10.17.r5.gfa2f3233\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$[@]) || echo \$\$build >\$[@] || (rm -f \$[@] && exit 1)
 dlls/wineandroid.drv/wine-debug.apk: dlls/wineandroid.drv/build.gradle ${wine_srcdir}dlls/wineandroid.drv/AndroidManifest.xml ${wine_srcdir}dlls/wineandroid.drv/WineActivity.java ${wine_srcdir}dlls/wineandroid.drv/wine.svg
