@@ -248,6 +248,7 @@ struct hlsl_semantic
     const char *name;
     uint32_t index;
     uint32_t stream_index;
+    uint32_t modifiers;
 
     /* Name exactly as it appears in the sources. */
     const char *raw_name;
@@ -533,6 +534,8 @@ struct hlsl_ir_var
     struct
     {
         bool used;
+        bool uav_read;
+        bool uav_atomics;
         enum hlsl_sampler_dim sampler_dim;
         struct vkd3d_shader_location first_sampler_dim_loc;
     } *objects_usage[HLSL_REGSET_LAST_OBJECT + 1];
@@ -718,8 +721,11 @@ enum hlsl_ir_expr_op
     HLSL_OP1_BIT_NOT,
     HLSL_OP1_CAST,
     HLSL_OP1_CEIL,
+    HLSL_OP1_CLZ,
     HLSL_OP1_COS,
     HLSL_OP1_COS_REDUCED,    /* Reduced range [-pi, pi], writes to .x */
+    HLSL_OP1_COUNTBITS,
+    HLSL_OP1_CTZ,
     HLSL_OP1_DSX,
     HLSL_OP1_DSX_COARSE,
     HLSL_OP1_DSX_FINE,
@@ -729,6 +735,7 @@ enum hlsl_ir_expr_op
     HLSL_OP1_EXP2,
     HLSL_OP1_F16TOF32,
     HLSL_OP1_F32TOF16,
+    HLSL_OP1_FIND_MSB,
     HLSL_OP1_FLOOR,
     HLSL_OP1_FRACT,
     HLSL_OP1_ISINF,
@@ -1594,7 +1601,7 @@ void hlsl_block_add_loop(struct hlsl_ctx *ctx, struct hlsl_block *block,
         unsigned int unroll_limit, const struct vkd3d_shader_location *loc);
 struct hlsl_ir_node *hlsl_block_add_resource_load(struct hlsl_ctx *ctx, struct hlsl_block *block,
         const struct hlsl_resource_load_params *params, const struct vkd3d_shader_location *loc);
-void hlsl_block_add_resource_store(struct hlsl_ctx *ctx, struct hlsl_block *block,
+struct hlsl_ir_node *hlsl_block_add_resource_store(struct hlsl_ctx *ctx, struct hlsl_block *block,
         enum hlsl_resource_store_type type, const struct hlsl_deref *resource, struct hlsl_ir_node *coords,
         struct hlsl_ir_node *value, uint32_t writemask, const struct vkd3d_shader_location *loc);
 struct hlsl_ir_node *hlsl_block_add_simple_load(struct hlsl_ctx *ctx, struct hlsl_block *block,
@@ -1791,10 +1798,10 @@ bool hlsl_type_is_integer(const struct hlsl_type *type);
 bool hlsl_type_is_floating_point(const struct hlsl_type *type);
 bool hlsl_type_is_row_major(const struct hlsl_type *type);
 bool hlsl_type_is_signed_integer(const struct hlsl_type *type);
+bool hlsl_type_is_unsigned_integer(const struct hlsl_type *type);
 unsigned int hlsl_type_minor_size(const struct hlsl_type *type);
 unsigned int hlsl_type_major_size(const struct hlsl_type *type);
 unsigned int hlsl_type_element_count(const struct hlsl_type *type);
-bool hlsl_type_is_integer(const struct hlsl_type *type);
 bool hlsl_type_is_minimum_precision(const struct hlsl_type *type);
 bool hlsl_type_is_resource(const struct hlsl_type *type);
 bool hlsl_type_is_shader(const struct hlsl_type *type);

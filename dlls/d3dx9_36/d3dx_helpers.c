@@ -1225,9 +1225,16 @@ static HRESULT d3dx_initialize_image_from_dds(const void *src_data, uint32_t src
     expected_src_data_size = (image->layer_pitch * image->layer_count) + header_size;
     if (src_data_size < expected_src_data_size)
     {
+        const uint32_t dxt10_info_only_flags = D3DX_IMAGE_INFO_ONLY | D3DX_IMAGE_SUPPORT_DXT10;
+
         WARN("File is too short %u, expected at least %u bytes.\n", src_data_size, expected_src_data_size);
-        /* D3DX10/D3DX11 do not validate the size of the pixels, only the header. */
-        if (!(flags & D3DX_IMAGE_SUPPORT_DXT10))
+        /*
+         * D3DX10/D3DX11 do not validate the size of the pixels, only the header.
+         * This is safe if we're only getting image info, but we should avoid
+         * matching native behavior here when loading image data until we have
+         * a reason to do otherwise.
+         */
+        if ((flags & dxt10_info_only_flags) != dxt10_info_only_flags)
             return D3DXERR_INVALIDDATA;
     }
 

@@ -83,7 +83,7 @@ struct wgl_context
 struct opengl_funcs
 {
     BOOL       (*p_wgl_context_reset)( struct wgl_context *context, HDC hdc, struct wgl_context *share, const int *attribs );
-    BOOL       (*p_wgl_context_flush)( struct wgl_context *context, void (*flush)(void) );
+    BOOL       (*p_wgl_context_flush)( struct wgl_context *context, void (*flush)(void), BOOL force_swap );
     BOOL       (*p_wglCopyContext)( struct wgl_context * hglrcSrc, struct wgl_context * hglrcDst, UINT mask );
     struct wgl_context * (*p_wglCreateContext)( HDC hDc );
     BOOL       (*p_wglDeleteContext)( struct wgl_context * oldContext );
@@ -121,6 +121,7 @@ struct opengl_funcs
     BOOL       (*p_wglSwapIntervalEXT)( int interval );
 #define USE_GL_FUNC(x) PFN_##x p_##x;
     ALL_EGL_FUNCS
+    ALL_EGL_EXT_FUNCS
     ALL_GL_FUNCS
     ALL_GL_EXT_FUNCS
 #undef USE_GL_FUNC
@@ -135,11 +136,23 @@ struct egl_platform
     BOOL                 force_pbuffer_formats;
 
     /* filled by win32u after init_egl_platform */
-    EGLDisplay  display;
-    UINT        config_count;
-    EGLConfig  *configs;
-    BOOL        has_EGL_EXT_present_opaque;
-    BOOL        has_EGL_EXT_pixel_format_float;
+    EGLDeviceEXT         device;
+    EGLDisplay           display;
+    UINT                 config_count;
+    EGLConfig           *configs;
+    BOOL                 has_EGL_EXT_present_opaque;
+    BOOL                 has_EGL_EXT_pixel_format_float;
+
+    /* WGL_WINE_query_renderer info */
+    UINT                 device_id;
+    UINT                 vendor_id;
+    BOOL                 accelerated;
+    UINT                 version[3];
+    UINT                 core_version;
+    UINT                 compat_version;
+    UINT                 video_memory;
+    const char          *device_name;
+    const char          *vendor_name;
 };
 
 struct opengl_drawable_funcs
@@ -171,6 +184,7 @@ struct opengl_drawable
     EGLSurface                          surface;        /* surface for EGL based drivers */
     GLuint                              read_fbo;       /* default read FBO name when emulating framebuffer */
     GLuint                              draw_fbo;       /* default draw FBO name when emulating framebuffer */
+    GLenum                              buffer_map[GL_AUX3 - GL_FRONT_LEFT + 1]; /* buffer constants mapping */
 };
 
 static inline const char *debugstr_opengl_drawable( struct opengl_drawable *drawable )

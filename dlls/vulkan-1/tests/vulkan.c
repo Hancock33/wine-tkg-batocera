@@ -1124,9 +1124,8 @@ static void test_cross_process_resource(VkPhysicalDeviceIDPropertiesKHR *device_
                                                         kmt ? "kmt" : "nt", handle);
     res = CreateProcessA(NULL, buf, NULL, NULL, TRUE, 0L, NULL, NULL, &si, &info);
     ok(res, "CreateProcess failed: %lu\n", GetLastError());
-    CloseHandle(info.hThread);
 
-    wait_child_process(info.hProcess);
+    wait_child_process(&info);
 }
 
 static void import_memory(VkDevice vk_device, VkMemoryAllocateInfo alloc_info, VkExternalMemoryHandleTypeFlagBits handle_type, HANDLE handle)
@@ -1154,9 +1153,8 @@ static void import_memory(VkDevice vk_device, VkMemoryAllocateInfo alloc_info, V
         import_handle_info.name = L"wine_test_buffer_export_name";
 
         vr = vkAllocateMemory(vk_device, &alloc_info, NULL, &memory);
-        todo_wine ok(vr == VK_SUCCESS, "vkAllocateMemory failed, VkResult %d.\n", vr);
-        if (vr == VK_SUCCESS)
-            vkFreeMemory(vk_device, memory, NULL);
+        ok(vr == VK_SUCCESS, "vkAllocateMemory failed, VkResult %d.\n", vr);
+        vkFreeMemory(vk_device, memory, NULL);
     }
 }
 

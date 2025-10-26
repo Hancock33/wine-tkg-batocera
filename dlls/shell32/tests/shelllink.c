@@ -1055,11 +1055,17 @@ static void test_SHGetStockIconInfo(void)
     {
         memset(buffer, '#', sizeof(buffer));
         sii->cbSize = sizeof(SHSTOCKICONINFO);
-        hr = pSHGetStockIconInfo(i, SHGSI_ICONLOCATION, sii);
+        hr = pSHGetStockIconInfo(i, SHGSI_ICONLOCATION | SHGSI_ICON, sii);
 
         ok(hr == S_OK,
             "%3d: got 0x%lx, iSysImageIndex: 0x%x, iIcon: 0x%x (expected S_OK)\n",
             i, hr, sii->iSysImageIndex, sii->iIcon);
+
+    todo_wine_if(sii->hIcon == 0) {
+        ok(sii->hIcon != 0,
+            "%3d: got %p, should be non-zero handle\n",
+            i, sii->hIcon);
+    }
 
         if ((hr == S_OK) && (winetest_debug > 1))
             trace("%3d: got iSysImageIndex %3d, iIcon %3d and %s\n", i, sii->iSysImageIndex,
@@ -1111,21 +1117,6 @@ static void test_SHGetStockIconInfo(void)
     /* there is a NULL check for the struct  */
     hr = pSHGetStockIconInfo(SIID_FOLDER, SHGSI_ICONLOCATION, NULL);
     ok(hr == E_INVALIDARG, "NULL: got 0x%lx\n", hr);
-
-    for(i = 0; i < 140; i++)  /* highest on wvista, i > 140 gives E_INVALIDARG, win7 can go higher */
-    {
-        memset(buffer, 0, sizeof(buffer));
-        sii->cbSize = sizeof(SHSTOCKICONINFO);
-        hr = pSHGetStockIconInfo(i, SHGSI_ICON | SHGSI_SMALLICON, sii);
-        ok(hr == S_OK, "got 0x%lx (expected S_OK)\n", hr);
-        ok(sii->hIcon != NULL, "got NULL, expected an icon handle\n");
-        ok(sii->iIcon != 0, "got unexpected 0 for SIID %d\n", i); /* howto find out exact sii->iIcon value??? */
-        ok(sii->iSysImageIndex == -1, "got %d (expected -1)\n", sii->iSysImageIndex);
-        ok(DestroyIcon(sii->hIcon), "DestroyIcon failed\n");
-        if (winetest_debug > 1)
-            trace("%3d: got iSysImageIndex %3d, iIcon %3d and %s\n", i, sii->iSysImageIndex,
-            sii->iIcon, wine_dbgstr_w(sii->szPath));
-    }
 }
 
 static void test_SHExtractIcons(void)

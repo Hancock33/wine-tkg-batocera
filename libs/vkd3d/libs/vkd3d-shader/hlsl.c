@@ -393,6 +393,11 @@ bool hlsl_type_is_signed_integer(const struct hlsl_type *type)
     vkd3d_unreachable();
 }
 
+bool hlsl_type_is_unsigned_integer(const struct hlsl_type *type)
+{
+    return hlsl_type_is_integer(type) && !hlsl_type_is_signed_integer(type);
+}
+
 bool hlsl_type_is_integer(const struct hlsl_type *type)
 {
     VKD3D_ASSERT(hlsl_is_numeric_type(type));
@@ -2200,11 +2205,11 @@ static struct hlsl_ir_node *hlsl_new_resource_store(struct hlsl_ctx *ctx,
     return &store->node;
 }
 
-void hlsl_block_add_resource_store(struct hlsl_ctx *ctx, struct hlsl_block *block,
+struct hlsl_ir_node *hlsl_block_add_resource_store(struct hlsl_ctx *ctx, struct hlsl_block *block,
         enum hlsl_resource_store_type type, const struct hlsl_deref *resource, struct hlsl_ir_node *coords,
         struct hlsl_ir_node *value, uint32_t writemask, const struct vkd3d_shader_location *loc)
 {
-    append_new_instr(ctx, block, hlsl_new_resource_store(ctx, type, resource, coords, value, writemask, loc));
+    return append_new_instr(ctx, block, hlsl_new_resource_store(ctx, type, resource, coords, value, writemask, loc));
 }
 
 struct hlsl_ir_node *hlsl_new_swizzle(struct hlsl_ctx *ctx, uint32_t s, unsigned int component_count,
@@ -3724,8 +3729,11 @@ const char *debug_hlsl_expr_op(enum hlsl_ir_expr_op op)
         [HLSL_OP1_BIT_NOT]      = "~",
         [HLSL_OP1_CAST]         = "cast",
         [HLSL_OP1_CEIL]         = "ceil",
+        [HLSL_OP1_CLZ]          = "clz",
         [HLSL_OP1_COS]          = "cos",
         [HLSL_OP1_COS_REDUCED]  = "cos_reduced",
+        [HLSL_OP1_COUNTBITS]    = "countbits",
+        [HLSL_OP1_CTZ]          = "ctz",
         [HLSL_OP1_DSX]          = "dsx",
         [HLSL_OP1_DSX_COARSE]   = "dsx_coarse",
         [HLSL_OP1_DSX_FINE]     = "dsx_fine",
@@ -3735,6 +3743,7 @@ const char *debug_hlsl_expr_op(enum hlsl_ir_expr_op op)
         [HLSL_OP1_EXP2]         = "exp2",
         [HLSL_OP1_F16TOF32]     = "f16tof32",
         [HLSL_OP1_F32TOF16]     = "f32tof16",
+        [HLSL_OP1_FIND_MSB]     = "find_msb",
         [HLSL_OP1_FLOOR]        = "floor",
         [HLSL_OP1_FRACT]        = "fract",
         [HLSL_OP1_ISINF]        = "isinf",

@@ -1,7 +1,8 @@
 /*
- * MAC driver definitions
+ * Version file for Common Controls
  *
- * Copyright 2022 Jacek Caban for CodeWeavers
+ * Copyright 1999 Bertho Stultiens
+ * Copyright 1999 Eric Kohl
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,19 +19,11 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#ifndef __WINE_MACDRV_DLL_H
-#define __WINE_MACDRV_DLL_H
+#define WINE_FILEDESCRIPTION_STR "Wine Common Controls"
+#define WINE_FILENAME_STR "comctl32.dll"
+#define WINE_FILEVERSION 6,0,2600,2982
 
-#include <stdarg.h>
-#include "windef.h"
-#include "winbase.h"
-#include "ntgdi.h"
-#include "unixlib.h"
+#include "wine/wine_common_ver.rc"
 
-extern NTSTATUS WINAPI macdrv_dnd_query_drag(void *arg, ULONG size);
-extern NTSTATUS WINAPI macdrv_dnd_query_drop(void *arg, ULONG size);
-extern NTSTATUS WINAPI macdrv_dnd_query_exited(void *arg, ULONG size);
-
-extern HMODULE macdrv_module;
-
-#endif /* __WINE_MACDRV_DLL_H */
+/* @makedep: comctl32.manifest */
+WINE_MANIFEST RT_MANIFEST comctl32.manifest

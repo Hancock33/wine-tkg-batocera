@@ -2711,180 +2711,131 @@ static void test_MoveFile(void)
 
 static void test_MoveFolder(void)
 {
-    BSTR src, dst, str, empty;
-    WCHAR buffW1[MAX_PATH], buffW2[MAX_PATH], buffW3[MAX_PATH], pathW[MAX_PATH], srcW[MAX_PATH];
-    HRESULT hr;
+    WCHAR temp_path[MAX_PATH], cwd[MAX_PATH];
+    BSTR src, dst, empty;
     HANDLE file;
+    HRESULT hr;
+    BOOL ret;
 
-    get_temp_path(L"foo", buffW1);
-    get_temp_path(L"bar", buffW2);
+    GetCurrentDirectoryW(MAX_PATH, cwd);
+    GetTempPathW(MAX_PATH, temp_path);
+    SetCurrentDirectoryW(temp_path);
+    src = SysAllocString(L"winetest_src");
+    dst = SysAllocString(L"winetest_dst");
 
-    ok(CreateDirectoryW(buffW1, NULL), "CreateDirectory(%s) failed\n", wine_dbgstr_w(buffW1));
-    src = SysAllocString(buffW1);
-    dst = SysAllocString(buffW2);
+    ret = CreateDirectoryW(L"winetest_src", NULL);
+    ok(ret, "Got error %lu.\n", GetLastError());
     hr = IFileSystem3_MoveFolder(fs3, src, dst);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    SysFreeString(src);
-    SysFreeString(dst);
-    ok(RemoveDirectoryW(buffW2), "can't remove %s directory\n", wine_dbgstr_w(buffW2));
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+    hr = IFileSystem3_MoveFolder(fs3, src, dst);
+    ok(hr == CTL_E_PATHNOTFOUND, "Got hr %#lx.\n", hr);
+    ret = CreateDirectoryW(L"winetest_src", NULL);
+    ok(ret, "Got error %lu.\n", GetLastError());
+    hr = IFileSystem3_MoveFolder(fs3, src, dst);
+    ok(hr == CTL_E_FILEALREADYEXISTS, "Got hr %#lx.\n", hr);
+    ret = RemoveDirectoryW(L"winetest_dst");
+    ok(ret, "Got error %lu.\n", GetLastError());
+    ret = RemoveDirectoryW(L"winetest_src");
+    ok(ret, "Got error %lu.\n", GetLastError());
 
-    str = SysAllocString(L"null.dir");
     empty = SysAllocString(L"");
-    hr = IFileSystem3_MoveFolder(fs3, str, NULL);
-    ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
-    hr = IFileSystem3_MoveFolder(fs3, NULL, str);
-    ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
-    hr = IFileSystem3_MoveFolder(fs3, str, empty);
-    ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
-    hr = IFileSystem3_MoveFolder(fs3, empty, str);
-    ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
-    SysFreeString(str);
+    hr = IFileSystem3_MoveFolder(fs3, src, NULL);
+    ok(hr == E_INVALIDARG, "Got hr %#lx.\n", hr);
+    hr = IFileSystem3_MoveFolder(fs3, NULL, dst);
+    ok(hr == E_INVALIDARG, "Got hr %#lx.\n", hr);
+    hr = IFileSystem3_MoveFolder(fs3, src, empty);
+    ok(hr == E_INVALIDARG, "Got hr %#lx.\n", hr);
+    hr = IFileSystem3_MoveFolder(fs3, empty, dst);
+    ok(hr == E_INVALIDARG, "Got hr %#lx.\n", hr);
     SysFreeString(empty);
 
-    ok(CreateDirectoryW(buffW1, NULL), "CreateDirectory(%s) failed\n", wine_dbgstr_w(buffW1));
-    ok(CreateDirectoryW(buffW2, NULL), "CreateDirectory(%s) failed\n", wine_dbgstr_w(buffW2));
-    src = SysAllocString(buffW1);
-    dst = SysAllocString(buffW2);
-    hr = IFileSystem3_MoveFolder(fs3, src, dst); /* dst already exists */
-    ok(hr == CTL_E_FILEALREADYEXISTS, "Unexpected hr %#lx.\n", hr);
-    SysFreeString(src);
-    SysFreeString(dst);
-    ok(RemoveDirectoryW(buffW1), "can't remove %s directory\n", wine_dbgstr_w(buffW1));
-    ok(RemoveDirectoryW(buffW2), "can't remove %s directory\n", wine_dbgstr_w(buffW2));
+    file = CreateFileW(L"winetest_src", GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    ok(file != INVALID_HANDLE_VALUE, "Got error %lu.\n", GetLastError());
+    CloseHandle(file);
+    hr = IFileSystem3_MoveFolder(fs3, src, dst);
+    ok(hr == CTL_E_PATHNOTFOUND, "Got hr %#lx.\n", hr);
+    ret = DeleteFileW(L"winetest_src");
+    ok(ret, "Got error %lu.\n", GetLastError());
 
-    src = SysAllocString(buffW1);
-    dst = SysAllocString(buffW2);
-    hr = IFileSystem3_MoveFolder(fs3, src, dst); /* src nonexistant */
-    ok(hr == CTL_E_PATHNOTFOUND, "Unexpected hr %#lx.\n", hr);
-    SysFreeString(src);
-    SysFreeString(dst);
+    dst = SysAllocString(L"winetest_dst\\");
 
-    file = CreateFileW(buffW1, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
-                       FILE_ATTRIBUTE_NORMAL, NULL);
-    ok(file != INVALID_HANDLE_VALUE, "CreateFile failed\n");
+    ret = CreateDirectoryW(L"winetest_src", NULL);
+    ok(ret, "Got error %lu.\n", GetLastError());
+    hr = IFileSystem3_MoveFolder(fs3, src, dst);
+    ok(hr == CTL_E_PATHNOTFOUND, "Got hr %#lx.\n", hr);
+    ret = CreateDirectoryW(L"winetest_dst", NULL);
+    ok(ret, "Got error %lu.\n", GetLastError());
+    hr = IFileSystem3_MoveFolder(fs3, src, dst);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
+
+    ret = RemoveDirectoryW(L"winetest_dst\\winetest_src");
+    ok(ret, "Got error %lu.\n", GetLastError());
+    ret = RemoveDirectoryW(L"winetest_dst");
+    ok(ret, "Got error %lu.\n", GetLastError());
+
+    src = SysAllocString(L"winetest_src\\");
+    dst = SysAllocString(L"winetest_dst");
+
+    ret = CreateDirectoryW(L"winetest_src", NULL);
+    ok(ret, "Got error %lu.\n", GetLastError());
+    hr = IFileSystem3_MoveFolder(fs3, src, dst);
+    ok(hr == CTL_E_ILLEGALFUNCTIONCALL, "Got hr %#lx.\n", hr);
+    src = SysAllocString(L"winetest_src\\");
+    hr = IFileSystem3_MoveFolder(fs3, src, dst);
+    ok(hr == CTL_E_ILLEGALFUNCTIONCALL, "Got hr %#lx.\n", hr);
+
+    ret = RemoveDirectoryW(L"winetest_src");
+    ok(ret, "Got error %lu.\n", GetLastError());
+
+    ret = CreateDirectoryW(L"winetest_src1", NULL);
+    ok(ret, "Got error %lu.\n", GetLastError());
+    ret = CreateDirectoryW(L"winetest_src2", NULL);
+    ok(ret, "Got error %lu.\n", GetLastError());
+    file = CreateFileW(L"winetest_src3", GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    ok(file != INVALID_HANDLE_VALUE, "Got error %lu.\n", GetLastError());
     CloseHandle(file);
 
-    src = SysAllocString(buffW1);
-    dst = SysAllocString(buffW2);
-    hr = IFileSystem3_MoveFolder(fs3, src, dst); /* src is regular file */
-    ok(hr == CTL_E_PATHNOTFOUND, "Unexpected hr %#lx.\n", hr);
-    SysFreeString(src);
-    SysFreeString(dst);
-    DeleteFileW(buffW1);
-
-    GetTempPathW(MAX_PATH, buffW1);
-    lstrcatW(buffW1,L"foo");
-    GetTempPathW(MAX_PATH, buffW2);
-    lstrcatW(buffW2,L"bar");
-    ok(CreateDirectoryW(buffW1, NULL), "CreateDirectory(%s) failed\n", wine_dbgstr_w(buffW1));
-    ok(CreateDirectoryW(buffW2, NULL), "CreateDirectory(%s) failed\n", wine_dbgstr_w(buffW2));
-    lstrcpyW(pathW,buffW2);
-    lstrcatW(pathW,L"\\");
-    src = SysAllocString(buffW1);
-    dst = SysAllocString(pathW);
+    src = SysAllocString(L"winetest_src*");
     hr = IFileSystem3_MoveFolder(fs3, src, dst);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    SysFreeString(src);
-    SysFreeString(dst);
-    lstrcatW(pathW,L"foo");
-    ok(RemoveDirectoryW(pathW), "can't remove %s directory\n", wine_dbgstr_w(pathW));
-    ok(RemoveDirectoryW(buffW2), "can't remove %s directory\n", wine_dbgstr_w(buffW2));
-
-    GetTempPathW(MAX_PATH, buffW1);
-    lstrcatW(buffW1,L"foo");
-    GetTempPathW(MAX_PATH, buffW2);
-    lstrcatW(buffW2,L"bar");
-    ok(CreateDirectoryW(buffW1, NULL), "CreateDirectory(%s) failed\n", wine_dbgstr_w(buffW1));
-    ok(CreateDirectoryW(buffW2, NULL), "CreateDirectory(%s) failed\n", wine_dbgstr_w(buffW2));
-    lstrcpyW(pathW,buffW1);
-    lstrcatW(pathW,L"\\");
-    src = SysAllocString(pathW);
-    dst = SysAllocString(buffW2);
+    ok(hr == CTL_E_PATHNOTFOUND, "Got hr %#lx.\n", hr);
+    ret = CreateDirectoryW(L"winetest_dst", NULL);
+    ok(ret, "Got error %lu.\n", GetLastError());
     hr = IFileSystem3_MoveFolder(fs3, src, dst);
-    ok(hr == CTL_E_PATHNOTFOUND, "Unexpected hr %#lx.\n", hr);
-    SysFreeString(src);
-    SysFreeString(dst);
-    ok(RemoveDirectoryW(buffW1), "can't remove %s directory\n", wine_dbgstr_w(buffW1));
-    ok(RemoveDirectoryW(buffW2), "can't remove %s directory\n", wine_dbgstr_w(buffW2));
-
-    GetTempPathW(MAX_PATH, buffW1);
-    lstrcatW(buffW1,L"foo");
-    GetTempPathW(MAX_PATH, buffW2);
-    lstrcatW(buffW2,L"bar");
-    ok(CreateDirectoryW(buffW1, NULL), "CreateDirectory(%s) failed\n", wine_dbgstr_w(buffW1));
-    ok(CreateDirectoryW(buffW2, NULL), "CreateDirectory(%s) failed\n", wine_dbgstr_w(buffW2));
-    lstrcpyW(pathW,buffW2);
-    lstrcatW(pathW,L"/");
-    src = SysAllocString(buffW1);
-    dst = SysAllocString(pathW);
+    ok(hr == S_OK, "Got hr %#lx.\n", hr);
     hr = IFileSystem3_MoveFolder(fs3, src, dst);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    SysFreeString(src);
-    SysFreeString(dst);
-    lstrcatW(pathW,L"foo");
-    ok(RemoveDirectoryW(pathW), "can't remove %s directory\n", wine_dbgstr_w(pathW));
-    ok(RemoveDirectoryW(buffW2), "can't remove %s directory\n", wine_dbgstr_w(buffW2));
+    ok(hr == CTL_E_PATHNOTFOUND, "Got hr %#lx.\n", hr);
+    ret = RemoveDirectoryW(L"winetest_dst/winetest_src1");
+    ok(ret, "Got error %lu.\n", GetLastError());
+    ret = RemoveDirectoryW(L"winetest_dst/winetest_src2");
+    ok(ret, "Got error %lu.\n", GetLastError());
+    ret = RemoveDirectoryW(L"winetest_dst");
+    ok(ret, "Got error %lu.\n", GetLastError());
+    ret = DeleteFileW(L"winetest_src3");
+    ok(ret, "Got error %lu.\n", GetLastError());
 
-    GetTempPathW(MAX_PATH, buffW1);
-    lstrcatW(buffW1,L"foo1");
-    GetTempPathW(MAX_PATH, buffW2);
-    lstrcatW(buffW2,L"foo2");
-    GetTempPathW(MAX_PATH, buffW3);
-    lstrcatW(buffW3,L"foo3");
-    GetTempPathW(MAX_PATH, srcW);
-    lstrcatW(srcW,L"foo?");
-    GetTempPathW(MAX_PATH, pathW);
-    lstrcatW(pathW,L"bar");
-    ok(CreateDirectoryW(buffW1, NULL), "CreateDirectory(%s) failed\n", wine_dbgstr_w(buffW1));
-    ok(CreateDirectoryW(buffW2, NULL), "CreateDirectory(%s) failed\n", wine_dbgstr_w(buffW2));
-    ok(CreateDirectoryW(pathW, NULL), "CreateDirectory(%s) failed\n", wine_dbgstr_w(pathW));
-    /* create a file, should not be moved by MoveFolder() */
-    file = CreateFileW(buffW3, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
-                       FILE_ATTRIBUTE_NORMAL, NULL);
-    ok(file != INVALID_HANDLE_VALUE, "CreateFile failed\n");
-    CloseHandle(file);
-    src = SysAllocString(srcW);
-    dst = SysAllocString(pathW);
+    /* Fail to copy one file. */
+    ret = CreateDirectoryW(L"winetest_src1", NULL);
+    ok(ret, "Got error %lu.\n", GetLastError());
+    ret = CreateDirectoryW(L"winetest_src2", NULL);
+    ok(ret, "Got error %lu.\n", GetLastError());
+    ret = CreateDirectoryW(L"winetest_src3", NULL);
+    ok(ret, "Got error %lu.\n", GetLastError());
+    ret = CreateDirectoryW(L"winetest_dst", NULL);
+    ok(ret, "Got error %lu.\n", GetLastError());
+    ret = CreateDirectoryW(L"winetest_dst\\winetest_src2", NULL);
+    ok(ret, "Got error %lu.\n", GetLastError());
     hr = IFileSystem3_MoveFolder(fs3, src, dst);
-    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    SysFreeString(src);
-    SysFreeString(dst);
-    lstrcpyW(buffW1,pathW);
-    lstrcatW(buffW1,L"\\foo1");
-    lstrcpyW(buffW2,pathW);
-    lstrcatW(buffW2,L"\\foo2");
-    ok(RemoveDirectoryW(buffW1), "can't remove %s directory\n", wine_dbgstr_w(buffW1));
-    ok(RemoveDirectoryW(buffW2), "can't remove %s directory\n", wine_dbgstr_w(buffW2));
-    ok(RemoveDirectoryW(pathW), "can't remove %s directory\n", wine_dbgstr_w(pathW));
-    ok(DeleteFileW(buffW3), "can't remove %s\n", wine_dbgstr_w(buffW3));
-
-    GetTempPathW(MAX_PATH, buffW1);
-    lstrcatW(buffW1,L"foo1");
-    GetTempPathW(MAX_PATH, buffW2);
-    lstrcatW(buffW2,L"foo2");
-    GetTempPathW(MAX_PATH, srcW);
-    lstrcatW(srcW,L"foo*");
-    GetTempPathW(MAX_PATH, pathW);
-    lstrcatW(pathW,L"bar");
-    ok(CreateDirectoryW(pathW, NULL), "CreateDirectory(%s) failed\n", wine_dbgstr_w(pathW));
-    /* create two files, should not be moved by MoveFolder() */
-    file = CreateFileW(buffW1, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
-                       FILE_ATTRIBUTE_NORMAL, NULL);
-    ok(file != INVALID_HANDLE_VALUE, "CreateFile failed\n");
-    CloseHandle(file);
-    file = CreateFileW(buffW2, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
-                       FILE_ATTRIBUTE_NORMAL, NULL);
-    ok(file != INVALID_HANDLE_VALUE, "CreateFile failed\n");
-    CloseHandle(file);
-    src = SysAllocString(srcW);
-    dst = SysAllocString(pathW);
-    hr = IFileSystem3_MoveFolder(fs3, src, dst);
-    ok(hr == CTL_E_PATHNOTFOUND, "Unexpected hr %#lx.\n", hr);
-    SysFreeString(src);
-    SysFreeString(dst);
-    ok(RemoveDirectoryW(pathW), "can't remove %s directory\n", wine_dbgstr_w(pathW));
-    ok(DeleteFileW(buffW1), "can't remove %s\n", wine_dbgstr_w(buffW1));
-    ok(DeleteFileW(buffW2), "can't remove %s\n", wine_dbgstr_w(buffW2));
+    ok(hr == CTL_E_FILEALREADYEXISTS, "Got hr %#lx.\n", hr);
+    ret = RemoveDirectoryW(L"winetest_dst/winetest_src1");
+    ok(ret, "Got error %lu.\n", GetLastError());
+    ret = RemoveDirectoryW(L"winetest_dst/winetest_src2");
+    ok(ret, "Got error %lu.\n", GetLastError());
+    ret = RemoveDirectoryW(L"winetest_dst");
+    ok(ret, "Got error %lu.\n", GetLastError());
+    ret = RemoveDirectoryW(L"winetest_src2");
+    ok(ret, "Got error %lu.\n", GetLastError());
+    ret = RemoveDirectoryW(L"winetest_src3");
+    ok(ret, "Got error %lu.\n", GetLastError());
 }
 
 static void test_DoOpenPipeStream(void)

@@ -1021,118 +1021,108 @@ INT WINAPI SHGetIconOverlayIndexW(LPCWSTR pszIconPath, INT iIconIndex)
   return -1;
 }
 
-/****************************************************************************
- * For SHGetStockIconInfo
- */
-typedef struct {
-    SHSTOCKICONID id;
-    DWORD iconid;
-} SI_ENTRY;
-
-static const SI_ENTRY si_table[] =
+static INT stock_icon_id_to_resource_id(SHSTOCKICONID id)
 {
-    [0]   = { SIID_DOCNOASSOC, IDI_SHELL_FILE},
-    [1]   = { SIID_DOCASSOC, IDI_SHELL_DOCUMENT},
-    [2]   = { SIID_APPLICATION, IDI_SHELL_WINDOW},
-    [3]   = { SIID_FOLDER, IDI_SHELL_FOLDER},
-    [4]   = { SIID_FOLDEROPEN, IDI_SHELL_FOLDER_OPEN},
-    [5]   = { SIID_DRIVE525, 0},
-    [6]   = { SIID_DRIVE35, 0},
-    [7]   = { SIID_DRIVERREMOVE, 0},
-    [8]   = { SIID_DRIVERFIXED, IDI_SHELL_DRIVE},
-    [9]   = { SIID_DRIVERNET, IDI_SHELL_NETDRIVE},
-    [10]  = { SIID_DRIVERNETDISABLE, IDI_SHELL_NETDRIVE2},
-    [11]  = { SIID_DRIVERCD, IDI_SHELL_OPTICAL_DRIVE},
-    [12]  = { SIID_DRIVERRAM, IDI_SHELL_RAMDISK},
-    [13]  = { SIID_WORLD, 0},
-    /* Missing: 14 */
-    [15]  = { SIID_SERVER, 0},
-    [16]  = { SIID_PRINTER, IDI_SHELL_PRINT},
-    [17]  = { SIID_MYNETWORK, 0},
-    /* Missing: 18 - 21 */
-    [22]  = { SIID_FIND, 0},
-    [23]  = { SIID_HELP, IDI_SHELL_HELP},
-    /* Missing: 24 - 27 */
-    [28]  = {SIID_SHARE, 0},
-    [29]  = {SIID_LINK, 0},
-    [30]  = {SIID_SLOWFILE, 0},
-    [31]  = {SIID_RECYCLER, IDI_SHELL_TRASH_FOLDER},
-    [32]  = {SIID_RECYCLERFULL, IDI_SHELL_FULL_RECYCLE_BIN},
-    /* Missing: 33 - 39 */
-    [40]  = {SIID_MEDIACDAUDIO, 0},
-    /* Missing: 41 - 46 */
-    [47]  = {SIID_LOCK, IDI_SHELL_PASSWORDS},
-    /* Missing: 48 */
-    [49]  = {SIID_AUTOLIST, 0},
-    [50]  = {SIID_PRINTERNET, 0},
-    [51]  = {SIID_SERVERSHARE, 0},
-    [52]  = {SIID_PRINTERFAX, 0},
-    [53]  = {SIID_PRINTERFAXNET, 0},
-    [54]  = {SIID_PRINTERFILE, 0},
-    [55]  = {SIID_STACK, 0},
-    [56]  = {SIID_MEDIASVCD, 0},
-    [57]  = {SIID_STUFFEDFOLDER, 0},
-    [58]  = {SIID_DRIVEUNKNOWN, 0},
-    [59]  = {SIID_DRIVEDVD, 0},
-    [60]  = {SIID_MEDIADVD, 0},
-    [61]  = {SIID_MEDIADVDRAM, 0},
-    [62]  = {SIID_MEDIADVDRW, 0},
-    [63]  = {SIID_MEDIADVDR, 0},
-    [64]  = {SIID_MEDIADVDROM, 0},
-    [65]  = {SIID_MEDIACDAUDIOPLUS, 0},
-    [66]  = {SIID_MEDIACDRW, 0},
-    [67]  = {SIID_MEDIACDR, 0},
-    [68]  = {SIID_MEDIACDBURN, 0},
-    [69]  = {SIID_MEDIABLANKCD, 0},
-    [70]  = {SIID_MEDIACDROM, 0},
-    [71]  = {SIID_AUDIOFILES, IDI_SHELL_AUDIO_FILE},
-    [72]  = {SIID_IMAGEFILES, IDI_SHELL_IMAGE_FILE},
-    [73]  = {SIID_VIDEOFILES, IDI_SHELL_VIDEO_FILE},
-    [74]  = {SIID_MIXEDFILES, 0},
-    [75]  = {SIID_FOLDERBACK, 0},
-    [76]  = {SIID_FOLDERFRONT, 0},
-    [77]  = {SIID_SHIELD, 0},
-    [78]  = {SIID_WARNING, 0},
-    [79]  = {SIID_INFO, 0},
-    [80]  = {SIID_ERROR, 0},
-    [81]  = {SIID_KEY, 0},
-    [82]  = {SIID_SOFTWARE, 0},
-    [83]  = {SIID_RENAME, IDI_SHELL_RENAME},
-    [84]  = {SIID_DELETE, IDI_SHELL_CONFIRM_DELETE},
-    [85]  = {SIID_MEDIAAUDIODVD, 0},
-    [86]  = {SIID_MEDIAMOVIEDVD, 0},
-    [87]  = {SIID_MEDIAENHANCEDCD, 0},
-    [88]  = {SIID_MEDIAENHANCEDDVD, 0},
-    [89]  = {SIID_MEDIAHDDVD, 0},
-    [90]  = {SIID_MEDIABLUERAY, 0},
-    [91]  = {SIID_MEDIAVCD, 0},
-    [92]  = {SIID_MEDIADVDPLUSR, 0},
-    [93]  = {SIID_MEDIADVDPLUSRW, 0},
-    [94]  = {SIID_DESKTOPPC, IDI_SHELL_MY_COMPUTER},
-    [95]  = {SIID_MOBILEPC, 0},
-    [96]  = {SIID_USERS, IDI_SHELL_USERS},
-    [97]  = {SIID_MEDIASMARTMEDIA, 0},
-    [98]  = {SIID_MEDIACOMPACTFLASH, 0},
-    [99]  = {SIID_DEVICECELLPHONE, 0},
-    [100] = {SIID_DEVICECAMERA, 0},
-    [101] = {SIID_DEVICEVIDEOCAMERA, 0},
-    [102] = {SIID_DEVICEAUDIOPLAYER, 0},
-    [103] = {SIID_NETWORKCONNECT, 0},
-    [104] = {SIID_INTERNET, IDI_SHELL_WEB_BROWSER},
-    [105] = {SIID_ZIPFILE, 0},
-    [106] = {SIID_SETTINGS, IDI_SHELL_SETTINGS},
-    /* Missing: 107 - 131 */
-    [132] = {SIID_DRIVEHDDVD, 0},
-    [133] = {SIID_DRIVEBD, 0},
-    [134] = {SIID_MEDIAHDDVDROM, 0},
-    [135] = {SIID_MEDIAHDDVDR, 0},
-    [136] = {SIID_MEDIAHDDVDRAM, 0},
-    [137] = {SIID_MEDIABDROM, 0},
-    [138] = {SIID_MEDIABDR, 0},
-    [139] = {SIID_MEDIABDRE, 0},
-    [140] = {SIID_CLUSTEREDDRIVE, 0}
-    /* Missing: 141 - 180  and  SIID_MAX_ICONS = 181*/
- };
+  switch(id)
+  {
+#define MISSING_ICON(x) case x : FIXME("Missing stock icon %s\n", #x); return -1
+    case SIID_DOCNOASSOC:         return IDI_SHELL_FILE;
+    case SIID_DOCASSOC:           return IDI_SHELL_DOCUMENT;
+    case SIID_APPLICATION:        return IDI_SHELL_WINDOW;
+    case SIID_FOLDER:             return IDI_SHELL_FOLDER;
+    case SIID_FOLDEROPEN:         return IDI_SHELL_FOLDER_OPEN;
+    case SIID_DRIVE525:           return IDI_SHELL_5_12_FLOPPY;
+    case SIID_DRIVE35:            return IDI_SHELL_3_14_FLOPPY;
+    case SIID_DRIVERREMOVE:       return IDI_SHELL_FLOPPY;
+    case SIID_DRIVERFIXED:        return IDI_SHELL_DRIVE;
+    case SIID_DRIVERNET:          return IDI_SHELL_NETDRIVE;
+    case SIID_DRIVERNETDISABLE:   return IDI_SHELL_NETDRIVE2;
+    case SIID_DRIVERCD:           return IDI_SHELL_OPTICAL_DRIVE;
+    case SIID_DRIVERRAM:          return IDI_SHELL_RAMDISK;
+    case SIID_WORLD:              return IDI_SHELL_ENTIRE_NETWORK;
+    case SIID_SERVER:             return IDI_SHELL_MY_COMPUTER;
+    case SIID_PRINTER:            return IDI_SHELL_PRINTER;
+    case SIID_MYNETWORK:          return IDI_SHELL_MY_NETWORK_PLACES;
+    case SIID_FIND:               return IDI_SHELL_SEARCH;
+    case SIID_HELP:               return IDI_SHELL_HELP;
+    MISSING_ICON(SIID_SHARE);
+    case SIID_LINK:               return IDI_SHELL_SHORTCUT;
+    MISSING_ICON(SIID_SLOWFILE);
+    case SIID_RECYCLER:           return IDI_SHELL_EMPTY_RECYCLE_BIN;
+    case SIID_RECYCLERFULL:       return IDI_SHELL_FULL_RECYCLE_BIN;
+    case SIID_MEDIACDAUDIO:       return IDI_SHELL_MUSIC_CD;
+    case SIID_LOCK:               return IDI_SHELL_SECURITY;
+    MISSING_ICON(SIID_AUTOLIST);
+    case SIID_PRINTERNET:         return IDI_SHELL_REMOTE_PRINTER;
+    MISSING_ICON(SIID_SERVERSHARE);
+    case SIID_PRINTERFAX:         return IDI_SHELL_PRINTER;
+    MISSING_ICON(SIID_PRINTERFAXNET);
+    MISSING_ICON(SIID_PRINTERFILE);
+    MISSING_ICON(SIID_STACK);
+    MISSING_ICON(SIID_MEDIASVCD);
+    MISSING_ICON(SIID_STUFFEDFOLDER);
+    case SIID_DRIVEUNKNOWN:       return IDI_SHELL_UNKNOWN_DRIVE;
+    MISSING_ICON(SIID_DRIVEDVD);
+    MISSING_ICON(SIID_MEDIADVD);
+    MISSING_ICON(SIID_MEDIADVDRAM);
+    MISSING_ICON(SIID_MEDIADVDRW);
+    MISSING_ICON(SIID_MEDIADVDR);
+    MISSING_ICON(SIID_MEDIADVDROM);
+    MISSING_ICON(SIID_MEDIACDAUDIOPLUS);
+    MISSING_ICON(SIID_MEDIACDRW);
+    MISSING_ICON(SIID_MEDIACDR);
+    MISSING_ICON(SIID_MEDIACDBURN);
+    MISSING_ICON(SIID_MEDIABLANKCD);
+    MISSING_ICON(SIID_MEDIACDROM);
+    MISSING_ICON(SIID_AUDIOFILES);
+    MISSING_ICON(SIID_IMAGEFILES);
+    MISSING_ICON(SIID_VIDEOFILES);
+    MISSING_ICON(SIID_MIXEDFILES);
+    MISSING_ICON(SIID_FOLDERBACK);
+    MISSING_ICON(SIID_FOLDERFRONT);
+    case SIID_SHIELD:             return IDI_SHELL_SHIELD;
+    MISSING_ICON(SIID_WARNING);
+    MISSING_ICON(SIID_INFO);
+    case SIID_ERROR:              return IDI_SHELL_RESTRICTED;
+    MISSING_ICON(SIID_KEY);
+    MISSING_ICON(SIID_SOFTWARE);
+    case SIID_RENAME:             return IDI_SHELL_RENAME;
+    case SIID_DELETE:             return IDI_SHELL_DELETE;
+    MISSING_ICON(SIID_MEDIAAUDIODVD);
+    MISSING_ICON(SIID_MEDIAMOVIEDVD);
+    MISSING_ICON(SIID_MEDIAENHANCEDCD);
+    MISSING_ICON(SIID_MEDIAENHANCEDDVD);
+    MISSING_ICON(SIID_MEDIAHDDVD);
+    MISSING_ICON(SIID_MEDIABLUERAY);
+    MISSING_ICON(SIID_MEDIAVCD);
+    MISSING_ICON(SIID_MEDIADVDPLUSR);
+    MISSING_ICON(SIID_MEDIADVDPLUSRW);
+    MISSING_ICON(SIID_DESKTOPPC);
+    MISSING_ICON(SIID_MOBILEPC);
+    case SIID_USERS:              return IDI_SHELL_USERS;
+    MISSING_ICON(SIID_MEDIASMARTMEDIA);
+    MISSING_ICON(SIID_MEDIACOMPACTFLASH);
+    MISSING_ICON(SIID_DEVICECELLPHONE);
+    MISSING_ICON(SIID_DEVICECAMERA);
+    MISSING_ICON(SIID_DEVICEVIDEOCAMERA);
+    MISSING_ICON(SIID_DEVICEAUDIOPLAYER);
+    MISSING_ICON(SIID_NETWORKCONNECT);
+    case SIID_INTERNET:           return IDI_SHELL_ENTIRE_NETWORK;
+    MISSING_ICON(SIID_ZIPFILE);
+    case SIID_SETTINGS:           return IDI_SHELL_SETTINGS;
+    MISSING_ICON(SIID_DRIVEHDDVD);
+    MISSING_ICON(SIID_DRIVEBD);
+    MISSING_ICON(SIID_MEDIAHDDVDROM);
+    MISSING_ICON(SIID_MEDIAHDDVDR);
+    MISSING_ICON(SIID_MEDIAHDDVDRAM);
+    MISSING_ICON(SIID_MEDIABDROM);
+    MISSING_ICON(SIID_MEDIABDR);
+    MISSING_ICON(SIID_MEDIABDRE);
+    MISSING_ICON(SIID_CLUSTEREDDRIVE);
+    default: FIXME("Undefined stock icon id %d\n", id); return -1;
+#undef MISSING_ICON
+  }
+}
 
 /****************************************************************************
  * SHGetStockIconInfo [SHELL32.@]
@@ -1151,53 +1141,24 @@ static const SI_ENTRY si_table[] =
  */
 HRESULT WINAPI SHGetStockIconInfo(SHSTOCKICONID id, UINT flags, SHSTOCKICONINFO *sii)
 {
-    HMODULE hmod;
-
-    TRACE("(%d, 0x%x, %p)\n", id, flags, sii);
-
+    FIXME("(%d, 0x%x, %p) semi-stub\n", id, flags, sii);
     if ((id < 0) || (id >= SIID_MAX_ICONS) || !sii || (sii->cbSize != sizeof(SHSTOCKICONINFO))) {
         return E_INVALIDARG;
     }
 
     GetSystemDirectoryW(sii->szPath, MAX_PATH);
+
+    /* no icons defined: use default */
+    sii->iIcon = -IDI_SHELL_FILE;
     lstrcatW(sii->szPath, L"\\shell32.dll");
+
+    if (flags & ~SHGSI_ICON)
+        FIXME("flags 0x%x not implemented\n", flags);
 
     sii->hIcon = NULL;
     if (flags & SHGSI_ICON)
-        sii->hIcon = LoadIconW(GetModuleHandleW(sii->szPath), MAKEINTRESOURCEW(sii->iIcon));
+        sii->hIcon = LoadIconW(GetModuleHandleW(sii->szPath), MAKEINTRESOURCEW(stock_icon_id_to_resource_id(id)));
     sii->iSysImageIndex = -1;
-
-    /* this is not how windows does it, on windows picked mostly from imageres.dll !*/
-    if (si_table[id].iconid)
-        sii->iIcon = sii->iSysImageIndex - si_table[id].id;
-    else
-    {
-        FIXME("Couldn`t find SIID %d, returning default values (IDI_SHELL_FILE)\n", id);
-        sii->iIcon = sii->iSysImageIndex - IDI_SHELL_FILE;
-    }
-
-    if (flags & SHGSI_ICON)
-    {
-        flags &= ~SHGSI_ICON;
-
-        hmod = GetModuleHandleW(L"shell32.dll");
-        if (hmod)
-        {
-            if (si_table[id].iconid)
-                sii->hIcon = LoadIconW(hmod, MAKEINTRESOURCEW(si_table[id].iconid));
-            else
-                sii->hIcon = LoadIconW(hmod, MAKEINTRESOURCEW(IDI_SHELL_FILE));
-        }
-
-        if (!sii->hIcon)
-        {
-            ERR("failed to get an icon handle\n");
-            return E_INVALIDARG;
-        }
-    }
-
-    if (flags)
-        FIXME("flags 0x%x not implemented\n", flags);
 
     TRACE("%3d: returning %s (%d)\n", id, debugstr_w(sii->szPath), sii->iIcon);
 

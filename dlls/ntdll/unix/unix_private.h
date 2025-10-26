@@ -108,6 +108,7 @@ struct ntdll_thread_data
     int                       request_fd;    /* fd for sending server requests */
     int                       reply_fd;      /* fd for receiving server replies */
     int                       wait_fd[2];    /* fd for sleeping server requests */
+    int                       alert_fd;      /* inproc sync fd for user apc alerts */
     BOOL                      allow_writes;  /* ThreadAllowWrites flags */
     pthread_t                 pthread_id;    /* pthread thread id */
     void                     *kernel_stack;  /* stack for thread startup and kernel syscalls */
@@ -212,9 +213,9 @@ extern void *create_startup_info( const UNICODE_STRING *nt_image, ULONG process_
 extern char **build_envp( const WCHAR *envW );
 extern char *get_alternate_wineloader( WORD machine );
 extern NTSTATUS exec_wineloader( char **argv, int socketfd, const struct pe_image_info *pe_info );
-extern NTSTATUS load_builtin( const struct pe_image_info *image_info, WCHAR *filename, USHORT machine,
-                              SECTION_IMAGE_INFORMATION *info, void **module, SIZE_T *size,
-                              ULONG_PTR limit_low, ULONG_PTR limit_high );
+extern NTSTATUS load_builtin( const struct pe_image_info *image_info, UNICODE_STRING *nt_name,
+                              ANSI_STRING *exp_name, USHORT machine, SECTION_IMAGE_INFORMATION *info,
+                              void **module, SIZE_T *size, ULONG_PTR limit_low, ULONG_PTR limit_high );
 extern BOOL is_builtin_path( const UNICODE_STRING *path, WORD *machine );
 extern NTSTATUS load_main_exe( UNICODE_STRING *nt_name, USHORT load_machine, void **module );
 extern NTSTATUS load_start_exe( UNICODE_STRING *nt_name, void **module );
@@ -228,11 +229,11 @@ extern unsigned int server_select( const union select_op *select_op, data_size_t
                                    timeout_t abs_timeout, struct context_data *context, struct user_apc *user_apc );
 extern unsigned int server_wait( const union select_op *select_op, data_size_t size, UINT flags,
                                  const LARGE_INTEGER *timeout );
+extern unsigned int server_wait_for_object( HANDLE handle, BOOL alertable, const LARGE_INTEGER *timeout );
 extern unsigned int server_queue_process_apc( HANDLE process, const union apc_call *call,
                                               union apc_result *result );
 extern int server_get_unix_fd( HANDLE handle, unsigned int wanted_access, int *unix_fd,
                                int *needs_close, enum server_fd_type *type, unsigned int *options );
-extern void wine_server_send_fd( int fd );
 extern int wine_server_receive_fd( obj_handle_t *handle );
 extern void process_exit_wrapper( int status ) DECLSPEC_NORETURN;
 extern size_t server_init_process(void);
@@ -389,6 +390,8 @@ extern NTSTATUS wow64_wine_spawnvp( void *args );
 
 extern void dbg_init(void);
 
+extern void close_inproc_sync( HANDLE handle );
+
 extern NTSTATUS call_user_apc_dispatcher( CONTEXT *context_ptr, unsigned int flags, ULONG_PTR arg1, ULONG_PTR arg2,
                                           ULONG_PTR arg3, PNTAPCFUNC func, NTSTATUS status );
 extern NTSTATUS call_user_exception_dispatcher( EXCEPTION_RECORD *rec, CONTEXT *context );
@@ -397,6 +400,7 @@ extern void call_raise_user_exception_dispatcher(void);
 #define IMAGE_DLLCHARACTERISTICS_PREFER_NATIVE 0x0010 /* Wine extension */
 
 #define TICKSPERSEC 10000000
+#define NSECPERSEC 1000000000
 #define SECS_1601_TO_1970  ((369 * 365 + 89) * (ULONGLONG)86400)
 
 static inline ULONGLONG ticks_from_time_t( time_t time )
@@ -468,7 +472,7 @@ static inline struct async_data server_async( HANDLE handle, struct async_fileio
 
 static inline NTSTATUS wait_async( HANDLE handle, BOOL alertable )
 {
-    return NtWaitForSingleObject( handle, alertable, NULL );
+    return server_wait_for_object( handle, alertable, NULL );
 }
 
 static inline BOOL in_wow64_call(void)

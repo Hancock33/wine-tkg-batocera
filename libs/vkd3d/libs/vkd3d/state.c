@@ -843,7 +843,7 @@ static struct vk_binding_array *d3d12_root_signature_vk_binding_array_for_type(
         {
             if (!context->static_samplers_descriptor_set)
             {
-                if (!context->push_descriptor && context->root_descriptor_set)
+                if (!root_signature->device->vk_info.KHR_push_descriptor && context->root_descriptor_set)
                     context->static_samplers_descriptor_set = context->root_descriptor_set;
                 else
                     /* The descriptor type is irrelevant here, it will never be used. */

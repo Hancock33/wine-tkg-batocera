@@ -564,7 +564,7 @@ static void stb__CompressAlphaBlock(unsigned char *dest,unsigned char *src, int 
    dest += 2;
 
    /*
-    * Wine specific optimization to more closely match Windows behavior: If
+    * Wine specific tweak to more closely match native behavior: If
     * max is equal to minimum, just set all bits to 0 (which means the value
     * is the value of max in this case).
     */

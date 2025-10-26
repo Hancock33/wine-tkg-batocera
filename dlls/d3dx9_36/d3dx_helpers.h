@@ -440,10 +440,7 @@ struct d3dx_buffer_wrapper
 HRESULT d3dx_save_pixels_to_memory(struct d3dx_pixels *src_pixels, const struct pixel_format_desc *src_fmt_desc,
         enum d3dx_image_file_format file_format, const struct d3dx_buffer_wrapper *wrapper, struct d3dx_buffer *dst_buffer);
 
-/*
- * Structure that is able to be cast to D3D10_SUBRESOURCE_DATA and
- * D3D11_SUBRESOURCE_DATA.
- */
+/* Compatible with D3D10_SUBRESOURCE_DATA and D3D11_SUBRESOURCE_DATA. */
 struct d3dx_subresource_data
 {
     const void *data;

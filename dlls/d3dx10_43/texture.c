@@ -23,6 +23,7 @@
 #include "d3d10_1.h"
 #include "d3dx10.h"
 #include "dxhelpers.h"
+#include <assert.h>
 
 WINE_DEFAULT_DEBUG_CHANNEL(d3dx);
 
@@ -636,9 +637,9 @@ void init_load_info(const D3DX10_IMAGE_LOAD_INFO *load_info, D3DX10_IMAGE_LOAD_I
 HRESULT load_texture_data(const void *data, SIZE_T size, D3DX10_IMAGE_LOAD_INFO *load_info,
         D3D10_SUBRESOURCE_DATA **resource_data)
 {
+    uint32_t loaded_mip_level_count, max_mip_level_count;
     const struct pixel_format_desc *fmt_desc, *src_desc;
     struct d3dx_subresource_data *sub_rsrcs = NULL;
-    uint32_t loaded_mip_levels, max_mip_levels;
     D3DX10_IMAGE_INFO img_info;
     struct d3dx_image image;
     unsigned int i, j;
@@ -649,7 +650,7 @@ HRESULT load_texture_data(const void *data, SIZE_T size, D3DX10_IMAGE_LOAD_INFO 
 
     *resource_data = NULL;
     if (!load_info->Filter || load_info->Filter == D3DX10_DEFAULT)
-        load_info->Filter = D3DX10_FILTER_TRIANGLE | D3DX10_FILTER_DITHER;
+        load_info->Filter = D3DX10_FILTER_LINEAR;
     if (FAILED(hr = d3dx_validate_filter(load_info->Filter)))
     {
         ERR("Invalid filter argument %#x.\n", load_info->Filter);
@@ -676,7 +677,7 @@ HRESULT load_texture_data(const void *data, SIZE_T size, D3DX10_IMAGE_LOAD_INFO 
         goto end;
     }
 
-    if (load_info->FirstMipLevel == D3DX10_DEFAULT || (load_info->FirstMipLevel >= img_info.MipLevels))
+    if (load_info->FirstMipLevel == D3DX10_DEFAULT || load_info->FirstMipLevel >= img_info.MipLevels)
         load_info->FirstMipLevel = 0;
 
     if (load_info->Format == D3DX10_DEFAULT || load_info->Format == DXGI_FORMAT_FROM_FILE)
@@ -699,15 +700,15 @@ HRESULT load_texture_data(const void *data, SIZE_T size, D3DX10_IMAGE_LOAD_INFO 
 
     if ((load_info->Depth > 1) && (img_info.ResourceDimension != D3D10_RESOURCE_DIMENSION_TEXTURE3D))
     {
-        ERR("Invalid depth value %u for image with dimension %d.\n", load_info->Depth, img_info.ResourceDimension);
+        WARN("Invalid depth value %u for image with dimension %d.\n", load_info->Depth, img_info.ResourceDimension);
         hr = E_FAIL;
         goto end;
     }
 
-    max_mip_levels = d3dx_get_max_mip_levels_for_size(load_info->Width, load_info->Height, load_info->Depth);
+    max_mip_level_count = d3dx_get_max_mip_levels_for_size(load_info->Width, load_info->Height, load_info->Depth);
     if (!load_info->MipLevels || load_info->MipLevels == D3DX10_DEFAULT || load_info->MipLevels == D3DX10_FROM_FILE)
-        load_info->MipLevels = (load_info->MipLevels == D3DX10_FROM_FILE) ? img_info.MipLevels : max_mip_levels;
-    load_info->MipLevels = min(max_mip_levels, load_info->MipLevels);
+        load_info->MipLevels = (load_info->MipLevels == D3DX10_FROM_FILE) ? img_info.MipLevels : max_mip_level_count;
+    load_info->MipLevels = min(max_mip_level_count, load_info->MipLevels);
 
     hr = d3dx_create_subresource_data_for_texture(load_info->Width, load_info->Height, load_info->Depth,
             load_info->MipLevels, img_info.ArraySize, fmt_desc, &sub_rsrcs);
@@ -715,12 +716,12 @@ HRESULT load_texture_data(const void *data, SIZE_T size, D3DX10_IMAGE_LOAD_INFO 
         goto end;
 
     src_desc = get_d3dx_pixel_format_info(image.format);
-    loaded_mip_levels = min((img_info.MipLevels - load_info->FirstMipLevel), load_info->MipLevels);
+    loaded_mip_level_count = min(img_info.MipLevels - load_info->FirstMipLevel, load_info->MipLevels);
     for (i = 0; i < img_info.ArraySize; ++i)
     {
         struct volume dst_size = { load_info->Width, load_info->Height, load_info->Depth };
 
-        for (j = 0; j < loaded_mip_levels; ++j)
+        for (j = 0; j < loaded_mip_level_count; ++j)
         {
             struct d3dx_subresource_data *sub_rsrc = &sub_rsrcs[i * load_info->MipLevels + j];
             const RECT unaligned_rect = { 0, 0, dst_size.width, dst_size.height };
@@ -741,10 +742,10 @@ HRESULT load_texture_data(const void *data, SIZE_T size, D3DX10_IMAGE_LOAD_INFO 
         }
     }
 
-    if (loaded_mip_levels < load_info->MipLevels)
+    if (loaded_mip_level_count < load_info->MipLevels)
     {
         struct volume base_level_size = { load_info->Width, load_info->Height, load_info->Depth };
-        const uint32_t base_level = loaded_mip_levels - 1;
+        const uint32_t base_level = loaded_mip_level_count - 1;
 
         if (!load_info->MipFilter || load_info->MipFilter == D3DX10_DEFAULT)
             load_info->MipFilter = D3DX10_FILTER_LINEAR;
@@ -792,8 +793,12 @@ HRESULT load_texture_data(const void *data, SIZE_T size, D3DX10_IMAGE_LOAD_INFO 
     load_info->CpuAccessFlags = (load_info->CpuAccessFlags == D3DX10_DEFAULT) ? 0 : load_info->CpuAccessFlags;
     load_info->MiscFlags = (load_info->MiscFlags == D3DX10_DEFAULT) ? 0 : load_info->MiscFlags;
     load_info->MiscFlags |= img_info.MiscFlags;
-    if (load_info->pSrcInfo)
-        *load_info->pSrcInfo = img_info;
+    /*
+     * Must be present in order to get resource dimension for texture
+     * creation.
+     */
+    assert(load_info->pSrcInfo);
+    *load_info->pSrcInfo = img_info;
 
 end:
     d3dx_image_cleanup(&image);

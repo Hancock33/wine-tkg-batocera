@@ -21,7 +21,6 @@
 #include "config.h"
 
 #define GL_SILENCE_DEPRECATION
-#import <Carbon/Carbon.h>
 #import <CoreVideo/CoreVideo.h>
 #import <Metal/Metal.h>
 #import <QuartzCore/QuartzCore.h>
@@ -2776,6 +2775,53 @@ static CVReturn WineDisplayLinkCallback(CVDisplayLinkRef displayLink, const CVTi
         ignore_windowResize = FALSE;
     }
 
+    - (void) setMask:(CGRect)rect
+    {
+        /* Draw black bars to cover every part of the window except for 'rect'.
+         * Intended for use on a window covering the full screen.
+         */
+        if (CGRectIsEmpty(rect))
+        {
+            [[[self.contentView.layer sublayers] firstObject] removeFromSuperlayer];
+            return;
+        }
+
+        CAShapeLayer *shapeLayer = [CAShapeLayer layer];
+        shapeLayer.bounds = self.contentView.layer.bounds;
+        shapeLayer.position = self.contentView.layer.position;
+        shapeLayer.geometryFlipped = self.contentView.layer.geometryFlipped;
+        shapeLayer.anchorPoint = self.contentView.layer.anchorPoint;
+        shapeLayer.fillColor = CGColorGetConstantColor(kCGColorBlack);
+
+        CGMutablePathRef path = CGPathCreateMutable();
+        /* left/right */
+        if (rect.origin.x > 0.0)
+            CGPathAddRect(path, NULL, CGRectMake(0, 0, rect.origin.x, shapeLayer.bounds.size.height));
+        if (rect.origin.x + rect.size.width < shapeLayer.bounds.size.width)
+            CGPathAddRect(path, NULL, CGRectMake(rect.origin.x + rect.size.width,
+                                                 0,
+                                                 shapeLayer.bounds.size.width - (rect.origin.x + rect.size.width),
+                                                 shapeLayer.bounds.size.height));
+
+        /* top/bottom */
+        if (rect.origin.y > 0.0)
+            CGPathAddRect(path, NULL, CGRectMake(0, 0, shapeLayer.bounds.size.width, rect.origin.y));
+        if (rect.origin.y + rect.size.height < shapeLayer.bounds.size.height)
+            CGPathAddRect(path, NULL, CGRectMake(0,
+                                                 rect.origin.y + rect.size.height,
+                                                 shapeLayer.bounds.size.width,
+                                                 shapeLayer.bounds.size.height - (rect.origin.y + rect.size.height)));
+
+        shapeLayer.path = path;
+        CGPathRelease(path);
+
+        if ([[self.contentView.layer sublayers] firstObject])
+            [self.contentView.layer replaceSublayer:[[self.contentView.layer sublayers] firstObject]
+                                               with:shapeLayer];
+        else
+            [self.contentView.layer addSublayer:shapeLayer];
+    }
+
 
     /*
      * ---------- NSResponder method overrides ----------
@@ -3633,6 +3679,21 @@ void macdrv_window_use_per_pixel_alpha(macdrv_window w, int use_per_pixel_alpha)
 }
 
 /***********************************************************************
+ *              macdrv_set_window_mask
+ */
+void macdrv_set_window_mask(macdrv_window w, CGRect rect)
+{
+@autoreleasepool
+{
+    WineWindow* window = (WineWindow*)w;
+
+    OnMainThread(^{
+        [window setMask:rect];
+    });
+}
+}
+
+/***********************************************************************
  *              macdrv_give_cocoa_window_focus
  *
  * Makes the Cocoa window "key" (gives it keyboard focus).  This also
@@ -3973,13 +4034,14 @@ uint32_t macdrv_window_background_color(void)
 }
 
 /***********************************************************************
- *              macdrv_send_keydown_to_input_source
+ *              macdrv_ime_process_key
  *
  * Sends a key down event to the active window's inputContext so that it can be
  * processed by input sources (AKA IMEs). This is only called when there is an
  * active non-keyboard input source.
  */
-void macdrv_send_keydown_to_input_source(unsigned int flags, int repeat, int keyc, void* himc, int* done)
+void macdrv_ime_process_key(int keyc, unsigned int flags, int repeat, void *himc,
+                            int *done, void *ime_done_event)
 {
     OnMainThreadAsync(^{
         BOOL ret;
@@ -4019,6 +4081,7 @@ void macdrv_send_keydown_to_input_source(unsigned int flags, int repeat, int key
         event = macdrv_create_event(SENT_TEXT_INPUT, window);
         event->sent_text_input.handled = ret;
         event->sent_text_input.done = done;
+        event->sent_text_input.ime_done_event = ime_done_event;
         [[window queue] postEvent:event];
         macdrv_release_event(event);
     });
