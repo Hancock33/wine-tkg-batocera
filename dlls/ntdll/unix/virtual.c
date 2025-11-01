@@ -1384,7 +1384,7 @@ static void dump_view( struct file_view *view )
     char *addr = view->base;
     BYTE prot = get_page_vprot( addr );
 
-    TRACE( "View: %p - %p", addr, addr + view->size - 1 );
+    TRACE( "View: %p - %p %s", addr, addr + view->size - 1, get_prot_str(view->protect) );
     if (view->protect & VPROT_NATIVE)
         TRACE(" (native)\n");
     else if (view->protect & VPROT_SYSTEM)
@@ -2379,6 +2379,11 @@ static NTSTATUS map_file_into_view( struct file_view *view, int fd, size_t start
 #endif
     }
 
+    /* macOS since 10.15 fails to map files with PROT_EXEC
+     * (and will show the user an annoying warning if the file has a quarantine xattr set).
+     * But it works to map without PROT_EXEC and then use mprotect().
+     */
+#ifndef __APPLE__
     if ((vprot & VPROT_EXEC) || force_exec_prot)
     {
         if (!(vprot & VPROT_EXEC))
@@ -2386,6 +2391,7 @@ static NTSTATUS map_file_into_view( struct file_view *view, int fd, size_t start
                    (char *)view->base + start, (char *)view->base + start + size - 1 );
         prot |= PROT_EXEC;
     }
+#endif
 
     map_size = ROUND_SIZE( start, size, page_mask );
     map_addr = ROUND_ADDR( (char *)view->base + start, page_mask );
@@ -2756,8 +2762,7 @@ static NTSTATUS map_pe_header( void *ptr, size_t size, size_t map_size, int fd, 
 
     if (!*removable && map_size)
     {
-        if (mmap( ptr, map_size, PROT_READ | PROT_WRITE | PROT_EXEC,
-                  MAP_FIXED | MAP_PRIVATE, fd, 0 ) != MAP_FAILED)
+        if (mmap( ptr, map_size, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_PRIVATE, fd, 0 ) != MAP_FAILED)
         {
             if (size > map_size) pread( fd, (char *)ptr + map_size, size - map_size, map_size );
             return STATUS_SUCCESS;
@@ -6852,7 +6857,8 @@ NTSTATUS WINAPI NtWriteVirtualMemory( HANDLE process, void *addr, const void *bu
             req->handle     = wine_server_obj_handle( process );
             req->addr       = wine_server_client_ptr( addr );
             wine_server_add_data( req, buffer, size );
-            if ((status = wine_server_call( req ))) size = 0;
+            status = wine_server_call( req );
+            size = reply->written;
         }
         SERVER_END_REQ;
     }

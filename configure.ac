@@ -1486,7 +1486,7 @@ WINE_NOTICE_WITH(pcsclite,[test "x$PCSCLITE_LIBS" = x],
 dnl **** Check for inotify ****
 if test "x$with_inotify" != "xno"
 then
-    WINE_PACKAGE_FLAGS(INOTIFY,[libinotify],,,,
+    WINE_PACKAGE_FLAGS(INOTIFY,[libinotify],[-linotify],,,
         [AC_CHECK_HEADERS([sys/inotify.h])
          AC_CHECK_LIB(inotify,inotify_add_watch,[:],[INOTIFY_LIBS=""],[$INOTIFY_LIBS])])
 fi
@@ -2143,6 +2143,8 @@ AC_CHECK_FUNCS(\
 	posix_fadvise \
 	posix_fallocate \
 	prctl \
+	process_vm_readv \
+	process_vm_writev \
 	sched_getcpu \
 	sched_yield \
 	renameat \
@@ -3215,6 +3217,7 @@ WINE_CONFIG_MAKEFILE(dlls/taskschd)
 WINE_CONFIG_MAKEFILE(dlls/taskschd/tests)
 WINE_CONFIG_MAKEFILE(dlls/tbs)
 WINE_CONFIG_MAKEFILE(dlls/tdh)
+WINE_CONFIG_MAKEFILE(dlls/tdh/tests)
 WINE_CONFIG_MAKEFILE(dlls/tdi.sys)
 WINE_CONFIG_MAKEFILE(dlls/threadpoolwinrt)
 WINE_CONFIG_MAKEFILE(dlls/threadpoolwinrt/tests)
@@ -3775,7 +3778,7 @@ dnl Rules for generated source files
 
 WINE_APPEND_RULE(
 [dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-10.17.r5.gfa2f3233\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
+	@version=\`(echo \"wine-10.18.r0.g23267ac0\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$[@]) || echo \$\$build >\$[@] || (rm -f \$[@] && exit 1)
 dlls/wineandroid.drv/wine-debug.apk: dlls/wineandroid.drv/build.gradle ${wine_srcdir}dlls/wineandroid.drv/AndroidManifest.xml ${wine_srcdir}dlls/wineandroid.drv/WineActivity.java ${wine_srcdir}dlls/wineandroid.drv/wine.svg
