@@ -953,6 +953,9 @@ HANDLE WINAPI DECLSPEC_HOTPATCH CreateFileW( LPCWSTR filename, DWORD access, DWO
          */
         if (status == STATUS_OBJECT_NAME_COLLISION)
             SetLastError( ERROR_FILE_EXISTS );
+        else if (status == STATUS_FILE_IS_A_DIRECTORY &&
+                 nameW.Buffer[nameW.Length / sizeof(WCHAR) - 1] == '\\')
+            SetLastError( ERROR_PATH_NOT_FOUND );
         else
             SetLastError( RtlNtStatusToDosError(status) );
     }
@@ -2951,7 +2954,7 @@ DWORD WINAPI DECLSPEC_HOTPATCH SearchPathW( LPCWSTR path, LPCWSTR name, LPCWSTR 
     DWORD ret = 0;
     WCHAR *name_ext;
 
-    if (!name || !name[0])
+    if (!name || !name[wcsspn(name, L" ")])
     {
         SetLastError( ERROR_INVALID_PARAMETER );
         return 0;
