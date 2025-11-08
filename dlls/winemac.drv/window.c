@@ -538,9 +538,6 @@ static struct macdrv_win_data *macdrv_create_win_data(HWND hwnd, const struct wi
         return NULL;
     }
 
-    /* don't create win data for HWND_MESSAGE windows */
-    if (parent != NtUserGetDesktopWindow() && !NtUserGetAncestor(parent, GA_PARENT)) return NULL;
-
     if (!(data = alloc_win_data(hwnd))) return NULL;
     data->rects = *rects;
 
@@ -1589,9 +1586,10 @@ BOOL macdrv_GetWindowStyleMasks(HWND hwnd, UINT style, UINT ex_style, UINT *styl
 /***********************************************************************
  *              WindowPosChanged   (MACDRV.@)
  */
-void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT swp_flags, BOOL fullscreen,
+void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT swp_flags,
                              const struct window_rects *new_rects, struct window_surface *surface)
 {
+    BOOL fullscreen = swp_flags & WINE_SWP_FULLSCREEN;
     struct macdrv_thread_data *thread_data;
     struct macdrv_win_data *data;
     unsigned int new_style = NtUserGetWindowLongW(hwnd, GWL_STYLE);
@@ -1604,8 +1602,8 @@ void macdrv_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UINT
     old_rects = data->rects;
     data->rects = *new_rects;
 
-    TRACE("win %p/%p new_rects %s style %08x flags %08x fullscreen %u surface %p\n", hwnd, data->cocoa_window,
-          debugstr_window_rects(new_rects), new_style, swp_flags, fullscreen, surface);
+    TRACE("win %p/%p new_rects %s style %08x flags %08x surface %p\n", hwnd, data->cocoa_window,
+          debugstr_window_rects(new_rects), new_style, swp_flags, surface);
 
     if (!data->cocoa_window) goto done;
 

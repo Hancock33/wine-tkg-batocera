@@ -1976,14 +1976,15 @@ static struct hlsl_ir_node *hlsl_new_error_expr(struct hlsl_ctx *ctx)
     return hlsl_new_expr(ctx, HLSL_OP0_ERROR, operands, ctx->builtin_types.error, &loc);
 }
 
-struct hlsl_ir_node *hlsl_new_if(struct hlsl_ctx *ctx, struct hlsl_ir_node *condition,
-        struct hlsl_block *then_block, struct hlsl_block *else_block, const struct vkd3d_shader_location *loc)
+struct hlsl_ir_node *hlsl_new_if(struct hlsl_ctx *ctx, struct hlsl_ir_node *condition, struct hlsl_block *then_block,
+        struct hlsl_block *else_block, enum hlsl_if_flatten_type flatten_type, const struct vkd3d_shader_location *loc)
 {
     struct hlsl_ir_if *iff;
 
     if (!(iff = hlsl_alloc(ctx, sizeof(*iff))))
         return NULL;
     init_node(&iff->node, HLSL_IR_IF, NULL, loc);
+    iff->flatten_type = flatten_type;
     hlsl_src_from_node(&iff->condition, condition);
     hlsl_block_init(&iff->then_block);
     hlsl_block_add_block(&iff->then_block, then_block);
@@ -1993,10 +1994,11 @@ struct hlsl_ir_node *hlsl_new_if(struct hlsl_ctx *ctx, struct hlsl_ir_node *cond
     return &iff->node;
 }
 
-void hlsl_block_add_if(struct hlsl_ctx *ctx, struct hlsl_block *block, struct hlsl_ir_node *condition,
-        struct hlsl_block *then_block, struct hlsl_block *else_block, const struct vkd3d_shader_location *loc)
+void hlsl_block_add_if(struct hlsl_ctx *ctx, struct hlsl_block *block,
+        struct hlsl_ir_node *condition, struct hlsl_block *then_block, struct hlsl_block *else_block,
+        enum hlsl_if_flatten_type flatten_type, const struct vkd3d_shader_location *loc)
 {
-    struct hlsl_ir_node *instr = hlsl_new_if(ctx, condition, then_block, else_block, loc);
+    struct hlsl_ir_node *instr = hlsl_new_if(ctx, condition, then_block, else_block, flatten_type, loc);
 
     if (instr)
     {
@@ -2674,7 +2676,8 @@ static struct hlsl_ir_node *clone_if(struct hlsl_ctx *ctx, struct clone_instr_ma
         return NULL;
     }
 
-    if (!(dst = hlsl_new_if(ctx, map_instr(map, src->condition.node), &then_block, &else_block, &src->node.loc)))
+    if (!(dst = hlsl_new_if(ctx, map_instr(map, src->condition.node),
+            &then_block, &else_block, src->flatten_type, &src->node.loc)))
     {
         hlsl_block_cleanup(&then_block);
         hlsl_block_cleanup(&else_block);
@@ -3848,6 +3851,13 @@ static void dump_ir_jump(struct vkd3d_string_buffer *buffer, const struct hlsl_i
         case HLSL_IR_JUMP_UNRESOLVED_CONTINUE:
             vkd3d_string_buffer_printf(buffer, "unresolved_continue");
             break;
+    }
+
+    if (jump->condition.node)
+    {
+        vkd3d_string_buffer_printf(buffer, " (");
+        dump_src(buffer, &jump->condition);
+        vkd3d_string_buffer_printf(buffer, ")");
     }
 }
 

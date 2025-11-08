@@ -54,7 +54,7 @@ struct inf_file
 
 static void inf_value_free(struct inf_value *value)
 {
-    heap_free(value);
+    HeapFree(GetProcessHeap(), 0, value);
 }
 
 static void inf_section_free(struct inf_section *section)
@@ -66,7 +66,7 @@ static void inf_section_free(struct inf_section *section)
         inf_value_free(val);
     }
 
-    heap_free(section);
+    HeapFree(GetProcessHeap(), 0, section);
 }
 
 static const char *get_substitution(struct inf_file *inf, const char *name, int len)
@@ -162,7 +162,7 @@ static char *expand_variables(struct inf_file *inf, const char *str)
     int len;
 
     len = expand_variables_buffer(inf, str, NULL);
-    buffer = heap_alloc(len);
+    buffer = HeapAlloc(GetProcessHeap(), 0, len);
     if (!len) return NULL;
 
     expand_variables_buffer(inf, str, buffer);
@@ -178,8 +178,8 @@ void inf_free(struct inf_file *inf)
         inf_section_free(sec);
     }
 
-    heap_free(inf->content);
-    heap_free(inf);
+    HeapFree(GetProcessHeap(), 0, inf->content);
+    HeapFree(GetProcessHeap(), 0, inf);
 }
 
 BOOL inf_next_section(struct inf_file *inf, struct inf_section **sec)
@@ -345,7 +345,7 @@ static HRESULT inf_section_parse(struct inf_file *inf, char *line, char *last_ch
     name = trim(line, NULL, FALSE);
     if (!name) return S_OK;
 
-    sec = heap_alloc_zero(sizeof(*sec));
+    sec = HeapAlloc(GetProcessHeap(), 0, sizeof(*sec));
     if (!sec) return E_OUTOFMEMORY;
 
     sec->name = name;
@@ -373,7 +373,7 @@ static HRESULT inf_value_parse(struct inf_section *sec, char *line)
     key = trim(key, NULL, FALSE);
     value = trim(value, NULL, TRUE);
 
-    key_val = heap_alloc_zero(sizeof(*key_val));
+    key_val = HeapAlloc(GetProcessHeap(), 0, sizeof(*key_val));
     if (!key_val) return E_OUTOFMEMORY;
 
     key_val->key = key;
@@ -413,7 +413,7 @@ HRESULT inf_load(const char *path, struct inf_file **inf_file)
     file = CreateFileA(path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (file == INVALID_HANDLE_VALUE) return E_FAIL;
 
-    inf = heap_alloc_zero(sizeof(*inf));
+    inf = HeapAlloc(GetProcessHeap(), 0, sizeof(*inf));
     if (!inf) goto error;
 
     if (!GetFileSizeEx(file, &file_size))
@@ -421,7 +421,7 @@ HRESULT inf_load(const char *path, struct inf_file **inf_file)
 
     inf->size = file_size.QuadPart;
 
-    inf->content = heap_alloc_zero(inf->size);
+    inf->content = HeapAlloc(GetProcessHeap(), 0, inf->size);
     if (!inf->content) goto error;
 
     list_init(&inf->sections);

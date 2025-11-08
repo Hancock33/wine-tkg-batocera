@@ -1060,7 +1060,7 @@ static void insert_early_return_break(struct hlsl_ctx *ctx,
 
     hlsl_block_add_jump(ctx, &then_block, HLSL_IR_JUMP_BREAK, NULL, &cf_instr->loc);
 
-    if (!(iff = hlsl_new_if(ctx, &load->node, &then_block, NULL, &cf_instr->loc)))
+    if (!(iff = hlsl_new_if(ctx, &load->node, &then_block, NULL, HLSL_IF_FLATTEN_DEFAULT, &cf_instr->loc)))
         return;
     list_add_after(&load->node.entry, &iff->entry);
 }
@@ -1245,7 +1245,7 @@ static bool lower_return(struct hlsl_ctx *ctx, struct hlsl_ir_function_decl *fun
 
         load = hlsl_block_add_simple_load(ctx, block, func->early_return_var, &cf_instr->loc);
         not = hlsl_block_add_unary_expr(ctx, block, HLSL_OP1_LOGIC_NOT, load, &cf_instr->loc);
-        hlsl_block_add_if(ctx, block, not, &then_block, NULL, &cf_instr->loc);
+        hlsl_block_add_if(ctx, block, not, &then_block, NULL, HLSL_IF_FLATTEN_DEFAULT, &cf_instr->loc);
     }
 
     return has_early_return;
@@ -3916,6 +3916,320 @@ static bool remove_trivial_conditional_branches(struct hlsl_ctx *ctx, struct hls
     return true;
 }
 
+static bool is_conditional_block_simple(const struct hlsl_block *cond_block)
+{
+    static const unsigned int max_cost = 10;
+    struct hlsl_ir_node *instr;
+    unsigned int cost = 0;
+
+    LIST_FOR_EACH_ENTRY(instr, &cond_block->instrs, struct hlsl_ir_node, entry)
+    {
+        switch (instr->type)
+        {
+            case HLSL_IR_CONSTANT:
+            case HLSL_IR_STRING_CONSTANT:
+            case HLSL_IR_SWIZZLE:
+                break;
+
+            case HLSL_IR_EXPR:
+                ++cost;
+                break;
+
+            case HLSL_IR_JUMP:
+            {
+                struct hlsl_ir_jump *jump = hlsl_ir_jump(instr);
+
+                if (jump->type != HLSL_IR_JUMP_DISCARD_NZ && jump->type != HLSL_IR_JUMP_DISCARD_NEG)
+                    return false;
+                ++cost;
+                break;
+            }
+
+            case HLSL_IR_STORE:
+                if (hlsl_ir_store(instr)->lhs.var->is_tgsm)
+                    return false;
+                ++cost;
+                break;
+
+            case HLSL_IR_LOAD:
+                if (hlsl_ir_load(instr)->src.var->is_tgsm)
+                    return false;
+                break;
+
+            default:
+                return false;
+        }
+
+        if (cost > max_cost)
+            return false;
+    }
+
+    return true;
+}
+
+static bool can_flatten_conditional_block(struct hlsl_ctx *ctx, const struct hlsl_block *cond_block)
+{
+    struct hlsl_ir_node *instr;
+
+    LIST_FOR_EACH_ENTRY(instr, &cond_block->instrs, struct hlsl_ir_node, entry)
+    {
+        switch (instr->type)
+        {
+            case HLSL_IR_CALL:
+            case HLSL_IR_RESOURCE_STORE:
+            case HLSL_IR_INTERLOCKED:
+            case HLSL_IR_SYNC:
+                goto fail;
+
+            case HLSL_IR_JUMP:
+            {
+                struct hlsl_ir_jump *jump = hlsl_ir_jump(instr);
+
+                if (jump->type != HLSL_IR_JUMP_DISCARD_NZ && jump->type != HLSL_IR_JUMP_DISCARD_NEG)
+                {
+                    hlsl_fixme(ctx, &instr->loc, "Flattening conditional blocks with non-discard jump instructions.");
+                    return false;
+                }
+                break;
+            }
+
+            case HLSL_IR_STORE:
+                if (hlsl_ir_store(instr)->lhs.var->is_tgsm)
+                    goto fail;
+                break;
+
+            case HLSL_IR_IF:
+            {
+                struct hlsl_ir_if *iff = hlsl_ir_if(instr);
+
+                if (!can_flatten_conditional_block(ctx, &iff->then_block)
+                        || !can_flatten_conditional_block(ctx, &iff->else_block))
+                    return false;
+                break;
+            }
+
+            case HLSL_IR_LOOP:
+            {
+                struct hlsl_ir_loop *loop = hlsl_ir_loop(instr);
+
+                if (!can_flatten_conditional_block(ctx, &loop->iter)
+                        || !can_flatten_conditional_block(ctx, &loop->body))
+                    return false;
+                break;
+            }
+
+            case HLSL_IR_SWITCH:
+            {
+                struct hlsl_ir_switch *s = hlsl_ir_switch(instr);
+                struct hlsl_ir_switch_case *c;
+
+                LIST_FOR_EACH_ENTRY(c, &s->cases, struct hlsl_ir_switch_case, entry)
+                {
+                    if (!can_flatten_conditional_block(ctx, &c->body))
+                        return false;
+                }
+                break;
+            }
+
+            case HLSL_IR_CONSTANT:
+            case HLSL_IR_EXPR:
+            case HLSL_IR_INDEX:
+            case HLSL_IR_LOAD:
+            case HLSL_IR_RESOURCE_LOAD:
+            case HLSL_IR_STRING_CONSTANT:
+            case HLSL_IR_SWIZZLE:
+            case HLSL_IR_COMPILE:
+            case HLSL_IR_SAMPLER_STATE:
+            case HLSL_IR_STATEBLOCK_CONSTANT:
+                break;
+        }
+    }
+
+    return true;
+
+fail:
+    hlsl_error(ctx, &instr->loc, VKD3D_SHADER_ERROR_HLSL_CANNOT_FLATTEN,
+            "Conditional branches with side effects cannot be flattened.");
+    return false;
+}
+
+static bool lower_conditional_block_stores(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr,
+        struct hlsl_ir_node *cond, bool is_then)
+{
+    struct hlsl_ir_node *load, *new_val;
+    struct hlsl_ir_store *store;
+    struct hlsl_type *rhs_type;
+    struct hlsl_block block;
+
+    if (instr->type != HLSL_IR_STORE)
+        return false;
+    store = hlsl_ir_store(instr);
+    rhs_type = store->rhs.node->data_type;
+
+    VKD3D_ASSERT(rhs_type->class <= HLSL_CLASS_VECTOR);
+    VKD3D_ASSERT(cond->data_type->e.numeric.dimx == 1);
+
+    hlsl_block_init(&block);
+
+    load = hlsl_block_add_load_index(ctx, &block, &store->lhs, NULL, &store->node.loc);
+
+    if (store->writemask && !hlsl_types_are_equal(rhs_type, load->data_type))
+        load = hlsl_block_add_swizzle(ctx, &block, hlsl_swizzle_from_writemask(store->writemask),
+                rhs_type->e.numeric.dimx, load, &store->node.loc);
+
+    if (rhs_type->e.numeric.dimx != 1)
+        cond = hlsl_block_add_swizzle(ctx, &block, HLSL_SWIZZLE(X, X, X, X),
+                rhs_type->e.numeric.dimx, cond, &store->node.loc);
+
+    if (is_then)
+        new_val = hlsl_add_conditional(ctx, &block, cond, store->rhs.node, load);
+    else
+        new_val = hlsl_add_conditional(ctx, &block, cond, load, store->rhs.node);
+
+    list_move_before(&store->node.entry, &block.instrs);
+    hlsl_src_remove(&store->rhs);
+    hlsl_src_from_node(&store->rhs, new_val);
+    return true;
+}
+
+static bool lower_conditional_block_discard_nz(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr,
+        struct hlsl_ir_node *cond, bool is_then)
+{
+    struct hlsl_ir_node *operands[HLSL_MAX_OPERANDS] = {0};
+    struct hlsl_ir_node *discard_cond, *new_cond = NULL;
+    struct hlsl_ir_jump *jump;
+    struct hlsl_block block;
+
+    if (instr->type != HLSL_IR_JUMP)
+        return false;
+    jump = hlsl_ir_jump(instr);
+    discard_cond = jump->condition.node;
+
+    if (jump->type != HLSL_IR_JUMP_DISCARD_NZ)
+        return false;
+
+    VKD3D_ASSERT(ctx->profile->major_version >= 4);
+    VKD3D_ASSERT(cond->data_type->e.numeric.type == HLSL_TYPE_BOOL && cond->data_type->e.numeric.dimx == 1);
+    VKD3D_ASSERT(discard_cond->data_type->e.numeric.dimx == 1);
+
+    hlsl_block_init(&block);
+
+    if (!is_then)
+        cond = hlsl_block_add_unary_expr(ctx, &block, HLSL_OP1_LOGIC_NOT, cond, &instr->loc);
+    discard_cond = hlsl_block_add_cast(ctx, &block, discard_cond, cond->data_type, &instr->loc);
+
+    operands[0] = cond;
+    operands[1] = discard_cond;
+
+    /* discard_nz (cond && discard_cond) */
+    new_cond = hlsl_block_add_expr(ctx, &block, HLSL_OP2_LOGIC_AND, operands,
+            hlsl_get_scalar_type(ctx, HLSL_TYPE_UINT), &jump->node.loc);
+
+    list_move_before(&jump->node.entry, &block.instrs);
+    hlsl_src_remove(&jump->condition);
+    hlsl_src_from_node(&jump->condition, new_cond);
+    return true;
+}
+
+static bool lower_conditional_block_discard_neg(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr,
+        struct hlsl_ir_node *cond, bool is_then)
+{
+    struct hlsl_ir_node *discard_cond, *new_cond = NULL;
+    struct hlsl_constant_value zero_value = {0};
+    struct hlsl_ir_node *zero;
+    struct hlsl_ir_jump *jump;
+    struct hlsl_block block;
+
+    if (instr->type != HLSL_IR_JUMP)
+        return false;
+    jump = hlsl_ir_jump(instr);
+    discard_cond = jump->condition.node;
+
+    if (jump->type != HLSL_IR_JUMP_DISCARD_NEG)
+        return false;
+
+    VKD3D_ASSERT(ctx->profile->major_version < 4);
+    VKD3D_ASSERT(cond->data_type->e.numeric.type == HLSL_TYPE_BOOL && cond->data_type->e.numeric.dimx == 1);
+
+    hlsl_block_init(&block);
+
+    if (!(zero = hlsl_new_constant(ctx, discard_cond->data_type, &zero_value, &instr->loc)))
+        return false;
+    hlsl_block_add_instr(&block, zero);
+
+    if (zero->data_type->e.numeric.dimx != 1)
+        cond = hlsl_block_add_swizzle(ctx, &block, HLSL_SWIZZLE(X, X, X, X),
+                zero->data_type->e.numeric.dimx, cond, &instr->loc);
+
+    if (is_then)
+        new_cond = hlsl_add_conditional(ctx, &block, cond, discard_cond, zero);
+    else
+        new_cond = hlsl_add_conditional(ctx, &block, cond, zero, discard_cond);
+
+    list_move_before(&jump->node.entry, &block.instrs);
+    hlsl_src_remove(&jump->condition);
+    hlsl_src_from_node(&jump->condition, new_cond);
+    return true;
+}
+
+struct flatten_conditional_block_ctx
+{
+    struct hlsl_ir_node *cond;
+    bool is_then;
+};
+
+static bool lower_conditional_block_instrs(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, void *context)
+{
+    struct flatten_conditional_block_ctx *flatten_ctx = context;
+
+    return lower_conditional_block_stores(ctx, instr, flatten_ctx->cond, flatten_ctx->is_then)
+            || lower_conditional_block_discard_nz(ctx, instr, flatten_ctx->cond, flatten_ctx->is_then)
+            || lower_conditional_block_discard_neg(ctx, instr, flatten_ctx->cond, flatten_ctx->is_then);
+}
+
+static bool flatten_conditional_branches(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, void *context)
+{
+    struct flatten_conditional_block_ctx flatten_ctx;
+    struct hlsl_ir_if *iff;
+    bool force_flatten;
+
+    if (instr->type != HLSL_IR_IF)
+        return false;
+    iff = hlsl_ir_if(instr);
+
+    if (iff->flatten_type == HLSL_IF_FORCE_BRANCH)
+        return false;
+
+    force_flatten = iff->flatten_type == HLSL_IF_FORCE_FLATTEN
+            || hlsl_version_lt(ctx, 2, 1); /* Always flatten branches for SM < 2.1. */
+
+    if (force_flatten)
+    {
+        if (!can_flatten_conditional_block(ctx, &iff->then_block)
+                || !can_flatten_conditional_block(ctx, &iff->else_block))
+            return false;
+    }
+    else if (!is_conditional_block_simple(&iff->then_block) || !is_conditional_block_simple(&iff->else_block))
+    {
+        /* Only flatten simple blocks by default. */
+        return false;
+    }
+
+    flatten_ctx.cond = iff->condition.node;
+
+    flatten_ctx.is_then = true;
+    hlsl_transform_ir(ctx, lower_conditional_block_instrs, &iff->then_block, &flatten_ctx);
+
+    flatten_ctx.is_then = false;
+    hlsl_transform_ir(ctx, lower_conditional_block_instrs, &iff->else_block, &flatten_ctx);
+
+    list_move_before(&instr->entry, &iff->then_block.instrs);
+    list_move_before(&instr->entry, &iff->else_block.instrs);
+    list_remove(&instr->entry);
+    hlsl_free_instr(instr);
+    return true;
+}
+
 static bool normalize_switch_cases(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, void *context)
 {
     struct hlsl_ir_switch_case *c, *def = NULL;
@@ -5458,6 +5772,35 @@ static bool lower_discard_nz(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, v
     hlsl_src_remove(&jump->condition);
     hlsl_src_from_node(&jump->condition, neg);
     jump->type = HLSL_IR_JUMP_DISCARD_NEG;
+
+    return true;
+}
+
+static bool cast_discard_neg_conditions_to_vec4(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, void *context)
+{
+    struct hlsl_ir_node *swizzle;
+    struct hlsl_ir_jump *jump;
+    struct hlsl_block block;
+    unsigned int dimx;
+
+    if (instr->type != HLSL_IR_JUMP)
+        return false;
+    jump = hlsl_ir_jump(instr);
+    if (jump->type != HLSL_IR_JUMP_DISCARD_NEG)
+        return false;
+
+    dimx = jump->condition.node->data_type->e.numeric.dimx;
+    if (dimx == 4)
+        return false;
+
+    hlsl_block_init(&block);
+
+    swizzle = hlsl_block_add_swizzle(ctx, &block, hlsl_swizzle_from_writemask((1 << dimx) - 1), 4,
+            jump->condition.node, &instr->loc);
+
+    list_move_before(&instr->entry, &block.instrs);
+    hlsl_src_remove(&jump->condition);
+    hlsl_src_from_node(&jump->condition, swizzle);
 
     return true;
 }
@@ -8465,6 +8808,7 @@ static void hlsl_run_folding_passes(struct hlsl_ctx *ctx, struct hlsl_block *bod
         progress |= replace_ir(ctx, fold_swizzle_chains, body);
         progress |= replace_ir(ctx, fold_trivial_swizzles, body);
         progress |= hlsl_transform_ir(ctx, remove_trivial_conditional_branches, body, NULL);
+        progress |= hlsl_transform_ir(ctx, flatten_conditional_branches, body, NULL);
     } while (progress);
     replace_ir(ctx, fold_redundant_casts, body);
 }
@@ -9996,6 +10340,8 @@ static void sm1_generate_vsir_instr_jump(struct hlsl_ctx *ctx,
 
     if (jump->type == HLSL_IR_JUMP_DISCARD_NEG)
     {
+        VKD3D_ASSERT(condition->data_type->e.numeric.dimx == 4);
+
         if (!(ins = generate_vsir_add_program_instruction(ctx, program, &instr->loc, VSIR_OP_TEXKILL, 0, 1)))
             return;
 
@@ -10016,11 +10362,9 @@ static void sm1_generate_vsir_instr_if(struct hlsl_ctx *ctx, struct vsir_program
     struct hlsl_ir_node *instr = &iff->node;
     struct vkd3d_shader_instruction *ins;
 
-    if (hlsl_version_lt(ctx, 2, 1))
-    {
-        hlsl_fixme(ctx, &instr->loc, "Flatten \"if\" conditionals branches.");
-        return;
-    }
+    /* Conditional branches should have already been flattened for SM < 2.1. */
+    VKD3D_ASSERT(hlsl_version_ge(ctx, 2, 1));
+
     VKD3D_ASSERT(condition->data_type->e.numeric.dimx == 1 && condition->data_type->e.numeric.dimy == 1);
 
     if (!(ins = generate_vsir_add_program_instruction(ctx, program, &instr->loc, VSIR_OP_IFC, 0, 2)))
@@ -13835,7 +14179,7 @@ static struct hlsl_ir_if *loop_unrolling_generate_var_check(struct hlsl_ctx *ctx
     load = hlsl_block_add_simple_load(ctx, dst, var, loc);
     cond = hlsl_block_add_unary_expr(ctx, dst, HLSL_OP1_LOGIC_NOT, load, loc);
 
-    if (!(iff = hlsl_new_if(ctx, cond, &then_block, NULL, loc)))
+    if (!(iff = hlsl_new_if(ctx, cond, &then_block, NULL, HLSL_IF_FLATTEN_DEFAULT, loc)))
         return NULL;
     hlsl_block_add_instr(dst, iff);
 
@@ -14815,6 +15159,8 @@ static void process_entry_function(struct hlsl_ctx *ctx, struct list *semantic_v
     {
         while (replace_ir(ctx, lower_nonconstant_array_loads, body));
 
+        hlsl_transform_ir(ctx, cast_discard_neg_conditions_to_vec4, body, NULL);
+
         replace_ir(ctx, lower_ternary, body);
         replace_ir(ctx, lower_int_modulus_sm1, body);
         replace_ir(ctx, lower_division, body);
@@ -14846,6 +15192,14 @@ static void process_entry_function(struct hlsl_ctx *ctx, struct list *semantic_v
     replace_ir(ctx, validate_nonconstant_vector_store_derefs, body);
 
     hlsl_run_folding_passes(ctx, body);
+
+    if (profile->major_version < 4)
+    {
+        /* Ternary operations can be potentially introduced by hlsl_run_folding_passes(). */
+        replace_ir(ctx, lower_ternary, body);
+        if (ctx->profile->type != VKD3D_SHADER_TYPE_PIXEL)
+            replace_ir(ctx, lower_cmp, body);
+    }
 
     do
         compute_liveness(ctx, body);
