@@ -212,10 +212,10 @@ struct wave
     LONG ref;
     UINT id;
 
-    fluid_sample_t *fluid_sample;
+    HRESULT (CALLBACK *callback)(HANDLE handle, HANDLE user_data);
+    HANDLE user_data;
 
-    WAVEFORMATEX format;
-    UINT sample_count;
+    fluid_sample_t *fluid_sample;
     short samples[];
 };
 
@@ -231,6 +231,8 @@ static void wave_release(struct wave *wave)
     ULONG ref = InterlockedDecrement(&wave->ref);
     if (!ref)
     {
+        if (wave->callback)
+            wave->callback(wave, wave->user_data);
         delete_fluid_sample(wave->fluid_sample);
         free(wave);
     }
@@ -646,7 +648,8 @@ static HRESULT WINAPI synth_Close(IDirectMusicSynth8 *iface)
     LIST_FOR_EACH_ENTRY_SAFE(voice, next, &This->voices, struct voice, entry)
     {
         list_remove(&voice->entry);
-        wave_release(voice->wave);
+        if (voice->wave)
+            wave_release(voice->wave);
         free(voice);
     }
 
@@ -817,6 +820,9 @@ static HRESULT synth_download_wave(struct synth *This, DMUS_DOWNLOADINFO *info, 
     DMUS_WAVEDATA *wave_data = (DMUS_WAVEDATA *)(data + offsets[wave_info->ulWaveDataIdx]);
     struct wave *wave;
     UINT sample_count;
+    short *samples;
+    size_t size;
+    int i;
 
     if (TRACE_ON(dmsynth))
     {
@@ -835,34 +841,31 @@ static HRESULT synth_download_wave(struct synth *This, DMUS_DOWNLOADINFO *info, 
     if (wave_info->WaveformatEx.wFormatTag != WAVE_FORMAT_PCM) return DMUS_E_NOTPCM;
 
     sample_count = wave_data->cbSize / wave_info->WaveformatEx.nBlockAlign;
-    if (!(wave = calloc(1, offsetof(struct wave, samples[sample_count])))) return E_OUTOFMEMORY;
+    size = wave_info->WaveformatEx.nBlockAlign == 2 ? sizeof(struct wave)
+            : offsetof(struct wave, samples[sample_count]);
+    if (!(wave = calloc(1, size))) return E_OUTOFMEMORY;
     wave->ref = 1;
     wave->id = info->dwDLId;
-    wave->format = wave_info->WaveformatEx;
-    wave->sample_count = sample_count;
 
+    samples = wave->samples;
     if (wave_info->WaveformatEx.nBlockAlign == 1)
     {
-        while (sample_count--)
+        for (i = 0; i < sample_count; ++i)
         {
-            short sample = (wave_data->byData[sample_count] - 0x80) << 8;
-            wave->samples[sample_count] = sample;
+            short sample = (wave_data->byData[i] - 0x80) << 8;
+            wave->samples[i] = sample;
         }
     }
     else if (wave_info->WaveformatEx.nBlockAlign == 2)
     {
-        while (sample_count--)
-        {
-            short sample = ((short *)wave_data->byData)[sample_count];
-            wave->samples[sample_count] = sample;
-        }
+        samples = (short *)wave_data->byData;
     }
     else if (wave_info->WaveformatEx.nBlockAlign == 4)
     {
-        while (sample_count--)
+        for (i = 0; i < sample_count; ++i)
         {
-            short sample = ((UINT *)wave_data->byData)[sample_count] >> 16;
-            wave->samples[sample_count] = sample;
+            short sample = ((UINT *)wave_data->byData)[i] >> 16;
+            wave->samples[i] = sample;
         }
     }
 
@@ -873,8 +876,10 @@ static HRESULT synth_download_wave(struct synth *This, DMUS_DOWNLOADINFO *info, 
         return FLUID_FAILED;
     }
 
-    fluid_sample_set_sound_data(wave->fluid_sample, wave->samples, NULL, wave->sample_count,
-            wave->format.nSamplesPerSec, TRUE);
+    /* Although the doc says there should be 8-frame padding around the data,
+     * FluidSynth doesn't actually require this since version 1.0.8. */
+    fluid_sample_set_sound_data(wave->fluid_sample, samples, NULL, sample_count,
+            wave_info->WaveformatEx.nSamplesPerSec, FALSE);
 
     EnterCriticalSection(&This->cs);
     list_add_tail(&This->waves, &wave->entry);
@@ -914,6 +919,7 @@ static HRESULT WINAPI synth_Download(IDirectMusicSynth8 *iface, HANDLE *ret_hand
     case DMUS_DOWNLOADINFO_INSTRUMENT2:
         return synth_download_instrument(This, info, offsets, data, ret_handle);
     case DMUS_DOWNLOADINFO_WAVE:
+        *ret_free = FALSE;
         return synth_download_wave(This, info, offsets, data, ret_handle);
     case DMUS_DOWNLOADINFO_WAVEARTICULATION:
         FIXME("Download type DMUS_DOWNLOADINFO_WAVEARTICULATION not yet supported\n");
@@ -940,7 +946,6 @@ static HRESULT WINAPI synth_Unload(IDirectMusicSynth8 *iface, HANDLE handle,
     struct wave *wave;
 
     TRACE("(%p)->(%p, %p, %p)\n", This, handle, callback, user_data);
-    if (callback) FIXME("Unload callbacks not implemented\n");
 
     EnterCriticalSection(&This->cs);
     LIST_FOR_EACH_ENTRY(instrument, &This->instruments, struct instrument, entry)
@@ -959,6 +964,8 @@ static HRESULT WINAPI synth_Unload(IDirectMusicSynth8 *iface, HANDLE handle,
     {
         if (wave == handle)
         {
+            wave->callback = callback;
+            wave->user_data = user_data;
             list_remove(&wave->entry);
             LeaveCriticalSection(&This->cs);
 
@@ -1120,6 +1127,7 @@ static HRESULT WINAPI synth_Render(IDirectMusicSynth8 *iface, short *buffer,
 {
     struct synth *This = impl_from_IDirectMusicSynth8(iface);
     struct event *event, *next;
+    struct voice *voice;
     int chan;
 
     TRACE("(%p, %p, %ld, %I64d)\n", This, buffer, length, position);
@@ -1173,6 +1181,21 @@ static HRESULT WINAPI synth_Render(IDirectMusicSynth8 *iface, short *buffer,
     LeaveCriticalSection(&This->cs);
 
     if (length) fluid_synth_write_s16(This->fluid_synth, length, buffer, 0, 2, buffer, 1, 2);
+
+    /* fluid_synth_write_s16() does not update the voice status, so we have to
+     * trigger the update manually */
+    fluid_synth_get_active_voice_count(This->fluid_synth);
+
+    LIST_FOR_EACH_ENTRY(voice, &This->voices, struct voice, entry)
+    {
+        if (fluid_voice_is_playing(voice->fluid_voice))
+            continue;
+        if (!voice->wave)
+            continue;
+        wave_release(voice->wave);
+        voice->wave = NULL;
+    }
+
     return S_OK;
 }
 
@@ -1899,7 +1922,11 @@ static int synth_preset_noteon(fluid_preset_t *fluid_preset, fluid_synth_t *flui
     {
         if (voice->fluid_voice == fluid_voice)
         {
-            wave_release(voice->wave);
+            if (voice->wave)
+            {
+                wave_release(voice->wave);
+                voice->wave = NULL;
+            }
             break;
         }
     }
@@ -1930,11 +1957,8 @@ static int synth_preset_noteon(fluid_preset_t *fluid_preset, fluid_synth_t *flui
         else
             FIXME("Unsupported loop type %lu\n", loop->ulType);
 
-        /* When copy_data is TRUE, fluid_sample_set_sound_data() adds
-            * 8-frame padding around the sample data. Offset the loop points
-            * to compensate for this. */
-        fluid_voice_gen_set(fluid_voice, GEN_STARTLOOPADDROFS, 8 + loop->ulStart);
-        fluid_voice_gen_set(fluid_voice, GEN_ENDLOOPADDROFS, 8 + loop->ulStart + loop->ulLength);
+        fluid_voice_gen_set(fluid_voice, GEN_STARTLOOPADDROFS, loop->ulStart);
+        fluid_voice_gen_set(fluid_voice, GEN_ENDLOOPADDROFS, loop->ulStart + loop->ulLength);
     }
     fluid_voice_gen_set(fluid_voice, GEN_OVERRIDEROOTKEY, region->wave_sample.usUnityNote);
     fluid_voice_gen_set(fluid_voice, GEN_FINETUNE, region->wave_sample.sFineTune);

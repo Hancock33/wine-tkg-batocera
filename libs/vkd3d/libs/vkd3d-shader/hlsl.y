@@ -471,7 +471,7 @@ static void append_conditional_break(struct hlsl_ctx *ctx, struct hlsl_block *co
 
     hlsl_block_init(&then_block);
     hlsl_block_add_jump(ctx, &then_block, HLSL_IR_JUMP_BREAK, NULL, &condition->loc);
-    hlsl_block_add_if(ctx, cond_block, not, &then_block, NULL, &condition->loc);
+    hlsl_block_add_if(ctx, cond_block, not, &then_block, NULL, HLSL_IF_FLATTEN_DEFAULT, &condition->loc);
 }
 
 static void check_attribute_list_for_duplicates(struct hlsl_ctx *ctx, const struct parse_attribute_list *attrs)
@@ -9139,6 +9139,7 @@ selection_statement:
         {
             struct hlsl_ir_node *condition = node_from_block($4);
             const struct parse_attribute_list *attributes = &$1;
+            enum hlsl_if_flatten_type flatten_type = HLSL_IF_FLATTEN_DEFAULT;
             unsigned int i;
 
             check_attribute_list_for_duplicates(ctx, attributes);
@@ -9147,10 +9148,19 @@ selection_statement:
             {
                 const struct hlsl_attribute *attr = attributes->attrs[i];
 
-                if (!strcmp(attr->name, "branch")
-                        || !strcmp(attr->name, "flatten"))
+                if (!strcmp(attr->name, "branch"))
                 {
-                    hlsl_warning(ctx, &@1, VKD3D_SHADER_WARNING_HLSL_IGNORED_ATTRIBUTE, "Unhandled attribute '%s'.", attr->name);
+                    if (flatten_type == HLSL_IF_FORCE_FLATTEN)
+                        hlsl_error(ctx, &@1, VKD3D_SHADER_ERROR_HLSL_INVALID_SYNTAX,
+                                "The 'branch' and 'flatten' attributes are mutually exclusive.");
+                    flatten_type = HLSL_IF_FORCE_BRANCH;
+                }
+                else if (!strcmp(attr->name, "flatten"))
+                {
+                    if (flatten_type == HLSL_IF_FORCE_BRANCH)
+                        hlsl_error(ctx, &@1, VKD3D_SHADER_ERROR_HLSL_INVALID_SYNTAX,
+                                "The 'branch' and 'flatten' attributes are mutually exclusive.");
+                    flatten_type = HLSL_IF_FORCE_FLATTEN;
                 }
                 else
                 {
@@ -9158,10 +9168,16 @@ selection_statement:
                 }
             }
 
+            if (flatten_type == HLSL_IF_FORCE_BRANCH && hlsl_version_lt(ctx, 2, 1))
+            {
+                hlsl_error(ctx, &@1, VKD3D_SHADER_ERROR_HLSL_INCOMPATIBLE_PROFILE,
+                        "The 'branch' attribute requires shader model 2.1 or higher.");
+            }
+
             check_condition_type(ctx, condition);
 
             condition = add_cast(ctx, $4, condition, hlsl_get_scalar_type(ctx, HLSL_TYPE_BOOL), &@4);
-            hlsl_block_add_if(ctx, $4, condition, $6.then_block, $6.else_block, &@2);
+            hlsl_block_add_if(ctx, $4, condition, $6.then_block, $6.else_block, flatten_type, &@2);
 
             destroy_block($6.then_block);
             destroy_block($6.else_block);

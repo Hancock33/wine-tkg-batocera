@@ -152,11 +152,11 @@ static ULONG WINAPI downloadcb_Release(IBindStatusCallback *iface)
 
     if (!ref)
     {
-        heap_free(This->file_name);
-        heap_free(This->cache_file);
+        HeapFree(GetProcessHeap(), 0, This->file_name);
+        HeapFree(GetProcessHeap(), 0, This->cache_file);
 
         IInstallEngine2_Release(&This->engine->IInstallEngine2_iface);
-        heap_free(This);
+        HeapFree(GetProcessHeap(), 0, This);
     }
 
     return ref;
@@ -317,7 +317,7 @@ static HRESULT downloadcb_create(InstallEngine *engine, HANDLE event, char *file
 {
     struct downloadcb *cb;
 
-    cb = heap_alloc_zero(sizeof(*cb));
+    cb = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,sizeof(*cb));
     if (!cb) return E_OUTOFMEMORY;
 
     cb->IBindStatusCallback_iface.lpVtbl = &BindStatusCallbackVtbl;
@@ -332,7 +332,7 @@ static HRESULT downloadcb_create(InstallEngine *engine, HANDLE event, char *file
     cb->file_name = strAtoW(file_name);
     if (!cb->file_name)
     {
-        heap_free(cb);
+        HeapFree(GetProcessHeap(), 0, cb);
         return E_OUTOFMEMORY;
     }
 
@@ -485,14 +485,14 @@ static HRESULT get_url(ICifComponent *comp, int index, char **url, DWORD *flags)
     do
     {
         size *= 2;
-        heap_free(url_temp);
-        url_temp = heap_alloc(size);
+        HeapFree(GetProcessHeap(), 0, url_temp);
+        url_temp = HeapAlloc(GetProcessHeap(), 0, size);
         if (!url_temp) return E_OUTOFMEMORY;
 
         hr = ICifComponent_GetUrl(comp, index, url_temp, size, flags);
         if (FAILED(hr))
         {
-            heap_free(url_temp);
+            HeapFree(GetProcessHeap(), 0, url_temp);
             return hr;
         }
     }
@@ -508,7 +508,7 @@ static char *combine_url(char *baseurl, char *url)
     int len_url = strlen(url);
     char *combined;
 
-    combined = heap_alloc(len_base + len_url + 2);
+    combined = HeapAlloc(GetProcessHeap(), 0, len_base + len_url + 2);
     if (!combined) return NULL;
 
     strcpy(combined, baseurl);
@@ -534,7 +534,7 @@ static HRESULT generate_moniker(char *baseurl, char *url, DWORD flags, IMoniker 
         if (!combined) return E_OUTOFMEMORY;
 
         urlW = strAtoW(combined);
-        heap_free(combined);
+        HeapFree(GetProcessHeap(), 0, combined);
         if (!urlW) return E_OUTOFMEMORY;
     }
     else
@@ -544,14 +544,14 @@ static HRESULT generate_moniker(char *baseurl, char *url, DWORD flags, IMoniker 
     }
 
     hr = CreateURLMoniker(NULL, urlW, moniker);
-    heap_free(urlW);
+    HeapFree(GetProcessHeap(), 0, urlW);
     return hr;
 }
 
 static char *merge_path(char *path1, char *path2)
 {
     int len = strlen(path1) + strlen(path2) + 2;
-    char *combined = heap_alloc(len);
+    char *combined = HeapAlloc(GetProcessHeap(), 0, len);
 
     if (!combined) return NULL;
     strcpy(combined, path1);
@@ -611,7 +611,7 @@ static HRESULT download_url(InstallEngine *This, char *id, char *display, char *
     if (FAILED(hr)) goto error;
     if (unk) IUnknown_Release(unk);
 
-    heap_free(filename);
+    HeapFree(GetProcessHeap(), 0, filename);
     IMoniker_Release(mon);
     IBindCtx_Release(bindctx);
 
@@ -627,7 +627,7 @@ error:
     if (event) CloseHandle(event);
     if (callback) IBindStatusCallback_Release(&callback->IBindStatusCallback_iface);
     if (bindctx) IBindCtx_Release(bindctx);
-    if (filename) heap_free(filename);
+    if (filename) HeapFree(GetProcessHeap(), 0, filename);
     return hr;
 }
 
@@ -695,7 +695,7 @@ static HRESULT process_component(InstallEngine *This, ICifComponent *comp)
             TRACE("processing url %s\n", debugstr_a(url));
 
             hr = download_url(This, id, display, url, flags, size_dl);
-            heap_free(url);
+            HeapFree(GetProcessHeap(), 0, url);
             if (FAILED(hr))
             {
                 DWORD retry = 0;
@@ -984,7 +984,7 @@ static HRESULT WINAPI InstallEngine_SetBaseUrl(IInstallEngine2 *iface, const cha
     TRACE("(%p)->(%s)\n", This, debugstr_a(base_name));
 
     if (This->baseurl)
-        heap_free(This->baseurl);
+        HeapFree(GetProcessHeap(), 0, This->baseurl);
 
     This->baseurl = strdupA(base_name);
     return This->baseurl ? S_OK : E_OUTOFMEMORY;
@@ -997,7 +997,7 @@ static HRESULT WINAPI InstallEngine_SetDownloadDir(IInstallEngine2 *iface, const
     TRACE("(%p)->(%s)\n", This, debugstr_a(download_dir));
 
     if (This->downloaddir)
-        heap_free(This->downloaddir);
+        HeapFree(GetProcessHeap(), 0, This->downloaddir);
 
     This->downloaddir = strdupA(download_dir);
     return This->downloaddir ? S_OK : E_OUTOFMEMORY;

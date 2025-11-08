@@ -22,12 +22,11 @@
 #include "ole2.h"
 #include "rpcproxy.h"
 #include "inseng.h"
-#include "wine/heap.h"
 
 
 static inline char *strdupA(const char *src)
 {
-    char *dest = heap_alloc(strlen(src) + 1);
+    char *dest = HeapAlloc(GetProcessHeap(), 0, strlen(src) + 1);
     if (dest) strcpy(dest, src);
     return dest;
 }

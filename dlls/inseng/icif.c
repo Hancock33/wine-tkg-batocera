@@ -202,14 +202,14 @@ static HRESULT copy_substring_null(char *dest, int max_len, char *src)
 
 static void url_entry_free(struct url_info *url)
 {
-    heap_free(url->url);
-    heap_free(url);
+    HeapFree(GetProcessHeap(), 0, url->url);
+    HeapFree(GetProcessHeap(), 0, url);
 }
 
 static void dependency_entry_free(struct dependency_info *dependency)
 {
-    heap_free(dependency->id);
-    heap_free(dependency);
+    HeapFree(GetProcessHeap(), 0, dependency->id);
+    HeapFree(GetProcessHeap(), 0, dependency);
 }
 
 static void component_free(struct cifcomponent *comp)
@@ -217,20 +217,20 @@ static void component_free(struct cifcomponent *comp)
     struct dependency_info *dependency, *dependency_next;
     struct url_info *url, *url_next;
 
-    heap_free(comp->id);
-    heap_free(comp->guid);
-    heap_free(comp->description);
-    heap_free(comp->details);
-    heap_free(comp->group);
+    HeapFree(GetProcessHeap(), 0, comp->id);
+    HeapFree(GetProcessHeap(), 0, comp->guid);
+    HeapFree(GetProcessHeap(), 0, comp->description);
+    HeapFree(GetProcessHeap(), 0, comp->details);
+    HeapFree(GetProcessHeap(), 0, comp->group);
 
-    heap_free(comp->patchid);
+    HeapFree(GetProcessHeap(), 0, comp->patchid);
 
-    heap_free(comp->locale);
-    heap_free(comp->key_uninstall);
+    HeapFree(GetProcessHeap(), 0, comp->locale);
+    HeapFree(GetProcessHeap(), 0, comp->key_uninstall);
 
-    heap_free(comp->key_success);
-    heap_free(comp->key_progress);
-    heap_free(comp->key_cancel);
+    HeapFree(GetProcessHeap(), 0, comp->key_success);
+    HeapFree(GetProcessHeap(), 0, comp->key_progress);
+    HeapFree(GetProcessHeap(), 0, comp->key_cancel);
 
     LIST_FOR_EACH_ENTRY_SAFE(dependency, dependency_next, &comp->dependencies, struct dependency_info, entry)
     {
@@ -244,14 +244,14 @@ static void component_free(struct cifcomponent *comp)
         url_entry_free(url);
     }
 
-    heap_free(comp);
+    HeapFree(GetProcessHeap(), 0, comp);
 }
 
 static void group_free(struct cifgroup *group)
 {
-    heap_free(group->id);
-    heap_free(group->description);
-    heap_free(group);
+    HeapFree(GetProcessHeap(), 0, group->id);
+    HeapFree(GetProcessHeap(), 0, group->description);
+    HeapFree(GetProcessHeap(), 0, group);
 }
 
 static HRESULT WINAPI group_GetID(ICifGroup *iface, char *id, DWORD size)
@@ -831,7 +831,7 @@ static ULONG WINAPI enum_components_Release(IEnumCifComponents *iface)
     if(!ref)
     {
         ICifFile_Release(This->file);
-        heap_free(This);
+        HeapFree(GetProcessHeap(), 0, This);
     }
 
     return ref;
@@ -892,7 +892,7 @@ static HRESULT enum_components_create(ICifFile *file, struct list *start, char *
 {
     struct ciffenum_components *enumerator;
 
-    enumerator = heap_alloc_zero(sizeof(*enumerator));
+    enumerator = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,sizeof(*enumerator));
     if (!enumerator) return E_OUTOFMEMORY;
 
     enumerator->IEnumCifComponents_iface.lpVtbl = &enum_componentsVtbl;
@@ -955,7 +955,7 @@ static ULONG WINAPI enum_groups_Release(IEnumCifGroups *iface)
     if(!ref)
     {
         ICifFile_Release(This->file);
-        heap_free(This);
+        HeapFree(GetProcessHeap(), 0, This);
     }
 
     return ref;
@@ -1004,7 +1004,7 @@ static HRESULT enum_groups_create(ICifFile *file, struct list *start, IEnumCifGr
 {
     struct ciffenum_groups *enumerator;
 
-    enumerator = heap_alloc_zero(sizeof(*enumerator));
+    enumerator = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,sizeof(*enumerator));
     if (!enumerator) return E_OUTOFMEMORY;
 
     enumerator->IEnumCifGroups_iface.lpVtbl = &enum_groupsVtbl;
@@ -1066,7 +1066,7 @@ static ULONG WINAPI ciffile_Release(ICifFile *iface)
         struct cifcomponent *comp, *comp_next;
         struct cifgroup *group, *group_next;
 
-        heap_free(This->name);
+        HeapFree(GetProcessHeap(), 0, This->name);
 
         LIST_FOR_EACH_ENTRY_SAFE(comp, comp_next, &This->components, struct cifcomponent, entry)
         {
@@ -1080,7 +1080,7 @@ static ULONG WINAPI ciffile_Release(ICifFile *iface)
             group_free(group);
         }
 
-        heap_free(This);
+        HeapFree(GetProcessHeap(), 0, This);
     }
 
     return ref;
@@ -1265,7 +1265,7 @@ static BOOL value_get_str_field(struct inf_value *inf_val, int field, char **val
         if (field == i)
         {
             BOOL ret = copy_string(value, str);
-            heap_free(line);
+            HeapFree(GetProcessHeap(), 0, line);
             return ret;
         }
 
@@ -1303,7 +1303,7 @@ static BOOL section_get_dword(struct inf_section *inf_sec, const char *key, DWOR
     if (!str) return FALSE;
 
     *value = atoi(str);
-    heap_free(str);
+    HeapFree(GetProcessHeap(), 0, str);
 
     return TRUE;
 }
@@ -1322,7 +1322,7 @@ static BOOL value_get_dword_field(struct inf_value *inf_val, int field, DWORD *v
     }
 
     *value = atoi(value_str);
-    heap_free(value_str);
+    HeapFree(GetProcessHeap(), 0, value_str);
 
     return TRUE;
 }
@@ -1380,7 +1380,7 @@ static BOOL read_version_entry(struct inf_section *section, DWORD *ret_ver, DWOR
     build |= atoi(str) & 0xffff;
 
 done:
-    heap_free(line);
+    HeapFree(GetProcessHeap(), 0, line);
     *ret_ver = version;
     *ret_build = build;
     return TRUE;
@@ -1422,7 +1422,7 @@ static BOOL read_platform_entry(struct inf_section *section, DWORD *ret_platform
     } while (str);
 
 done:
-    heap_free(line);
+    HeapFree(GetProcessHeap(), 0, line);
     *ret_platform = platform;
     return TRUE;
 }
@@ -1443,13 +1443,13 @@ static BOOL read_dependencies(struct cifcomponent *component, struct inf_section
     {
         next = next_part(&str, TRUE);
 
-        dependency = heap_alloc_zero(sizeof(*dependency));
+        dependency = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,sizeof(*dependency));
         if (!dependency) goto done;
 
         dependency->id = strdupA(str);
         if (!dependency->id)
         {
-            heap_free(dependency);
+            HeapFree(GetProcessHeap(), 0, dependency);
             goto done;
         }
 
@@ -1464,7 +1464,7 @@ static BOOL read_dependencies(struct cifcomponent *component, struct inf_section
     ret = TRUE;
 
 done:
-    heap_free(line);
+    HeapFree(GetProcessHeap(), 0, line);
     return ret;
 }
 
@@ -1491,7 +1491,7 @@ static BOOL read_urls(struct cifcomponent *component, struct inf_section *sectio
             goto next;
         index--;
 
-        url_entry = heap_alloc_zero(sizeof(*url_entry));
+        url_entry = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,sizeof(*url_entry));
         if (!url_entry) goto error;
 
         url_entry->index = index;
@@ -1510,13 +1510,13 @@ static BOOL read_urls(struct cifcomponent *component, struct inf_section *sectio
         list_add_tail(&component->urls, &url_entry->entry);
 
     next:
-        heap_free(str);
+        HeapFree(GetProcessHeap(), 0, str);
     }
 
     return TRUE;
 
 error:
-    heap_free(str);
+    HeapFree(GetProcessHeap(), 0, str);
     url_entry_free(url_entry);
     return FALSE;
 };
@@ -1542,7 +1542,7 @@ static HRESULT process_component(struct ciffile *file, struct inf_section *secti
     struct cifcomponent *component;
     HRESULT hr = E_OUTOFMEMORY;
 
-    component = heap_alloc_zero(sizeof(*component));
+    component = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,sizeof(*component));
     if (!component) return E_OUTOFMEMORY;
 
     component->ICifComponent_iface.lpVtbl = &cifcomponentVtbl;
@@ -1621,7 +1621,7 @@ static HRESULT process_group(struct ciffile *file, struct inf_section *section, 
     struct cifgroup *group;
     HRESULT hr = E_OUTOFMEMORY;
 
-    group = heap_alloc_zero(sizeof(*group));
+    group = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,sizeof(*group));
     if (!group) return E_OUTOFMEMORY;
 
     group->ICifGroup_iface.lpVtbl = &cifgroupVtbl;
@@ -1658,7 +1658,7 @@ static HRESULT process_section(struct ciffile *file, struct inf_section *section
     else
         FIXME("Don't know how to process %s\n", debugstr_a(type));
 
-    heap_free(type);
+    HeapFree(GetProcessHeap(), 0, type);
     return hr;
 }
 
@@ -1686,7 +1686,7 @@ static HRESULT process_inf(struct ciffile *file, struct inf_file *inf)
             hr = process_section(file, section, section_name);
 
         TRACE("Finished processing section %s, hr %#lx.\n", debugstr_a(section_name), hr);
-        heap_free(section_name);
+        HeapFree(GetProcessHeap(), 0, section_name);
     }
 
     /* In case there was no version section, set the default installer description */
@@ -1705,7 +1705,7 @@ static HRESULT load_ciffile(const char *path, ICifFile **icif)
     struct ciffile *file;
     HRESULT hr = E_FAIL;
 
-    file = heap_alloc_zero(sizeof(*file));
+    file = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,sizeof(*file));
     if(!file) return E_OUTOFMEMORY;
 
     file->ICifFile_iface.lpVtbl = &ciffileVtbl;
