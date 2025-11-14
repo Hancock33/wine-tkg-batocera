@@ -1,6 +1,6 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at 2bf94fc8 Rebase against 76e7e90c3679766ac327b138e3269fb61ead6e4a.
+HEAD is now at ed8a24d7 Rebase against fe1175af410d04f806dda770502d0476a8ccbef6.
 HEAD is now at fe1175af410 Release 10.19.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
@@ -334,44 +334,6 @@ Hunk #1 succeeded at 312 (offset -1 lines).
 Hunk #2 succeeded at 322 (offset -1 lines).
 Hunk #3 succeeded at 1117 (offset 2 lines).
 Hunk #4 succeeded at 1129 (offset 2 lines).
-
-Revert-ntdll-Get-rid-of-the-wine_nt_to_unix_file_nam.patch -- ( Revert ntdll: Get rid of the wine_nt_to_unix_file_name syscall )
-patching file dlls/ntdll/ntdll.spec
-Hunk #1 succeeded at 1768 (offset 3 lines).
-patching file dlls/ntdll/ntsyscalls.h
-patching file dlls/ntdll/signal_arm64ec.c
-Hunk #1 succeeded at 599 (offset 1 line).
-patching file dlls/ntdll/unix/file.c
-Hunk #1 succeeded at 3940 (offset -854 lines).
-patching file dlls/wow64/file.c
-patching file include/winternl.h
-
-proton-eac_bridge.patch -- ( Add support for Proton's EAC bridge )
-patching file dlls/ntdll/unix/loader.c
-Hunk #1 succeeded at 360 (offset 20 lines).
-Hunk #2 succeeded at 368 (offset 20 lines).
-Hunk #3 succeeded at 401 (offset 20 lines).
-patching file dlls/ntdll/unix/loadorder.c
-Hunk #2 succeeded at 396 with fuzz 2 (offset 1 line).
-patching file dlls/kernelbase/process.c
-Hunk #1 succeeded at 501 (offset -5 lines).
-Hunk #2 succeeded at 537 (offset -5 lines).
-Hunk #3 succeeded at 670 (offset -62 lines).
-patching file dlls/ntdll/unix/loadorder.c
-Hunk #3 succeeded at 420 with fuzz 2 (offset 2 lines).
-patching file dlls/ntdll/unix/loadorder.c
-Hunk #2 succeeded at 413 (offset 1 line).
-Hunk #3 succeeded at 429 with fuzz 1 (offset 2 lines).
-
-wow64_loader_hack.patch -- ( Hack around loader name for EAC on 10.2+ )
-patching file configure.ac
-Hunk #1 succeeded at 2087 (offset 54 lines).
-Hunk #2 succeeded at 2106 (offset 54 lines).
-patching file dlls/ntdll/unix/loader.c
-Hunk #1 succeeded at 497 (offset 21 lines).
-Hunk #2 succeeded at 509 (offset 21 lines).
-Hunk #3 succeeded at 543 (offset 21 lines).
-patching file loader/Makefile.in
 
 Applying hotfix wine-tkg-patches/hotfixes/GetMappedFileName/Return_nt_filename_and_resolve_DOS_drive_path.mypatch
 patching file dlls/ntdll/unix/virtual.c
