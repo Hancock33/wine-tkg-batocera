@@ -210,7 +210,6 @@ extern void init_startup_info(void);
 extern void *create_startup_info( const UNICODE_STRING *nt_image, ULONG process_flags,
                                   const RTL_USER_PROCESS_PARAMETERS *params,
                                   const struct pe_image_info *pe_info, DWORD *info_size );
-extern char **build_envp( const WCHAR *envW );
 extern char *get_alternate_wineloader( WORD machine );
 extern NTSTATUS exec_wineloader( char **argv, int socketfd, const struct pe_image_info *pe_info );
 extern NTSTATUS load_builtin( const struct pe_image_info *image_info, UNICODE_STRING *nt_name,
@@ -359,7 +358,7 @@ extern struct async_fileio *alloc_fileio( DWORD size, async_callback_t callback,
 extern void release_fileio( struct async_fileio *io );
 extern NTSTATUS errno_to_status( int err );
 extern NTSTATUS get_nt_and_unix_names( OBJECT_ATTRIBUTES *attr, UNICODE_STRING *nt_name,
-                                       char **unix_name, UINT disposition );
+                                       char **unix_name, UINT disposition, BOOL open_reparse );
 extern NTSTATUS unix_to_nt_file_name( const char *unix_name, WCHAR **nt, UINT disposition );
 extern NTSTATUS get_full_path( char *name, const WCHAR *curdir, UNICODE_STRING *nt_name );
 extern NTSTATUS get_nt_path( const WCHAR *name, UNICODE_STRING *nt_name );
