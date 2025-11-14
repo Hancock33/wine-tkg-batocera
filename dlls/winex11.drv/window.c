@@ -1631,9 +1631,8 @@ static UINT window_update_client_state( struct x11drv_win_data *data )
         }
         else if (old_style & (WS_MINIMIZE | WS_MAXIMIZE))
         {
-            BOOL activate = (old_style & (WS_MINIMIZE | WS_VISIBLE)) == (WS_MINIMIZE | WS_VISIBLE);
             TRACE( "restoring win %p/%lx\n", data->hwnd, data->whole_window );
-            return MAKELONG(SC_RESTORE, activate);
+            return SC_RESTORE;
         }
     }
     if (!(old_style & WS_MINIMIZE) && (new_style & WS_MINIMIZE))
@@ -1686,9 +1685,10 @@ static UINT window_update_client_config( struct x11drv_win_data *data )
      * window rect will be repeatedly changed by the WM and the application, causing a flickering effect */
     if (data->is_fullscreen)
     {
-        xinerama_get_fullscreen_monitors( &data->rects.visible, &old_generation, old_monitors );
-        xinerama_get_fullscreen_monitors( &data->current_state.rect, &generation, monitors );
-        if (!memcmp( old_monitors, monitors, sizeof(monitors) )) return 0;
+        if (xinerama_get_fullscreen_monitors( &data->rects.visible, &old_generation, old_monitors )
+            && xinerama_get_fullscreen_monitors( &data->current_state.rect, &generation, monitors )
+            && !memcmp( old_monitors, monitors, sizeof(monitors) ))
+            return 0;
     }
 
     flags = SWP_NOACTIVATE | SWP_NOZORDER;
@@ -2803,6 +2803,7 @@ void X11DRV_SystrayDockInit( HWND hwnd )
         systray_atom = XInternAtom( display, systray_buffer, False );
     }
     XSelectInput( display, root_window, StructureNotifyMask | PropertyChangeMask );
+    XFlush( display );
 }
 
 
@@ -2826,7 +2827,11 @@ BOOL X11DRV_SystrayDockRemove( HWND hwnd )
 
     if ((data = get_win_data( hwnd )))
     {
-        if ((ret = data->embedded)) window_set_wm_state( data, WithdrawnState, FALSE );
+        if ((ret = data->embedded))
+        {
+            window_set_wm_state( data, WithdrawnState, FALSE );
+            XFlush( data->display );
+        }
         release_win_data( data );
     }
 
@@ -2906,6 +2911,7 @@ BOOL X11DRV_SystrayDockInsert( HWND hwnd, UINT cx, UINT cy, void *icon )
     ev.xclient.data.l[3] = 0;
     ev.xclient.data.l[4] = 0;
     XSendEvent( display, systray_window, False, NoEventMask, &ev );
+    XFlush( display );
 
     return TRUE;
 }
@@ -3035,10 +3041,10 @@ void X11DRV_SetCapture( HWND hwnd, UINT flags )
         if (!(data = get_win_data( NtUserGetAncestor( hwnd, GA_ROOT )))) return;
         if (data->whole_window)
         {
-            XFlush( gdi_display );
             XGrabPointer( data->display, data->whole_window, False,
                           PointerMotionMask | ButtonPressMask | ButtonReleaseMask,
                           GrabModeAsync, GrabModeAsync, None, None, CurrentTime );
+            XFlush( data->display );
             thread_data->grab_hwnd = data->hwnd;
         }
         release_win_data( data );
@@ -3046,7 +3052,6 @@ void X11DRV_SetCapture( HWND hwnd, UINT flags )
     else  /* release capture */
     {
         if (!(data = get_win_data( thread_data->grab_hwnd ))) return;
-        XFlush( gdi_display );
         XUngrabPointer( data->display, CurrentTime );
         XFlush( data->display );
         thread_data->grab_hwnd = NULL;
@@ -3596,6 +3601,7 @@ void X11DRV_FlashWindowEx( FLASHWINFO *pfinfo )
 
         XSendEvent( data->display, DefaultRootWindow( data->display ), False,
                     SubstructureNotifyMask, &xev );
+        XFlush( data->display );
     }
     release_win_data( data );
 }

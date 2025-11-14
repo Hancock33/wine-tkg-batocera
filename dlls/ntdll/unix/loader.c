@@ -581,6 +581,10 @@ static void preloader_exec( char **argv )
 /* exec the appropriate wine loader for the specified machine */
 static NTSTATUS loader_exec( char **argv, WORD machine )
 {
+    static char noexec[] = "WINELOADERNOEXEC=1";
+
+    putenv( noexec );
+
     if (((argv[1] = get_alternate_wineloader( machine )))) preloader_exec( argv );
 
     argv[1] = strdup( wineloader );
@@ -1037,7 +1041,7 @@ static NTSTATUS load_so_dll( void *args )
 
     if (get_load_order( nt_name ) == LO_DISABLED) return STATUS_DLL_NOT_FOUND;
     InitializeObjectAttributes( &attr, nt_name, OBJ_CASE_INSENSITIVE, 0, 0 );
-    if (!get_nt_and_unix_names( &attr, &true_nt_name, &unix_name, FILE_OPEN ))
+    if (!get_nt_and_unix_names( &attr, &true_nt_name, &unix_name, FILE_OPEN, FALSE ))
     {
         /* remove .so extension from Windows name */
         len = nt_name->Length / sizeof(WCHAR);
@@ -1538,7 +1542,7 @@ static NTSTATUS open_main_image( UNICODE_STRING *nt_name, void **module, SECTION
     if (loadorder == LO_DISABLED) NtTerminateProcess( GetCurrentProcess(), STATUS_DLL_NOT_FOUND );
 
     InitializeObjectAttributes( &attr, nt_name, OBJ_CASE_INSENSITIVE, 0, NULL );
-    if (get_nt_and_unix_names( &attr, &true_nt_name, &unix_name, FILE_OPEN )) return STATUS_DLL_NOT_FOUND;
+    if (get_nt_and_unix_names( &attr, &true_nt_name, &unix_name, FILE_OPEN, FALSE )) return STATUS_DLL_NOT_FOUND;
 
     status = open_dll_file( unix_name, &attr, &mapping );
     if (!status)
@@ -2240,7 +2244,6 @@ static int pre_exec(void)
 
 static void reexec_loader( int argc, char *argv[], char *extra_arg )
 {
-    static char noexec[] = "WINELOADERNOEXEC=1";
     WORD machine = current_machine;
     char **new_argv;
 
@@ -2262,7 +2265,6 @@ static void reexec_loader( int argc, char *argv[], char *extra_arg )
     /* default to 32-bit loader to support 32-bit prefixes */
     if (machine == IMAGE_FILE_MACHINE_AMD64) machine = IMAGE_FILE_MACHINE_I386;
 
-    putenv( noexec );
     loader_exec( new_argv, machine );
     fatal_error( "could not exec the wine loader\n" );
 }
@@ -2337,6 +2339,7 @@ DECLSPEC_EXPORT void __wine_main( int argc, char *argv[] )
 
     init_paths();
     if (!getenv( "WINELOADERNOEXEC" ) || argc <= 1) check_command_line( argc, argv );
+    unsetenv( "WINELOADERNOEXEC" );
 
 #ifdef RLIMIT_NOFILE
     set_max_limit( RLIMIT_NOFILE );

@@ -32,7 +32,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <libgen.h>
 #include <poll.h>
 #ifdef HAVE_LINUX_MAJOR_H
 #include <linux/major.h>
@@ -87,6 +86,13 @@
 #ifdef HAVE_SYS_SYSCALL_H
 #include <sys/syscall.h>
 #endif
+#ifdef HAVE_SYS_XATTR_H
+#include <sys/xattr.h>
+#endif
+#ifdef HAVE_SYS_EXTATTR_H
+#undef XATTR_ADDITIONAL_OPTIONS
+#include <sys/extattr.h>
+#endif
 
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
@@ -98,11 +104,8 @@
 
 #include "winternl.h"
 #include "winioctl.h"
+#include "ddk/ntifs.h"
 #include "ddk/wdm.h"
-
-#if !defined(O_SYMLINK) && defined(O_PATH)
-# define O_SYMLINK (O_NOFOLLOW | O_PATH)
-#endif
 
 #if defined(HAVE_SYS_EPOLL_H) && defined(HAVE_EPOLL_CREATE)
 # include <sys/epoll.h>
@@ -1088,9 +1091,6 @@ static void device_destroy( struct object *obj )
     list_remove( &device->entry );  /* remove it from the hash table */
 }
 
-static int is_reparse_dir( const char *path, int *is_dir );
-static int rmdir_recursive( int dir_fd, const char *pathname );
-
 /****************************************************************/
 /* inode functions */
 
@@ -1098,29 +1098,10 @@ static void unlink_closed_fd( struct inode *inode, struct closed_fd *fd )
 {
     /* make sure it is still the same file */
     struct stat st;
-    if (!lstat( fd->unix_name, &st ) && st.st_dev == inode->device->dev && st.st_ino == inode->ino)
+    if (!stat( fd->unix_name, &st ) && st.st_dev == inode->device->dev && st.st_ino == inode->ino)
     {
-        int is_reparse_point = (is_reparse_dir( fd->unix_name, NULL ) == 0);
         if (S_ISDIR(st.st_mode)) rmdir( fd->unix_name );
         else unlink( fd->unix_name );
-        /* remove reparse point metadata (if applicable) */
-        if (is_reparse_point)
-        {
-            char tmp[PATH_MAX], metadata_path[PATH_MAX], *p;
-
-            strcpy( tmp, fd->unix_name );
-            p = dirname( tmp );
-            if (p != tmp ) strcpy( tmp, p );
-            strcpy( metadata_path, tmp );
-            strcat( metadata_path, "/.REPARSE_POINT/" );
-            strcpy( tmp, fd->unix_name );
-            p = basename( tmp );
-            if (p != tmp) strcpy( tmp, p );
-            strcat( metadata_path, tmp );
-
-            rmdir_recursive( AT_FDCWD, metadata_path );
-            rmdir( dirname( metadata_path ) );
-        }
     }
 }
 
@@ -1157,59 +1138,6 @@ static void inode_dump( struct object *obj, int verbose )
     fprintf( stderr, "Inode device=%p ino=", inode->device );
     DUMP_LONG_LONG( inode->ino );
     fprintf( stderr, "\n" );
-}
-
-/* recursively delete everything in a directory */
-static int rmdir_recursive( int dir_fd, const char *pathname )
-{
-    int ret = 0, tmp_fd;
-    struct dirent *p;
-    struct stat st;
-    DIR *d;
-
-    tmp_fd = openat( dir_fd, pathname, O_DIRECTORY|O_RDONLY|O_NONBLOCK|O_CLOEXEC );
-    d = fdopendir( tmp_fd );
-    if (!d)
-    {
-        close( tmp_fd );
-        return -1;
-    }
-
-    while (!ret && (p = readdir( d )))
-    {
-        if (!strcmp( p->d_name, "." ) || !strcmp( p->d_name, ".." ))
-            continue;
-        if (!fstatat( dirfd(d), p->d_name, &st, AT_SYMLINK_NOFOLLOW ))
-        {
-            if (S_ISDIR( st.st_mode ))
-                ret = rmdir_recursive( dirfd(d), p->d_name );
-            else
-                ret = unlinkat( dirfd(d), p->d_name, 0 );
-        }
-    }
-    closedir( d );
-    return unlinkat( dir_fd, pathname, AT_REMOVEDIR );
-}
-
-/* determine whether a reparse point is meant to be a directory or a file */
-static int is_reparse_dir( const char *path, int *is_dir )
-{
-    char link_path[PATH_MAX], *p;
-    int ret;
-
-    if ((ret = readlink( path, link_path, sizeof(link_path) )) < 0)
-        return ret;
-    /* confirm that this file is a reparse point */
-    if (strncmp( link_path, ".REPARSE_POINT/", 15) != 0)
-        return -1;
-    /* skip past the reparse point indicator and the filename */
-    p = &link_path[15];
-    if ((p = strchr( p, '/' )) == NULL)
-        return -1;
-    p++;
-    /* read the flag indicating whether this reparse point is a directory */
-    if (is_dir) *is_dir = (*p == '.');
-    return 0;
 }
 
 static void inode_destroy( struct object *obj )
@@ -1986,38 +1914,6 @@ void get_nt_name( struct fd *fd, struct unicode_str *name )
     name->len = fd->nt_namelen;
 }
 
-/* check whether a file is a symlink */
-int check_symlink( char *name )
-{
-    struct stat st;
-
-    lstat( name, &st );
-    return S_ISLNK( st.st_mode );
-}
-
-/* if flags does not contain O_SYMLINK then just use realpath */
-/* otherwise return the real path of the parent and append the filename of the symlink */
-char *normalize_path( const char *path, int flags )
-{
-    char tmp[PATH_MAX], resolved_path[PATH_MAX], *p;
-
-#if defined(O_SYMLINK)
-    if ((flags & O_SYMLINK) != O_SYMLINK)
-        return realpath( path, NULL );
-#endif
-
-    strcpy( tmp, path );
-    p = dirname( tmp );
-    if (p != tmp ) strcpy( tmp, p );
-    realpath( tmp, resolved_path );
-    strcat( resolved_path, "/" );
-    strcpy( tmp, path );
-    p = basename( tmp );
-    if (p != tmp) strcpy( tmp, p );
-    strcat( resolved_path, tmp );
-    return strdup( resolved_path );
-}
-
 /* open() wrapper that returns a struct fd with no fd user set */
 struct fd *open_fd( struct fd *root, const char *name, struct unicode_str nt_name,
                     int flags, mode_t *mode, unsigned int access,
@@ -2078,15 +1974,6 @@ struct fd *open_fd( struct fd *root, const char *name, struct unicode_str nt_nam
     }
     else rw_mode = O_RDONLY;
 
-    if ((path = dup_fd_name( root, name )))
-    {
-#if defined(O_SYMLINK)
-        if (check_symlink( path ) && (options & FILE_OPEN_REPARSE_POINT) && !(flags & O_CREAT))
-            flags |= O_SYMLINK;
-#endif
-        free( path );
-    }
-
     if ((fd->unix_fd = open( name, rw_mode | (flags & ~O_TRUNC), *mode )) == -1)
     {
         /* if we tried to open a directory for write access, retry read-only */
@@ -2137,11 +2024,10 @@ skip_open_fail:
     *mode = st.st_mode;
 
     /* only bother with an inode for normal files, directories, and socket files */
-    if (S_ISREG(st.st_mode) || S_ISDIR(st.st_mode) || S_ISLNK(st.st_mode) || S_ISSOCK(st.st_mode))
+    if (S_ISREG(st.st_mode) || S_ISDIR(st.st_mode) || S_ISSOCK(st.st_mode))
     {
         unsigned int err;
         struct inode *inode = get_inode( st.st_dev, st.st_ino, fd->unix_fd );
-        int is_link = S_ISLNK(st.st_mode), is_dir;
 
         if (!inode)
         {
@@ -2153,7 +2039,7 @@ skip_open_fail:
 
         if ((path = dup_fd_name( root, name )))
         {
-            fd->unix_name = normalize_path( path, flags );
+            fd->unix_name = realpath( path, NULL );
             free( path );
         }
 
@@ -2166,17 +2052,13 @@ skip_open_fail:
         list_add_head( &inode->open, &fd->inode_entry );
         closed_fd = NULL;
 
-        is_dir = S_ISDIR(st.st_mode);
-        if (is_link)
-            is_reparse_dir(fd->unix_name, &is_dir);
-
         /* check directory options */
-        if ((options & FILE_DIRECTORY_FILE) && !is_dir)
+        if ((options & FILE_DIRECTORY_FILE) && !S_ISDIR(st.st_mode))
         {
             set_error( STATUS_NOT_A_DIRECTORY );
             goto error;
         }
-        if ((options & FILE_NON_DIRECTORY_FILE) && is_dir)
+        if ((options & FILE_NON_DIRECTORY_FILE) && S_ISDIR(st.st_mode))
         {
             set_error( STATUS_FILE_IS_A_DIRECTORY );
             goto error;
@@ -2475,6 +2357,31 @@ void default_fd_reselect_async( struct fd *fd, struct async_queue *queue )
     }
 }
 
+static int is_dir_empty( int fd )
+{
+    DIR *dir;
+    int empty;
+    struct dirent *de;
+
+    if ((fd = dup( fd )) == -1)
+        return -1;
+
+    if (!(dir = fdopendir( fd )))
+    {
+        close( fd );
+        return -1;
+    }
+
+    empty = 1;
+    while (empty && (de = readdir( dir )))
+    {
+        if (!strcmp( de->d_name, "." ) || !strcmp( de->d_name, ".." )) continue;
+        empty = 0;
+    }
+    closedir( dir );
+    return empty;
+}
+
 static inline int is_valid_mounted_device( struct stat *st )
 {
 #if defined(linux) || defined(__sun__)
@@ -2520,6 +2427,214 @@ static void unmount_device( struct fd *device_fd )
     list_remove( &device->entry );
     list_init( &device->entry );
     release_object( device );
+}
+
+#ifndef XATTR_USER_PREFIX
+# define XATTR_USER_PREFIX "user."
+#endif
+#ifndef XATTR_USER_PREFIX_LEN
+# define XATTR_USER_PREFIX_LEN (sizeof(XATTR_USER_PREFIX) - 1)
+#endif
+
+#define XATTR_REPARSE XATTR_USER_PREFIX "WINEREPARSE"
+
+static int xattr_fset( int filedes, const char *name, const void *value, size_t size )
+{
+#ifdef HAVE_SYS_XATTR_H
+# ifdef XATTR_ADDITIONAL_OPTIONS
+    return fsetxattr( filedes, name, value, size, 0, 0 );
+# else
+    return fsetxattr( filedes, name, value, size, 0 );
+# endif
+#elif defined(HAVE_SYS_EXTATTR_H)
+    return extattr_set_fd( filedes, EXTATTR_NAMESPACE_USER, &name[XATTR_USER_PREFIX_LEN],
+                           value, size );
+#else
+    errno = ENOSYS;
+    return -1;
+#endif
+}
+
+static int xattr_fget( int filedes, const char *name, void *value, size_t size )
+{
+#ifdef HAVE_SYS_XATTR_H
+# ifdef XATTR_ADDITIONAL_OPTIONS
+    return fgetxattr( filedes, name, value, size, 0, 0 );
+# else
+    return fgetxattr( filedes, name, value, size );
+# endif
+#elif defined(HAVE_SYS_EXTATTR_H)
+    return extattr_get_fd( filedes, EXTATTR_NAMESPACE_USER, &name[XATTR_USER_PREFIX_LEN],
+                           value, size );
+#else
+    errno = ENOSYS;
+    return -1;
+#endif
+}
+
+static int xattr_fremove( int filedes, const char *name )
+{
+#ifdef HAVE_SYS_XATTR_H
+# ifdef XATTR_ADDITIONAL_OPTIONS
+    return fremovexattr( filedes, name, 0 );
+# else
+    return fremovexattr( filedes, name );
+# endif
+#elif defined(HAVE_SYS_EXTATTR_H)
+    return extattr_delete_fd( filedes, EXTATTR_NAMESPACE_USER, &name[XATTR_USER_PREFIX_LEN] );
+#else
+    errno = ENOSYS;
+    return -1;
+#endif
+}
+
+static void set_reparse_point( struct fd *fd, struct async *async )
+{
+    char *reparse_name;
+    struct stat st;
+    size_t len;
+
+    if (!fd->unix_name)
+    {
+        set_error( STATUS_OBJECT_TYPE_MISMATCH );
+        return;
+    }
+
+    if (fstat( fd->unix_fd, &st ) == -1)
+    {
+        file_set_error();
+        return;
+    }
+
+    if (S_ISDIR(st.st_mode) && !is_dir_empty( fd->unix_fd ))
+    {
+        set_error( STATUS_DIRECTORY_NOT_EMPTY );
+        return;
+    }
+
+    if (xattr_fset( fd->unix_fd, XATTR_REPARSE, get_req_data(), get_req_data_size() ) < 0)
+    {
+        file_set_error();
+        return;
+    }
+
+    len = strlen( fd->unix_name );
+    if (fd->unix_name[len - 1] != '?')
+    {
+        /* we are adding a reparse point where there previously was not one;
+         * move the file out of the way so open attempts will fail */
+
+        if (!(reparse_name = mem_alloc( len + 2 ))) return;
+        memcpy( reparse_name, fd->unix_name, len );
+        strcpy( reparse_name + len, "?" );
+
+        if (rename( fd->unix_name, reparse_name ))
+        {
+            free( reparse_name );
+            return;
+        }
+        free( fd->unix_name );
+        fd->closed->unix_name = fd->unix_name = reparse_name;
+    }
+}
+
+static void get_reparse_point( struct fd *fd, struct async *async )
+{
+    /* we can't just allocate get_reply_max_size() here;
+     * Linux won't return any data if the size is too small */
+    char buffer[MAXIMUM_REPARSE_DATA_BUFFER_SIZE];
+    int ret;
+
+    if (!fd->unix_name)
+    {
+        set_error( STATUS_OBJECT_TYPE_MISMATCH );
+        return;
+    }
+
+    if (!get_reply_max_size())
+    {
+        set_error( STATUS_INVALID_USER_BUFFER );
+        return;
+    }
+
+    if (fd->unix_name[strlen( fd->unix_name ) - 1] != '?')
+    {
+        set_error( STATUS_NOT_A_REPARSE_POINT );
+        return;
+    }
+
+    if (get_reply_max_size() < sizeof(REPARSE_GUID_DATA_BUFFER))
+    {
+        set_error( STATUS_BUFFER_TOO_SMALL );
+        return;
+    }
+
+    ret = xattr_fget( fd->unix_fd, XATTR_REPARSE, buffer, sizeof(buffer) );
+    if (ret >= 0)
+    {
+        if (ret > get_reply_max_size())
+        {
+            set_error( STATUS_BUFFER_OVERFLOW );
+            ret = get_reply_max_size();
+        }
+        set_reply_data( buffer, ret );
+    }
+    else file_set_error();
+}
+
+static void delete_reparse_point( struct fd *fd, struct async *async )
+{
+    const REPARSE_DATA_BUFFER *data = get_req_data();
+    char *base_name;
+    size_t len;
+
+    if (!fd->unix_name)
+    {
+        set_error( STATUS_OBJECT_TYPE_MISMATCH );
+        return;
+    }
+
+    if (!get_req_data_size())
+    {
+        set_error( STATUS_INVALID_BUFFER_SIZE );
+        return;
+    }
+
+    len = strlen( fd->unix_name );
+    if (fd->unix_name[len - 1] != '?')
+    {
+        set_error( STATUS_NOT_A_REPARSE_POINT );
+        return;
+    }
+
+    if (get_req_data_size() != sizeof(REPARSE_DATA_BUFFER) || data->ReparseDataLength)
+    {
+        set_error( STATUS_IO_REPARSE_DATA_INVALID );
+        return;
+    }
+
+    if (!data->ReparseTag)
+    {
+        set_error( STATUS_IO_REPARSE_TAG_INVALID );
+        return;
+    }
+
+    if (!(base_name = mem_alloc( len )))
+        return;
+    memcpy( base_name, fd->unix_name, len - 1 );
+    base_name[len - 1] = 0;
+
+    if (rename( fd->unix_name, base_name ) < 0)
+    {
+        file_set_error();
+        free( base_name );
+        return;
+    }
+
+    free( fd->unix_name );
+    fd->closed->unix_name = fd->unix_name = base_name;
+
+    xattr_fremove( fd->unix_fd, XATTR_REPARSE );
 }
 
 /* default read() routine */
@@ -2640,6 +2755,18 @@ void default_fd_ioctl( struct fd *fd, ioctl_code_t code, struct async *async )
         unmount_device( fd );
         break;
 
+    case FSCTL_SET_REPARSE_POINT:
+        set_reparse_point( fd, async );
+        break;
+
+    case FSCTL_GET_REPARSE_POINT:
+        get_reparse_point( fd, async );
+        break;
+
+    case FSCTL_DELETE_REPARSE_POINT:
+        delete_reparse_point( fd, async );
+        break;
+
     default:
         set_error( STATUS_NOT_SUPPORTED );
     }
@@ -2658,38 +2785,6 @@ static struct fd *get_handle_fd_obj( struct process *process, obj_handle_t handl
         release_object( obj );
     }
     return fd;
-}
-
-static int is_dir_empty( int fd )
-{
-    int dir_fd;
-    DIR *dir;
-    int empty;
-    struct dirent *de;
-
-    if ((fd = dup( fd )) == -1)
-        return -1;
-
-    /* use openat() so that if 'fd' was opened with O_SYMLINK we can still check the contents */
-    dir_fd = openat( fd, ".", O_RDONLY | O_DIRECTORY | O_NONBLOCK );
-    if (dir_fd == -1)
-        return -1;
-    if (!(dir = fdopendir( dir_fd )))
-    {
-        close( dir_fd );
-        close( fd );
-        return -1;
-    }
-
-    empty = 1;
-    while (empty && (de = readdir( dir )))
-    {
-        if (!strcmp( de->d_name, "." ) || !strcmp( de->d_name, ".." )) continue;
-        empty = 0;
-    }
-    closedir( dir );
-    close( dir_fd );
-    return empty;
 }
 
 /* set disposition for the fd */
@@ -2727,7 +2822,7 @@ static void set_fd_disposition( struct fd *fd, unsigned int flags )
             file_set_error();
             return;
         }
-        if (S_ISREG( st.st_mode ) || S_ISLNK( st.st_mode ))  /* can't unlink files we don't have permission to write */
+        if (S_ISREG( st.st_mode ))  /* can't unlink files we don't have permission to write */
         {
             if (!(flags & FILE_DISPOSITION_IGNORE_READONLY_ATTRIBUTE) &&
                 !(st.st_mode & (S_IWUSR | S_IWGRP | S_IWOTH)))
@@ -2811,7 +2906,7 @@ static void set_fd_name( struct fd *fd, struct fd *root, const char *nameptr, da
         goto failed;
     }
 
-    if (!lstat( name, &st ))
+    if (!stat( name, &st ))
     {
         if (!fstat( fd->unix_fd, &st2 ) && st.st_ino == st2.st_ino && st.st_dev == st2.st_dev)
         {
@@ -2827,7 +2922,7 @@ static void set_fd_name( struct fd *fd, struct fd *root, const char *nameptr, da
         }
 
         /* can't replace directories or special files */
-        if (!S_ISREG( st.st_mode ) && !S_ISLNK( st.st_mode ))
+        if (!S_ISREG( st.st_mode ))
         {
             set_error( STATUS_ACCESS_DENIED );
             goto failed;
@@ -2893,8 +2988,6 @@ static void set_fd_name( struct fd *fd, struct fd *root, const char *nameptr, da
     fd->nt_name = dup_nt_name( root, nt_name, &fd->nt_namelen );
     free( fd->unix_name );
     fd->closed->unix_name = fd->unix_name = realpath( name, NULL );
-    if (!fd->unix_name)
-        fd->closed->unix_name = fd->unix_name = dup_fd_name( root, name ); /* dangling symlink */
     free( name );
     if (!fd->unix_name)
         set_error( STATUS_NO_MEMORY );

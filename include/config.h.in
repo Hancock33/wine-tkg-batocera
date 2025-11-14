@@ -354,12 +354,6 @@
 /* Define to 1 if you have the <pwd.h> header file. */
 #undef HAVE_PWD_H
 
-/* Define to 1 if you have the `renameat' function. */
-#undef HAVE_RENAMEAT
-
-/* Define to 1 if you have the `renameat2' function. */
-#undef HAVE_RENAMEAT2
-
 /* Define if you have the resolver library and header */
 #undef HAVE_RESOLV
 

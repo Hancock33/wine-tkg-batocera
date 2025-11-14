@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at e61b4515 Rebase against b448a8ba7b619c082f639f1b61987bf5c0f322fd.
-HEAD is now at 0fc31f45624 comctl32/progress: Add a helper to check if a progress bar is smooth.
+HEAD is now at 2bf94fc8 Rebase against 76e7e90c3679766ac327b138e3269fb61ead6e4a.
+HEAD is now at fe1175af410 Release 10.19.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
@@ -123,32 +123,9 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-ForceBottomUpAlloc/0003-ntdll-Force-virtual-memory-allocation-order.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-ForceBottomUpAlloc/0004-ntdll-Exclude-natively-mapped-areas-from-free-areas-.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Hide_Wine_Exports/0001-ntdll-Add-support-for-hiding-wine-version-informatio.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Serial_Port_Detection/0001-ntdll-Do-a-device-check-before-returning-a-default-s.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0001-ntdll-Add-support-for-creating-reparse-points.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0002-ntdll-Add-support-for-reading-reparse-points.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0003-ntdll-Add-support-for-deleting-reparse-points.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0004-ntdll-Add-support-for-testing-for-reparse-points-wit.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0005-server-Implement-FILE_OPEN_REPARSE_POINT-option.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0006-kernelbase-Add-support-for-deleting-reparse-points-w.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0007-kernelbase-Add-support-for-deleting-reparse-points-w.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0009-kernelbase-Add-support-for-moving-reparse-points-wit.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0011-ntdll-Follow-reparse-points-during-path-resolution.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0012-kernel32-Advertise-reparse-point-support.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0013-ntdll-Allow-reparse-points-to-target-the-applicable-.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0014-ntdll-Add-an-intermediary-prefix-symlink-in-reparse-.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0015-ntdll-Always-report-symbolic-links-as-containing-zer.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0017-ntdll-Succeed-with-no-data-for-NtReadFile-on-reparse.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0018-ntdll-Add-support-for-FileAttributeTagInformation.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0019-kernel32-Implement-CreateSymbolicLink-A-W-with-ntdll.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0020-kernel32-Add-reparse-support-to-FindNextFile.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0021-wcmd-Display-reparse-point-type-in-directory-listing.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0022-wcmd-Show-reparse-point-target-in-directory-listing.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0023-wcmd-Add-junction-point-support-to-mklink.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0024-ntdll-Add-support-for-creating-Unix-Linux-symlinks.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0025-ntdll-Report-regular-Unix-symlinks-as-WSL-Linux-Unix.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Junction_Points/0026-Return-correct-status-value-if-handle-is-not-a-repar.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-NtDevicePath/0001-ntdll-Implement-opening-files-through-nt-device-path.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-RtlQueryPackageIdentity/0003-ntdll-tests-Add-basic-tests-for-RtlQueryPackageIdent.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Serial_Port_Detection/0001-ntdll-Do-a-device-check-before-returning-a-default-s.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-Syscall_Emulation/0001-ntdll-Support-x86_64-syscall-emulation.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-WRITECOPY/0010-kernelbase-Correct-return-value-in-VirtualProtect-fo.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-WRITECOPY/0011-kernelbase-Handle-NULL-old_prot-parameter-in-Virtual.patch
@@ -258,10 +235,6 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Fixed-scancodes/0005-winex11-Use-the-user-configured-keyboard-layout-if-a.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Fixed-scancodes/0006-winecfg-Add-a-keyboard-scancode-detection-toggle-opt.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Fixed-scancodes/0007-winex11-Use-scancode-high-bit-to-set-KEYEVENTF_EXTEN.patch
-include/wine/server_protocol.h updated
-include/wine/server_protocol.h updated
-server/request_trace.h updated
-server/request_handlers.h updated
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Fixed-scancodes/0008-winex11-Support-fixed-X11-keycode-to-scancode-conver.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Fixed-scancodes/0009-winex11-Disable-keyboard-scancode-auto-detection-by-.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Window_Style/0001-winex11-Fix-handling-of-window-attributes-for-WS_EX_.patch
@@ -285,6 +258,10 @@ server/request_handlers.h updated
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ws2_32-af_unix/0005-server-Fix-getsockname-and-accept-on-AF_UNIX-sockets.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/xactengine-initial/0001-x3daudio1_7-Create-import-library.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/xactengine-initial/0003-xactengine3_7-tests-Add-Global-settings-test.patch
+include/wine/server_protocol.h updated
+include/wine/server_protocol.h updated
+server/request_trace.h updated
+server/request_handlers.h updated
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/xactengine3_7-PrepareWave/0002-xactengine3_7-Implement-IXACT3Engine-PrepareStreamin.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/xactengine3_7-PrepareWave/0003-xactengine3_7-Implement-IXACT3Engine-PrepareInMemory.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/xactengine3_7-PrepareWave/0004-xactengine-Implement-IXACT3Cue-SetOutputVoiceMatrix.patch
@@ -298,11 +275,11 @@ Hunk #1 succeeded at 1761 (offset 136 lines).
 patching file dlls/ntdll/signal_arm64ec.c
 Hunk #1 succeeded at 340 with fuzz 1 (offset -240 lines).
 patching file dlls/ntdll/unix/unix_private.h
-Hunk #1 succeeded at 692 with fuzz 2 (offset 117 lines).
+Hunk #1 succeeded at 691 with fuzz 2 (offset 116 lines).
 patching file dlls/ntdll/unix/virtual.c
-Hunk #1 succeeded at 5052 (offset 148 lines).
-Hunk #2 succeeded at 5089 (offset 156 lines).
-Hunk #3 succeeded at 5093 (offset 151 lines).
+Hunk #1 succeeded at 5053 (offset 149 lines).
+Hunk #2 succeeded at 5090 (offset 157 lines).
+Hunk #3 succeeded at 5094 (offset 152 lines).
 patching file dlls/wow64/system.c
 Hunk #1 succeeded at 857 (offset 2 lines).
 
@@ -337,7 +314,7 @@ patching file dlls/kernelbase/process.c
 Hunk #2 succeeded at 501 (offset -5 lines).
 Hunk #3 succeeded at 733 (offset -62 lines).
 patching file configure.ac
-Hunk #1 succeeded at 3532 (offset 70 lines).
+Hunk #1 succeeded at 3530 (offset 68 lines).
 patching file dlls/kernelbase/process.c
 Hunk #1 succeeded at 503 (offset -5 lines).
 Hunk #2 succeeded at 552 (offset -5 lines).
@@ -365,6 +342,7 @@ patching file dlls/ntdll/ntsyscalls.h
 patching file dlls/ntdll/signal_arm64ec.c
 Hunk #1 succeeded at 599 (offset 1 line).
 patching file dlls/ntdll/unix/file.c
+Hunk #1 succeeded at 3940 (offset -854 lines).
 patching file dlls/wow64/file.c
 patching file include/winternl.h
 
@@ -398,7 +376,7 @@ patching file loader/Makefile.in
 Applying hotfix wine-tkg-patches/hotfixes/GetMappedFileName/Return_nt_filename_and_resolve_DOS_drive_path.mypatch
 patching file dlls/ntdll/unix/virtual.c
 Hunk #1 succeeded at 131 with fuzz 2 (offset -2 lines).
-Hunk #2 succeeded at 6061 (offset 1786 lines).
+Hunk #2 succeeded at 6062 (offset 1787 lines).
 
 Applying hotfix wine-tkg-patches/hotfixes/08cccb5/a608ef1.mypatch
 patching file dlls/dxgi/dxgi_main.c
@@ -431,34 +409,39 @@ Including features for Layer discovery commands
 Including features for Queue commands
 Including features for Memory commands
 Including features for Memory management API commands
-Including features for Sparse resource memory management API commands
+Including features for Sparse resource memory management API commands (optional)
 Including features for Fence commands
 Including features for Queue semaphore commands
-Including features for Event commands
 Including features for Query commands
 Including features for Buffer commands
-Including features for Buffer view commands
 Including features for Image commands
 Including features for Image view commands
-Including features for Shader commands
-Including features for Pipeline Cache commands
-Including features for Pipeline commands
-Including features for Pipeline layout commands
-Including features for Sampler commands
-Including features for Descriptor set commands
 Including features for Pass commands
 Including features for Command pool commands
 Including features for Command buffer commands
 Including features for Command buffer building commands
 Including features for Retroactively promoted from VK_EXT_debug_report for compatibility with VulkanSC
-Including features for None
+Including features for These types are part of the API, though not directly used in API commands or data structures
+Including features for Event commands
+Including features for Buffer view commands
+Including features for Shader commands
+Including features for Pipeline Cache commands
+Including features for Compute Pipeline commands
+Including features for Pipeline layout commands
+Including features for Sampler commands
+Including features for Descriptor set commands
+Including features for Query commands
+Including features for Pass commands
+Including features for Command buffer building commands
+Including features for API constants
+Including features for These types are part of the API, though not directly used in API commands or data structures
+Including features for Graphics Pipeline commands
+Including features for Pass commands
+Including features for Command buffer building commands
+Including features for Feature requirements
+Including features for API version macros
 Including features for Device Initialization
-Including features for Promoted from VK_KHR_relaxed_block_layout, which has no API
-Including features for Promoted from VK_KHR_storage_buffer_storage_class, which has no API
-Including features for Originally based on VK_KHR_subgroup (extension 94), but the actual enum block used was, incorrectly, that of extension 95
 Including features for Promoted from VK_KHR_bind_memory2
-Including features for Promoted from VK_KHR_16bit_storage
-Including features for None
 Including features for Promoted from VK_KHR_dedicated_allocation
 Including features for Promoted from VK_KHR_device_group
 Including features for Promoted from VK_KHR_device_group + VK_KHR_bind_memory2
@@ -467,102 +450,115 @@ Including features for Promoted from VK_KHR_get_memory_requirements2
 Including features for Promoted from VK_KHR_get_physical_device_properties2
 Including features for Promoted from VK_KHR_maintenance1
 Including features for Promoted from VK_KHR_maintenance2
-Including features for Promoted from VK_KHR_multiview
-Including features for Promoted from VK_KHR_variable_pointers
 Including features for Originally based on VK_KHR_protected_memory (extension 146), which was never published; thus the mystifying large value= numbers below. These are not aliased since they were not actually promoted from an extension.
 Including features for Promoted from VK_KHR_sampler_ycbcr_conversion
-Including features for Promoted from VK_KHR_descriptor_update_template
 Including features for Promoted from VK_KHR_external_memory_capabilities
 Including features for Promoted from VK_KHR_external_memory
 Including features for Promoted from VK_KHR_external_fence_capabilities
 Including features for Promoted from VK_KHR_external_fence
 Including features for Promoted from VK_KHR_external_semaphore
 Including features for Promoted from VK_KHR_external_semaphore_capabilities
+Including features for Promoted from VK_KHR_relaxed_block_layout, which has no API
+Including features for Promoted from VK_KHR_storage_buffer_storage_class, which has no API
+Including features for Originally based on VK_KHR_subgroup (extension 94), but the actual enum block used was, incorrectly, that of extension 95
+Including features for Promoted from VK_KHR_16bit_storage
+Including features for Promoted from VK_KHR_device_group
+Including features for Promoted from VK_KHR_variable_pointers
+Including features for Promoted from VK_KHR_descriptor_update_template
 Including features for Promoted from VK_KHR_maintenance3
+Including features for Promoted from VK_KHR_sampler_ycbcr_conversion
+Including features for Promoted from VK_KHR_device_group
+Including features for Promoted from VK_KHR_maintenance2
+Including features for Promoted from VK_KHR_multiview
 Including features for Promoted from VK_KHR_shader_draw_parameters, with a feature support query added
+Including features for Feature requirements
 Including features for None
 Including features for None
+Including features for API version macros
 Including features for None
 Including features for Promoted from VK_KHR_image_format_list (extension 148)
 Including features for Promoted from VK_KHR_sampler_mirror_clamp_to_edge (extension 15)
-Including features for None
-Including features for Promoted from VK_KHR_draw_indirect_count (extension 170)
-Including features for None
-Including features for Promoted from VK_KHR_create_renderpass2 (extension 110)
-Including features for Promoted from VK_KHR_8bit_storage (extension 178)
-Including features for None
 Including features for Promoted from VK_KHR_driver_properties (extension 197)
-Including features for Promoted from VK_KHR_shader_atomic_int64 (extension 181)
-Including features for None
-Including features for Promoted from VK_KHR_shader_float16_int8 (extension 83)
-Including features for Promoted from VK_KHR_shader_float_controls (extension 198)
-Including features for Promoted from VK_EXT_descriptor_indexing (extension 162)
-Including features for None
-Including features for None
-Including features for Promoted from VK_KHR_depth_stencil_resolve (extension 200)
-Including features for Promoted from VK_EXT_scalar_block_layout (extension 222))
-Including features for Promoted from VK_EXT_shader_viewport_index_layer, which has no API (extension 163)
-Including features for None
-Including features for Promoted from VK_EXT_separate_stencil_usage (extension 247)
-Including features for Promoted from VK_EXT_sampler_filter_minmax (extension 131)
-Including features for None
 Including features for Promoted from VK_KHR_vulkan_memory_model (extension 212)
-Including features for Promoted from VK_KHR_imageless_framebuffer (extension 109)
-Including features for Promoted from VK_KHR_uniform_buffer_standard_layout (extension 254)
-Including features for Promoted from VK_KHR_shader_subgroup_extended_types (extension 176)
-Including features for Promoted from VK_KHR_spirv_1_4 (extension 237)
-Including features for Promoted from VK_KHR_separate_depth_stencil_layouts (extension 242)
 Including features for Promoted from VK_EXT_host_query_reset (extension 262)
 Including features for Promoted from VK_KHR_timeline_semaphore (extension 208)
 Including features for Promoted from VK_KHR_buffer_device_address (extension 258)
+Including features for Promoted from VK_KHR_8bit_storage (extension 178)
+Including features for Promoted from VK_KHR_shader_atomic_int64 (extension 181)
+Including features for Promoted from VK_KHR_shader_float16_int8 (extension 83)
+Including features for Promoted from VK_KHR_shader_float_controls (extension 198)
+Including features for Promoted from VK_EXT_descriptor_indexing (extension 162)
+Including features for Promoted from VK_EXT_scalar_block_layout (extension 222))
+Including features for Promoted from VK_EXT_sampler_filter_minmax (extension 131)
+Including features for Promoted from VK_KHR_uniform_buffer_standard_layout (extension 254)
+Including features for Promoted from VK_KHR_shader_subgroup_extended_types (extension 176)
+Including features for Promoted from VK_KHR_spirv_1_4 (extension 237)
+Including features for Promoted from VK_KHR_draw_indirect_count (extension 170)
+Including features for Promoted from VK_KHR_create_renderpass2 (extension 110)
+Including features for Promoted from VK_KHR_depth_stencil_resolve (extension 200)
+Including features for Promoted from VK_EXT_separate_stencil_usage (extension 247)
+Including features for Promoted from VK_KHR_imageless_framebuffer (extension 109)
+Including features for Promoted from VK_KHR_separate_depth_stencil_layouts (extension 242)
+Including features for Feature requirements
 Including features for None
 Including features for None
 Including features for None
+Including features for None
+Including features for None
+Including features for None
+Including features for None
+Including features for None
+Including features for API version macros
+Including features for None
+Including features for None
+Including features for Promoted from VK_EXT_tooling_info (extension 246)
+Including features for Promoted from VK_EXT_private_data (extension 296)
+Including features for Promoted from VK_KHR_synchronization2 (extension 315)
+Including features for Promoted from VK_KHR_copy_commands2 (extension 338)
+Including features for Promoted from VK_EXT_ycbcr_2plane_444_formats (does not promote the Feature struct, just the formats) (extension 331)
+Including features for Promoted from VK_EXT_4444_formats (does not promote the Feature struct, just the formats) (extension 341)
+Including features for Promoted from VK_EXT_texture_compression_astc_hdr (Feature struct is promoted, but becomes optional) (extension 67)
+Including features for Promoted from VK_KHR_format_feature_flags2 (extension 361)
+Including features for Promoted from VK_KHR_maintenance4 (extension 414)
 Including features for Promoted from VK_EXT_pipeline_creation_feedback (extension 193)
 Including features for Promoted from VK_KHR_shader_terminate_invocation (extension 216)
-Including features for Promoted from VK_EXT_tooling_info (extension 246)
 Including features for Promoted from VK_EXT_shader_demote_to_helper_invocation (extension 277)
 Including features for Promoted from VK_KHR_shader_non_semantic_info (extension 294)
-Including features for Promoted from VK_EXT_private_data (extension 296)
 Including features for Promoted from VK_EXT_pipeline_creation_cache_control (extension 298)
 Including features for Promoted from VK_KHR_synchronization2 (extension 315)
 Including features for Promoted from VK_KHR_zero_initialize_workgroup_memory (extension 326)
 Including features for Promoted from VK_EXT_image_robustness (extension 336)
-Including features for Promoted from VK_KHR_copy_commands2 (extension 338)
 Including features for Promoted from VK_EXT_subgroup_size_control (STDPROMOTE/PROPLIMCHANGE) (extension 226)
 Including features for Promoted from VK_EXT_inline_uniform_block (STDPROMOTE/PROPLIMCHANGE) (extension 139)
-Including features for Promoted from VK_EXT_ycbcr_2plane_444_formats (does not promote the Feature struct, just the formats) (extension 331)
-Including features for Promoted from VK_EXT_4444_formats (does not promote the Feature struct, just the formats) (extension 341)
-Including features for Promoted from VK_EXT_texture_compression_astc_hdr (Feature struct is promoted, but becomes optional) (extension 67)
-Including features for Promoted from VK_KHR_dynamic_rendering (extension 45)
-Including features for Promoted from VK_EXT_extended_dynamic_state (Feature struct is not promoted) (extension 268)
 Including features for Promoted from VK_KHR_shader_integer_dot_product (extension 281)
 Including features for Promoted from VK_EXT_texel_buffer_alignment (extension 282)
-Including features for Promoted from VK_KHR_format_feature_flags2 (extension 361)
+Including features for Promoted from VK_KHR_copy_commands2 (extension 338)
+Including features for Promoted from VK_KHR_dynamic_rendering (extension 45)
+Including features for Promoted from VK_EXT_extended_dynamic_state (Feature struct is not promoted) (extension 268)
 Including features for Promoted from VK_EXT_extended_dynamic_state2 (Feature struct and optional state are not promoted) (extension 378)
-Including features for Promoted from VK_KHR_maintenance4 (extension 414)
+Including features for Feature requirements
 Including features for None
+Including features for API version macros
 Including features for None
-Including features for None
-Including features for None
-Including features for Features now required from VK_VERSION_1_0
-Including features for Features now required from VK_VERSION_1_1
-Including features for Features now required from VK_VERSION_1_2
 Including features for Promoted from VK_KHR_global_priority (extension 189)
-Including features for Promoted from VK_KHR_load_store_op_none (extension 527) 'Roadmap 2024' (VK_ATTACHMENT_STORE_OP_NONE is defined in Vulkan 1.3)
-Including features for Promoted from VK_KHR_shader_subgroup_rotate (extension 417) 'Roadmap 2024'
-Including features for Promoted from VK_KHR_shader_float_controls2 (extension 529) 'Roadmap 2024'
-Including features for Promoted from VK_KHR_shader_expect_assume (extension 545) 'Roadmap 2024'
-Including features for Promoted from VK_KHR_line_rasterization (extension 535) 'Roadmap 2024'
-Including features for Promoted from VK_KHR_vertex_attribute_divisor (extension 526) 'Roadmap 2024'
 Including features for Promoted from VK_KHR_index_type_uint8 (extension 534) 'Roadmap 2024'
 Including features for Promoted from VK_KHR_map_memory2 (extension 272) 'Roadmap 2024'
 Including features for Promoted from VK_KHR_maintenance5 (extension 471) 'Roadmap 2024'
+Including features for Promoted from VK_KHR_maintenance6 (extension 546) 'additional functionality'
+Including features for Promoted (as optional feature) from VK_EXT_host_image_copy (extension 271) 'streaming transfers'
+Including features for Promoted from VK_KHR_shader_subgroup_rotate (extension 417) 'Roadmap 2024'
+Including features for Promoted from VK_KHR_shader_float_controls2 (extension 529) 'Roadmap 2024'
+Including features for Promoted from VK_KHR_shader_expect_assume (extension 545) 'Roadmap 2024'
+Including features for Promoted from VK_KHR_maintenance5 (extension 471) 'Roadmap 2024'
 Including features for Promoted as an interaction between VK_KHR_maintenance5 (extension 471) 'Roadmap 2024' and VK_EXT_pipeline_protected_access (extension 467) 'additional functionality'
 Including features for Promoted from VK_KHR_push_descriptor (extension 81) 'Roadmap 2024'
-Including features for Promoted from VK_KHR_dynamic_rendering_local_read (extension 233) 'Roadmap 2024'
 Including features for Promoted from VK_KHR_maintenance6 (extension 546) 'additional functionality'
 Including features for Promoted from VK_EXT_pipeline_protected_access (extension 467) 'additional functionality'
-Including features for None
 Including features for Promoted from VK_EXT_pipeline_robustness (extension 69) 'additional functionality'
-Including features for Promoted (as optional feature) from VK_EXT_host_image_copy (extension 271) 'streaming transfers'
+Including features for Promoted from VK_KHR_load_store_op_none (extension 527) 'Roadmap 2024' (VK_ATTACHMENT_STORE_OP_NONE is defined in Vulkan 1.3)
+Including features for Promoted from VK_KHR_line_rasterization (extension 535) 'Roadmap 2024'
+Including features for Promoted from VK_KHR_vertex_attribute_divisor (extension 526) 'Roadmap 2024'
+Including features for Promoted from VK_KHR_maintenance5 (extension 471) 'Roadmap 2024'
+Including features for Promoted from VK_KHR_dynamic_rendering_local_read (extension 233) 'Roadmap 2024'
+Including features for Feature requirements
+Including features for None
