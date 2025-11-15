@@ -6668,13 +6668,18 @@ static void spirv_compiler_emit_cbv_declaration(struct spirv_compiler *compiler,
         /* Push constant buffers are handled in
          * spirv_compiler_emit_push_constant_buffers().
          */
-        push_cb->reg = reg;
-        push_cb->size = size;
         if (size_in_bytes > push_cb->pc.size)
         {
-            WARN("Constant buffer size %u exceeds push constant size %u.\n",
-                    size_in_bytes, push_cb->pc.size);
+            spirv_compiler_warning(compiler, VKD3D_SHADER_WARNING_SPV_INVALID_SIZE,
+                    "Constant buffer cb%u, space %u, has size %u which exceeds the push constant size %u.",
+                    push_cb->pc.register_index, push_cb->pc.register_space, size_in_bytes, push_cb->pc.size);
+            size_in_bytes = push_cb->pc.size;
+            size = align(size_in_bytes, VKD3D_VEC4_SIZE * sizeof(uint32_t));
+            size /= VKD3D_VEC4_SIZE * sizeof(uint32_t);
         }
+
+        push_cb->reg = reg;
+        push_cb->size = size;
         return;
     }
 

@@ -1844,18 +1844,19 @@ unsigned int hlsl_offset_from_deref_safe(struct hlsl_ctx *ctx, const struct hlsl
 struct hlsl_reg hlsl_reg_from_deref(struct hlsl_ctx *ctx, const struct hlsl_deref *deref);
 
 bool hlsl_copy_propagation_execute(struct hlsl_ctx *ctx, struct hlsl_block *block);
+struct hlsl_ir_node *hlsl_fold_binary_exprs(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, struct hlsl_block *block);
 struct hlsl_ir_node *hlsl_fold_constant_exprs(struct hlsl_ctx *ctx,
         struct hlsl_ir_node *instr, struct hlsl_block *block);
 struct hlsl_ir_node *hlsl_fold_constant_identities(struct hlsl_ctx *ctx,
         struct hlsl_ir_node *instr, struct hlsl_block *block);
-bool hlsl_normalize_binary_exprs(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, void *context);
 struct hlsl_ir_node *hlsl_fold_constant_swizzles(struct hlsl_ctx *ctx,
         struct hlsl_ir_node *instr, struct hlsl_block *block);
 bool hlsl_transform_ir(struct hlsl_ctx *ctx, bool (*func)(struct hlsl_ctx *ctx, struct hlsl_ir_node *, void *),
         struct hlsl_block *block, void *context);
 
 D3DXPARAMETER_CLASS hlsl_sm1_class(const struct hlsl_type *type);
-D3DXPARAMETER_TYPE hlsl_sm1_base_type(const struct hlsl_type *type, bool is_combined_sampler);
+D3DXPARAMETER_TYPE hlsl_sm1_base_type(const struct hlsl_type *type,
+        bool is_combined_sampler, enum hlsl_sampler_dim sampler_dim);
 
 struct extern_resource
 {
