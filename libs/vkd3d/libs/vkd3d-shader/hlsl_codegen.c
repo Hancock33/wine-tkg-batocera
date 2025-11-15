@@ -938,7 +938,8 @@ static bool call_replace_func(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, 
     if ((replacement = func(ctx, instr, &block)))
     {
         list_move_before(&instr->entry, &block.instrs);
-        hlsl_replace_node(instr, replacement);
+        if (replacement != instr)
+            hlsl_replace_node(instr, replacement);
         return true;
     }
     else
@@ -955,7 +956,10 @@ static bool call_replace_func(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, 
  *
  * New instructions should be added to "block", and the replacement instruction
  * should be returned. If the instruction should be left alone, NULL should be
- * returned instead. */
+ * returned instead.
+ *
+ * It is legal to return the same instruction from the replace function, in
+ * which case replace_ir() returns true but hlsl_replace_node() is skipped. */
 static bool replace_ir(struct hlsl_ctx *ctx, PFN_replace_func func, struct hlsl_block *block)
 {
     return hlsl_transform_ir(ctx, call_replace_func, block, func);
@@ -4095,7 +4099,6 @@ static bool lower_conditional_block_stores(struct hlsl_ctx *ctx, struct hlsl_ir_
 static bool lower_conditional_block_discard_nz(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr,
         struct hlsl_ir_node *cond, bool is_then)
 {
-    struct hlsl_ir_node *operands[HLSL_MAX_OPERANDS] = {0};
     struct hlsl_ir_node *discard_cond, *new_cond = NULL;
     struct hlsl_ir_jump *jump;
     struct hlsl_block block;
@@ -4118,12 +4121,8 @@ static bool lower_conditional_block_discard_nz(struct hlsl_ctx *ctx, struct hlsl
         cond = hlsl_block_add_unary_expr(ctx, &block, HLSL_OP1_LOGIC_NOT, cond, &instr->loc);
     discard_cond = hlsl_block_add_cast(ctx, &block, discard_cond, cond->data_type, &instr->loc);
 
-    operands[0] = cond;
-    operands[1] = discard_cond;
-
     /* discard_nz (cond && discard_cond) */
-    new_cond = hlsl_block_add_expr(ctx, &block, HLSL_OP2_LOGIC_AND, operands,
-            hlsl_get_scalar_type(ctx, HLSL_TYPE_UINT), &jump->node.loc);
+    new_cond = hlsl_block_add_binary_expr(ctx, &block, HLSL_OP2_LOGIC_AND, cond, discard_cond);
 
     list_move_before(&jump->node.entry, &block.instrs);
     hlsl_src_remove(&jump->condition);
@@ -5250,49 +5249,37 @@ static struct hlsl_ir_node *lower_ternary(struct hlsl_ctx *ctx, struct hlsl_ir_n
     return hlsl_block_add_expr(ctx, block, HLSL_OP3_CMP, operands, first->data_type, &instr->loc);
 }
 
-static bool lower_resource_load_bias(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, void *context)
+static struct hlsl_ir_node *lower_resource_load_bias(struct hlsl_ctx *ctx,
+        struct hlsl_ir_node *instr, struct hlsl_block *block)
 {
-    struct hlsl_ir_node *swizzle, *store;
+    struct hlsl_ir_node *swizzle, *tmp_load;
     struct hlsl_ir_resource_load *load;
-    struct hlsl_ir_load *tmp_load;
     struct hlsl_ir_var *tmp_var;
-    struct hlsl_deref deref;
 
     if (instr->type != HLSL_IR_RESOURCE_LOAD)
-        return false;
+        return NULL;
     load = hlsl_ir_resource_load(instr);
     if (load->load_type != HLSL_RESOURCE_SAMPLE_LOD
             && load->load_type != HLSL_RESOURCE_SAMPLE_LOD_BIAS)
-        return false;
+        return NULL;
 
     if (!load->lod.node)
-        return false;
+        return NULL;
 
     if (!(tmp_var = hlsl_new_synthetic_var(ctx, "coords-with-lod",
             hlsl_get_vector_type(ctx, HLSL_TYPE_FLOAT, 4), &instr->loc)))
-        return false;
+        return NULL;
 
-    if (!(swizzle = hlsl_new_swizzle(ctx, HLSL_SWIZZLE(X, X, X, X), 4, load->lod.node, &load->lod.node->loc)))
-        return false;
-    list_add_before(&instr->entry, &swizzle->entry);
+    swizzle = hlsl_block_add_swizzle(ctx, block, HLSL_SWIZZLE(X, X, X, X), 4, load->lod.node, &load->lod.node->loc);
+    hlsl_block_add_simple_store(ctx, block, tmp_var, swizzle);
+    hlsl_block_add_simple_store(ctx, block, tmp_var, load->coords.node);
 
-    if (!(store = hlsl_new_simple_store(ctx, tmp_var, swizzle)))
-        return false;
-    list_add_before(&instr->entry, &store->entry);
-
-    hlsl_init_simple_deref_from_var(&deref, tmp_var);
-    if (!(store = hlsl_new_store_index(ctx, &deref, NULL, load->coords.node, 0, &instr->loc)))
-        return false;
-    list_add_before(&instr->entry, &store->entry);
-
-    if (!(tmp_load = hlsl_new_var_load(ctx, tmp_var, &instr->loc)))
-        return false;
-    list_add_before(&instr->entry, &tmp_load->node.entry);
+    tmp_load = hlsl_block_add_simple_load(ctx, block, tmp_var, &instr->loc);
 
     hlsl_src_remove(&load->coords);
-    hlsl_src_from_node(&load->coords, &tmp_load->node);
+    hlsl_src_from_node(&load->coords, tmp_load);
     hlsl_src_remove(&load->lod);
-    return true;
+    return &load->node;
 }
 
 static struct hlsl_ir_node *lower_comparison_operators(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr,
@@ -5503,10 +5490,14 @@ static struct hlsl_ir_node *lower_casts_to_bool(struct hlsl_ctx *ctx,
 struct hlsl_ir_node *hlsl_add_conditional(struct hlsl_ctx *ctx, struct hlsl_block *instrs,
         struct hlsl_ir_node *condition, struct hlsl_ir_node *if_true, struct hlsl_ir_node *if_false)
 {
+    struct hlsl_type *false_type = if_false->data_type;
     struct hlsl_type *cond_type = condition->data_type;
     struct hlsl_ir_node *operands[HLSL_MAX_OPERANDS];
+    struct hlsl_type *true_type = if_true->data_type;
 
-    VKD3D_ASSERT(hlsl_types_are_equal(if_true->data_type, if_false->data_type));
+    VKD3D_ASSERT(hlsl_types_are_equal(true_type, false_type)
+            || (hlsl_is_vec1(true_type) && hlsl_is_vec1(false_type)
+            && true_type->e.numeric.type == false_type->e.numeric.type));
 
     if (cond_type->e.numeric.type != HLSL_TYPE_BOOL)
     {
@@ -5518,7 +5509,7 @@ struct hlsl_ir_node *hlsl_add_conditional(struct hlsl_ctx *ctx, struct hlsl_bloc
     operands[0] = condition;
     operands[1] = if_true;
     operands[2] = if_false;
-    return hlsl_block_add_expr(ctx, instrs, HLSL_OP3_TERNARY, operands, if_true->data_type, &condition->loc);
+    return hlsl_block_add_expr(ctx, instrs, HLSL_OP3_TERNARY, operands, true_type, &condition->loc);
 }
 
 static struct hlsl_ir_node *lower_int_division_sm4(struct hlsl_ctx *ctx,
@@ -5746,34 +5737,29 @@ static bool lower_discard_neg(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, 
     return true;
 }
 
-static bool lower_discard_nz(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, void *context)
+static struct hlsl_ir_node *lower_discard_nz(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, struct hlsl_block *block)
 {
     struct hlsl_ir_node *cond, *cond_cast, *abs, *neg;
     struct hlsl_type *float_type;
     struct hlsl_ir_jump *jump;
-    struct hlsl_block block;
 
     if (instr->type != HLSL_IR_JUMP)
-        return false;
+        return NULL;
     jump = hlsl_ir_jump(instr);
     if (jump->type != HLSL_IR_JUMP_DISCARD_NZ)
-        return false;
+        return NULL;
 
     cond = jump->condition.node;
     float_type = hlsl_get_vector_type(ctx, HLSL_TYPE_FLOAT, cond->data_type->e.numeric.dimx);
 
-    hlsl_block_init(&block);
+    cond_cast = hlsl_block_add_cast(ctx, block, cond, float_type, &instr->loc);
+    abs = hlsl_block_add_unary_expr(ctx, block, HLSL_OP1_ABS, cond_cast, &instr->loc);
+    neg = hlsl_block_add_unary_expr(ctx, block, HLSL_OP1_NEG, abs, &instr->loc);
 
-    cond_cast = hlsl_block_add_cast(ctx, &block, cond, float_type, &instr->loc);
-    abs = hlsl_block_add_unary_expr(ctx, &block, HLSL_OP1_ABS, cond_cast, &instr->loc);
-    neg = hlsl_block_add_unary_expr(ctx, &block, HLSL_OP1_NEG, abs, &instr->loc);
-
-    list_move_tail(&instr->entry, &block.instrs);
     hlsl_src_remove(&jump->condition);
     hlsl_src_from_node(&jump->condition, neg);
     jump->type = HLSL_IR_JUMP_DISCARD_NEG;
-
-    return true;
+    return &jump->node;
 }
 
 static bool cast_discard_neg_conditions_to_vec4(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, void *context)
@@ -8551,96 +8537,74 @@ static enum hlsl_ir_expr_op invert_comparison_op(enum hlsl_ir_expr_op op)
     }
 }
 
-static bool fold_unary_identities(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, void *context)
+static struct hlsl_ir_node *fold_unary_identities(struct hlsl_ctx *ctx,
+        struct hlsl_ir_node *instr, struct hlsl_block *block)
 {
-    struct hlsl_ir_node *res = NULL;
     struct hlsl_ir_expr *expr, *x;
 
     if (instr->type != HLSL_IR_EXPR)
-        return false;
+        return NULL;
 
     if (instr->data_type->class > HLSL_CLASS_VECTOR)
-        return false;
+        return NULL;
 
     expr = hlsl_ir_expr(instr);
     if (!expr->operands[0].node)
-        return false;
+        return NULL;
 
     if (expr->operands[0].node->type != HLSL_IR_EXPR)
-        return false;
+        return NULL;
     x = hlsl_ir_expr(expr->operands[0].node);
 
     switch (expr->op)
     {
         case HLSL_OP1_ABS:
+            /* ||x|| -> |x| */
             if (x->op == HLSL_OP1_ABS)
-            {
-                /* ||x|| -> |x| */
-                hlsl_replace_node(instr, &x->node);
-                return true;
-            }
+                return &x->node;
 
+            /* |-x| -> |x| */
             if (x->op == HLSL_OP1_NEG)
             {
-                /* |-x| -> |x| */
                 hlsl_src_remove(&expr->operands[0]);
                 hlsl_src_from_node(&expr->operands[0], x->operands[0].node);
-                return true;
+                return &expr->node;
             }
             break;
 
         case HLSL_OP1_BIT_NOT:
+            /* ~(~x) -> x */
             if (x->op == HLSL_OP1_BIT_NOT)
-            {
-                /* ~(~x) -> x */
-                hlsl_replace_node(instr, x->operands[0].node);
-                return true;
-            }
+                return x->operands[0].node;
             break;
 
         case HLSL_OP1_CEIL:
         case HLSL_OP1_FLOOR:
+            /* f(g(x)) -> g(x), where f(), g() are floor() or ceil() functions. */
             if (x->op == HLSL_OP1_CEIL || x->op == HLSL_OP1_FLOOR)
-            {
-                /* f(g(x)) -> g(x), where f(), g() are floor() or ceil() functions. */
-                hlsl_replace_node(instr, &x->node);
-                return true;
-            }
+                return &x->node;
             break;
 
         case HLSL_OP1_NEG:
+            /* -(-x) -> x */
             if (x->op == HLSL_OP1_NEG)
-            {
-                /* -(-x) -> x */
-                hlsl_replace_node(instr, x->operands[0].node);
-                return true;
-            }
+                return x->operands[0].node;
             break;
 
         case HLSL_OP1_LOGIC_NOT:
+            /* !!x -> x */
             if (x->op == HLSL_OP1_LOGIC_NOT)
-            {
-                /* !!x -> x */
-                hlsl_replace_node(instr, x->operands[0].node);
-                return true;
-            }
+                return x->operands[0].node;
 
             if (hlsl_is_comparison_op(x->op)
                     && hlsl_base_type_is_integer(x->operands[0].node->data_type->e.numeric.type)
                     && hlsl_base_type_is_integer(x->operands[1].node->data_type->e.numeric.type))
             {
                 struct hlsl_ir_node *operands[HLSL_MAX_OPERANDS] = {x->operands[0].node, x->operands[1].node};
-                struct hlsl_block block;
-
-                hlsl_block_init(&block);
 
                 /* !(x == y) -> x != y, !(x < y) -> x >= y, etc. */
-                res = hlsl_block_add_expr(ctx, &block, invert_comparison_op(x->op),
+                return hlsl_block_add_expr(ctx, block, invert_comparison_op(x->op),
                         operands, instr->data_type, &instr->loc);
-
-                list_move_before(&instr->entry, &block.instrs);
-                hlsl_replace_node(instr, res);
-                return true;
             }
 
             break;
@@ -8649,7 +8613,7 @@ static bool fold_unary_identities(struct hlsl_ctx *ctx, struct hlsl_ir_node *ins
             break;
     }
 
-    return false;
+    return NULL;
 }
 
 static bool nodes_are_equivalent(const struct hlsl_ir_node *c1, const struct hlsl_ir_node *c2)
@@ -8784,8 +8748,8 @@ static bool simplify_exprs(struct hlsl_ctx *ctx, struct hlsl_block *block)
     do
     {
         progress = replace_ir(ctx, hlsl_fold_constant_exprs, block);
-        progress |= hlsl_transform_ir(ctx, hlsl_normalize_binary_exprs, block, NULL);
-        progress |= hlsl_transform_ir(ctx, fold_unary_identities, block, NULL);
+        progress |= replace_ir(ctx, hlsl_fold_binary_exprs, block);
+        progress |= replace_ir(ctx, fold_unary_identities, block);
         progress |= replace_ir(ctx, fold_conditional_identities, block);
         progress |= replace_ir(ctx, hlsl_fold_constant_identities, block);
         progress |= replace_ir(ctx, hlsl_fold_constant_swizzles, block);
@@ -10053,7 +10017,7 @@ static void sm1_generate_vsir_init_dst_param_from_deref(struct hlsl_ctx *ctx,
         else
             writemask = (1u << deref->var->data_type->e.numeric.dimx) - 1;
 
-        if (version.type == VKD3D_SHADER_TYPE_PIXEL && (!ascii_strcasecmp(semantic_name, "PSIZE")
+        if (version.type == VKD3D_SHADER_TYPE_VERTEX && (!ascii_strcasecmp(semantic_name, "PSIZE")
                 || (!ascii_strcasecmp(semantic_name, "FOG") && version.major < 3)))
         {
             /* These are always 1-component, but for some reason are written
@@ -10525,7 +10489,8 @@ D3DXPARAMETER_CLASS hlsl_sm1_class(const struct hlsl_type *type)
     vkd3d_unreachable();
 }
 
-D3DXPARAMETER_TYPE hlsl_sm1_base_type(const struct hlsl_type *type, bool is_combined_sampler)
+D3DXPARAMETER_TYPE hlsl_sm1_base_type(const struct hlsl_type *type,
+        bool is_combined_sampler, enum hlsl_sampler_dim sampler_dim)
 {
     enum hlsl_type_class class = type->class;
 
@@ -10564,7 +10529,7 @@ D3DXPARAMETER_TYPE hlsl_sm1_base_type(const struct hlsl_type *type, bool is_comb
             break;
 
         case HLSL_CLASS_SAMPLER:
-            switch (type->sampler_dim)
+            switch (sampler_dim)
             {
                 case HLSL_SAMPLER_DIM_1D:
                     return D3DXPT_SAMPLER1D;
@@ -10602,7 +10567,7 @@ D3DXPARAMETER_TYPE hlsl_sm1_base_type(const struct hlsl_type *type, bool is_comb
             break;
 
         case HLSL_CLASS_ARRAY:
-            return hlsl_sm1_base_type(type->e.array.type, is_combined_sampler);
+            return hlsl_sm1_base_type(type->e.array.type, is_combined_sampler, sampler_dim);
 
         case HLSL_CLASS_STRUCT:
             return D3DXPT_VOID;
@@ -10640,15 +10605,19 @@ D3DXPARAMETER_TYPE hlsl_sm1_base_type(const struct hlsl_type *type, bool is_comb
     vkd3d_unreachable();
 }
 
-static void write_sm1_type(struct vkd3d_bytecode_buffer *buffer,
-        struct hlsl_type *type, bool is_combined_sampler, unsigned int ctab_start)
+static void write_sm1_type(struct vkd3d_bytecode_buffer *buffer, struct hlsl_type *type,
+        bool is_combined_sampler, enum hlsl_sampler_dim sampler_dim, unsigned int ctab_start)
 {
     const struct hlsl_type *array_type = hlsl_get_multiarray_element_type(type);
     unsigned int array_size = hlsl_get_multiarray_size(type);
     struct hlsl_struct_field *field;
     size_t i;
 
-    if (type->bytecode_offset)
+    /* Native deduplicates types, but emits the correct dimension for generic
+     * samplers. Apparently it deals with this by never deduplicating any
+     * sampler types. This is not very efficient, but we may as well do the
+     * same. */
+    if (type->bytecode_offset && array_type->class != HLSL_CLASS_SAMPLER)
         return;
 
     if (array_type->class == HLSL_CLASS_STRUCT)
@@ -10660,7 +10629,7 @@ static void write_sm1_type(struct vkd3d_bytecode_buffer *buffer,
         {
             field = &array_type->e.record.fields[i];
             field->name_bytecode_offset = put_string(buffer, field->name);
-            write_sm1_type(buffer, field->type, false, ctab_start);
+            write_sm1_type(buffer, field->type, false, HLSL_SAMPLER_DIM_GENERIC, ctab_start);
         }
 
         fields_offset = bytecode_align(buffer) - ctab_start;
@@ -10680,9 +10649,11 @@ static void write_sm1_type(struct vkd3d_bytecode_buffer *buffer,
     else
     {
         type->bytecode_offset = put_u32(buffer,
-                vkd3d_make_u32(hlsl_sm1_class(type), hlsl_sm1_base_type(array_type, is_combined_sampler)));
+                vkd3d_make_u32(hlsl_sm1_class(type), hlsl_sm1_base_type(array_type, is_combined_sampler, sampler_dim)));
         if (hlsl_is_numeric_type(array_type))
             put_u32(buffer, vkd3d_make_u32(array_type->e.numeric.dimy, array_type->e.numeric.dimx));
+        else if (is_combined_sampler)
+            put_u32(buffer, vkd3d_make_u32(1, 4));
         else
             put_u32(buffer, vkd3d_make_u32(1, 1));
         put_u32(buffer, vkd3d_make_u32(array_size, 0));
@@ -10736,7 +10707,9 @@ static void write_sm1_uniforms(struct hlsl_ctx *ctx, struct vkd3d_bytecode_buffe
 
             ++uniform_count;
 
-            if (var->is_param && var->is_uniform)
+            /* Not var->is_uniform. The $ prefix is only added if the variable
+             * is actually declared with a 'uniform' modifier. */
+            if (var->is_param && (var->storage_modifiers & HLSL_STORAGE_UNIFORM))
             {
                 char *new_name;
 
@@ -10793,17 +10766,33 @@ static void write_sm1_uniforms(struct hlsl_ctx *ctx, struct vkd3d_bytecode_buffe
     {
         for (r = 0; r <= HLSL_REGSET_LAST; ++r)
         {
+            enum hlsl_sampler_dim sampler_dim = HLSL_SAMPLER_DIM_GENERIC;
             size_t var_offset, name_offset;
 
             if (var->semantic.name || !var->regs[r].allocated || !var->last_read)
                 continue;
+
+            /* Arrays can be used with multiple different dimensions.
+             * The dimension written into the CTAB is the dimension of the
+             * first usage, which is not really that sensible... */
+            if (r == HLSL_REGSET_SAMPLERS)
+            {
+                for (unsigned int i = 0; i < var->bind_count[r]; ++i)
+                {
+                    if (var->objects_usage[r][i].sampler_dim != HLSL_SAMPLER_DIM_GENERIC)
+                    {
+                        sampler_dim = var->objects_usage[r][i].sampler_dim;
+                        break;
+                    }
+                }
+            }
 
             var_offset = vars_start + (uniform_count * 5 * sizeof(uint32_t));
 
             name_offset = put_string(buffer, var->name);
             set_u32(buffer, var_offset, name_offset - ctab_start);
 
-            write_sm1_type(buffer, var->data_type, var->is_combined_sampler, ctab_start);
+            write_sm1_type(buffer, var->data_type, var->is_combined_sampler, sampler_dim, ctab_start);
             set_u32(buffer, var_offset + 3 * sizeof(uint32_t), var->data_type->bytecode_offset - ctab_start);
 
             if (var->default_values)
@@ -15101,8 +15090,8 @@ static void process_entry_function(struct hlsl_ctx *ctx, struct list *semantic_v
     }
     else
     {
-        hlsl_transform_ir(ctx, lower_discard_nz, body, NULL);
-        hlsl_transform_ir(ctx, lower_resource_load_bias, body, NULL);
+        replace_ir(ctx, lower_discard_nz, body);
+        replace_ir(ctx, lower_resource_load_bias, body);
     }
 
     compute_liveness(ctx, body);

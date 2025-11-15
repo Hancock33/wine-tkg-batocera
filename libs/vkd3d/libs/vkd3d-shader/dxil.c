@@ -6142,11 +6142,14 @@ static unsigned int sm6_value_get_texel_offset(const struct sm6_value *value, st
 }
 
 static void instruction_set_texel_offset(struct vkd3d_shader_instruction *ins,
-        const struct sm6_value **operands, struct sm6_parser *sm6)
+        const struct sm6_value **operands, unsigned int count, struct sm6_parser *sm6)
 {
     ins->texel_offset.u = sm6_value_get_texel_offset(operands[0], sm6);
     ins->texel_offset.v = sm6_value_get_texel_offset(operands[1], sm6);
-    ins->texel_offset.w = sm6_value_get_texel_offset(operands[2], sm6);
+    if (count == 3)
+        ins->texel_offset.w = sm6_value_get_texel_offset(operands[2], sm6);
+    else
+        ins->texel_offset.w = 0;
 }
 
 static void sm6_parser_emit_dx_sample(struct sm6_parser *sm6, enum dx_intrinsic_opcode op,
@@ -6228,7 +6231,7 @@ static void sm6_parser_emit_dx_sample(struct sm6_parser *sm6, enum dx_intrinsic_
     src_param_init_vector_from_reg(&src_params[0], &coord);
     src_param_init_vector_from_handle(sm6, &src_params[1], &resource->u.handle);
     src_param_init_vector_from_handle(sm6, &src_params[2], &sampler->u.handle);
-    instruction_set_texel_offset(ins, &operands[6], sm6);
+    instruction_set_texel_offset(ins, &operands[6], 3, sm6);
 
     instruction_dst_param_init_ssa_vector(ins, component_count, sm6);
 }
@@ -6402,7 +6405,7 @@ static void sm6_parser_emit_dx_texture_gather(struct sm6_parser *sm6, enum dx_in
     if (extended_offset)
         src_param_init_vector_from_reg(&src_params[1], &offset);
     else
-        instruction_set_texel_offset(ins, &operands[6], sm6);
+        instruction_set_texel_offset(ins, &operands[6], 2, sm6);
     src_param_init_vector_from_handle(sm6, &src_params[1 + extended_offset], &resource->u.handle);
     src_param_init_vector_from_handle(sm6, &src_params[2 + extended_offset], &sampler->u.handle);
     /* Swizzle stored in the sampler parameter is the scalar component index to be gathered. */
@@ -6448,7 +6451,7 @@ static void sm6_parser_emit_dx_texture_load(struct sm6_parser *sm6, enum dx_intr
     ins = state->ins;
     instruction_init_with_resource(ins, is_uav ? VSIR_OP_LD_UAV_TYPED
             : is_multisample ? VSIR_OP_LD2DMS : VSIR_OP_LD, resource, sm6);
-    instruction_set_texel_offset(ins, &operands[5], sm6);
+    instruction_set_texel_offset(ins, &operands[5], 3, sm6);
 
     for (i = 0; i < VKD3D_VEC4_SIZE; ++i)
         ins->resource_data_type[i] = resource->u.handle.d->resource_data_type;

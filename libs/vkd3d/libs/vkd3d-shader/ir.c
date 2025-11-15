@@ -3846,16 +3846,19 @@ static bool shader_dst_param_io_normalise(struct vkd3d_shader_dst_param *dst_par
             break;
 
         case VKD3DSPR_RASTOUT:
+            /* Fog and point size are scalar, but fxc/d3dcompiler emits a full
+             * write mask when writing to them. */
+            if (reg->idx[0].offset > 0)
+            {
+                write_mask = VKD3DSP_WRITEMASK_0;
+                dst_param->write_mask = write_mask;
+            }
             /* Leave point size as a system value for the backends to consume. */
             if (reg->idx[0].offset == VSIR_RASTOUT_POINT_SIZE)
                 return true;
             reg_idx = SM1_RASTOUT_REGISTER_OFFSET + reg->idx[0].offset;
             signature = normaliser->output_signature;
             reg->type = VKD3DSPR_OUTPUT;
-            /* Fog and point size are scalar, but fxc/d3dcompiler emits a full
-             * write mask when writing to them. */
-            if (reg->idx[0].offset > 0)
-                write_mask = VKD3DSP_WRITEMASK_0;
             break;
 
         default:
