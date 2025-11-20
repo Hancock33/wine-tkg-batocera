@@ -2246,18 +2246,14 @@ static void initialize_var_components(struct hlsl_ctx *ctx, struct hlsl_block *i
 
             if (src->type == HLSL_IR_COMPILE || src->type == HLSL_IR_SAMPLER_STATE)
             {
-                if (hlsl_is_numeric_type(dst_comp_type))
+                /* Default values are discarded if they contain an object
+                 * literal expression for a numeric component. */
+                if (hlsl_is_numeric_type(dst_comp_type) && dst->default_values)
                 {
-                    /* Default values are discarded if they contain an object
-                     * literal expression for a numeric component. */
-                    if (dst->default_values)
-                    {
-                        hlsl_warning(ctx, &src->loc, VKD3D_SHADER_WARNING_HLSL_IGNORED_DEFAULT_VALUE,
-                                "Component %u in variable '%s' initializer is object literal. Default values discarded.",
-                                k, dst->name);
-                        vkd3d_free(dst->default_values);
-                        dst->default_values = NULL;
-                    }
+                    hlsl_warning(ctx, &src->loc, VKD3D_SHADER_WARNING_HLSL_IGNORED_DEFAULT_VALUE,
+                            "Component %u in variable '%s' initializer is object literal. Default values discarded.",
+                            k, dst->name);
+                    hlsl_free_default_values(dst);
                 }
             }
             else
@@ -2268,6 +2264,8 @@ static void initialize_var_components(struct hlsl_ctx *ctx, struct hlsl_block *i
 
                 if (dst->default_values)
                     dst->default_values[*store_index] = default_value;
+                else
+                    hlsl_free_default_value(&default_value);
 
                 hlsl_block_cleanup(&block);
             }

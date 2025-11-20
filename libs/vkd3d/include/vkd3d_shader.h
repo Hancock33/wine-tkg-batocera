@@ -2952,6 +2952,7 @@ VKD3D_SHADER_API const enum vkd3d_shader_target_type *vkd3d_shader_get_supported
  * - vkd3d_shader_scan_descriptor_info
  * - vkd3d_shader_scan_hull_shader_tessellation_info
  * - vkd3d_shader_scan_signature_info
+ * - vkd3d_shader_scan_thread_group_size_info
  * - vkd3d_shader_spirv_domain_shader_target_info
  * - vkd3d_shader_spirv_target_info
  * - vkd3d_shader_transform_feedback_info
@@ -3140,10 +3141,21 @@ VKD3D_SHADER_API int vkd3d_shader_convert_root_signature(struct vkd3d_shader_ver
  * \param compile_info A chained structure containing scan parameters.
  * \n
  * The scanner supports the following chained structures:
+ * - vkd3d_shader_d3dbc_source_info
+ * - vkd3d_shader_descriptor_offset_info
+ * - vkd3d_shader_hlsl_source_info
+ * - vkd3d_shader_interface_info
+ * - vkd3d_shader_parameter_info
+ * - vkd3d_shader_preprocess_info
  * - vkd3d_shader_scan_combined_resource_sampler_info
  * - vkd3d_shader_scan_descriptor_info
  * - vkd3d_shader_scan_hull_shader_tessellation_info
  * - vkd3d_shader_scan_signature_info
+ * - vkd3d_shader_scan_thread_group_size_info
+ * - vkd3d_shader_spirv_domain_shader_target_info
+ * - vkd3d_shader_spirv_target_info
+ * - vkd3d_shader_transform_feedback_info
+ * - vkd3d_shader_varying_map_info
  * \n
  * Although the \a compile_info parameter is read-only, chained structures
  * passed to this function need not be, and may serve as output parameters,

@@ -1,5 +1,7 @@
 /*
- * Copyright 2020 Alistair Leslie-Hughes
+ * Local include to allow compiling xaudio2.idl with the right XAUDIO2_VER
+ *
+ * Copyright 2025 Elizabeth Figura for CodeWeavers
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,7 +18,8 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include "windef.h"
+#pragma makedep header
 
-/* @makedep: globals.xgs*/
-globals.xgs RCDATA "globals.xgs"
+#define XAUDIO2_VER 7
+#include "xaudio2.idl"
+#include "xaudio2fx.idl"

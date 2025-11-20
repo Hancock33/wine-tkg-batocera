@@ -1675,6 +1675,8 @@ void hlsl_free_ir_switch_case(struct hlsl_ir_switch_case *c);
 void hlsl_replace_node(struct hlsl_ir_node *old, struct hlsl_ir_node *new);
 
 void hlsl_free_attribute(struct hlsl_attribute *attr);
+void hlsl_free_default_value(struct hlsl_default_value *value);
+void hlsl_free_default_values(struct hlsl_ir_var *decl);
 void hlsl_free_instr(struct hlsl_ir_node *node);
 void hlsl_free_instr_list(struct list *list);
 void hlsl_free_state_block(struct hlsl_state_block *state_block);

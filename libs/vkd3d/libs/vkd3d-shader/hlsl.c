@@ -153,6 +153,25 @@ void hlsl_free_state_block(struct hlsl_state_block *state_block)
     vkd3d_free(state_block);
 }
 
+void hlsl_free_default_value(struct hlsl_default_value *value)
+{
+    vkd3d_free((void *)value->string);
+}
+
+void hlsl_free_default_values(struct hlsl_ir_var *decl)
+{
+    unsigned int component_count;
+
+    if (!decl->default_values)
+        return;
+
+    component_count = hlsl_type_component_count(decl->data_type);
+    for (size_t i = 0; i < component_count; ++i)
+        hlsl_free_default_value(&decl->default_values[i]);
+    vkd3d_free(decl->default_values);
+    decl->default_values = NULL;
+}
+
 void hlsl_free_var(struct hlsl_ir_var *decl)
 {
     unsigned int k, i;
@@ -162,14 +181,7 @@ void hlsl_free_var(struct hlsl_ir_var *decl)
     for (k = 0; k <= HLSL_REGSET_LAST_OBJECT; ++k)
         vkd3d_free((void *)decl->objects_usage[k]);
 
-    if (decl->default_values)
-    {
-        unsigned int component_count = hlsl_type_component_count(decl->data_type);
-
-        for (k = 0; k < component_count; ++k)
-            vkd3d_free((void *)decl->default_values[k].string);
-        vkd3d_free(decl->default_values);
-    }
+    hlsl_free_default_values(decl);
 
     for (i = 0; i < decl->state_block_count; ++i)
         hlsl_free_state_block(decl->state_blocks[i]);
@@ -2187,9 +2199,12 @@ static struct hlsl_ir_resource_load *hlsl_new_resource_load(struct hlsl_ctx *ctx
 struct hlsl_ir_node *hlsl_block_add_resource_load(struct hlsl_ctx *ctx, struct hlsl_block *block,
         const struct hlsl_resource_load_params *params, const struct vkd3d_shader_location *loc)
 {
-    struct hlsl_ir_resource_load *load = hlsl_new_resource_load(ctx, params, loc);
+    struct hlsl_ir_resource_load *load;
 
-    if (load && load->sampling_dim == HLSL_SAMPLER_DIM_STRUCTURED_BUFFER)
+    if (!(load = hlsl_new_resource_load(ctx, params, loc)))
+        return NULL;
+
+    if (load->sampling_dim == HLSL_SAMPLER_DIM_STRUCTURED_BUFFER)
         hlsl_src_from_node(&load->byte_offset, hlsl_block_add_uint_constant(ctx, block, 0, loc));
 
     return append_new_instr(ctx, block, &load->node);
