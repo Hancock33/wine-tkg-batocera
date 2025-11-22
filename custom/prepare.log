@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
 HEAD is now at 959925fc Rebase against f49b8aec794913f94b30ffbe44dbbafc13eb723b.
-HEAD is now at f49b8aec794 comctl32_v6/taskdialog: Fix not enough width for the expando button text.
+HEAD is now at 548ee6cc0f6 dwrite: Add an alternative name for the Noto Sans Symbols font.
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 patching file patches/winecfg-Staging/0006-winecfg-Toggle-upstream-CSMT-implementation.patch
@@ -291,14 +291,14 @@ Hunk #2 succeeded at 1725 with fuzz 2 (offset 192 lines).
 patching file programs/wineboot/wineboot.c
 Hunk #1 succeeded at 1636 (offset -70 lines).
 patching file loader/wine.inf.in
-Hunk #1 succeeded at 1372 with fuzz 2 (offset -1051 lines).
+Hunk #1 succeeded at 1375 with fuzz 2 (offset -1048 lines).
 patching file loader/wine.inf.in
-Hunk #1 succeeded at 1369 with fuzz 2 (offset -1097 lines).
+Hunk #1 succeeded at 1372 with fuzz 2 (offset -1094 lines).
 patching file loader/wine.inf.in
-Hunk #1 succeeded at 324 (offset -225 lines).
-Hunk #2 succeeded at 350 with fuzz 1 (offset -223 lines).
+Hunk #1 succeeded at 327 (offset -222 lines).
+Hunk #2 succeeded at 353 with fuzz 1 (offset -220 lines).
 patching file loader/wine.inf.in
-Hunk #1 succeeded at 1362 with fuzz 2 (offset -1094 lines).
+Hunk #1 succeeded at 1365 with fuzz 2 (offset -1091 lines).
 patching file programs/wineboot/wineboot.c
 Hunk #1 succeeded at 68 with fuzz 2.
 Hunk #2 succeeded at 1828 (offset 222 lines).
