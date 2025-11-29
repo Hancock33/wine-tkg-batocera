@@ -261,6 +261,7 @@ static const struct client_surface_funcs x11drv_client_surface_funcs;
 struct x11drv_client_surface
 {
     struct client_surface client;
+    XWindowChanges changes;
     Colormap colormap;
     Window window;
     RECT rect;
@@ -303,18 +304,40 @@ static void x11drv_client_surface_detach( struct client_surface *client )
     }
 }
 
-static void client_surface_update_size( HWND hwnd, struct x11drv_client_surface *surface )
+static void client_surface_update_geometry( HWND hwnd, struct x11drv_client_surface *surface )
 {
-    XWindowChanges changes;
+    HWND toplevel = NtUserGetAncestor( hwnd, GA_ROOT );
+    XWindowChanges changes = surface->changes;
+    struct x11drv_win_data *data;
+    int mask = 0;
     RECT rect;
 
     if (!NtUserGetClientRect( hwnd, &rect, NtUserGetDpiForWindow( hwnd ) )) return;
-    if (EqualRect( &surface->rect, &rect )) return;
+    NtUserMapWindowPoints( hwnd, toplevel, (POINT *)&rect, 2, NtUserGetDpiForWindow( hwnd ) );
+    if ((data = get_win_data( toplevel )))
+    {
+        OffsetRect( &rect, data->rects.client.left - data->rects.visible.left,
+                    data->rects.client.top - data->rects.visible.top );
+        release_win_data( data );
+    }
 
-    changes.width  = min( max( 1, rect.right ), 65535 );
-    changes.height = min( max( 1, rect.bottom ), 65535 );
-    XConfigureWindow( gdi_display, surface->window, CWWidth | CWHeight, &changes );
+    changes.x = rect.left;
+    changes.y = rect.top;
+    changes.width  = min( max( 1, rect.right - rect.left ), 65535 );
+    changes.height = min( max( 1, rect.bottom - rect.top ), 65535 );
+    OffsetRect( &rect, -rect.left, -rect.top );
     surface->rect = rect;
+
+    if (changes.x != surface->changes.x) mask |= CWX;
+    if (changes.y != surface->changes.y) mask |= CWY;
+    if (changes.width != surface->changes.width) mask |= CWWidth;
+    if (changes.height != surface->changes.height) mask |= CWHeight;
+    if (!mask) return;
+
+    surface->changes = changes;
+    TRACE( "client window %p/%lx, requesting position %d,%d size %d,%d mask %#x\n", hwnd,
+           surface->window, changes.x, changes.y, changes.width, changes.height, mask );
+    XConfigureWindow( gdi_display, surface->window, mask, &changes );
 }
 
 static void client_surface_update_offscreen( HWND hwnd, struct x11drv_client_surface *surface )
@@ -377,7 +400,7 @@ static void x11drv_client_surface_update( struct client_surface *client )
 
     TRACE( "%s\n", debugstr_client_surface( client ) );
 
-    client_surface_update_size( hwnd, surface );
+    client_surface_update_geometry( hwnd, surface );
     client_surface_update_offscreen( hwnd, surface );
 }
 
@@ -392,7 +415,7 @@ static void X11DRV_client_surface_present( struct client_surface *client, HDC hd
 
     TRACE( "%s\n", debugstr_client_surface( client ) );
 
-    client_surface_update_size( hwnd, surface );
+    client_surface_update_geometry( hwnd, surface );
     client_surface_update_offscreen( hwnd, surface );
 
     if (!hdc) return;
@@ -415,6 +438,7 @@ static void X11DRV_client_surface_present( struct client_surface *client, HDC hd
 
     NtGdiStretchBlt( surface->hdc_dst, 0, 0, rect_dst.right - rect_dst.left, rect_dst.bottom - rect_dst.top,
                      surface->hdc_src, 0, 0, surface->rect.right, surface->rect.bottom, SRCCOPY, 0 );
+    XFlush( gdi_display );
 
 done:
     if (region) NtGdiDeleteObjectApp( region );
@@ -448,8 +472,8 @@ Window x11drv_client_surface_create( HWND hwnd, int format, struct client_surfac
     if (!(surface = client_surface_create( sizeof(*surface), &x11drv_client_surface_funcs, hwnd ))) goto failed;
     surface->colormap = colormap;
 
-    if (!(surface->window = create_client_window( hwnd, &visual, colormap ))) goto failed;
     if (!NtUserGetClientRect( hwnd, &surface->rect, NtUserGetDpiForWindow( hwnd ) )) goto failed;
+    if (!(surface->window = create_client_window( hwnd, surface->rect, &visual, colormap ))) goto failed;
 
     TRACE( "Created %s for client window %lx\n", debugstr_client_surface( &surface->client ), surface->window );
     *client = &surface->client;

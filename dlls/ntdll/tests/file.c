@@ -6174,7 +6174,7 @@ static void test_reparse_points(void)
 
     status = GetVolumeInformationW( L"C:\\", NULL, 0, NULL, NULL, &flags, NULL, 0 );
     ok( status == TRUE, "got error %lu\n", GetLastError() );
-    todo_wine ok( flags & FILE_SUPPORTS_REPARSE_POINTS, "C: drive does not support reparse points\n" );
+    ok( flags & FILE_SUPPORTS_REPARSE_POINTS, "C: drive does not support reparse points\n" );
 
     swprintf( path, ARRAY_SIZE(path), L"\\??\\%s", temp_path );
     RtlInitUnicodeString( &nameW, path );
@@ -6401,7 +6401,7 @@ static void test_reparse_points(void)
     ok( find_handle != INVALID_HANDLE_VALUE, "got error %lu\n", GetLastError() );
     ok( find_data.dwFileAttributes == (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT),
         "got attributes %#lx\n", find_data.dwFileAttributes );
-    todo_wine ok( find_data.dwReserved0 == IO_REPARSE_TAG_MOUNT_POINT, "got tag %#lx\n", find_data.dwReserved0 );
+    ok( find_data.dwReserved0 == IO_REPARSE_TAG_MOUNT_POINT, "got tag %#lx\n", find_data.dwReserved0 );
     FindClose( find_handle );
 
     /* Test using the reparse point as a parent.

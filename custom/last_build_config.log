@@ -1,14 +1,17 @@
-# Last wine-tkg-staging-git configuration - Sat 22 Nov 07:53:28 GMT 2025 :
+# Last wine-tkg-staging-git configuration - Sat 29 Nov 09:00:48 GMT 2025 :
 
 Local cfg files used
 
-Wine (plain) version: 10.19.r178.g548ee6cc0f6
-Using wine-staging patchset (version 10.19.r4.g959925fc)
+Wine (plain) version: 10.20.r0.g4dfbf077cf7
+Using wine-staging patchset (version 10.20.r0.g54f4c57f)
 
 Not using vkd3d native library for d3d12 translation (allows using vkd3d-proton)
 
 Done applying backports hotfixes (if any) - list available in prepare.log
 Done applying reverting hotfixes (if any) - list available in prepare.log
+
+2941e58d7d6e630e88b6e9539414f1d86736c7aa reverted 
+( Restore heap.h header file )
 
 CSMT-toggle.patch -- ( Applied CSMT toggle logic patch )
 
