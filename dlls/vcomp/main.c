@@ -880,24 +880,13 @@ double CDECL omp_get_wtime(void)
     return GetTickCount() / 1000.0;
 }
 
-/*****************************************************
-*      omp_get_wtick - Taken from:
-*      https://gist.github.com/Randl/45bcca59720f661fa033a67d5f44bff0
-*/
-double CDECL omp_get_wtick (void)
+double CDECL omp_get_wtick(void)
 {
-     /*return GetTickCount();*/
-    FILETIME createTime;
-    FILETIME exitTime;
-    FILETIME kernelTime;
-    FILETIME userTime;
-    ULARGE_INTEGER li;
-
-    GetProcessTimes(GetCurrentProcess(), &createTime, &exitTime, &kernelTime, &userTime);
-    li.LowPart = userTime.dwLowDateTime;
-    li.HighPart = userTime.dwHighDateTime;
-
-    return (double)li.QuadPart / 10000000.0;
+    DWORD adjust, increment;
+    BOOL disable;
+    if (GetSystemTimeAdjustment(&adjust, &increment, &disable))
+        return (double)increment / 10000000.0;
+    return 1 / 1000.0;
 }
 
 void CDECL omp_set_dynamic(int val)

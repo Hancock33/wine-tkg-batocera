@@ -2202,7 +2202,10 @@ struct hlsl_ir_node *hlsl_block_add_resource_load(struct hlsl_ctx *ctx, struct h
     struct hlsl_ir_resource_load *load;
 
     if (!(load = hlsl_new_resource_load(ctx, params, loc)))
-        return NULL;
+    {
+        block->value = ctx->error_instr;
+        return ctx->error_instr;
+    }
 
     if (load->sampling_dim == HLSL_SAMPLER_DIM_STRUCTURED_BUFFER)
         hlsl_src_from_node(&load->byte_offset, hlsl_block_add_uint_constant(ctx, block, 0, loc));

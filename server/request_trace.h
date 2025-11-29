@@ -2254,6 +2254,7 @@ static void dump_set_key_state_request( const struct set_key_state_request *req 
 static void dump_set_foreground_window_request( const struct set_foreground_window_request *req )
 {
     fprintf( stderr, " handle=%08x", req->handle );
+    fprintf( stderr, ", internal=%d", req->internal );
 }
 
 static void dump_set_foreground_window_reply( const struct set_foreground_window_reply *req )
