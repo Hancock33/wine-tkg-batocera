@@ -736,15 +736,10 @@ static HRESULT WINAPI rowset_change_InsertRow(IRowsetChange *iface, HCHAPTER res
 {
     struct rowset *rowset = impl_from_IRowsetChange(iface);
     struct data *val;
+    HRESULT hr;
     int i;
 
     TRACE("%p, %Iu, %Id, %p, %p\n", rowset, reserved, accessor, data, row);
-
-    if (data)
-    {
-        FIXME("setting data not implemented\n");
-        return E_NOTIMPL;
-    }
 
     if (rowset->row_cnt == rowset->rows_alloc)
     {
@@ -768,6 +763,12 @@ static HRESULT WINAPI rowset_change_InsertRow(IRowsetChange *iface, HCHAPTER res
         /* TODO: handle default values */
         val = (struct data *)(rowset->data + rowset->row_cnt * rowset->row_size + rowset->column_off[i]);
         val->status = DBSTATUS_E_UNAVAILABLE;
+    }
+
+    if (data)
+    {
+        hr = rowset_change_SetData(iface, rowset->row_cnt + 1, accessor, data);
+        if (FAILED(hr)) return hr;
     }
 
     rowset->row_cnt++;
@@ -948,49 +949,105 @@ static HRESULT WINAPI rowset_info_GetProperties(IRowsetInfo *iface, const ULONG 
         const DBPROPIDSET propidsets[], ULONG *count, DBPROPSET **propsets)
 {
     struct rowset *rowset = impl_from_IRowsetInfo(iface);
-    ULONG i, j, c = 0;
-    DBPROP *prop;
+    BOOL prop_fail = FALSE, prop_succ = FALSE;
+    int i, j;
 
     TRACE("%p, %lu, %p, %p, %p\n", rowset, propidsets_count, propidsets, count, propsets);
 
-    for (i = 0; i <propidsets_count; i++)
+    *count = 0;
+    *propsets = CoTaskMemAlloc(sizeof(**propsets) * propidsets_count);
+    for (i = 0; i < propidsets_count; i++)
     {
-        if (!IsEqualGUID(&DBPROPSET_ROWSET, &propidsets[i].guidPropertySet))
-        {
-            FIXME("property set: %s\n", wine_dbgstr_guid(&propidsets[i].guidPropertySet));
-            return E_NOTIMPL;
-        }
+        size_t size = sizeof(*(*propsets)[i].rgProperties) * propidsets[i].cPropertyIDs;
+        DBPROPSTATUS *status;
+        VARIANT *v;
+
+        (*propsets)[i].rgProperties = CoTaskMemAlloc(size);
+        memset((*propsets)[i].rgProperties, 0, size);
+        (*propsets)[i].cProperties = propidsets[i].cPropertyIDs;
+        (*propsets)[i].guidPropertySet = propidsets[i].guidPropertySet;
 
         for (j = 0; j < propidsets[i].cPropertyIDs; j++)
         {
-            if (propidsets[i].rgPropertyIDs[j] != DBPROP_BOOKMARKS)
+            (*propsets)[i].rgProperties[j].dwPropertyID = propidsets[i].rgPropertyIDs[j];
+            status = &(*propsets)[i].rgProperties[j].dwStatus;
+            v = &(*propsets)[i].rgProperties[j].vValue;
+
+            if (IsEqualGUID(&propidsets[i].guidPropertySet, &DBPROPSET_ROWSET))
             {
-                FIXME("DBPROPSET_ROWSET property %lu\n", propidsets[i].rgPropertyIDs[j]);
-                return E_NOTIMPL;
+                switch (propidsets[i].rgPropertyIDs[j])
+                {
+                case DBPROP_OTHERUPDATEDELETE:
+                    V_VT(v) = VT_BOOL;
+                    V_BOOL(v) = VARIANT_FALSE;
+                    prop_succ = TRUE;
+                    break;
+                case DBPROP_OTHERINSERT:
+                    V_VT(v) = VT_BOOL;
+                    V_BOOL(v) = VARIANT_FALSE;
+                    break;
+                case DBPROP_CANHOLDROWS:
+                    V_VT(v) = VT_BOOL;
+                    V_BOOL(v) = VARIANT_TRUE;
+                    break;
+                case DBPROP_CANSCROLLBACKWARDS:
+                    V_VT(v) = VT_BOOL;
+                    V_BOOL(v) = VARIANT_TRUE;
+                    break;
+                case DBPROP_UPDATABILITY:
+                    V_VT(v) = VT_I4;
+                    V_I4(v) = DBPROPVAL_UP_CHANGE | DBPROPVAL_UP_DELETE | DBPROPVAL_UP_INSERT;
+                    break;
+                case DBPROP_IRowsetLocate:
+                    V_VT(v) = VT_BOOL;
+                    V_BOOL(v) = VARIANT_TRUE;
+                    break;
+                case DBPROP_IRowsetScroll:
+                    V_VT(v) = VT_BOOL;
+                    V_BOOL(v) = VARIANT_TRUE;
+                    break;
+                case DBPROP_IRowsetUpdate:
+                    V_VT(v) = VT_BOOL;
+                    V_BOOL(v) = VARIANT_TRUE;
+                    break;
+                case DBPROP_BOOKMARKSKIPPED:
+                    V_VT(v) = VT_BOOL;
+                    V_BOOL(v) = VARIANT_TRUE;
+                    break;
+                case DBPROP_LOCKMODE:
+                    *status = DBPROPSTATUS_NOTSUPPORTED;
+                    prop_fail = TRUE;
+                    break;
+                case DBPROP_IRowsetCurrentIndex:
+                    *status = DBPROPSTATUS_NOTSUPPORTED;
+                    prop_fail = TRUE;
+                    break;
+                case DBPROP_REMOVEDELETED:
+                    V_VT(v) = VT_BOOL;
+                    V_BOOL(v) = VARIANT_TRUE;
+                    break;
+                default:
+                    FIXME("unsupported DBPROPSET_ROWSET property %ld\n",
+                            propidsets[i].rgPropertyIDs[j]);
+                    *status = DBPROPSTATUS_NOTSUPPORTED;
+                    prop_fail = TRUE;
+                    break;
+                }
             }
-            c++;
+            else
+            {
+                FIXME("unsupported property %s %ld\n",
+                        wine_dbgstr_guid(&propidsets[i].guidPropertySet),
+                        propidsets[i].rgPropertyIDs[j]);
+                *status = DBPROPSTATUS_NOTSUPPORTED;
+                prop_fail = TRUE;
+            }
         }
     }
-    if (c != 1) return E_NOTIMPL;
 
-    prop = CoTaskMemAlloc(sizeof(*prop));
-    if (!prop) return E_OUTOFMEMORY;
-    *propsets = CoTaskMemAlloc(sizeof(**propsets));
-    if (!*propsets)
-    {
-        CoTaskMemFree(prop);
-        return E_OUTOFMEMORY;
-    }
-
-    *count = 1;
-    (*propsets)->rgProperties = prop;
-    (*propsets)->cProperties = 1;
-    (*propsets)->guidPropertySet = DBPROPSET_ROWSET;
-    memset(prop, 0, sizeof(*prop));
-    prop->dwPropertyID = DBPROP_BOOKMARKS;
-    V_VT(&prop->vValue) = VT_BOOL;
-    V_BOOL(&prop->vValue) = VARIANT_TRUE;
-    return S_OK;
+    *count = propidsets_count;
+    if (!prop_succ) return DB_E_ERRORSOCCURRED;
+    return prop_fail ? DB_S_ERRORSOCCURRED : S_OK;
 }
 
 static HRESULT WINAPI rowset_info_GetReferencedRowset(IRowsetInfo *iface,

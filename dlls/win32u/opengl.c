@@ -53,7 +53,6 @@ struct wgl_pbuffer
 };
 
 static const struct opengl_driver_funcs nulldrv_funcs, *driver_funcs = &nulldrv_funcs;
-static const struct opengl_funcs *default_funcs; /* default GL function table from opengl32 */
 static struct list devices_egl = LIST_INIT( devices_egl );
 static struct egl_platform display_egl;
 static struct opengl_funcs display_funcs;
@@ -433,11 +432,9 @@ static struct opengl_drawable *framebuffer_surface_create( int format, struct cl
 
 static const struct opengl_drawable_funcs egldrv_pbuffer_funcs;
 
-static inline EGLConfig egl_config_for_format( const struct egl_platform *egl, int format )
+static EGLConfig egl_config_for_format( const struct egl_platform *egl, int format )
 {
-    assert(format > 0 && format <= 2 * egl->config_count);
-    if (format <= egl->config_count) return egl->configs[format - 1];
-    return egl->configs[format - egl->config_count - 1];
+    return egl->configs[(format - 1) % egl->config_count];
 }
 
 static void egldrv_init_egl_platform( struct egl_platform *platform )
@@ -450,6 +447,14 @@ static void *egldrv_get_proc_address( const char *name )
 {
     return display_funcs.p_eglGetProcAddress( name );
 }
+
+/* list of flags with which each EGL config will be combined */
+static const UINT pixel_format_flags[] =
+{
+    PFD_SUPPORT_GDI,
+    PFD_DOUBLEBUFFER,
+    0, /* offscreen */
+};
 
 static UINT egldrv_init_pixel_formats( UINT *onscreen_count )
 {
@@ -495,11 +500,12 @@ static UINT egldrv_init_pixel_formats( UINT *onscreen_count )
 
     egl->configs = configs;
     egl->config_count = count;
-    *onscreen_count = count;
-    return 2 * count;
+
+    *onscreen_count = (ARRAY_SIZE(pixel_format_flags) - 1) * count;
+    return ARRAY_SIZE(pixel_format_flags) * count;
 }
 
-static BOOL describe_egl_config( EGLConfig config, struct wgl_pixel_format *fmt, BOOL onscreen )
+static BOOL describe_egl_config( EGLConfig config, struct wgl_pixel_format *fmt, UINT flags )
 {
     const struct opengl_funcs *funcs = &display_funcs;
     struct egl_platform *egl = &display_egl;
@@ -513,12 +519,8 @@ static BOOL describe_egl_config( EGLConfig config, struct wgl_pixel_format *fmt,
     memset( fmt, 0, sizeof(*fmt) );
     pfd->nSize = sizeof(*pfd);
     pfd->nVersion = 1;
-    pfd->dwFlags = PFD_SUPPORT_OPENGL | PFD_SUPPORT_COMPOSITION;
-    if (onscreen)
-    {
-        pfd->dwFlags |= PFD_DOUBLEBUFFER;
-        if (surface_type & EGL_WINDOW_BIT) pfd->dwFlags |= PFD_DRAW_TO_WINDOW;
-    }
+    pfd->dwFlags = PFD_SUPPORT_OPENGL | PFD_SUPPORT_COMPOSITION | flags;
+    if (flags && surface_type & EGL_WINDOW_BIT) pfd->dwFlags |= PFD_DRAW_TO_WINDOW;
     pfd->iPixelType = PFD_TYPE_RGBA;
     pfd->iLayerType = PFD_MAIN_PLANE;
 
@@ -638,11 +640,9 @@ static BOOL egldrv_describe_pixel_format( int format, struct wgl_pixel_format *d
 {
     struct egl_platform *egl = &display_egl;
     int count = egl->config_count;
-    BOOL onscreen = TRUE;
 
-    if (--format < 0 || format > 2 * count) return FALSE;
-    if (format >= count) onscreen = FALSE;
-    return describe_egl_config( egl->configs[format % count], desc, onscreen );
+    if (--format < 0 || format > ARRAY_SIZE(pixel_format_flags) * count) return FALSE;
+    return describe_egl_config( egl->configs[format % count], desc, pixel_format_flags[format / count] );
 }
 
 static const char *egldrv_init_wgl_extensions( struct opengl_funcs *funcs )
@@ -975,6 +975,11 @@ static void init_egl_devices( struct opengl_funcs *funcs )
     LOAD_FUNCPTR( eglQueryDisplayAttribEXT );
 #undef LOAD_FUNCPTR
 
+#define LOAD_FUNCPTR( func )                                                                    \
+    if (!(funcs->p_##func = (void *)funcs->p_eglGetProcAddress( #func ))) WARN( #func " not found\n" );
+    LOAD_FUNCPTR( eglQueryDeviceBinaryEXT );
+#undef LOAD_FUNCPTR
+
     if (!funcs->p_eglQueryDisplayAttribEXT( display_egl.display, EGL_DEVICE_EXT, (EGLAttrib *)&display_egl.device ))
     {
         WARN( "Failed to query EGL display device (error %#x).\n", funcs->p_eglGetError() );
@@ -1043,9 +1048,7 @@ static UINT read_drm_device_prop( const char *name, const char *prop )
     char *path;
     FILE *file;
 
-    if (!(path = malloc( strlen( name ) + strlen( prop ) + 23 ))) return value;
-    sprintf( path, "/sys/class/drm%s/device/%s", name, prop );
-
+    if (asprintf( &path, "/sys/class/drm%s/device/%s", name, prop ) == -1) return value;
     if ((file = fopen( path, "r" )))
     {
         fscanf( file, "%x", &value );
@@ -1092,6 +1095,22 @@ static void init_device_info( struct egl_platform *egl, const struct opengl_func
     }
     TRACE( "  - device_id: %#x\n", egl->device_id );
     TRACE( "  - vendor_id: %#x\n", egl->vendor_id );
+
+    if (has_extension( extensions, "EGL_EXT_device_persistent_id" ))
+    {
+        funcs->p_eglQueryDeviceBinaryEXT( egl->device, EGL_DEVICE_UUID_EXT, sizeof(egl->device_uuid), &egl->device_uuid, &count );
+        funcs->p_eglQueryDeviceBinaryEXT( egl->device, EGL_DRIVER_UUID_EXT, sizeof(egl->driver_uuid), &egl->driver_uuid, &count );
+    }
+    TRACE( "  - device_uuid: %s\n", debugstr_guid(&egl->device_uuid) );
+    TRACE( "  - driver_uuid: %s\n", debugstr_guid(&egl->driver_uuid) );
+
+    if (!egl->accelerated && sizeof(void *) == 4)
+    {
+        WARN( "Skipping bogus 32bit llvmpipe device initialization\n" );
+        egl->device_name = "llvmpipe";
+        egl->vendor_name = "Mesa";
+        return;
+    }
 
     funcs->p_eglBindAPI( EGL_OPENGL_API );
     funcs->p_eglGetConfigs( egl->display, &config, 1, &count );
@@ -1631,16 +1650,20 @@ static struct opengl_drawable *get_updated_drawable( HDC hdc, int format, struct
 {
     HWND hwnd = NULL;
 
+    /* return the memory DCs drawables directly */
     if (hdc && !(hwnd = NtUserWindowFromDC( hdc ))) return get_dc_opengl_drawable( hdc );
     if (!hdc && drawable && drawable->client) hwnd = drawable->client->hwnd;
     if (!hwnd) return NULL;
 
-    /* if the window still has a drawable, keep using the one we have */
+    /* if the drawable we were using is for the same window, keep using it */
     if (drawable && is_client_surface_window( drawable->client, hwnd ))
     {
         opengl_drawable_add_ref( drawable );
         return drawable;
     }
+
+    /* retrieve D3D internal drawables from the DCs if they have any */
+    if (hdc && (drawable = get_dc_opengl_drawable( hdc ))) return drawable;
 
     /* get an updated drawable with the desired format */
     return get_window_unused_drawable( hwnd, format );
@@ -1652,11 +1675,7 @@ static BOOL context_sync_drawables( struct wgl_context *context, HDC draw_hdc, H
     struct wgl_context *previous = NtCurrentTeb()->glContext;
     BOOL ret = FALSE;
 
-    /* retrieve the D3D internal drawables from the DCs if they have any */
-    if (draw_hdc && !context->draw) context->draw = get_dc_opengl_drawable( draw_hdc );
-    if (read_hdc && !context->read) context->read = get_dc_opengl_drawable( read_hdc );
-
-    new_draw = get_updated_drawable( draw_hdc, context->format, context->draw );
+    if (!(new_draw = get_updated_drawable( draw_hdc, context->format, context->draw ))) return FALSE;
     if (!draw_hdc && context->draw == context->read) opengl_drawable_add_ref( (new_read = new_draw) );
     else if (draw_hdc && draw_hdc == read_hdc) opengl_drawable_add_ref( (new_read = new_draw) );
     else new_read = get_updated_drawable( read_hdc, context->format, context->read );
@@ -2349,6 +2368,16 @@ static int win32u_wglGetSwapIntervalEXT(void)
     return interval;
 }
 
+static void set_gl_error( GLenum error )
+{
+    struct wgl_context *ctx = NtCurrentTeb()->glContext;
+    const struct opengl_funcs *funcs = &display_funcs;
+
+    if (!ctx || ctx->error) return;
+    if ((ctx->error = funcs->p_glGetError())) return;
+    ctx->error = error;
+}
+
 static struct egl_platform *egl_platform_from_index( GLint index )
 {
     struct egl_platform *egl;
@@ -2381,10 +2410,11 @@ static BOOL query_renderer_integer( struct egl_platform *egl, GLenum attribute, 
         *value = egl->core_version ? WGL_CONTEXT_CORE_PROFILE_BIT_ARB : WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB;
         return TRUE;
     case WGL_RENDERER_VIDEO_MEMORY_WINE: *value = egl->video_memory; return TRUE;
-    default: FIXME( "Unsupported attribute %#x\n", attribute ); break;
+    default:
+        FIXME( "Unsupported attribute %#x\n", attribute );
+        set_gl_error( GL_INVALID_ENUM );
+        return FALSE;
     }
-
-    return FALSE;
 }
 
 static BOOL win32u_wglQueryRendererIntegerWINE( HDC hdc, GLint renderer, GLenum attribute, GLuint *value )
@@ -2393,7 +2423,11 @@ static BOOL win32u_wglQueryRendererIntegerWINE( HDC hdc, GLint renderer, GLenum 
 
     TRACE( "hdc %p, renderer %u, attribute %#x, value %p\n", hdc, renderer, attribute, value );
 
-    if (!(egl = egl_platform_from_index( renderer ))) return FALSE;
+    if (!(egl = egl_platform_from_index( renderer )))
+    {
+        set_gl_error( GL_INVALID_INDEX );
+        return FALSE;
+    }
     return query_renderer_integer( egl, attribute, value );
 }
 
@@ -2403,10 +2437,11 @@ static const char *query_renderer_string( struct egl_platform *egl, GLenum attri
     {
     case WGL_RENDERER_DEVICE_ID_WINE: return egl->device_name;
     case WGL_RENDERER_VENDOR_ID_WINE: return egl->vendor_name;
-    default: FIXME( "Unsupported attribute %#x\n", attribute );
+    default:
+        FIXME( "Unsupported attribute %#x\n", attribute );
+        set_gl_error( GL_INVALID_ENUM );
+        return NULL;
     }
-
-    return NULL;
 }
 
 static const char *win32u_wglQueryRendererStringWINE( HDC hdc, GLint renderer, GLenum attribute )
@@ -2415,7 +2450,11 @@ static const char *win32u_wglQueryRendererStringWINE( HDC hdc, GLint renderer, G
 
     TRACE( "hdc %p, renderer %u, attribute %#x\n", hdc, renderer, attribute );
 
-    if (!(egl = egl_platform_from_index( renderer ))) return NULL;
+    if (!(egl = egl_platform_from_index( renderer )))
+    {
+        set_gl_error( GL_INVALID_INDEX );
+        return NULL;
+    }
     return query_renderer_string( egl, attribute );
 }
 
@@ -2425,7 +2464,11 @@ static BOOL win32u_wglQueryCurrentRendererIntegerWINE( GLenum attribute, GLuint 
 
     TRACE( "attribute %#x, value %p\n", attribute, value );
 
-    if (!(ptr = list_head( &devices_egl ))) return FALSE;
+    if (!(ptr = list_head( &devices_egl )))
+    {
+        set_gl_error( GL_INVALID_OPERATION );
+        return FALSE;
+    }
     return query_renderer_integer( LIST_ENTRY( ptr, struct egl_platform, entry ), attribute, value );
 }
 
@@ -2435,7 +2478,11 @@ static const char *win32u_wglQueryCurrentRendererStringWINE( GLenum attribute )
 
     TRACE( "attribute %#x\n", attribute );
 
-    if (!(ptr = list_head( &devices_egl ))) return NULL;
+    if (!(ptr = list_head( &devices_egl )))
+    {
+        set_gl_error( GL_INVALID_OPERATION );
+        return NULL;
+    }
     return query_renderer_string( LIST_ENTRY( ptr, struct egl_platform, entry ), attribute );
 }
 
@@ -2456,10 +2503,7 @@ static void display_funcs_init(void)
 
 #define USE_GL_FUNC(func) \
     if (!display_funcs.p_##func && !(display_funcs.p_##func = driver_funcs->p_get_proc_address( #func ))) \
-    { \
-        WARN( "%s not found for memory DCs.\n", #func ); \
-        display_funcs.p_##func = default_funcs->p_##func; \
-    }
+        WARN( "%s not found.\n", #func );
     ALL_GL_FUNCS
     USE_GL_FUNC(glBindFramebuffer)
     USE_GL_FUNC(glCheckNamedFramebufferStatus)
@@ -2555,11 +2599,9 @@ static void display_funcs_init(void)
 /***********************************************************************
  *      __wine_get_wgl_driver  (win32u.@)
  */
-const struct opengl_funcs *__wine_get_wgl_driver( HDC hdc, UINT version, const struct opengl_funcs *null_funcs )
+const struct opengl_funcs *__wine_get_opengl_driver( UINT version )
 {
     static pthread_once_t init_once = PTHREAD_ONCE_INIT;
-    DWORD is_disabled, is_display, is_memdc;
-    DC *dc;
 
     if (version != WINE_OPENGL_DRIVER_VERSION)
     {
@@ -2568,16 +2610,6 @@ const struct opengl_funcs *__wine_get_wgl_driver( HDC hdc, UINT version, const s
         return NULL;
     }
 
-    InterlockedExchangePointer( (void *)&default_funcs, (void *)null_funcs );
-
-    if (!(dc = get_dc_ptr( hdc ))) return NULL;
-    is_memdc = get_gdi_object_type( hdc ) == NTGDI_OBJ_MEMDC;
-    is_display = dc->is_display;
-    is_disabled = dc->attr->disabled;
-    release_dc_ptr( dc );
-
-    if (is_disabled) return NULL;
-    if (!is_display && !is_memdc) return NULL;
     pthread_once( &init_once, display_funcs_init );
     return &display_funcs;
 }
