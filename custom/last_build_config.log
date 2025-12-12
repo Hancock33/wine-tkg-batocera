@@ -1,8 +1,8 @@
-# Last wine-tkg-staging-git configuration - Sat  6 Dec 07:42:20 GMT 2025 :
+# Last wine-tkg-staging-git configuration - Fri 12 Dec 21:04:45 GMT 2025 :
 
 Local cfg files used
 
-Wine (plain) version: 11.0rc1.r0.ga3d49dbc8db
+Wine (plain) version: 11.0rc2.r0.g0f4bed55db2
 Using wine-staging patchset (version 11.0rc1.r0.gb6ba963a)
 
 Not using vkd3d native library for d3d12 translation (allows using vkd3d-proton)
@@ -40,5 +40,5 @@ LDFLAGS = -Wl,-O1,--sort-common,--as-needed
 CROSSCFLAGS = -O2 -pipe -msse3 -mfpmath=sse -ftree-vectorize -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types
 CROSSLDFLAGS = -Wl,-O1,--sort-common,--as-needed
 
-configure arguments: --disable-tests --without-vkd3d --without-wayland
+configure arguments: --disable-tests --without-vkd3d --with-wayland --with-vulkan
 

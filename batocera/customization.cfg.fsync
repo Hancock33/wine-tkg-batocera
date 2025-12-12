@@ -63,7 +63,7 @@ _staging_version=""
 
 # Set to true to pass --with-wayland --with-vulkan configure arguments
 # !! Requires a compatible wine tree (9.0+ recommended) !!
-_wayland_driver="false"
+_wayland_driver="true"
 
 
 #### LEGACY ####
@@ -154,7 +154,7 @@ _proton_fs_hack="false"
 _proton_winevulkan="false"
 
 # Various MF/winegstreamer patches from Proton 10 for wine - Requires 10.0+ and _proton_winevulkan="true" - Fixing various problem with playback video
-_proton_mf_patches="false"
+_proton_mf_patches="true"
 
 # Proton compatible rawinput patchset - Only effective when _proton_fs_hack is set to "true" - Requires a tree containing 6d7828e8df68178ca662bc618f7598254afcfbe1 (4.20+)
 _proton_rawinput="true"

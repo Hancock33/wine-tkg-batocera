@@ -310,7 +310,7 @@ static void update_client_surfaces( HWND hwnd )
 
     LIST_FOR_EACH_ENTRY_SAFE( surface, next, &client_surfaces, struct client_surface, entry )
     {
-        if (surface->hwnd != hwnd) continue;
+        if (NtUserGetAncestor( surface->hwnd, GA_ROOT ) != hwnd) continue;
         surface->funcs->update( surface );
         InterlockedExchange( &surface->updated, 1 );
     }
@@ -1992,6 +1992,7 @@ static RECT get_visible_rect( HWND hwnd, BOOL shaped, UINT style, UINT ex_style,
     UINT dpi = get_dpi_for_window( hwnd ), style_mask, ex_style_mask;
     RECT visible_rect, rect = {0};
 
+    if (get_present_rect( hwnd, &rect, get_thread_dpi() )) return rect;
     if (IsRectEmpty( &rects->window ) || EqualRect( &rects->window, &rects->client ) || shaped || !decorated_mode) return rects->window;
     if (!user_driver->pGetWindowStyleMasks( hwnd, style, ex_style, &style_mask, &ex_style_mask )) return rects->window;
     if (!NtUserAdjustWindowRect( &rect, style & style_mask, FALSE, ex_style & ex_style_mask, dpi )) return rects->window;
@@ -2081,7 +2082,7 @@ static struct window_surface *get_window_surface( HWND hwnd, UINT swp_flags, BOO
     if (get_window_region( hwnd, FALSE, &shape, &dummy )) shaped = FALSE;
     else if ((shaped = !!shape)) NtGdiDeleteObjectApp( shape );
 
-    rects->visible = rects->window;
+    if (!get_present_rect( hwnd, &rects->visible, get_thread_dpi() )) rects->visible = rects->window;
     if (is_child) monitor_rects = map_dpi_window_rects( *rects, get_thread_dpi(), raw_dpi );
     else monitor_rects = map_window_rects_virt_to_raw( *rects, get_thread_dpi() );
 
@@ -2116,7 +2117,7 @@ static struct window_surface *get_window_surface( HWND hwnd, UINT swp_flags, BOO
         window_surface_add_ref( (new_surface = &dummy_surface) );
     }
 
-    if (new_surface && !is_layered)
+    if (new_surface && new_surface != &dummy_surface && !is_layered)
     {
         DWORD lwa_flags = 0, alpha_bits = -1;
         COLORREF key;
@@ -2129,18 +2130,6 @@ static struct window_surface *get_window_surface( HWND hwnd, UINT swp_flags, BOO
     }
 
     return new_surface;
-}
-
-static void update_window_client_surfaces( HWND hwnd )
-{
-    HWND *children;
-    int i;
-
-    update_client_surfaces( hwnd );
-
-    if (!(children = list_window_children( hwnd ))) return;
-    for (i = 0; children[i]; i++) update_window_client_surfaces( children[i] );
-    free( children );
 }
 
 static HICON get_icon_info( HICON icon, ICONINFO *ii )
@@ -2271,6 +2260,15 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
 
         if (win->dwStyle & WS_THICKFRAME) swp_flags |= WINE_SWP_RESIZABLE;
         if (is_child) monitor_rects = map_dpi_window_rects( *new_rects, dpi, raw_dpi );
+        else if (!IsRectEmpty( &win->present_rect ))
+        {
+            MONITORINFO monitor_info = monitor_info_from_rect( new_rects->window, dpi );
+            struct window_rects rects = { monitor_info.rcMonitor, monitor_info.rcMonitor, monitor_info.rcMonitor };
+            OffsetRect( &rects.client, -rects.client.left, -rects.client.top );
+            swp_flags |= WINE_SWP_FULLSCREEN;
+            swp_flags &= ~WINE_SWP_RESIZABLE;
+            monitor_rects = map_window_rects_virt_to_raw( rects, dpi );
+        }
         else
         {
             MONITORINFO monitor_info = monitor_info_from_rect( new_rects->window, dpi );
@@ -2347,7 +2345,7 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
 
         user_driver->pWindowPosChanged( hwnd, insert_after, owner_hint, swp_flags, &monitor_rects,
                                         get_driver_window_surface( new_surface, raw_dpi ) );
-        update_window_client_surfaces( toplevel );
+        update_client_surfaces( toplevel );
     }
 
     return ret;
@@ -5995,6 +5993,19 @@ static BOOL set_raw_window_pos( HWND hwnd, RECT rect, UINT flags, BOOL internal 
     return NtUserSetWindowPos( hwnd, 0, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, flags );
 }
 
+BOOL get_present_rect( HWND hwnd, RECT *rect, UINT dpi )
+{
+    UINT dpi_from = get_dpi_for_window( hwnd );
+    WND *win;
+
+    if (!(win = get_win_ptr( hwnd )) || win == WND_OTHER_PROCESS || win == WND_DESKTOP) return FALSE;
+    if (dpi != -1) *rect = map_dpi_rect( win->present_rect, dpi_from, dpi );
+    else *rect = map_rect_virt_to_raw( win->present_rect, dpi_from );
+    release_win_ptr( win );
+
+    return !IsRectEmpty( rect );
+}
+
 /*****************************************************************************
  *           NtUserCallHwnd (win32u.@)
  */
@@ -6114,11 +6125,20 @@ ULONG_PTR WINAPI NtUserCallHwndParam( HWND hwnd, DWORD_PTR param, DWORD code )
     case NtUserCallHwndParam_GetWindowLongPtrW:
         return get_window_long_ptr( hwnd, param, FALSE );
 
-    case NtUserCallHwndParam_GetWindowRects:
+    case NtUserCallHwndParam_GetWindowRect:
     {
         struct get_window_rects_params *params = (void *)param;
-        return params->client ? get_client_rect( hwnd, params->rect, params->dpi )
-                              : get_window_rect( hwnd, params->rect, params->dpi );
+        return get_window_rect( hwnd, params->rect, params->dpi );
+    }
+    case NtUserCallHwndParam_GetClientRect:
+    {
+        struct get_window_rects_params *params = (void *)param;
+        return get_client_rect( hwnd, params->rect, params->dpi );
+    }
+    case NtUserCallHwndParam_GetPresentRect:
+    {
+        struct get_window_rects_params *params = (void *)param;
+        return get_present_rect( hwnd, params->rect, params->dpi );
     }
 
     case NtUserCallHwndParam_GetWindowRelative:

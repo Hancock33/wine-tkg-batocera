@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
 HEAD is now at b6ba963a Release v11.0-rc1
-HEAD is now at a3d49dbc8db Release 11.0-rc1.
+HEAD is now at 0f4bed55db2 Release 11.0-rc2.
 
 2941e58d7d6e630e88b6e9539414f1d86736c7aa reverted 
 Auto-merging dlls/winebth.sys/winebluetooth.c
@@ -347,7 +347,7 @@ Hunk #2 succeeded at 525 (offset 32 lines).
 patching file dlls/ntdll/signal_arm64ec.c
 Hunk #1 succeeded at 599 with fuzz 1 (offset 17 lines).
 patching file dlls/ntdll/unix/file.c
-Hunk #1 succeeded at 3971 (offset 206 lines).
+Hunk #1 succeeded at 3972 (offset 207 lines).
 patching file dlls/wow64/file.c
 Hunk #1 succeeded at 956 (offset 1 line).
 patching file include/winternl.h
