@@ -1270,6 +1270,44 @@ static enum vkd3d_result vsir_program_normalize_addr(struct vsir_program *progra
     return VKD3D_OK;
 }
 
+static enum vkd3d_result vsir_program_lower_dp2add(struct vsir_program *program, struct vsir_program_iterator *dp2add)
+{
+    struct vkd3d_shader_instruction *ins = vsir_program_iterator_current(dp2add);
+    const struct vkd3d_shader_location location = ins->location;
+    const struct vsir_src_operand *src = ins->src;
+    const struct vsir_dst_operand *dst = ins->dst;
+    struct vsir_program_iterator it;
+    unsigned int dot_id;
+
+    /* dp2add DST, SRC0, SRC1, SRC2
+     *      ->
+     * dp2 srDOT, SRC0, SRC1
+     * add DST, srDOT, SRC2 */
+
+    if (!(ins = vsir_program_iterator_insert_before(dp2add, &it, 1)))
+        return VKD3D_ERROR_OUT_OF_MEMORY;
+    if (!vsir_instruction_init_with_params(program, ins, &location, VSIR_OP_DP2, 1, 2))
+        goto fail;
+    dot_id = program->ssa_count++;
+    vsir_dst_operand_init_ssa(&ins->dst[0], dot_id, src[0].reg.data_type, VSIR_DIMENSION_SCALAR);
+    ins->src[0] = src[0];
+    ins->src[1] = src[1];
+
+    ins = vsir_program_iterator_next(&it);
+    if (!vsir_instruction_init_with_params(program, ins, &location, VSIR_OP_ADD, 1, 2))
+        goto fail;
+    ins->dst[0] = dst[0];
+    vsir_src_operand_init_ssa(&ins->src[0], dot_id, src[0].reg.data_type, VSIR_DIMENSION_SCALAR);
+    ins->src[1] = src[2];
+
+    return VKD3D_OK;
+
+fail:
+    vsir_program_iterator_nop_range(&it, dp2add, &location);
+
+    return VKD3D_ERROR_OUT_OF_MEMORY;
+}
+
 static enum vkd3d_result vsir_program_lower_ifc(struct vsir_program *program,
         struct vsir_program_iterator *it, unsigned int *tmp_idx,
         struct vkd3d_shader_message_context *message_context)
@@ -2468,6 +2506,10 @@ static enum vkd3d_result vsir_program_lower_d3dbc_instructions(struct vsir_progr
         {
             case VSIR_OP_BEM:
                 ret = vsir_program_lower_bem(program, &it);
+                break;
+
+            case VSIR_OP_DP2ADD:
+                ret = vsir_program_lower_dp2add(program, &it);
                 break;
 
             case VSIR_OP_IFC:

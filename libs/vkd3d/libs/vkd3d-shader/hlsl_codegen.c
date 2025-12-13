@@ -3715,25 +3715,20 @@ static struct hlsl_ir_node *fold_redundant_casts(struct hlsl_ctx *ctx,
  * split_array_copies(), split_struct_copies() and
  * split_matrix_copies(). Inserts new instructions right before
  * "store". */
-static bool split_copy(struct hlsl_ctx *ctx, struct hlsl_ir_store *store,
+static void split_copy(struct hlsl_ctx *ctx, struct hlsl_ir_store *store,
         const struct hlsl_ir_load *load, const unsigned int idx, struct hlsl_type *type)
 {
-    struct hlsl_ir_node *split_store, *c;
-    struct hlsl_ir_load *split_load;
+    struct hlsl_ir_node *c, *split_load;
+    struct hlsl_block block;
 
-    if (!(c = hlsl_new_uint_constant(ctx, idx, &store->node.loc)))
-        return false;
-    list_add_before(&store->node.entry, &c->entry);
+    hlsl_block_init(&block);
 
-    if (!(split_load = hlsl_new_load_index(ctx, &load->src, c, &store->node.loc)))
-        return false;
-    list_add_before(&store->node.entry, &split_load->node.entry);
+    c = hlsl_block_add_uint_constant(ctx, &block, idx, &store->node.loc);
+    split_load = hlsl_block_add_load_index(ctx, &block, &load->src, c, &store->node.loc);
 
-    if (!(split_store = hlsl_new_store_index(ctx, &store->lhs, c, &split_load->node, 0, &store->node.loc)))
-        return false;
-    list_add_before(&store->node.entry, &split_store->entry);
+    hlsl_block_add_store_index(ctx, &block, &store->lhs, c, split_load, 0, &store->node.loc);
 
-    return true;
+    list_move_before(&store->node.entry, &block.instrs);
 }
 
 static bool split_array_copies(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, void *context)
@@ -3762,8 +3757,7 @@ static bool split_array_copies(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr,
 
     for (i = 0; i < type->e.array.elements_count; ++i)
     {
-        if (!split_copy(ctx, store, hlsl_ir_load(rhs), i, element_type))
-            return false;
+        split_copy(ctx, store, hlsl_ir_load(rhs), i, element_type);
     }
 
     /* Remove the store instruction, so that we can split structs which contain
@@ -3800,8 +3794,7 @@ static bool split_struct_copies(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr
     {
         const struct hlsl_struct_field *field = &type->e.record.fields[i];
 
-        if (!split_copy(ctx, store, hlsl_ir_load(rhs), i, field->type))
-            return false;
+        split_copy(ctx, store, hlsl_ir_load(rhs), i, field->type);
     }
 
     /* Remove the store instruction, so that we can split structs which contain
@@ -3933,8 +3926,7 @@ static bool split_matrix_copies(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr
     {
         for (i = 0; i < hlsl_type_major_size(type); ++i)
         {
-            if (!split_copy(ctx, store, hlsl_ir_load(rhs), i, element_type))
-                return false;
+            split_copy(ctx, store, hlsl_ir_load(rhs), i, element_type);
         }
     }
 
@@ -15319,12 +15311,12 @@ static void process_entry_function(struct hlsl_ctx *ctx, struct list *semantic_v
 }
 
 int hlsl_emit_vsir(struct hlsl_ctx *ctx, const struct vkd3d_shader_compile_info *compile_info,
-        struct hlsl_ir_function_decl *entry_func, struct vsir_program *program,
-        struct vkd3d_shader_code *reflection_data)
+        struct hlsl_ir_function_decl *entry_func, const struct hlsl_block *initializers,
+        struct vsir_program *program, struct vkd3d_shader_code *reflection_data)
 {
-    struct hlsl_block global_uniform_block, body, patch_body;
     uint32_t config_flags = vkd3d_shader_init_config_flags();
     const struct hlsl_profile_info *profile = ctx->profile;
+    struct hlsl_block initializer_block, body, patch_body;
     struct list semantic_vars, patch_semantic_vars;
     struct hlsl_ir_var *var;
 
@@ -15347,13 +15339,17 @@ int hlsl_emit_vsir(struct hlsl_ctx *ctx, const struct vkd3d_shader_compile_info 
     list_init(&ctx->extern_vars);
     list_init(&semantic_vars);
     list_init(&patch_semantic_vars);
-    hlsl_block_init(&global_uniform_block);
+
+    if (!initializers)
+        hlsl_block_init(&initializer_block);
+    else if (!hlsl_clone_block(ctx, &initializer_block, initializers))
+        return ctx->result;
 
     LIST_FOR_EACH_ENTRY(var, &ctx->globals->vars, struct hlsl_ir_var, scope_entry)
     {
         if (var->storage_modifiers & HLSL_STORAGE_UNIFORM)
         {
-            prepend_uniform_copy(ctx, &global_uniform_block, var);
+            prepend_uniform_copy(ctx, &initializer_block, var);
         }
         else if (var->storage_modifiers & HLSL_STORAGE_GROUPSHARED)
         {
@@ -15362,18 +15358,19 @@ int hlsl_emit_vsir(struct hlsl_ctx *ctx, const struct vkd3d_shader_compile_info 
         }
     }
 
-    process_entry_function(ctx, &semantic_vars, &body, &global_uniform_block, entry_func);
+    process_entry_function(ctx, &semantic_vars, &body, &initializer_block, entry_func);
+
     if (ctx->result)
         return ctx->result;
 
     if (profile->type == VKD3D_SHADER_TYPE_HULL)
     {
-        process_entry_function(ctx, &patch_semantic_vars, &patch_body, &global_uniform_block, ctx->patch_constant_func);
+        process_entry_function(ctx, &patch_semantic_vars, &patch_body, &initializer_block, ctx->patch_constant_func);
         if (ctx->result)
             return ctx->result;
     }
 
-    hlsl_block_cleanup(&global_uniform_block);
+    hlsl_block_cleanup(&initializer_block);
 
     if (profile->major_version < 4)
     {
