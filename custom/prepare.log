@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
 HEAD is now at be758e63 Release v11.0-rc2
-HEAD is now at 0f4bed55db2 Release 11.0-rc2.
+HEAD is now at 72b941ef739 Release 11.0-rc3.
 
 2941e58d7d6e630e88b6e9539414f1d86736c7aa reverted 
 Auto-merging dlls/winebth.sys/winebluetooth.c
