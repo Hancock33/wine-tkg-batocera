@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at ae474f79 Rebase against a854e8d4ff5d2d774bcf1656e3af2fea63526657.
-HEAD is now at 3d9b48bc5e4 wined3d/gl: Split UBOs to separate chunks.
+HEAD is now at e9363c37 Release v11.0-rc4
+HEAD is now at ca1a99f22ad Release 11.0-rc4.
 
 2941e58d7d6e630e88b6e9539414f1d86736c7aa reverted 
 Auto-merging dlls/winebth.sys/winebluetooth.c
