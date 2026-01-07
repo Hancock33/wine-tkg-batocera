@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
 HEAD is now at 52bc59da Rebase against a82d717ce63965bec9a06eb1452b3d09b78a6021.
-HEAD is now at bf58f1c4185 d3d9/tests: Test how lighting is affected by world and view matrices.
+HEAD is now at 4164535eac5 win32u: Update client surface state before swapping or presenting.
 
 2941e58d7d6e630e88b6e9539414f1d86736c7aa reverted 
 Auto-merging dlls/winebth.sys/winebluetooth.c
