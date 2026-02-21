@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at 497d4578 Release v11.2
-HEAD is now at 87ba10bb3aa Release 11.2.
+HEAD is now at 0e629ceb Release v11.3
+HEAD is now at 222c976140d Release 11.3.
 
 2941e58d7d6e630e88b6e9539414f1d86736c7aa reverted 
 Auto-merging dlls/winebth.sys/winebluetooth.c
@@ -103,7 +103,6 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/mmsystem.dll16-MIDIHDR_Refcount/0002-mmsystem.dll16-Translate-MidiIn-messages.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/mountmgr-DosDevices/0001-mountmgr.sys-Write-usable-device-paths-into-HKLM-SYS.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/mshtml-TranslateAccelerator/0001-mshtml-Improve-IOleInPlaceActiveObject-TranslateAcce.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/mshtml-adobe/0001-mshtml-Add-IXMLSerializer-implementation.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/mshtml-adobe/0002-libs-xml2-Tolerate-embedded-XML-declarations-inside-.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/mshtml-adobe/0003-mshtml-msxml3-tests-Add-tests-for-XMLSerializer-and-.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/msi-cabinet/0001-msi-Only-process-cabinet-files-if-it-exists.patch
@@ -116,7 +115,6 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/msxml3-FreeThreadedXMLHTTP60/0007-msxml3-Don-t-fail-xml_http_request_2_IRtwqAsyncCallb.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/msxml3-whitespace/0001-msxml3-IXMLDOMDocument3-preserveWhiteSpace-fix-for-a.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/msxml3-write_out_doc/0001-msxml3-Write-to-DOMDocument-mxwriter-destination-in-.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/msxml3_embedded_cdata/0002-msxml3-Wrap-embedded-XML-content-in-CDATA-for-Adobe-.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/msxml3_encode_gb2312/0001-msxml3-Add-GB2312-support-for-builtin-character-conv.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/msxml_normalize_line/0001-msxml-Support-ISAXXMLReader-putFeature-normalize-lin.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ntdll-APC_Performance/0001-ntdll-Reuse-old-async-fileio-structures-if-possible.patch
@@ -194,12 +192,7 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/user32-recursive-activation/0002-user32-tests-Test-a-recursive-activation-loop-on-WM_.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vcomp_for_dynamic_init_i8/0001-vcomp-Implement-_vcomp_for_dynamic_init_i8.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/version-VerQueryValue/0001-version-Test-for-VerQueryValueA-try-2.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0001-Updated-vkd3d-to-3c62f7d1e071225151db972150e6bc264f7.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0002-Updated-vkd3d-to-a8640ee531a1a6742f8adbfa3f8f198bbb9.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0003-Updated-vkd3d-to-cc13ff46e9a428b36b46d97bec02b36e1f7.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0004-Updated-vkd3d-to-5bbf21bf41b06b715271161ec5fbd0cfcc6.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0005-Updated-vkd3d-to-d9210a6202954e7c8368b6f396ccbf8df86.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0006-Updated-vkd3d-to-c121e9b10912ab46c7790104a1accf92634.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0001-Updated-vkd3d-to-5c355b5963ef7a51eb152a8f1544542bf5b.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wbemdisp-ISWbemObject-Invoke/0001-wbemdisp-Support-DISPATCH_METHOD-in-ISWbemObject-Inv.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wbemdisp-ISWbemObject-Invoke/0002-vbscript-Support-VT_BSTR-VT_ARRAY-Iterator.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wbemdisp-ISWbemObject-Invoke/0003-wbemprox-Support-VT_BYREF-in-to_longlong.patch
@@ -231,16 +224,16 @@ Applying wine-staging patches...
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Fixed-scancodes/0002-winex11-Always-create-the-HKCU-configuration-registr.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Fixed-scancodes/0003-winex11-Write-supported-keyboard-layout-list-in-regi.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Fixed-scancodes/0004-winecfg-Add-a-keyboard-layout-selection-config-optio.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < include/wine/server_protocol.h updated
-include/wine/server_protocol.h updated
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Fixed-scancodes/0005-winex11-Use-the-user-configured-keyboard-layout-if-a.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Fixed-scancodes/0005-winex11-Use-the-user-configured-keyboard-layout-if-a.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Fixed-scancodes/0006-winecfg-Add-a-keyboard-scancode-detection-toggle-opt.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Fixed-scancodes/0007-winex11-Use-scancode-high-bit-to-set-KEYEVENTF_EXTEN.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Fixed-scancodes/0008-winex11-Support-fixed-X11-keycode-to-scancode-conver.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Fixed-scancodes/0009-winex11-Disable-keyboard-scancode-auto-detection-by-.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-Window_Style/0001-winex11-Fix-handling-of-window-attributes-for-WS_EX_.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/winex11-ime-check-thread-data/0001-winex11.drv-handle-missing-thread-data-in-X11DRV_get_ic.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wininet-Cleanup/0001-wininet-tests-Add-more-tests-for-cookies.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d include/wine/server_protocol.h updated
+include/wine/server_protocol.h updated
+/home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wininet-Cleanup/0001-wininet-tests-Add-more-tests-for-cookies.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wininet-Cleanup/0002-wininet-tests-Test-auth-credential-reusage-with-host.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wininet-Cleanup/0003-wininet-tests-Check-cookie-behaviour-when-overriding.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wininet-Cleanup/0004-wininet-Strip-filename-if-no-path-is-set-in-cookie.patch
@@ -285,14 +278,14 @@ Hunk #2 succeeded at 1725 with fuzz 2 (offset 192 lines).
 patching file programs/wineboot/wineboot.c
 Hunk #1 succeeded at 1636 (offset -70 lines).
 patching file loader/wine.inf.in
-Hunk #1 succeeded at 1381 with fuzz 2 (offset -1042 lines).
+Hunk #1 succeeded at 1384 with fuzz 2 (offset -1039 lines).
 patching file loader/wine.inf.in
-Hunk #1 succeeded at 1378 with fuzz 2 (offset -1088 lines).
+Hunk #1 succeeded at 1381 with fuzz 2 (offset -1085 lines).
 patching file loader/wine.inf.in
-Hunk #1 succeeded at 327 (offset -222 lines).
-Hunk #2 succeeded at 353 with fuzz 1 (offset -220 lines).
+Hunk #1 succeeded at 330 (offset -219 lines).
+Hunk #2 succeeded at 356 with fuzz 1 (offset -217 lines).
 patching file loader/wine.inf.in
-Hunk #1 succeeded at 1371 with fuzz 2 (offset -1085 lines).
+Hunk #1 succeeded at 1374 with fuzz 2 (offset -1082 lines).
 patching file programs/wineboot/wineboot.c
 Hunk #1 succeeded at 68 with fuzz 2.
 Hunk #2 succeeded at 1828 (offset 222 lines).
@@ -309,7 +302,7 @@ patching file dlls/kernelbase/process.c
 Hunk #2 succeeded at 503 (offset -3 lines).
 Hunk #3 succeeded at 735 (offset -60 lines).
 patching file configure.ac
-Hunk #1 succeeded at 3537 (offset 75 lines).
+Hunk #1 succeeded at 3541 (offset 79 lines).
 patching file dlls/kernelbase/process.c
 Hunk #1 succeeded at 505 (offset -3 lines).
 Hunk #2 succeeded at 554 (offset -3 lines).
@@ -339,11 +332,11 @@ Hunk #2 succeeded at 525 (offset 32 lines).
 patching file dlls/ntdll/signal_arm64ec.c
 Hunk #1 succeeded at 599 with fuzz 1 (offset 17 lines).
 patching file dlls/ntdll/unix/file.c
-Hunk #1 succeeded at 4007 (offset 242 lines).
+Hunk #1 succeeded at 4012 (offset 247 lines).
 patching file dlls/wow64/file.c
 Hunk #1 succeeded at 956 (offset 1 line).
 patching file include/winternl.h
-Hunk #1 succeeded at 5342 (offset 132 lines).
+Hunk #1 succeeded at 5360 (offset 150 lines).
 
 proton-eac_bridge.patch -- ( Add support for Proton's EAC bridge )
 patching file dlls/ntdll/unix/loader.c
@@ -364,8 +357,8 @@ Hunk #3 succeeded at 429 with fuzz 1 (offset 2 lines).
 
 wow64_loader_hack.patch -- ( Hack around loader name for EAC on 10.2+ )
 patching file configure.ac
-Hunk #1 succeeded at 2087 (offset 54 lines).
-Hunk #2 succeeded at 2106 (offset 54 lines).
+Hunk #1 succeeded at 2089 (offset 56 lines).
+Hunk #2 succeeded at 2108 (offset 56 lines).
 patching file dlls/ntdll/unix/loader.c
 Hunk #1 succeeded at 434 (offset -42 lines).
 Hunk #2 succeeded at 446 (offset -42 lines).
@@ -388,9 +381,9 @@ Hunk #1 succeeded at 4 with fuzz 2.
 Applying hotfix wine-tkg-patches/hotfixes/autoconf-opencl-hotfix/opencl-fixup.mypatch
 patching file configure.ac
 Hunk #1 succeeded at 47 with fuzz 2 (offset -3 lines).
-Hunk #2 succeeded at 666 (offset 236 lines).
-Hunk #3 succeeded at 746 (offset 232 lines).
-Hunk #4 succeeded at 975 with fuzz 2 (offset 220 lines).
+Hunk #2 succeeded at 675 (offset 245 lines).
+Hunk #3 succeeded at 755 (offset 241 lines).
+Hunk #4 succeeded at 976 with fuzz 2 (offset 221 lines).
 
 wine-tkg-staging.patch -- ( Please don't report bugs about this wine build on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead. )
 patching file dlls/ntdll/loader.c
@@ -430,7 +423,6 @@ Including features for Compute Pipeline commands
 Including features for Pipeline layout commands
 Including features for Sampler commands
 Including features for Descriptor set commands
-Including features for Query commands
 Including features for Pass commands
 Including features for Command buffer building commands
 Including features for API constants
@@ -475,10 +467,10 @@ Including features for Feature requirements
 Including features for None
 Including features for None
 Including features for API version macros
+Including features for Promoted from VK_KHR_driver_properties (extension 197)
 Including features for None
 Including features for Promoted from VK_KHR_image_format_list (extension 148)
 Including features for Promoted from VK_KHR_sampler_mirror_clamp_to_edge (extension 15)
-Including features for Promoted from VK_KHR_driver_properties (extension 197)
 Including features for Promoted from VK_KHR_vulkan_memory_model (extension 212)
 Including features for Promoted from VK_EXT_host_query_reset (extension 262)
 Including features for Promoted from VK_KHR_timeline_semaphore (extension 208)
