@@ -2370,6 +2370,10 @@ struct hlsl_ir_node *hlsl_new_compile(struct hlsl_ctx *ctx, const struct hlsl_pr
             type = hlsl_get_type(ctx->cur_scope, "GeometryShader", true, true);
             break;
 
+        case VKD3D_SHADER_TYPE_COMPUTE:
+            type = hlsl_get_type(ctx->cur_scope, "ComputeShader", true, true);
+            break;
+
         default:
             hlsl_error(ctx, loc, VKD3D_SHADER_ERROR_HLSL_INVALID_PROFILE, "Invalid profile \"%s\".", profile->name);
             return NULL;
@@ -5130,8 +5134,7 @@ static bool hlsl_ctx_init(struct hlsl_ctx *ctx, struct vkd3d_shader_source_list 
                 break;
 
             case VKD3D_SHADER_COMPILE_OPTION_BACKWARD_COMPATIBILITY:
-                ctx->semantic_compat_mapping = option->value & VKD3D_SHADER_COMPILE_OPTION_BACKCOMPAT_MAP_SEMANTIC_NAMES;
-                ctx->double_as_float_alias = option->value & VKD3D_SHADER_COMPILE_OPTION_DOUBLE_AS_FLOAT_ALIAS;
+                ctx->compatibility_flags = option->value;
                 break;
 
             case VKD3D_SHADER_COMPILE_OPTION_CHILD_EFFECT:
@@ -5350,7 +5353,7 @@ int hlsl_parse(const struct vkd3d_shader_compile_info *compile_info,
     if (!vsir_program_init(program, compile_info, &version, 0, VSIR_CF_STRUCTURED, normalisation_level))
         return VKD3D_ERROR_OUT_OF_MEMORY;
 
-    program->f32_denorm_mode = VSIR_DENORM_FLUSH_TO_ZERO;
+    program->f32_denormal_mode = VKD3D_SHADER_DENORMAL_MODE_FLUSH_TO_ZERO;
 
     if ((ret = hlsl_ctx_parse(&ctx, &program->source_files, compile_info, profile, message_context)) < 0)
     {

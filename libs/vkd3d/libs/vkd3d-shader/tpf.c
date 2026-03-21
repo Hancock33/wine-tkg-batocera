@@ -853,7 +853,7 @@ static void shader_sm4_read_shader_data(struct vkd3d_shader_instruction *ins, ui
 }
 
 static void shader_sm4_set_descriptor_register_range(struct vkd3d_shader_sm4_parser *sm4,
-        const struct vkd3d_shader_register *reg, struct vkd3d_shader_register_range *range)
+        const struct vsir_operand *reg, struct vkd3d_shader_register_range *range)
 {
     range->first = reg->idx[1].offset;
     range->last = reg->idx[shader_is_sm_5_1(sm4) ? 2 : 1].offset;
@@ -1204,7 +1204,7 @@ static void shader_sm4_read_dcl_global_flags(struct vkd3d_shader_instruction *in
 
     if (sm4->program->global_flags & (VKD3DSGF_ENABLE_DOUBLE_PRECISION_FLOAT_OPS
             | VKD3DSGF_ENABLE_11_1_DOUBLE_EXTENSIONS))
-        sm4->program->f64_denorm_mode = VSIR_DENORM_PRESERVE;
+        sm4->program->f64_denormal_mode = VKD3D_SHADER_DENORMAL_MODE_PRESERVE;
 }
 
 static void shader_sm5_read_fcall(struct vkd3d_shader_instruction *ins, uint32_t opcode, uint32_t opcode_token,
@@ -2032,7 +2032,7 @@ static bool shader_sm4_read_reg_idx(struct vkd3d_shader_sm4_parser *tpf, const u
 }
 
 static bool shader_sm4_read_param(struct vkd3d_shader_sm4_parser *priv, const uint32_t **ptr, const uint32_t *end,
-        enum vsir_data_type data_type, struct vkd3d_shader_register *param, enum vkd3d_shader_src_modifier *modifier)
+        enum vsir_data_type data_type, struct vsir_operand *param, enum vkd3d_shader_src_modifier *modifier)
 {
     const struct vkd3d_sm4_register_type_info *register_type_info;
     enum vkd3d_shader_register_type vsir_register_type;
@@ -2064,7 +2064,7 @@ static bool shader_sm4_read_param(struct vkd3d_shader_sm4_parser *priv, const ui
 
     order = (token & VKD3D_SM4_REGISTER_ORDER_MASK) >> VKD3D_SM4_REGISTER_ORDER_SHIFT;
 
-    vsir_register_init(param, vsir_register_type, data_type, order);
+    vsir_operand_init(param, vsir_register_type, data_type, order);
     param->precision = VKD3D_SHADER_REGISTER_PRECISION_DEFAULT;
     param->non_uniform = false;
 
@@ -2217,7 +2217,7 @@ static bool shader_sm4_read_param(struct vkd3d_shader_sm4_parser *priv, const ui
                     "Invalid index count %u for immediate const buffer register; expected count 1.", param->idx_count);
         }
     }
-    else if (!shader_is_sm_5_1(priv) && vsir_register_is_descriptor(param))
+    else if (!shader_is_sm_5_1(priv) && vsir_operand_is_descriptor(param))
     {
         /* SM5.1 places a symbol identifier in idx[0] and moves
          * other values up one slot. Normalize to SM5.1. */
@@ -2229,7 +2229,7 @@ static bool shader_sm4_read_param(struct vkd3d_shader_sm4_parser *priv, const ui
     return true;
 }
 
-bool shader_sm4_is_scalar_register(const struct vkd3d_shader_register *reg)
+bool shader_sm4_is_scalar_register(const struct vsir_operand *reg)
 {
     switch (reg->type)
     {
@@ -2261,7 +2261,7 @@ static uint32_t swizzle_to_sm4(uint32_t s)
     return ret;
 }
 
-static bool register_is_input_output(const struct vkd3d_shader_register *reg)
+static bool register_is_input_output(const struct vsir_operand *reg)
 {
     switch (reg->type)
     {
@@ -2278,7 +2278,7 @@ static bool register_is_input_output(const struct vkd3d_shader_register *reg)
     }
 }
 
-static bool register_is_control_point_input(const struct vkd3d_shader_register *reg,
+static bool register_is_control_point_input(const struct vsir_operand *reg,
         const struct vkd3d_shader_sm4_parser *priv)
 {
     return reg->type == VKD3DSPR_INCONTROLPOINT || reg->type == VKD3DSPR_OUTCONTROLPOINT
@@ -2295,7 +2295,7 @@ static uint32_t mask_from_swizzle(uint32_t swizzle)
 }
 
 static bool shader_sm4_validate_input_output_register(struct vkd3d_shader_sm4_parser *priv,
-        const struct vkd3d_shader_register *reg, unsigned int mask)
+        const struct vsir_operand *reg, unsigned int mask)
 {
     unsigned int idx_count = 1 + register_is_control_point_input(reg, priv);
     const unsigned int *masks;
@@ -2384,7 +2384,7 @@ static bool tpf_read_src_operand(struct vkd3d_shader_sm4_parser *tpf, const uint
 
                     mask = (token & VKD3D_SM4_WRITEMASK_MASK) >> VKD3D_SM4_WRITEMASK_SHIFT;
                     /* Mask seems only to be used for vec4 constants and is always zero. */
-                    if (!register_is_constant(&src->reg))
+                    if (!vsir_operand_is_constant(&src->reg))
                         vkd3d_shader_parser_warning(&tpf->p, VKD3D_SHADER_WARNING_TPF_UNHANDLED_REGISTER_MASK,
                                 "Unhandled mask %#x for a non-constant source register.", mask);
                     else if (mask)
@@ -2799,7 +2799,7 @@ static bool shader_sm4_init(struct vkd3d_shader_sm4_parser *sm4, struct vsir_pro
             &version, token_count / 7u + 20, VSIR_CF_STRUCTURED, VSIR_NORMALISED_SM4))
         return false;
 
-    program->f32_denorm_mode = VSIR_DENORM_FLUSH_TO_ZERO;
+    program->f32_denormal_mode = VKD3D_SHADER_DENORMAL_MODE_FLUSH_TO_ZERO;
 
     vkd3d_shader_parser_init(&sm4->p, message_context, compile_info->source_name);
     sm4->ptr = sm4->start;
@@ -3077,10 +3077,12 @@ static bool get_insidetessfactor_sysval_semantic(enum vkd3d_shader_sysval_semant
 }
 
 bool sm4_sysval_semantic_from_semantic_name(enum vkd3d_shader_sysval_semantic *sysval_semantic,
-        const struct vkd3d_shader_version *version, bool semantic_compat_mapping, enum vkd3d_tessellator_domain domain,
-        const char *semantic_name, unsigned int semantic_idx, bool output,
-        bool is_patch_constant_func, bool is_primitive)
+        const struct vkd3d_shader_version *version,
+        enum vkd3d_shader_compile_option_backward_compatibility compatibility_flags,
+        enum vkd3d_tessellator_domain domain, const char *semantic_name,
+        unsigned int semantic_idx, bool output, bool is_patch_constant_func, bool is_primitive)
 {
+    bool semantic_compat_mapping = (compatibility_flags & VKD3D_SHADER_COMPILE_OPTION_BACKCOMPAT_MAP_SEMANTIC_NAMES);
     unsigned int i;
 
     static const struct
@@ -3439,8 +3441,7 @@ struct sm4_instruction
     unsigned int idx_src_count;
 };
 
-static unsigned int sm4_get_index_addressing_from_reg(const struct vkd3d_shader_register *reg,
-        unsigned int i)
+static unsigned int sm4_get_index_addressing_from_reg(const struct vsir_operand *reg, unsigned int i)
 {
     if (reg->idx[i].rel_addr)
     {
@@ -3453,7 +3454,7 @@ static unsigned int sm4_get_index_addressing_from_reg(const struct vkd3d_shader_
     return 0;
 }
 
-static uint32_t sm4_encode_register(const struct tpf_compiler *tpf, const struct vkd3d_shader_register *reg,
+static uint32_t sm4_encode_register(const struct tpf_compiler *tpf, const struct vsir_operand *reg,
         enum vkd3d_sm4_swizzle_type sm4_swizzle_type, uint32_t sm4_swizzle)
 {
     const struct vkd3d_sm4_register_type_info *register_type_info;
@@ -3493,7 +3494,7 @@ static uint32_t sm4_encode_register(const struct tpf_compiler *tpf, const struct
         switch (sm4_swizzle_type)
         {
             case VKD3D_SM4_SWIZZLE_NONE:
-                if (register_is_constant(reg))
+                if (vsir_operand_is_constant(reg))
                     break;
                 VKD3D_ASSERT(sm4_swizzle);
                 token |= (sm4_swizzle << VKD3D_SM4_WRITEMASK_SHIFT) & VKD3D_SM4_WRITEMASK_MASK;
@@ -3515,8 +3516,7 @@ static uint32_t sm4_encode_register(const struct tpf_compiler *tpf, const struct
     return token;
 }
 
-static void sm4_write_register_index(const struct tpf_compiler *tpf, const struct vkd3d_shader_register *reg,
-        unsigned int j)
+static void sm4_write_register_index(const struct tpf_compiler *tpf, const struct vsir_operand *reg, unsigned int j)
 {
     unsigned int addressing = sm4_get_index_addressing_from_reg(reg, j);
     const struct vkd3d_shader_register_index *idx = &reg->idx[j];
@@ -4092,7 +4092,7 @@ static void tpf_write_dcl_vertices_out(struct tpf_compiler *tpf, unsigned int co
 
 /* Descriptor registers are stored in shader model 5.1 format regardless
  * of the program's version. Convert them to the 4.0 format if necessary. */
-static void rewrite_descriptor_register(const struct tpf_compiler *tpf, struct vkd3d_shader_register *reg)
+static void rewrite_descriptor_register(const struct tpf_compiler *tpf, struct vsir_operand *reg)
 {
     if (vkd3d_shader_ver_ge(&tpf->program->shader_version, 5, 1))
         return;

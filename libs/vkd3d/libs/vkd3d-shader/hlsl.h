@@ -1270,11 +1270,10 @@ struct hlsl_ctx
     /* Whether the numthreads() attribute has been provided in the entry-point function. */
     uint32_t found_numthreads : 1;
 
-    bool semantic_compat_mapping;
+    enum vkd3d_shader_compile_option_backward_compatibility compatibility_flags;
     bool child_effect;
     bool include_empty_buffers;
     bool warn_implicit_truncation;
-    bool double_as_float_alias;
 };
 
 static inline bool hlsl_version_ge(const struct hlsl_ctx *ctx, unsigned int major, unsigned int minor)

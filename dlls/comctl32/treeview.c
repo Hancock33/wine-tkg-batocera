@@ -445,7 +445,7 @@ TREEVIEW_GetNextListItem(const TREEVIEW_INFO *infoPtr, const TREEVIEW_ITEM *tvIt
 
 /***************************************************************************
  * This method returns the nth item starting at the given item.  It returns
- * the last item (or first) we we run out of items.
+ * the last item (or the first) when we run out of items.
  *
  * Will scroll backward if count is <0.
  *             forward if count is >0.
@@ -4318,9 +4318,14 @@ TREEVIEW_LButtonDown(TREEVIEW_INFO *infoPtr, LPARAM lParam)
 
         if (do_focus)
         {
-            infoPtr->focusedItem = ht.hItem;
             TREEVIEW_InvalidateItem(infoPtr, infoPtr->focusedItem);
-            TREEVIEW_InvalidateItem(infoPtr, infoPtr->selectedItem);
+            if (infoPtr->focusedItem != ht.hItem)
+            {
+                infoPtr->focusedItem = ht.hItem;
+                TREEVIEW_InvalidateItem(infoPtr, infoPtr->focusedItem);
+            }
+            if (infoPtr->focusedItem != infoPtr->selectedItem)
+                TREEVIEW_InvalidateItem(infoPtr, infoPtr->selectedItem);
         }
     }
 

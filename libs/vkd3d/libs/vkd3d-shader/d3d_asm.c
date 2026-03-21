@@ -132,6 +132,7 @@ static void shader_dump_global_flags(struct vkd3d_d3d_asm_compiler *compiler, en
         {VKD3DSGF_BIND_FOR_DURATION,                 "allResourcesBound"},
         {VKD3DSGF_ENABLE_VP_AND_RT_ARRAY_INDEX,      "viewportAndRTArrayIndex"},
         {VKD3DSGF_ENABLE_RELAXED_TYPED_UAV_FORMATS,  "UAVLoadAdditionalFormats"},
+        {VKD3DSGF_ENABLE_UAVS_AT_EVERY_STAGE,        "UAVsAtEveryStage"},
         {VKD3DSGF_ENABLE_RASTERIZER_ORDERED_VIEWS,   "ROVs"},
         {VKD3DSGF_ENABLE_WAVE_INTRINSICS,            "waveOps"},
         {VKD3DSGF_ENABLE_INT64,                      "int64Ops"},
@@ -752,8 +753,8 @@ static void shader_print_subscript_range(struct vkd3d_d3d_asm_compiler *compiler
         vkd3d_string_buffer_printf(&compiler->buffer, "*]");
 }
 
-static void shader_print_register(struct vkd3d_d3d_asm_compiler *compiler, const char *prefix,
-        const struct vkd3d_shader_register *reg, bool is_declaration, const char *suffix)
+static void shader_print_operand(struct vkd3d_d3d_asm_compiler *compiler, const char *prefix,
+        const struct vsir_operand *reg, bool is_declaration, const char *suffix)
 {
     struct vkd3d_string_buffer *buffer = &compiler->buffer;
     unsigned int offset = reg->idx[0].offset;
@@ -1025,7 +1026,7 @@ static void shader_print_register(struct vkd3d_d3d_asm_compiler *compiler, const
     vkd3d_string_buffer_printf(buffer, "%s", suffix);
 }
 
-static void shader_print_precision(struct vkd3d_d3d_asm_compiler *compiler, const struct vkd3d_shader_register *reg)
+static void shader_print_precision(struct vkd3d_d3d_asm_compiler *compiler, const struct vsir_operand *reg)
 {
     struct vkd3d_string_buffer *buffer = &compiler->buffer;
     const char *precision;
@@ -1059,7 +1060,7 @@ static void shader_print_precision(struct vkd3d_d3d_asm_compiler *compiler, cons
     vkd3d_string_buffer_printf(buffer, " {%s%s%s}", compiler->colours.modifier, precision, compiler->colours.reset);
 }
 
-static void shader_print_non_uniform(struct vkd3d_d3d_asm_compiler *compiler, const struct vkd3d_shader_register *reg)
+static void shader_print_non_uniform(struct vkd3d_d3d_asm_compiler *compiler, const struct vsir_operand *reg)
 {
     if (reg->non_uniform)
         vkd3d_string_buffer_printf(&compiler->buffer, " {%snonuniform%s}",
@@ -1067,7 +1068,7 @@ static void shader_print_non_uniform(struct vkd3d_d3d_asm_compiler *compiler, co
 }
 
 static void shader_print_reg_type(struct vkd3d_d3d_asm_compiler *compiler,
-        const char *prefix, const struct vkd3d_shader_register *reg, const char *suffix)
+        const char *prefix, const struct vsir_operand *reg, const char *suffix)
 {
     static const char *dimensions[] =
     {
@@ -1145,7 +1146,7 @@ static void shader_print_dst_operand(struct vkd3d_d3d_asm_compiler *compiler,
 {
     uint32_t write_mask = dst->write_mask;
 
-    shader_print_register(compiler, prefix, &dst->reg, is_declaration, "");
+    shader_print_operand(compiler, prefix, &dst->reg, is_declaration, "");
 
     if (write_mask && dst->reg.dimension == VSIR_DIMENSION_VEC4)
     {
@@ -1184,7 +1185,7 @@ static void shader_print_src_operand(struct vkd3d_d3d_asm_compiler *compiler,
     if (src_modifier == VKD3DSPSM_ABS || src_modifier == VKD3DSPSM_ABSNEG)
         is_abs = true;
 
-    shader_print_register(compiler, is_abs ? "|" : "", &src->reg, false, "");
+    shader_print_operand(compiler, is_abs ? "|" : "", &src->reg, false, "");
 
     switch (src_modifier)
     {
@@ -1623,12 +1624,12 @@ static void shader_dump_instruction(struct vkd3d_d3d_asm_compiler *compiler,
             shader_print_dcl_usage(compiler, "_", &ins->declaration.semantic, ins->flags, "");
             shader_dump_ins_modifiers(compiler, &ins->declaration.semantic.resource.reg);
             vkd3d_string_buffer_printf(buffer, "%s", compiler->colours.reset);
-            shader_print_register(compiler, " ", &ins->declaration.semantic.resource.reg.reg, true, "");
+            shader_print_operand(compiler, " ", &ins->declaration.semantic.resource.reg.reg, true, "");
             shader_dump_register_space(compiler, ins->declaration.semantic.resource.range.space);
             break;
 
         case VSIR_OP_DCL_CONSTANT_BUFFER:
-            shader_print_register(compiler, " ", &ins->declaration.cb.src.reg, true, "");
+            shader_print_operand(compiler, " ", &ins->declaration.cb.src.reg, true, "");
             if (vkd3d_shader_ver_ge(&compiler->shader_version, 6, 0))
                 shader_print_subscript(compiler, ins->declaration.cb.size, NULL);
             else if (vkd3d_shader_ver_ge(&compiler->shader_version, 5, 1))
@@ -1725,7 +1726,7 @@ static void shader_dump_instruction(struct vkd3d_d3d_asm_compiler *compiler,
             break;
 
         case VSIR_OP_DCL_SAMPLER:
-            shader_print_register(compiler, " ", &ins->declaration.sampler.src.reg, true,
+            shader_print_operand(compiler, " ", &ins->declaration.sampler.src.reg, true,
                     ins->flags == VKD3DSI_SAMPLER_COMPARISON_MODE ? ", comparisonMode" : "");
             shader_dump_register_space(compiler, ins->declaration.sampler.range.space);
             break;
@@ -2193,9 +2194,9 @@ enum vkd3d_result d3d_asm_compile(struct vsir_program *program, const struct vkd
 
     if (compiler.flags & VSIR_ASM_FLAG_DUMP_DENORM_MODES)
         vkd3d_string_buffer_printf(buffer, ".denorm %s, %s, %s\n",
-                vsir_denorm_mode_get_name(program->f16_denorm_mode, "??"),
-                vsir_denorm_mode_get_name(program->f32_denorm_mode, "??"),
-                vsir_denorm_mode_get_name(program->f64_denorm_mode, "??"));
+                vsir_denorm_mode_get_name(program->f16_denormal_mode, "??"),
+                vsir_denorm_mode_get_name(program->f32_denormal_mode, "??"),
+                vsir_denorm_mode_get_name(program->f64_denormal_mode, "??"));
 
     if (compiler.flags & VSIR_ASM_FLAG_DUMP_SIGNATURES
             && (result = dump_dxbc_signatures(&compiler, program)) < 0)
