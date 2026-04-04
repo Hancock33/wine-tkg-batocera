@@ -27,6 +27,7 @@ struct json_array
     IJsonArray IJsonArray_iface;
     LONG ref;
     IJsonValue **elements;
+    ULONG capacity;
     ULONG length;
 };
 
@@ -38,23 +39,24 @@ static inline struct json_array *impl_from_IJsonArray( IJsonArray *iface )
 HRESULT json_array_push( IJsonArray *iface, IJsonValue *value )
 {
     struct json_array *impl = impl_from_IJsonArray( iface );
-    IJsonValue **new = impl->elements;
 
     TRACE( "iface %p, value %p.\n", iface, value );
 
-    new = realloc( new, ++impl->length * sizeof(*new) );
-    if (!new)
+    if (impl->length == impl->capacity)
     {
-        impl->length--;
-        return E_OUTOFMEMORY;
+        UINT32 capacity = max( 32, impl->capacity * 3 / 2 );
+        IJsonValue **new = impl->elements;
+        if (!(new = realloc( new, capacity * sizeof(*new) ))) return E_OUTOFMEMORY;
+        impl->elements = new;
+        impl->capacity = capacity;
     }
 
-    impl->elements = new;
-    impl->elements[impl->length - 1] = value;
+    impl->elements[impl->length++] = value;
+    IJsonValue_AddRef( value );
     return S_OK;
 }
 
-static HRESULT WINAPI json_array_statics_QueryInterface( IJsonArray *iface, REFIID iid, void **out )
+static HRESULT WINAPI json_array_QueryInterface( IJsonArray *iface, REFIID iid, void **out )
 {
     struct json_array *impl = impl_from_IJsonArray( iface );
 
@@ -75,7 +77,7 @@ static HRESULT WINAPI json_array_statics_QueryInterface( IJsonArray *iface, REFI
     return E_NOINTERFACE;
 }
 
-static ULONG WINAPI json_array_statics_AddRef( IJsonArray *iface )
+static ULONG WINAPI json_array_AddRef( IJsonArray *iface )
 {
     struct json_array *impl = impl_from_IJsonArray( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
@@ -83,7 +85,7 @@ static ULONG WINAPI json_array_statics_AddRef( IJsonArray *iface )
     return ref;
 }
 
-static ULONG WINAPI json_array_statics_Release( IJsonArray *iface )
+static ULONG WINAPI json_array_Release( IJsonArray *iface )
 {
     struct json_array *impl = impl_from_IJsonArray( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
@@ -95,31 +97,31 @@ static ULONG WINAPI json_array_statics_Release( IJsonArray *iface )
         for (UINT32 i = 0; i < impl->length; i++)
             IJsonValue_Release( impl->elements[i] );
 
-        if (impl->elements) free( impl->elements );
+        free( impl->elements );
         free( impl );
     }
     return ref;
 }
 
-static HRESULT WINAPI json_array_statics_GetIids( IJsonArray *iface, ULONG *iid_count, IID **iids )
+static HRESULT WINAPI json_array_GetIids( IJsonArray *iface, ULONG *iid_count, IID **iids )
 {
     FIXME( "iface %p, iid_count %p, iids %p stub!\n", iface, iid_count, iids );
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI json_array_statics_GetRuntimeClassName( IJsonArray *iface, HSTRING *class_name )
+static HRESULT WINAPI json_array_GetRuntimeClassName( IJsonArray *iface, HSTRING *class_name )
 {
     FIXME( "iface %p, class_name %p stub!\n", iface, class_name );
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI json_array_statics_GetTrustLevel( IJsonArray *iface, TrustLevel *trust_level )
+static HRESULT WINAPI json_array_GetTrustLevel( IJsonArray *iface, TrustLevel *trust_level )
 {
     FIXME( "iface %p, trust_level %p stub!\n", iface, trust_level );
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI json_array_statics_GetObjectAt( IJsonArray *iface, UINT32 index, IJsonObject **value )
+static HRESULT WINAPI json_array_GetObjectAt( IJsonArray *iface, UINT32 index, IJsonObject **value )
 {
     struct json_array *impl = impl_from_IJsonArray( iface );
 
@@ -131,7 +133,7 @@ static HRESULT WINAPI json_array_statics_GetObjectAt( IJsonArray *iface, UINT32 
     return IJsonValue_GetObject( impl->elements[index], value );
 }
 
-static HRESULT WINAPI json_array_statics_GetArrayAt( IJsonArray *iface, UINT32 index, IJsonArray **value )
+static HRESULT WINAPI json_array_GetArrayAt( IJsonArray *iface, UINT32 index, IJsonArray **value )
 {
     struct json_array *impl = impl_from_IJsonArray( iface );
 
@@ -143,7 +145,7 @@ static HRESULT WINAPI json_array_statics_GetArrayAt( IJsonArray *iface, UINT32 i
     return IJsonValue_GetArray( impl->elements[index], value );
 }
 
-static HRESULT WINAPI json_array_statics_GetStringAt( IJsonArray *iface, UINT32 index, HSTRING *value )
+static HRESULT WINAPI json_array_GetStringAt( IJsonArray *iface, UINT32 index, HSTRING *value )
 {
     struct json_array *impl = impl_from_IJsonArray( iface );
 
@@ -155,7 +157,7 @@ static HRESULT WINAPI json_array_statics_GetStringAt( IJsonArray *iface, UINT32 
     return IJsonValue_GetString( impl->elements[index], value );
 }
 
-static HRESULT WINAPI json_array_statics_GetNumberAt( IJsonArray *iface, UINT32 index, double *value )
+static HRESULT WINAPI json_array_GetNumberAt( IJsonArray *iface, UINT32 index, DOUBLE *value )
 {
     struct json_array *impl = impl_from_IJsonArray( iface );
 
@@ -167,7 +169,7 @@ static HRESULT WINAPI json_array_statics_GetNumberAt( IJsonArray *iface, UINT32 
     return IJsonValue_GetNumber( impl->elements[index], value );
 }
 
-static HRESULT WINAPI json_array_statics_GetBooleanAt( IJsonArray *iface, UINT32 index, boolean *value )
+static HRESULT WINAPI json_array_GetBooleanAt( IJsonArray *iface, UINT32 index, boolean *value )
 {
     struct json_array *impl = impl_from_IJsonArray( iface );
 
@@ -179,21 +181,21 @@ static HRESULT WINAPI json_array_statics_GetBooleanAt( IJsonArray *iface, UINT32
     return IJsonValue_GetBoolean( impl->elements[index], value );
 }
 
-static const struct IJsonArrayVtbl json_array_statics_vtbl =
+static const struct IJsonArrayVtbl json_array_vtbl =
 {
-    json_array_statics_QueryInterface,
-    json_array_statics_AddRef,
-    json_array_statics_Release,
+    json_array_QueryInterface,
+    json_array_AddRef,
+    json_array_Release,
     /* IInspectable methods */
-    json_array_statics_GetIids,
-    json_array_statics_GetRuntimeClassName,
-    json_array_statics_GetTrustLevel,
+    json_array_GetIids,
+    json_array_GetRuntimeClassName,
+    json_array_GetTrustLevel,
     /* IJsonArray methods */
-    json_array_statics_GetObjectAt,
-    json_array_statics_GetArrayAt,
-    json_array_statics_GetStringAt,
-    json_array_statics_GetNumberAt,
-    json_array_statics_GetBooleanAt,
+    json_array_GetObjectAt,
+    json_array_GetArrayAt,
+    json_array_GetStringAt,
+    json_array_GetNumberAt,
+    json_array_GetBooleanAt,
 };
 
 struct json_array_statics
@@ -271,12 +273,10 @@ static HRESULT WINAPI factory_ActivateInstance( IActivationFactory *iface, IInsp
     *instance = NULL;
     if (!(impl = calloc( 1, sizeof(*impl) ))) return E_OUTOFMEMORY;
 
-    impl->IJsonArray_iface.lpVtbl = &json_array_statics_vtbl;
+    impl->IJsonArray_iface.lpVtbl = &json_array_vtbl;
     impl->ref = 1;
-    impl->elements = NULL;
-    impl->length = 0;
 
-    *instance = (IInspectable*)&impl->IJsonArray_iface;
+    *instance = (IInspectable *)&impl->IJsonArray_iface;
     return S_OK;
 }
 

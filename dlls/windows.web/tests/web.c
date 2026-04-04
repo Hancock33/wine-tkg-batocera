@@ -504,7 +504,9 @@ static void check_json_( unsigned int line, IJsonValueStatics *json_value_static
         WindowsDeleteString( str );
         return;
     }
+
     ok_(__FILE__, line)( hr == S_OK, "got hr %#lx.\n", hr );
+    if (FAILED(hr)) return;
     hr = IJsonValue_get_ValueType( json_value, &json_value_type );
     ok_(__FILE__, line)( hr == S_OK, "got hr %#lx.\n", hr );
     ok_(__FILE__, line)( json_value_type == expected_json_value_type, "got json_value_type %d.\n", json_value_type );
@@ -727,6 +729,31 @@ static void test_JsonValueStatics(void)
         IJsonValue_Release( json_value );
     }
 
+    json = L"\"\\\"\\\\\\/\\b\\f\\n\\r\\t\\u0000\\u0057\\u0069\\u006e\\u0065\\udAbC\\uDcEf\"";
+    hr = WindowsCreateString( json, wcslen( json ), &str );
+    ok( hr == S_OK, "got hr %#lx.\n", hr );
+    hr = IJsonValueStatics_Parse( json_value_statics, str, &json_value );
+    ok( hr == S_OK, "got hr %#lx.\n", hr );
+    WindowsDeleteString( str );
+    if (SUCCEEDED(hr))
+    {
+        HSTRING parsed_str = NULL;
+        int res;
+
+        json = L"\"\\/\b\f\n\r\t\0Wine\U000BF0EF";
+        hr = WindowsCreateString( json, 15, &str );
+        ok( hr == S_OK, "got hr %#lx.\n", hr );
+        hr = IJsonValue_GetString( json_value, &parsed_str );
+        ok( hr == S_OK, "got hr %#lx.\n", hr );
+        hr = WindowsCompareStringOrdinal( str, parsed_str, &res );
+        ok( hr == S_OK, "got hr %#lx.\n", hr );
+        ok( res == 0, "got different HSTRINGS str = %s, parsed_str = %s.\n", wine_dbgstr_hstring( str ), wine_dbgstr_hstring( parsed_str ) );
+
+        WindowsDeleteString( parsed_str );
+        WindowsDeleteString( str );
+        IJsonValue_Release( json_value );
+    }
+
     json = L"null";
     check_json( json_value_statics, json, JsonValueType_Null, TRUE );
     json = L"false";
@@ -790,12 +817,23 @@ static void test_JsonValueStatics(void)
     check_json( json_value_statics, json, JsonValueType_String, FALSE );
     json = L"\v \"The Wine     Project\"";
     check_json( json_value_statics, json, JsonValueType_String, FALSE );
+    json = L"\"\\\"";
+    check_json( json_value_statics, json, JsonValueType_String, FALSE );
+    json = L"\"\\u123\"";
+    check_json( json_value_statics, json, JsonValueType_String, FALSE );
     json = L"[\"Wine\" \"Linux\"]";
+    check_json( json_value_statics, json, JsonValueType_Array, FALSE );
+    json = L"[\"Wine\", \"Linux\",]";
     check_json( json_value_statics, json, JsonValueType_Array, FALSE );
     json = L"{"
             "    \"Wine\": \"The Wine Project\","
             "    \"Linux\": [\"Arch\", \"BTW\"]"
             "";
+    check_json( json_value_statics, json, JsonValueType_Object, FALSE );
+    json = L"{"
+            "    \"Wine\": \"The Wine Project\","
+            "    \"Linux\": [\"Arch\", \"BTW\"],"
+            "}";
     check_json( json_value_statics, json, JsonValueType_Object, FALSE );
 
     ref = IJsonValueStatics_Release( json_value_statics );

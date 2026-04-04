@@ -79,12 +79,16 @@ struct hid_device_desc
 {
     BOOL is_polled;
     BOOL use_report_id;
+    UINT tlc_count;
 
     DWORD report_descriptor_len;
     char report_descriptor_buf[MAX_HID_DESCRIPTOR_LEN];
 
     HIDP_CAPS caps;
     HID_DEVICE_ATTRIBUTES attributes;
+    WCHAR vendor_str[64];
+    WCHAR product_str[64];
+    WCHAR serial_str[64];
 
     ULONG input_size;
     struct hid_expect input[64];

@@ -58,7 +58,6 @@ AC_ARG_WITH(pulse,     AS_HELP_STRING([--without-pulse],[do not use PulseAudio s
 AC_ARG_WITH(sane,      AS_HELP_STRING([--without-sane],[do not use SANE (scanner support)]))
 AC_ARG_WITH(sdl,       AS_HELP_STRING([--without-sdl],[do not use SDL]))
 AC_ARG_WITH(udev,      AS_HELP_STRING([--without-udev],[do not use udev (plug and play support)]))
-AC_ARG_WITH(unwind,    AS_HELP_STRING([--without-unwind],[do not use the libunwind library (exception handling)]))
 AC_ARG_WITH(usb,       AS_HELP_STRING([--without-usb],[do not use the libusb library]))
 AC_ARG_WITH(v4l2,      AS_HELP_STRING([--without-v4l2],[do not use v4l2 (video capture)]))
 AC_ARG_WITH(vulkan,    AS_HELP_STRING([--without-vulkan],[do not use Vulkan]))
@@ -545,6 +544,21 @@ This is an error since --enable-archs=$wine_arch was requested.])])
           AS_VAR_APPEND([${wine_arch}_CC],[" $res"]) ;;
     esac
 
+    AS_VAR_IF([wine_arch],[i386],[],
+              [AS_VAR_PUSHDEF([wine_cv_seh_support],[ac_cv_${wine_arch}_seh_support])
+               AC_CACHE_CHECK([whether $CC supports SEH directives], wine_cv_seh_support,
+                   AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[asm(".text\nac_test:\t.seh_proc ac_test\n\tnop\n\t.seh_stackalloc 16\n\t.seh_endprologue\n\t.seh_endproc");]])],
+                                     [AS_VAR_SET([wine_cv_seh_support],[yes])],[AS_VAR_SET([wine_cv_seh_support],[no])]))
+               AS_VAR_COPY([res],[wine_cv_seh_support])
+               AS_VAR_POPDEF([wine_cv_seh_support])
+               AS_VAR_IF([res],[yes],[],
+                         [AS_VAR_SET_IF([enable_archs],
+                             [AC_MSG_ERROR([The $wine_arch PE cross-compiler doesn't support SEH directives.
+This is an error since --enable-archs=$wine_arch was requested.])])
+                          continue])])
+
+    AS_VAR_IF([wine_arch],[$extra_arch],[],[AS_VAR_APPEND([PE_ARCHS],[" $wine_arch"])])
+
     AS_VAR_PUSHDEF([wine_cv_crosscxx_cxx17],[ac_cv_${wine_arch}_crosscxx_cxx17])
     AC_MSG_CHECKING([for $CXX option to enable C++17 features])
     AC_LANG_PUSH([C++])
@@ -563,35 +577,19 @@ This is an error since --enable-archs=$wine_arch was requested.])])
     AC_LANG_POP([C++])
     AS_VAR_POPDEF([wine_cv_crosscxx_cxx17])
     case "x$res" in
-      x) AC_MSG_RESULT([none needed]) ;;
+      x) AC_MSG_RESULT([none needed])
+         enable_cplusplus="$enable_cplusplus,$wine_arch" ;;
       xno) AC_MSG_RESULT([unsupported])
-           AS_VAR_SET_IF([enable_archs],
-                [AC_MSG_ERROR([$wine_arch PE cross-compiler supporting C++17 not found.
-This is an error since --enable-archs=$wine_arch was requested.])])
-           continue
-           ;;
+           WINE_WARNING([$wine_arch PE cross-compiler supporting C++17 not found, some modules won't be built.]) ;;
       x*) AC_MSG_RESULT([$res])
-          AS_VAR_APPEND([${wine_arch}_CXX],[" $res"]) ;;
+          AS_VAR_APPEND([${wine_arch}_CXX],[" $res"])
+          enable_cplusplus="$enable_cplusplus,$wine_arch" ;;
     esac
 
-    AS_VAR_IF([wine_arch],[i386],[],
-              [AS_VAR_PUSHDEF([wine_cv_seh_support],[ac_cv_${wine_arch}_seh_support])
-               AC_CACHE_CHECK([whether $CC supports SEH directives], wine_cv_seh_support,
-                   AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[asm(".text\nac_test:\t.seh_proc ac_test\n\tnop\n\t.seh_stackalloc 16\n\t.seh_endprologue\n\t.seh_endproc");]])],
-                                     [AS_VAR_SET([wine_cv_seh_support],[yes])],[AS_VAR_SET([wine_cv_seh_support],[no])]))
-               AS_VAR_COPY([res],[wine_cv_seh_support])
-               AS_VAR_POPDEF([wine_cv_seh_support])
-               AS_VAR_IF([res],[yes],[],
-                         [AS_VAR_SET_IF([enable_archs],
-                             [AC_MSG_ERROR([The $wine_arch PE cross-compiler doesn't support SEH directives.
-This is an error since --enable-archs=$wine_arch was requested.])])
-                          continue])])
-
-    AS_VAR_IF([wine_arch],[$extra_arch],[],[AS_VAR_APPEND([PE_ARCHS],[" $wine_arch"])])
-
-    case "$target" in
-      *mingw*|*-windows-gnu) enable_cppabi="$enable_cppabi,$wine_arch" ;;
-    esac
+    AS_VAR_IF([res],[no],[AS_VAR_SET([${wine_arch}_CXX],[])],
+              [case "$target" in
+                 *mingw*|*-windows-gnu) enable_cppabi="$enable_cppabi,$wine_arch" ;;
+               esac])
 
     WINE_TRY_PE_CFLAGS([-fno-strict-aliasing])
     dnl clang needs to be told to fail on unknown options
@@ -678,7 +676,7 @@ This is an error since --enable-archs=$wine_arch was requested.])])
     test "x$enable_werror" != xyes || WINE_TRY_PE_CFLAGS([-Werror])
     dnl clang for PE target wants -build-id (and not --build-id as gcc/mingw or clang in unix target)
     dnl don't bother testing flags, compilation will fail afterwards
-    test "x$enable_build_id" != xyes || AS_VAR_APPEND([${wine_arch}_LDFLAGS],[" -Wl,--build-id"])
+    test "x$enable_build_id" != xno && AS_VAR_APPEND([${wine_arch}_LDFLAGS],[" -Wl,--build-id"])
 
     dnl Options that differ between C and C++
     AS_VAR_COPY([${wine_arch}_EXTRACXXFLAGS],[${wine_arch}_EXTRACFLAGS])
@@ -696,9 +694,9 @@ CPPFLAGS=$saved_CPPFLAGS
 CXXFLAGS=$saved_CXXFLAGS
 LDFLAGS=$saved_LDFLAGS
 
-case $HOST_ARCH in
-  arm|aarch64)
-    test "x$PE_ARCHS" != x || AC_MSG_ERROR([PE cross-compilation is required for $HOST_ARCH, please install clang/llvm-dlltool/lld, or llvm-mingw.])
+case $HOST_ARCH-$host_os in
+  x86_64-darwin*|arm-*|aarch64-*)
+    test "x$PE_ARCHS" != x || AC_MSG_ERROR([PE cross-compilation is required for $host, please install clang/llvm-dlltool/lld, or llvm-mingw.])
     DLLEXT="" ;;
   *)
     AC_SUBST(DLLEXT,".so")
@@ -1056,6 +1054,9 @@ case $host_os in
     WINE_TRY_CFLAGS([-Wl,--rosegment], [WINEPRELOADER_LDFLAGS="$WINEPRELOADER_LDFLAGS -Wl,--rosegment"])
 
     WINE_CHECK_SONAME(GLESv2,glFlush)
+    AC_PATH_PROG([GRADLE], [gradle])
+    test -n "$GRADLE" || AC_MSG_ERROR([gradle is required for the Android build])
+    AC_SUBST([ANDROID_HOME],[$ANDROID_HOME])
 
     if test "x$exec_prefix" = xNONE
     then
@@ -1828,44 +1829,6 @@ fi
 WINE_NOTICE_WITH(udev,[test "x$UDEV_LIBS" = "x"],
                  [libudev ${notice_platform}development files not found, plug and play won't be supported.])
 
-dnl **** Check for libunwind ****
-if test $HOST_ARCH = x86_64
-then
-  if test "x$with_unwind" != xno
-  then
-    WINE_PACKAGE_FLAGS(UNWIND,[libunwind],[-lunwind],,,
-       [AC_CACHE_CHECK([for unw_step],wine_cv_have_unw_step,
-           [AC_LINK_IFELSE([AC_LANG_PROGRAM([[#define UNW_LOCAL_ONLY
-#include <libunwind.h>]],
-                [[unw_cursor_t cursor; unw_step( &cursor );]])],
-                [wine_cv_have_unw_step="yes"],[wine_cv_have_unw_step="no"])])
-        if test "$wine_cv_have_unw_step" = no -a -n "$UNWIND_LIBS"
-        then
-            save_libs=$LIBS
-            dnl Force static libgcc, libunwind breaks libgcc_s unwinding
-            UNWIND_LIBS="-static-libgcc $UNWIND_LIBS"
-            LIBS="$UNWIND_LIBS $LIBS"
-            AC_CACHE_CHECK([for unw_step in libunwind],wine_cv_have_libunwind_unw_step,
-               [AC_LINK_IFELSE([AC_LANG_PROGRAM([[#define UNW_LOCAL_ONLY
-#include <libunwind.h>]],
-                    [[unw_cursor_t cursor; unw_step( &cursor );]])],
-                    [wine_cv_have_libunwind_unw_step="yes"],
-                    [wine_cv_have_libunwind_unw_step="no"])])
-            LIBS=$save_libs
-        fi
-        test "$wine_cv_have_libunwind_unw_step" = yes || UNWIND_LIBS=""
-        if test "x$wine_cv_have_unw_step$wine_cv_have_libunwind_unw_step" != xnono
-        then
-            AC_DEFINE(HAVE_LIBUNWIND,1,[Define to 1 if you have the 'unwind' library (-lunwind).])
-        fi])
-  fi
-  case $host in
-  *-darwin*)
-    WINE_NOTICE_WITH(unwind,[test "x$wine_cv_have_unw_step$wine_cv_have_libunwind_unw_step" = xnono],
-                     [libunwind ${notice_platform}development files not found, stack unwinding won't work.]) ;;
-  esac
-fi
-
 dnl **** Check for libSDL2 ****
 if test "x$with_sdl" != "xno"
 then
@@ -2135,13 +2098,7 @@ fi
 
 dnl **** Platform-specific checks ****
 
-case "$HOST_ARCH,$PE_ARCHS" in
-  x86_64,i386) wine_binary="wine" ;;
-  x86_64,*) wine_binary="wine64" ;;
-  *) wine_binary="wine" ;;
-esac
-test "$wine_binary" = wine || WINE_IGNORE_FILE(loader/wine)
-AC_SUBST(WINELOADER_PROGRAMS,"$wine_binary")
+AC_SUBST(WINELOADER_PROGRAMS,"wine")
 
 case $host_os in
   linux*)
@@ -2154,8 +2111,7 @@ esac
 
 if test "$wine_use_preloader" = "yes"
 then
-  test "$wine_binary" = wine || WINE_IGNORE_FILE(loader/wine-preloader)
-  WINELOADER_PROGRAMS="$WINELOADER_PROGRAMS $wine_binary-preloader"
+  WINELOADER_PROGRAMS="$WINELOADER_PROGRAMS wine-preloader"
   AC_DEFINE(HAVE_WINE_PRELOADER, 1, [Define to 1 if the Wine preloader is being used.])
 fi
 
@@ -2442,8 +2398,6 @@ esac
 
 dnl *** Check for modules to disable by default
 
-enable_cppabi=${enable_cppabi:-no}
-enable_unwind=${enable_unwind:-$enable_cppabi}
 enable_vcruntime140_1=${enable_vcruntime140_1:-x86_64,arm64ec}
 
 if test -n "$PE_ARCHS"
@@ -2458,10 +2412,18 @@ else
     enable_wow64cpu=${enable_wow64cpu:-no}
     enable_xtajit64=${enable_xtajit64:-no}
     enable_compiler_rt=${enable_compiler_rt:-no}
-    dnl Disable modules that need C++
-    enable_icu=${enable_icu:-no}
-    enable_dmsynth=${enable_dmsynth:-no}
 fi
+
+dnl Disable modules that need C++
+enable_cplusplus=${enable_cplusplus:-no}
+enable_cpp=${enable_cpp:-$enable_cplusplus}
+enable_cppabi=${enable_cppabi:-no}
+enable_unwind=${enable_unwind:-$enable_cppabi}
+enable_dmsynth=${enable_dmsynth:-$enable_cplusplus}
+enable_fluidsynth=${enable_fluidsynth:-$enable_cplusplus}
+enable_icu=${enable_icu:-$enable_cplusplus}
+enable_icucommon=${enable_icucommon:-$enable_cplusplus}
+enable_icui18n=${enable_icui18n:-$enable_cplusplus}
 
 dnl Disable some programs for other PE archs
 enable_conhost=${enable_conhost:-$HOST_ARCH}
@@ -2886,6 +2848,8 @@ WINE_CONFIG_MAKEFILE(dlls/irprops.cpl)
 WINE_CONFIG_MAKEFILE(dlls/itircl)
 WINE_CONFIG_MAKEFILE(dlls/itss)
 WINE_CONFIG_MAKEFILE(dlls/itss/tests)
+WINE_CONFIG_MAKEFILE(dlls/iyuv_32)
+WINE_CONFIG_MAKEFILE(dlls/iyuv_32/tests)
 WINE_CONFIG_MAKEFILE(dlls/joy.cpl)
 WINE_CONFIG_MAKEFILE(dlls/jscript)
 WINE_CONFIG_MAKEFILE(dlls/jscript/tests)
@@ -3374,6 +3338,8 @@ WINE_CONFIG_MAKEFILE(dlls/windows.devices.bluetooth)
 WINE_CONFIG_MAKEFILE(dlls/windows.devices.bluetooth/tests)
 WINE_CONFIG_MAKEFILE(dlls/windows.devices.enumeration)
 WINE_CONFIG_MAKEFILE(dlls/windows.devices.enumeration/tests)
+WINE_CONFIG_MAKEFILE(dlls/windows.devices.radios)
+WINE_CONFIG_MAKEFILE(dlls/windows.devices.radios/tests)
 WINE_CONFIG_MAKEFILE(dlls/windows.devices.usb)
 WINE_CONFIG_MAKEFILE(dlls/windows.devices.usb/tests)
 WINE_CONFIG_MAKEFILE(dlls/windows.gaming.input)
@@ -3846,12 +3812,12 @@ dnl Rules for generated source files
 
 WINE_APPEND_RULE(
 [dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-11.5.r0.g5bfda368\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
+	@version=\`(echo \"wine-11.5.r9.g13290851\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$[@]) || echo \$\$build >\$[@] || (rm -f \$[@] && exit 1)
 dlls/wineandroid.drv/wine-debug.apk: dlls/wineandroid.drv/build.gradle ${wine_srcdir}dlls/wineandroid.drv/AndroidManifest.xml ${wine_srcdir}dlls/wineandroid.drv/WineActivity.java ${wine_srcdir}dlls/wineandroid.drv/wine.svg
-	cd dlls/wineandroid.drv && gradle -q -Psrcdir=$srcdir assembleDebug
-	mv dlls/wineandroid.drv/build/outputs/apk/wine-debug.apk \$[@]])
+	cd dlls/wineandroid.drv && env ANDROID_HOME=\"\$(ANDROID_HOME)\" \$(GRADLE) -q -Psrcdir=$srcdir assembleDebug
+	mv dlls/wineandroid.drv/build/outputs/apk/debug/wine-debug.apk \$[@]])
 
 dnl Misc rules
 

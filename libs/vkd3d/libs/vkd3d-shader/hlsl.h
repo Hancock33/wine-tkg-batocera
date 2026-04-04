@@ -1672,6 +1672,8 @@ int hlsl_emit_vsir(struct hlsl_ctx *ctx, const struct vkd3d_shader_compile_info 
         struct vsir_program *program, struct vkd3d_shader_code *reflection_data);
 
 bool hlsl_init_deref(struct hlsl_ctx *ctx, struct hlsl_deref *deref, struct hlsl_ir_var *var, unsigned int path_len);
+bool hlsl_init_deref_from_component_index(struct hlsl_ctx *ctx, struct hlsl_block *block, struct hlsl_deref *deref,
+        const struct hlsl_deref *prefix, unsigned int index, const struct vkd3d_shader_location *loc);
 bool hlsl_init_deref_from_index_chain(struct hlsl_ctx *ctx, struct hlsl_deref *deref, struct hlsl_ir_node *chain);
 bool hlsl_copy_deref(struct hlsl_ctx *ctx, struct hlsl_deref *deref, const struct hlsl_deref *other);
 

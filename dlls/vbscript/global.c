@@ -1927,14 +1927,60 @@ static HRESULT Global_Chr(BuiltinDisp *This, VARIANT *arg, unsigned args_cnt, VA
 
 static HRESULT Global_AscW(BuiltinDisp *This, VARIANT *arg, unsigned args_cnt, VARIANT *res)
 {
-    FIXME("\n");
-    return E_NOTIMPL;
+    BSTR conv_str = NULL, str;
+    HRESULT hres = S_OK;
+
+    TRACE("(%s)\n", debugstr_variant(arg));
+
+    switch(V_VT(arg)) {
+    case VT_NULL:
+        return MAKE_VBSERROR(VBSE_ILLEGAL_NULL_USE);
+    case VT_EMPTY:
+        return MAKE_VBSERROR(VBSE_ILLEGAL_FUNC_CALL);
+    case VT_BSTR:
+        str = V_BSTR(arg);
+        break;
+    default:
+        hres = to_string(arg, &conv_str);
+        if(FAILED(hres))
+            return hres;
+        str = conv_str;
+    }
+
+    if(!SysStringLen(str))
+        hres = MAKE_VBSERROR(VBSE_ILLEGAL_FUNC_CALL);
+    else
+        hres = return_short(res, *str);
+
+    SysFreeString(conv_str);
+    return hres;
 }
 
 static HRESULT Global_ChrW(BuiltinDisp *This, VARIANT *arg, unsigned args_cnt, VARIANT *res)
 {
-    FIXME("\n");
-    return E_NOTIMPL;
+    int c;
+    WCHAR ch;
+    HRESULT hres;
+
+    TRACE("%s\n", debugstr_variant(arg));
+
+    hres = to_int(arg, &c);
+    if(FAILED(hres))
+        return hres;
+
+    if(c != (short)c && c != (unsigned short)c) {
+        WARN("invalid arg %d\n", c);
+        return MAKE_VBSERROR(VBSE_ILLEGAL_FUNC_CALL);
+    }
+
+    ch = c;
+    if(res) {
+        V_VT(res) = VT_BSTR;
+        V_BSTR(res) = SysAllocStringLen(&ch, 1);
+        if(!V_BSTR(res))
+            return E_OUTOFMEMORY;
+    }
+    return S_OK;
 }
 
 static HRESULT Global_Abs(BuiltinDisp *This, VARIANT *arg, unsigned args_cnt, VARIANT *res)
@@ -3319,40 +3365,296 @@ static HRESULT Global_Round(BuiltinDisp *This, VARIANT *args, unsigned args_cnt,
     return return_double(res, d);
 }
 
+/* Check that the character is one of the 69 non-blank characters as defined by ECMA-262 B.2.1 */
+static inline BOOL is_ecma_nonblank(WCHAR c)
+{
+    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
+        || c == '@' || c == '*' || c == '_' || c == '+' || c == '-' || c == '.' || c == '/';
+}
+
+static WCHAR int_to_hex(int i)
+{
+    if(i < 10) return '0' + i;
+    return 'A' + i - 10;
+}
+
+static int hex_to_int(WCHAR c)
+{
+    if(c >= '0' && c <= '9') return c - '0';
+    if(c >= 'A' && c <= 'F') return c - 'A' + 10;
+    if(c >= 'a' && c <= 'f') return c - 'a' + 10;
+    return -1;
+}
+
 static HRESULT Global_Escape(BuiltinDisp *This, VARIANT *arg, unsigned args_cnt, VARIANT *res)
 {
-    FIXME("\n");
-    return E_NOTIMPL;
+    BSTR conv_str = NULL, str, ret;
+    const WCHAR *ptr;
+    DWORD len = 0;
+    HRESULT hres;
+
+    TRACE("(%s)\n", debugstr_variant(arg));
+
+    if(V_VT(arg) == VT_NULL)
+        return MAKE_VBSERROR(VBSE_ILLEGAL_NULL_USE);
+
+    if(V_VT(arg) == VT_BSTR) {
+        str = V_BSTR(arg);
+    }else {
+        hres = to_string(arg, &conv_str);
+        if(FAILED(hres))
+            return hres;
+        str = conv_str;
+    }
+
+    for(ptr = str; *ptr; ptr++) {
+        if(*ptr > 0xff)
+            len += 6;
+        else if(is_ecma_nonblank(*ptr))
+            len++;
+        else
+            len += 3;
+    }
+
+    ret = SysAllocStringLen(NULL, len);
+    if(!ret) {
+        SysFreeString(conv_str);
+        return E_OUTOFMEMORY;
+    }
+
+    len = 0;
+    for(ptr = str; *ptr; ptr++) {
+        if(*ptr > 0xff) {
+            ret[len++] = '%';
+            ret[len++] = 'u';
+            ret[len++] = int_to_hex(*ptr >> 12);
+            ret[len++] = int_to_hex((*ptr >> 8) & 0xf);
+            ret[len++] = int_to_hex((*ptr >> 4) & 0xf);
+            ret[len++] = int_to_hex(*ptr & 0xf);
+        }else if(is_ecma_nonblank(*ptr)) {
+            ret[len++] = *ptr;
+        }else {
+            ret[len++] = '%';
+            ret[len++] = int_to_hex(*ptr >> 4);
+            ret[len++] = int_to_hex(*ptr & 0xf);
+        }
+    }
+
+    SysFreeString(conv_str);
+
+    if(res) {
+        V_VT(res) = VT_BSTR;
+        V_BSTR(res) = ret;
+    }else {
+        SysFreeString(ret);
+    }
+    return S_OK;
 }
 
 static HRESULT Global_Unescape(BuiltinDisp *This, VARIANT *arg, unsigned args_cnt, VARIANT *res)
 {
-    FIXME("\n");
-    return E_NOTIMPL;
+    BSTR conv_str = NULL, str, ret;
+    const WCHAR *ptr;
+    DWORD len = 0;
+    HRESULT hres;
+
+    TRACE("(%s)\n", debugstr_variant(arg));
+
+    if(V_VT(arg) == VT_NULL)
+        return MAKE_VBSERROR(VBSE_ILLEGAL_NULL_USE);
+
+    if(V_VT(arg) == VT_BSTR) {
+        str = V_BSTR(arg);
+    }else {
+        hres = to_string(arg, &conv_str);
+        if(FAILED(hres))
+            return hres;
+        str = conv_str;
+    }
+
+    /* First pass: compute output length */
+    for(ptr = str; *ptr; ptr++) {
+        if(*ptr == '%') {
+            if(hex_to_int(ptr[1]) != -1 && hex_to_int(ptr[2]) != -1)
+                ptr += 2;
+            else if(ptr[1] == 'u' && hex_to_int(ptr[2]) != -1 && hex_to_int(ptr[3]) != -1
+                    && hex_to_int(ptr[4]) != -1 && hex_to_int(ptr[5]) != -1)
+                ptr += 5;
+        }
+        len++;
+    }
+
+    ret = SysAllocStringLen(NULL, len);
+    if(!ret) {
+        SysFreeString(conv_str);
+        return E_OUTOFMEMORY;
+    }
+
+    /* Second pass: decode */
+    len = 0;
+    for(ptr = str; *ptr; ptr++) {
+        if(*ptr == '%') {
+            if(hex_to_int(ptr[1]) != -1 && hex_to_int(ptr[2]) != -1) {
+                ret[len] = (hex_to_int(ptr[1]) << 4) + hex_to_int(ptr[2]);
+                ptr += 2;
+            }else if(ptr[1] == 'u' && hex_to_int(ptr[2]) != -1 && hex_to_int(ptr[3]) != -1
+                    && hex_to_int(ptr[4]) != -1 && hex_to_int(ptr[5]) != -1) {
+                ret[len] = (hex_to_int(ptr[2]) << 12) + (hex_to_int(ptr[3]) << 8)
+                    + (hex_to_int(ptr[4]) << 4) + hex_to_int(ptr[5]);
+                ptr += 5;
+            }else {
+                ret[len] = *ptr;
+            }
+        }else {
+            ret[len] = *ptr;
+        }
+        len++;
+    }
+
+    SysFreeString(conv_str);
+
+    if(res) {
+        V_VT(res) = VT_BSTR;
+        V_BSTR(res) = ret;
+    }else {
+        SysFreeString(ret);
+    }
+    return S_OK;
 }
 
 static HRESULT Global_Eval(BuiltinDisp *This, VARIANT *arg, unsigned args_cnt, VARIANT *res)
 {
-    FIXME("\n");
-    return E_NOTIMPL;
+    vbscode_t *code;
+    HRESULT hres;
+
+    TRACE("%s\n", debugstr_variant(arg));
+
+    if(V_VT(arg) != VT_BSTR) {
+        if(res)
+            return VariantCopy(res, arg);
+        return S_OK;
+    }
+
+    hres = compile_script(This->ctx, V_BSTR(arg), NULL, NULL, 0, 0,
+                          SCRIPTTEXT_ISEXPRESSION, FALSE, &code);
+    if(FAILED(hres)) {
+        clear_error_loc(This->ctx);
+        return hres;
+    }
+
+    if(is_exec_local_scope(This->ctx->current_exec)) {
+        This->ctx->caller_exec = This->ctx->current_exec;
+        return exec_script(This->ctx, FALSE, &code->main_code, NULL, NULL, res);
+    }
+
+    return exec_global_code(This->ctx, code, res, FALSE);
 }
 
 static HRESULT Global_Execute(BuiltinDisp *This, VARIANT *arg, unsigned args_cnt, VARIANT *res)
 {
-    FIXME("\n");
-    return E_NOTIMPL;
+    vbscode_t *code;
+    HRESULT hres;
+
+    TRACE("%s\n", debugstr_variant(arg));
+
+    if(V_VT(arg) != VT_BSTR)
+        return MAKE_VBSERROR(VBSE_TYPE_MISMATCH);
+
+    hres = compile_script(This->ctx, V_BSTR(arg), NULL, NULL, 0, 0,
+                          0, TRUE, &code);
+    if(FAILED(hres)) {
+        clear_error_loc(This->ctx);
+        return hres;
+    }
+
+    if(is_exec_local_scope(This->ctx->current_exec)) {
+        unsigned i;
+
+        /* Pre-register Dim variables in the caller's scope */
+        for(i = 0; i < code->main_code.var_cnt; i++) {
+            hres = exec_add_caller_dynamic_var(This->ctx, This->ctx->current_exec,
+                                               code->main_code.vars[i].name);
+            if(FAILED(hres))
+                return hres;
+        }
+
+        This->ctx->caller_exec = This->ctx->current_exec;
+        return exec_script(This->ctx, FALSE, &code->main_code, NULL, NULL, res);
+    }
+
+    return exec_global_code(This->ctx, code, res, FALSE);
 }
 
 static HRESULT Global_ExecuteGlobal(BuiltinDisp *This, VARIANT *arg, unsigned args_cnt, VARIANT *res)
 {
-    FIXME("\n");
-    return E_NOTIMPL;
+    vbscode_t *code;
+    HRESULT hres;
+
+    TRACE("%s\n", debugstr_variant(arg));
+
+    if(V_VT(arg) != VT_BSTR)
+        return MAKE_VBSERROR(VBSE_TYPE_MISMATCH);
+
+    hres = compile_script(This->ctx, V_BSTR(arg), NULL, NULL, 0, 0,
+                          0, TRUE, &code);
+    if(FAILED(hres)) {
+        clear_error_loc(This->ctx);
+        return hres;
+    }
+
+    return exec_global_code(This->ctx, code, res, FALSE);
 }
 
 static HRESULT Global_GetRef(BuiltinDisp *This, VARIANT *arg, unsigned args_cnt, VARIANT *res)
 {
-    FIXME("\n");
-    return E_NOTIMPL;
+    named_item_t *item;
+    function_t **funcs;
+    IDispatch *disp;
+    const WCHAR *name;
+    size_t i, cnt;
+    HRESULT hres;
+
+    TRACE("%s\n", debugstr_variant(arg));
+
+    if(V_VT(arg) != VT_BSTR)
+        return MAKE_VBSERROR(VBSE_TYPE_MISMATCH);
+
+    name = V_BSTR(arg);
+    if(!name || !name[0])
+        return MAKE_VBSERROR(VBSE_ILLEGAL_FUNC_CALL);
+
+    /* Search the current named item's script object first */
+    item = This->ctx->current_named_item;
+    if(item && item->script_obj) {
+        funcs = item->script_obj->global_funcs;
+        cnt = item->script_obj->global_funcs_cnt;
+        for(i = 0; i < cnt; i++) {
+            if(!wcsicmp(funcs[i]->name, name)) {
+                hres = create_func_ref(This->ctx, funcs[i], &disp);
+                if(FAILED(hres))
+                    return hres;
+                V_VT(res) = VT_DISPATCH;
+                V_DISPATCH(res) = disp;
+                return S_OK;
+            }
+        }
+    }
+
+    /* Search global script object */
+    funcs = This->ctx->script_obj->global_funcs;
+    cnt = This->ctx->script_obj->global_funcs_cnt;
+    for(i = 0; i < cnt; i++) {
+        if(!wcsicmp(funcs[i]->name, name)) {
+            hres = create_func_ref(This->ctx, funcs[i], &disp);
+            if(FAILED(hres))
+                return hres;
+            V_VT(res) = VT_DISPATCH;
+            V_DISPATCH(res) = disp;
+            return S_OK;
+        }
+    }
+
+    return MAKE_VBSERROR(VBSE_ILLEGAL_FUNC_CALL);
 }
 
 static HRESULT Global_Err(BuiltinDisp *This, VARIANT *arg, unsigned args_cnt, VARIANT *res)

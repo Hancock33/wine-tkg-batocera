@@ -28,6 +28,13 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(vbscript);
 
+static int lex_error(parser_ctx_t *ctx, HRESULT hres)
+{
+    ctx->hres = hres;
+    ctx->error_loc = ctx->ptr - ctx->code;
+    return 0;
+}
+
 static const struct {
     const WCHAR *word;
     int token;
@@ -48,6 +55,7 @@ static const struct {
     {L"empty",     tEMPTY},
     {L"end",       tEND},
     {L"eqv",       tEQV},
+    {L"erase",     tERASE},
     {L"error",     tERROR},
     {L"exit",      tEXIT},
     {L"explicit",  tEXPLICIT},
@@ -169,8 +177,7 @@ static int parse_string_literal(parser_ctx_t *ctx, const WCHAR **ret)
 
     while(ctx->ptr < ctx->end) {
         if(*ctx->ptr == '\n' || *ctx->ptr == '\r') {
-            FIXME("newline inside string literal\n");
-            return 0;
+            return lex_error(ctx, MAKE_VBSERROR(VBSE_UNTERMINATED_STRING));
         }
 
        if(*ctx->ptr == '"') {
@@ -183,8 +190,7 @@ static int parse_string_literal(parser_ctx_t *ctx, const WCHAR **ret)
     }
 
     if(ctx->ptr == ctx->end) {
-        FIXME("unterminated string literal\n");
-        return 0;
+        return lex_error(ctx, MAKE_VBSERROR(VBSE_UNTERMINATED_STRING));
     }
 
     len += ctx->ptr-ptr;
@@ -206,6 +212,7 @@ static int parse_string_literal(parser_ctx_t *ctx, const WCHAR **ret)
 
 static int parse_date_literal(parser_ctx_t *ctx, DATE *ret)
 {
+    const WCHAR *start = ctx->ptr;
     const WCHAR *ptr = ++ctx->ptr;
     WCHAR *rptr;
     int len = 0;
@@ -213,8 +220,8 @@ static int parse_date_literal(parser_ctx_t *ctx, DATE *ret)
 
     while(ctx->ptr < ctx->end) {
         if(*ctx->ptr == '\n' || *ctx->ptr == '\r') {
-            FIXME("newline inside date literal\n");
-            return 0;
+            ctx->ptr = start;
+            return lex_error(ctx, MAKE_VBSERROR(VBSE_SYNTAX_ERROR));
         }
 
        if(*ctx->ptr == '#')
@@ -223,8 +230,8 @@ static int parse_date_literal(parser_ctx_t *ctx, DATE *ret)
     }
 
     if(ctx->ptr == ctx->end) {
-        FIXME("unterminated date literal\n");
-        return 0;
+        ctx->ptr = start;
+        return lex_error(ctx, MAKE_VBSERROR(VBSE_SYNTAX_ERROR));
     }
 
     len += ctx->ptr-ptr;
@@ -238,8 +245,8 @@ static int parse_date_literal(parser_ctx_t *ctx, DATE *ret)
     res = VarDateFromStr(rptr, ctx->lcid, 0, ret);
     free(rptr);
     if (FAILED(res)) {
-        FIXME("Invalid date literal\n");
-        return 0;
+        ctx->ptr = start;
+        return lex_error(ctx, MAKE_VBSERROR(VBSE_SYNTAX_ERROR));
     }
 
     ctx->ptr++;
@@ -298,8 +305,7 @@ static int parse_numeric_literal(parser_ctx_t *ctx, void **ret)
         }
 
         if(!is_digit(*ctx->ptr)) {
-            FIXME("Invalid numeric literal\n");
-            return 0;
+            return lex_error(ctx, MAKE_VBSERROR(VBSE_INVALID_NUMBER));
         }
 
         use_int = FALSE;
@@ -315,8 +321,7 @@ static int parse_numeric_literal(parser_ctx_t *ctx, void **ret)
             }
 
             if(sign*e + exp > INT_MAX/100) {
-                FIXME("Invalid numeric literal\n");
-                return 0;
+                return lex_error(ctx, MAKE_VBSERROR(VBSE_INVALID_NUMBER));
             }
         } while(is_digit(*ctx->ptr));
 
@@ -330,8 +335,7 @@ static int parse_numeric_literal(parser_ctx_t *ctx, void **ret)
 
     r = exp>=0 ? d*pow(10, exp) : d/pow(10, -exp);
     if(isinf(r)) {
-        FIXME("Invalid numeric literal\n");
-        return 0;
+        return lex_error(ctx, MAKE_VBSERROR(VBSE_INVALID_NUMBER));
     }
 
     *(double*)ret = r;
@@ -351,14 +355,20 @@ static int hex_to_int(WCHAR c)
 
 static int parse_hex_literal(parser_ctx_t *ctx, LONG *ret)
 {
-    const WCHAR *begin = ctx->ptr;
+    const WCHAR *begin;
     unsigned l = 0, d;
+
+    /* Skip leading zeros — Windows allows any number of them. */
+    while(ctx->ptr[1] == '0')
+        ctx->ptr++;
+
+    begin = ctx->ptr;
 
     while((d = hex_to_int(*++ctx->ptr)) != -1)
         l = l*16 + d;
 
-    if(begin + 9 /* max digits+1 */ < ctx->ptr) {
-        FIXME("invalid literal\n");
+    if(begin + 9 /* max 8 significant digits + 1 */ < ctx->ptr) {
+        WARN("overflow in hex literal\n");
         return 0;
     }
 
@@ -440,6 +450,14 @@ static int parse_next_token(void *lval, unsigned *loc, parser_ctx_t *ctx)
             ctx->ptr++;
             return '.';
         }
+        /* After line continuation, ptr[-1] is a newline or space, but the dot
+         * is logically on the same line as the previous token. */
+        if(ctx->after_continuation
+                && (ctx->last_token == tIdentifier || ctx->last_token == ')'
+                || ctx->last_token == tEMPTYBRACKETS)) {
+            ctx->ptr++;
+            return '.';
+        }
         c = ctx->ptr[1];
         if('0' <= c && c <= '9')
             return parse_numeric_literal(ctx, lval);
@@ -510,7 +528,7 @@ static int parse_next_token(void *lval, unsigned *loc, parser_ctx_t *ctx)
         }
         return '>';
     default:
-        FIXME("Unhandled char %c in %s\n", *ctx->ptr, debugstr_w(ctx->ptr));
+        return lex_error(ctx, MAKE_VBSERROR(VBSE_INVALID_CHAR));
     }
 
     return 0;
@@ -531,13 +549,13 @@ int parser_lex(void *lval, unsigned *loc, parser_ctx_t *ctx)
         if(ret == '_') {
             skip_spaces(ctx);
             if(*ctx->ptr != '\n' && *ctx->ptr != '\r') {
-                FIXME("'_' not followed by newline\n");
-                return 0;
+                return lex_error(ctx, MAKE_VBSERROR(VBSE_INVALID_CHAR));
             }
             if(*ctx->ptr == '\r')
                 ctx->ptr++;
             if(*ctx->ptr == '\n')
                 ctx->ptr++;
+            ctx->after_continuation = TRUE;
             continue;
         }
         if(ret != tNL || ctx->last_token != tNL)
@@ -546,5 +564,6 @@ int parser_lex(void *lval, unsigned *loc, parser_ctx_t *ctx)
         ctx->last_nl = ctx->ptr-ctx->code;
     }
 
+    ctx->after_continuation = FALSE;
     return (ctx->last_token = ret);
 }

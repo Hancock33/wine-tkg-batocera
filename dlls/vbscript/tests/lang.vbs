@@ -62,6 +62,20 @@ Call ok(&hfffe& = 65534, "&hfffe& <> -2")
 Call ok(&hffffffff& = -1, "&hffffffff& <> -1")
 Call ok((&h01or&h02)=3,"&h01or&h02 <> 3")
 
+' Hex literals with excess leading zeros
+Call ok(&H000000031 = 49, "&H000000031 <> 49")
+Call ok(&H0000000000000031 = 49, "&H0000000000000031 <> 49")
+Call ok(&H00000000000000FF = 255, "&H00000000000000FF <> 255")
+Call ok(&H0FFFFFFFF = -1, "&H0FFFFFFFF <> -1")
+Call ok(&H007FFFFFFF = 2147483647, "&H007FFFFFFF <> 2147483647")
+Call ok(&H000000031& = 49, "&H000000031& <> 49")
+Call ok(getVT(&H00000000000000FF) = "VT_I2", "getVT(&H00000000000000FF) is not VT_I2")
+Call ok(getVT(&H007FFFFFFF) = "VT_I4", "getVT(&H007FFFFFFF) is not VT_I4")
+Call ok(&h0 = 0, "&h0 <> 0")
+Call ok(&h0& = 0, "&h0& <> 0")
+Call ok(&h00 = 0, "&h00 <> 0")
+Call ok(&h000000000 = 0, "&h000000000 <> 0")
+
 ' Test concat when no space and var begins with h
 hi = "y"
 x = "x" &hi
@@ -91,6 +105,18 @@ Call ok("" = true = false, """"" = true = false is false")
 Call ok(not(false = true = ""), "false = true = """" is true")
 Call ok(not (false = false <> false = false), "false = false <> false = false is true")
 Call ok(not ("" <> false = false), """"" <> false = false is true")
+
+Call ok(true <> Not true, "true <> Not true should be true")
+Call ok(false <> Not false, "false <> Not false should be true")
+Call ok(true = Not false, "true = Not false should be true")
+Call ok(Not false = true, "Not false = true should be true")
+Call ok(Not true <> true, "Not true <> true should be true")
+Call ok(Not true = false, "Not true = false should be true")
+Call ok(Not 1 > 2, "Not 1 > 2 should be true")
+Call ok(1 <> Not 0 = 0, "1 <> Not 0 = 0 should be true")
+Call ok(0 = Not 1 = 1, "0 = Not 1 = 1 should be true")
+Call ok(1 > Not 5 > 3, "1 > Not 5 > 3 should be true")
+Call ok(Not false And false = false, "Not false And false should be false")
 
 Call ok(getVT(false) = "VT_BOOL", "getVT(false) is not VT_BOOL")
 Call ok(getVT(true) = "VT_BOOL", "getVT(true) is not VT_BOOL")
@@ -222,7 +248,7 @@ Call ok(11.6 Mod 5.5 = False, "11.6 Mod 5.5 = " & (11.6 Mod 5.5 = 0.6))
 Call ok(7 Mod 4+2 = 5, "7 Mod 4+2 <> 5")
 Call ok(getVT(2 mod null) = "VT_NULL", "getVT(2 mod null) = " & getVT(2 mod null))
 Call ok(getVT(null mod 2) = "VT_NULL", "getVT(null mod 2) = " & getVT(null mod 2))
-'FIXME: Call ok(empty mod 2 = 0, "empty mod 2 = " & (empty mod 2))
+Call ok(empty mod 2 = 0, "empty mod 2 = " & (empty mod 2))
 
 Call ok(5 \ 2 = 2, "5 \ 2 = " & (5\2))
 Call ok(4.6 \ 1.5 = 2, "4.6 \ 1.5 = " & (4.6\1.5))
@@ -246,6 +272,21 @@ x _
     = 3
 
 x = 3
+
+Class ChainedCallTarget
+    Public Function Ret()
+        Set Ret = Me
+    End Function
+End Class
+
+Dim chainObj
+Set chainObj = New ChainedCallTarget
+chainObj.Ret().Ret()
+chainObj.Ret() _
+.Ret()
+chainObj _
+.Ret() _
+.Ret()
 
 if true then y = true : x = y
 ok x, "x is false"
@@ -767,6 +808,21 @@ if (isEnglishLang) then
     Call testfor ("1", "2", "0.5", 3)
     Call testfor ("1", "2.5", "0.5", 4)
 end if
+
+' Empty is treated as 0 in for-to loop expressions
+y = 0
+for x = empty to 3
+    y = y + 1
+next
+call ok(y = 4, "for empty to 3: y = " & y)
+call ok(x = 4, "for empty to 3: x = " & x)
+
+y = 0
+for x = 0 to empty
+    y = y + 1
+next
+call ok(y = 1, "for 0 to empty: y = " & y)
+call ok(x = 1, "for 0 to empty: x = " & x)
 
 for x = 1.5 to 1
     Call ok(false, "for..to called when unexpected")
@@ -1666,6 +1722,25 @@ ok arr2(1,2) = 2, "arr2(1,2) = " & arr2(1,2)
 x = Array(Array(3))
 call ok(x(0)(0) = 3, "x(0)(0) = " & x(0)(0))
 
+Class ArrayReturnContainer
+    Public Default Property Get Item(key)
+        If key = "Key" Then
+            Item = Array("Value1", Array("SubValue1", "SubValue2"))
+        End If
+    End Property
+End Class
+
+Dim containerObj
+Set containerObj = New ArrayReturnContainer
+call ok(containerObj.Item("Key")(0) = "Value1", "containerObj.Item(Key)(0) = " & containerObj.Item("Key")(0))
+call ok(containerObj.Item("Key")(1)(0) = "SubValue1", "containerObj.Item(Key)(1)(0) = " & containerObj.Item("Key")(1)(0))
+call ok(containerObj.Item("Key")(1)(1) = "SubValue2", "containerObj.Item(Key)(1)(1) = " & containerObj.Item("Key")(1)(1))
+call ok(containerObj("Key")(0) = "Value1", "containerObj(Key)(0) = " & containerObj("Key")(0))
+call ok(containerObj("Key")(1)(0) = "SubValue1", "containerObj(Key)(1)(0) = " & containerObj("Key")(1)(0))
+
+call ok(Split("1;2", ";")(0) = "1", "Split(""1;2"", "";"")(0) = " & Split("1;2", ";")(0))
+call ok(Split("1;2", ";")(1) = "2", "Split(""1;2"", "";"")(1) = " & Split("1;2", ";")(1))
+
 function seta0(arr)
     arr(0) = 2
     seta0 = 1
@@ -1897,6 +1972,183 @@ end sub
 call TestReDimPreserveByRef(rx)
 ok ubound(rx) = 7, "ubound(rx) = " & ubound(rx)
 ok rx(3) = 2, "rx(3) = " & rx(3)
+
+' ReDim on an uninitialized dynamic array (Dim arr() has a NULL SAFEARRAY pointer)
+dim dynarr()
+redim dynarr(3)
+ok ubound(dynarr) = 3, "ubound(dynarr) = " & ubound(dynarr)
+dynarr(0) = "a"
+dynarr(3) = "b"
+ok dynarr(0) = "a", "dynarr(0) = " & dynarr(0)
+ok dynarr(3) = "b", "dynarr(3) = " & dynarr(3)
+redim dynarr(5)
+ok ubound(dynarr) = 5, "ubound(dynarr) = " & ubound(dynarr)
+ok dynarr(0) = empty, "dynarr(0) after redim = " & dynarr(0)
+
+' ReDim Preserve on an uninitialized dynamic array should also work and retain data
+dim dynarr2()
+redim preserve dynarr2(3)
+ok ubound(dynarr2) = 3, "ubound(dynarr2) = " & ubound(dynarr2)
+dynarr2(0) = "x"
+redim preserve dynarr2(5)
+ok ubound(dynarr2) = 5, "ubound(dynarr2) = " & ubound(dynarr2)
+ok dynarr2(0) = "x", "dynarr2(0) after redim preserve = " & dynarr2(0)
+
+' Array dimension mismatch: should give error 9 (Subscript out of range)
+dim dimArr2d(3, 3)
+dimArr2d(0, 0) = "hello"
+on error resume next
+
+' 2D array accessed with 1 index
+err.clear
+y = dimArr2d(0)
+ok err.number = 9, "2D array 1 index: err.number = " & err.number
+
+' 1D array accessed with 2 indices
+dim dimArr1d(3)
+err.clear
+y = dimArr1d(0, 0)
+ok err.number = 9, "1D array 2 indices: err.number = " & err.number
+
+' 2D array accessed with 3 indices
+err.clear
+y = dimArr2d(0, 0, 0)
+ok err.number = 9, "2D array 3 indices: err.number = " & err.number
+
+' Assign to 2D array with 1 index
+err.clear
+dimArr2d(0) = "test"
+ok err.number = 9, "assign 2D array 1 index: err.number = " & err.number
+
+' Assign to 1D array with 2 indices
+err.clear
+dimArr1d(0, 0) = "test"
+ok err.number = 9, "assign 1D array 2 indices: err.number = " & err.number
+
+' Uninitialized dynamic array access
+dim dimDynArr()
+err.clear
+y = dimDynArr(0)
+ok err.number = 9, "uninitialized dynamic array access: err.number = " & err.number
+on error goto 0
+
+' Erase on fixed-size array: clears elements to default values
+dim eraseFixed(3)
+eraseFixed(0) = "a"
+eraseFixed(1) = 2
+eraseFixed(2) = True
+Erase eraseFixed
+ok eraseFixed(0) = empty, "eraseFixed(0) after Erase = " & eraseFixed(0)
+ok eraseFixed(1) = empty, "eraseFixed(1) after Erase = " & eraseFixed(1)
+ok eraseFixed(2) = empty, "eraseFixed(2) after Erase = " & eraseFixed(2)
+ok ubound(eraseFixed) = 3, "ubound(eraseFixed) after Erase = " & ubound(eraseFixed)
+
+' Erase on dynamic array: deallocates the array
+dim eraseDyn()
+redim eraseDyn(3)
+eraseDyn(0) = "x"
+Erase eraseDyn
+on error resume next
+y = eraseDyn(0)
+e = err.number
+on error goto 0
+ok e = 9, "access after Erase dynamic: err.number = " & e
+
+' Erase with multiple arrays (separate statements)
+dim eraseMulti1(2), eraseMulti2(2)
+eraseMulti1(0) = "a"
+eraseMulti2(0) = "b"
+Erase eraseMulti1
+Erase eraseMulti2
+ok eraseMulti1(0) = empty, "eraseMulti1(0) after Erase = " & eraseMulti1(0)
+ok eraseMulti2(0) = empty, "eraseMulti2(0) after Erase = " & eraseMulti2(0)
+
+' Erase on non-array variable: should give type mismatch error
+dim eraseNotArray
+eraseNotArray = 42
+on error resume next
+Erase eraseNotArray
+ok err.number = 13, "Erase non-array: err.number = " & err.number
+err.clear
+
+' Erase on Empty variable: should give type mismatch error
+dim eraseEmpty
+Erase eraseEmpty
+ok err.number = 13, "Erase empty var: err.number = " & err.number
+err.clear
+
+' Erase on Null variable: should give type mismatch error
+dim eraseNull
+eraseNull = Null
+Erase eraseNull
+ok err.number = 13, "Erase null var: err.number = " & err.number
+err.clear
+
+' Erase on Object variable: should give type mismatch error
+dim eraseObj
+set eraseObj = new regexp
+Erase eraseObj
+ok err.number = 13, "Erase object var: err.number = " & err.number
+err.clear
+
+' Erase on Nothing variable: should give type mismatch error
+dim eraseNothing
+set eraseNothing = Nothing
+Erase eraseNothing
+ok err.number = 13, "Erase nothing var: err.number = " & err.number
+err.clear
+
+' Erase on undeclared identifier: error 500 (Variable is undefined) with Option Explicit
+Erase eraseUndeclared
+ok err.number = 500, "Erase undeclared: err.number = " & err.number
+err.clear
+on error goto 0
+
+' Erase on uninitialized dynamic array: no error
+dim eraseUninit()
+Erase eraseUninit
+
+' Erase twice on fixed-size array: no error
+dim eraseTwice(2)
+eraseTwice(0) = "x"
+Erase eraseTwice
+Erase eraseTwice
+ok eraseTwice(0) = empty, "eraseTwice(0) after double Erase = " & eraseTwice(0)
+
+' Erase twice on dynamic array: no error
+dim eraseTwiceDyn()
+redim eraseTwiceDyn(2)
+eraseTwiceDyn(0) = "y"
+Erase eraseTwiceDyn
+Erase eraseTwiceDyn
+
+' ReDim after Erase on dynamic array
+dim eraseReDim()
+redim eraseReDim(3)
+eraseReDim(0) = "before"
+Erase eraseReDim
+redim eraseReDim(5)
+ok ubound(eraseReDim) = 5, "ubound(eraseReDim) after Erase+ReDim = " & ubound(eraseReDim)
+ok eraseReDim(0) = empty, "eraseReDim(0) after Erase+ReDim = " & eraseReDim(0)
+
+' Erase on ByRef array parameter: clears the original
+sub TestEraseByRef(ByRef arr)
+    Erase arr
+end sub
+dim eraseByRefArr(2)
+eraseByRefArr(0) = "hello"
+call TestEraseByRef(eraseByRefArr)
+ok eraseByRefArr(0) = empty, "eraseByRefArr(0) after ByRef Erase = " & eraseByRefArr(0)
+ok ubound(eraseByRefArr) = 2, "ubound(eraseByRefArr) after ByRef Erase = " & ubound(eraseByRefArr)
+
+' Erase on ByVal array parameter: does not affect the original
+sub TestEraseByVal(ByVal arr)
+    Erase arr
+end sub
+dim eraseByValArr(2)
+eraseByValArr(0) = "world"
+call TestEraseByVal(eraseByValArr)
+ok eraseByValArr(0) = "world", "eraseByValArr(0) after ByVal Erase = " & eraseByValArr(0)
 
 Class ArrClass
     Dim classarr(3)
@@ -2187,6 +2439,7 @@ Class TestPropParam
     Public oDict
     Public gotNothing
     Public m_obj
+    Public m_objType
 
     Public Property Set bar(obj)
         Set m_obj = obj
@@ -2205,6 +2458,14 @@ Class TestPropParam
     Public Property Let ten(a,b,c,d,e,f,g,h,i,j)
         oDict = a & b & c & d & e & f & g & h & i & j
     End Property
+    Public Property Let objProp(aInput)
+        m_objType = getVT(aInput)
+        If IsObject(aInput) Then
+            Set m_obj = aInput
+        Else
+            m_obj = aInput
+        End If
+    End Property
 End Class
 
 Set x = new TestPropParam
@@ -2220,6 +2481,24 @@ Set x.foo("123") = Nothing
 call ok(x.oDict = "123","x.oDict = " & x.oDict & " expected 123")
 call ok(x.gotNothing=True,"x.gotNothing = " & x.gotNothing  & " expected true")
 
+' Property Let receives VT_DISPATCH argument as-is (does not extract default value)
+Set y = New EndTestClassWithProperty
+y.x = 42
+x.objProp = y
+call ok(x.m_objType = "VT_DISPATCH*", "Property Let aInput type: " & x.m_objType & " expected VT_DISPATCH*")
+call ok(x.m_obj = 42, "Property Let with object argument failed, m_obj = " & x.m_obj)
+
+' Property Let receives object without default property as VT_DISPATCH
+Set z = New EmptyClass
+x.objProp = z
+call ok(x.m_objType = "VT_DISPATCH*", "Property Let no-default aInput type: " & x.m_objType & " expected VT_DISPATCH*")
+
+' Set with only Property Let defined should fail (no fallback to Let)
+On Error Resume Next
+Set x.objProp = y
+call ok(Err.Number = 438, "Set Property Let only: Err.Number = " & Err.Number & " expected 438")
+On Error GoTo 0
+
 set x = new TestPropSyntax
 set x.prop = new TestPropSyntax
 set x.prop.prop = new TestPropSyntax
@@ -2233,7 +2512,7 @@ set x.getprop.getprop().prop = obj
 call ok(x.getprop.getprop().prop is obj, "x.getprop.getprop().prop is not obj (emptyclass)")
 
 ok getVT(x) = "VT_DISPATCH*", "getVT(x) = " & getVT(x)
-todo_wine_ok getVT(x()) = "VT_BSTR", "getVT(x()) = " & getVT(x())
+ok getVT(x()) = "VT_BSTR", "getVT(x()) = " & getVT(x())
 
 Class TestClassVariablesMulti
     Public pub1, pub2
@@ -2381,6 +2660,380 @@ arr (0) = 2 xor -2
 Call ok(indexedObj(3) = 6, "indexedObj(3) = " & indexedObj(3))
 Call ok(indexedObj(0) = 0, "indexedObj(0) = " & indexedObj(0))
 
+' GetRef tests
+Function GetRefTestFunc()
+    GetRefTestFunc = 42
+End Function
+
+Dim getRefRef
+Set getRefRef = GetRef("GetRefTestFunc")
+Call ok(IsObject(getRefRef), "IsObject(GetRef result) should be true")
+Call ok(getRefRef() = 42, "GetRef result call returned " & getRefRef())
+
+' GetRef with parameters
+Function GetRefAddFunc(a, b)
+    GetRefAddFunc = a + b
+End Function
+
+Set getRefRef = GetRef("GetRefAddFunc")
+Call ok(getRefRef(3, 4) = 7, "GetRef add call returned " & getRefRef(3, 4))
+
+' GetRef with a Sub
+Dim getRefSubCalled
+getRefSubCalled = False
+Sub GetRefTestSub()
+    getRefSubCalled = True
+End Sub
+
+Set getRefRef = GetRef("GetRefTestSub")
+Call getRefRef()
+Call ok(getRefSubCalled, "GetRef sub was not called")
+
+' GetRef with Sub that has parameters
+Dim getRefSubResult
+Sub GetRefTestSubArgs(a, b)
+    getRefSubResult = a + b
+End Sub
+
+Set getRefRef = GetRef("GetRefTestSubArgs")
+Call getRefRef(10, 20)
+Call ok(getRefSubResult = 30, "GetRef sub with args returned " & getRefSubResult)
+
+' GetRef case insensitivity
+Function getRefCaseFunc()
+    getRefCaseFunc = "hello"
+End Function
+
+Set getRefRef = GetRef("GETREFCASEFUNC")
+Call ok(getRefRef() = "hello", "GetRef case insensitive returned " & getRefRef())
+
+' GetRef default value (calling without parens triggers default property)
+Set getRefRef = GetRef("GetRefTestFunc")
+Dim getRefResult
+getRefResult = getRefRef
+Call ok(getRefResult = 42, "GetRef default value returned " & getRefResult)
+Call ok(getVT(getRefResult) = "VT_I2*", "GetRef default value type is " & getVT(getRefResult))
+
+' GetRef can be passed to another function
+Function GetRefCallIt(fn)
+    GetRefCallIt = fn()
+End Function
+
+Set getRefRef = GetRef("GetRefTestFunc")
+Call ok(GetRefCallIt(getRefRef) = 42, "GetRef passed to function returned " & GetRefCallIt(getRefRef))
+
+' GetRef error cases
+On Error Resume Next
+
+Err.Clear
+Set getRefRef = GetRef("NonExistentFunc")
+Call ok(Err.Number = 5, "GetRef non-existent function error is " & Err.Number)
+
+Err.Clear
+Set getRefRef = GetRef("")
+Call ok(Err.Number = 5, "GetRef empty string error is " & Err.Number)
+
+Err.Clear
+Set getRefRef = GetRef(123)
+Call ok(Err.Number = 13, "GetRef numeric arg error is " & Err.Number)
+
+Err.Clear
+Set getRefRef = GetRef(Null)
+Call ok(Err.Number = 13, "GetRef Null arg error is " & Err.Number)
+
+Err.Clear
+Set getRefRef = GetRef(Empty)
+Call ok(Err.Number = 13, "GetRef Empty arg error is " & Err.Number)
+
+Err.Clear
+Set getRefRef = GetRef(vbNullString)
+Call ok(Err.Number = 5, "GetRef vbNullString error is " & Err.Number)
+
+' Eval tests
+Call ok(Eval("1 + 2") = 3, "Eval(""1 + 2"") = " & Eval("1 + 2"))
+Call ok(Eval("""test""") = "test", "Eval(""""""test"""""") = " & Eval("""test"""))
+Call ok(Eval("true") = true, "Eval(""true"") = " & Eval("true"))
+
+x = 5
+Call ok(Eval("x + 1") = 6, "Eval(""x + 1"") = " & Eval("x + 1"))
+Call ok(Eval("x * x") = 25, "Eval(""x * x"") = " & Eval("x * x"))
+
+Sub TestEvalLocalScope
+    Dim a
+    a = 10
+    Call ok(Eval("a") = 10, "Eval(""a"") in local scope = " & Eval("a"))
+    Call ok(Eval("a + 5") = 15, "Eval(""a + 5"") in local scope = " & Eval("a + 5"))
+End Sub
+Call TestEvalLocalScope
+
+Function TestEvalLocalArgs(x)
+    TestEvalLocalArgs = Eval("x * 2")
+End Function
+Call ok(TestEvalLocalArgs(7) = 14, "TestEvalLocalArgs(7) = " & TestEvalLocalArgs(7))
+
+Dim evalLocal
+Sub TestEvalNoLeak
+    Dim evalLocal
+    evalLocal = 77
+    Call ok(Eval("evalLocal") = 77, "Eval evalLocal = " & Eval("evalLocal"))
+End Sub
+Call TestEvalNoLeak
+Call ok(getVT(evalLocal) = "VT_EMPTY*", "evalLocal leaked from Eval scope: " & getVT(evalLocal))
+
+' ExecuteGlobal tests
+x = 0
+ExecuteGlobal "x = 42"
+Call ok(x = 42, "ExecuteGlobal x = " & x)
+
+ExecuteGlobal "Function evalTestFunc : evalTestFunc = 7 : End Function"
+Call ok(evalTestFunc() = 7, "evalTestFunc() = " & evalTestFunc())
+
+' ExecuteGlobal: Dim creates a new global variable
+ExecuteGlobal "Dim egVar1 : egVar1 = 42"
+Call ok(egVar1 = 42, "ExecuteGlobal Dim egVar1 = " & egVar1)
+
+' ExecuteGlobal: Dim variable persists across calls
+ExecuteGlobal "Dim egVar2"
+ExecuteGlobal "egVar2 = 99"
+Call ok(egVar2 = 99, "ExecuteGlobal Dim egVar2 (set later) = " & egVar2)
+
+' ExecuteGlobal inside Sub: Dim creates a GLOBAL variable
+Sub TestExecGlobalDimInSub
+    ExecuteGlobal "Dim egFromSub : egFromSub = 123"
+End Sub
+Call TestExecGlobalDimInSub
+Call ok(egFromSub = 123, "ExecuteGlobal Dim in Sub - egFromSub = " & egFromSub)
+
+' ExecuteGlobal: Dim + Function in same call
+ExecuteGlobal "Dim egFuncVar : Function egGetVar() : egGetVar = egFuncVar : End Function"
+egFuncVar = 777
+Call ok(egGetVar() = 777, "ExecuteGlobal Dim+Function: egGetVar() = " & egGetVar())
+
+' ExecuteGlobal: ReDim creates global dynamic array
+ExecuteGlobal "ReDim egDynArr(1) : egDynArr(0) = ""a"" : egDynArr(1) = ""b"""
+Call ok(egDynArr(0) = "a", "ExecuteGlobal ReDim egDynArr(0) = " & egDynArr(0))
+Call ok(egDynArr(1) = "b", "ExecuteGlobal ReDim egDynArr(1) = " & egDynArr(1))
+
+' Execute tests
+x = 0
+Execute "x = 99"
+Call ok(x = 99, "Execute x = " & x)
+
+Sub TestExecuteLocalScope
+    Dim a
+    a = 10
+    Execute "a = 20"
+    Call ok(a = 20, "Execute local assign: a = " & a)
+End Sub
+Call TestExecuteLocalScope
+
+Dim executeLocal
+Sub TestExecuteNoLeak
+    Dim executeLocal
+    executeLocal = 10
+    Execute "executeLocal = 55"
+    Call ok(executeLocal = 55, "executeLocal = " & executeLocal)
+End Sub
+Call TestExecuteNoLeak
+Call ok(getVT(executeLocal) = "VT_EMPTY*", "executeLocal leaked from Execute scope: " & getVT(executeLocal))
+
+' Execute at global scope: Dim creates a new global variable
+Execute "Dim exVar1 : exVar1 = 77"
+Call ok(exVar1 = 77, "Execute (global) Dim exVar1 = " & exVar1)
+
+' Execute inside Sub: Dim creates variable visible in caller's scope
+Sub TestExecuteDimInSub
+    Dim localA
+    localA = 10
+    Execute "Dim localB : localB = 20"
+    Call ok(localB = 20, "Execute Dim in Sub - localB = " & localB)
+    Call ok(localA = 10, "Execute Dim in Sub - localA still = " & localA)
+End Sub
+Call TestExecuteDimInSub
+
+' Execute inside Function: Dim creates variable visible in function scope
+Function TestExecuteDimInFunc
+    Execute "Dim funcVar : funcVar = 55"
+    TestExecuteDimInFunc = funcVar
+End Function
+Call ok(TestExecuteDimInFunc() = 55, "Execute Dim in Function = " & TestExecuteDimInFunc())
+
+' Execute: Dim same name as existing local has no effect, value preserved
+Sub TestExecuteDimShadow
+    Dim x
+    x = 100
+    Execute "Dim x"
+    Call ok(x = 100, "x after Execute Dim x = " & x)
+    Execute "x = 200"
+    Call ok(x = 200, "x after Execute x=200 = " & x)
+End Sub
+Call TestExecuteDimShadow
+
+' Execute: Dim then use in same string, visible in caller
+Sub TestExecuteDimAndUse
+    Execute "Dim euVar : euVar = 999"
+    Call ok(euVar = 999, "Execute Dim+use euVar = " & euVar)
+End Sub
+Call TestExecuteDimAndUse
+
+' Execute: ReDim creates dynamic array visible in caller
+Sub TestExecuteReDim
+    Execute "ReDim dynArr(2) : dynArr(0) = 10 : dynArr(1) = 20 : dynArr(2) = 30"
+    Call ok(dynArr(1) = 20, "Execute ReDim dynArr(1) = " & dynArr(1))
+End Sub
+Call TestExecuteReDim
+
+' Option Explicit is per-compilation-unit in Execute/ExecuteGlobal
+On Error Resume Next
+
+' Option Explicit inside same Execute string enforces Dim requirement
+Err.Clear
+Execute "Option Explicit : noDimExec = 101"
+Call ok(Err.Number <> 0, "Execute Option Explicit undeclared should error: err=" & Err.Number)
+todo_wine_ok Err.Number = 500, "Execute Option Explicit undeclared: err=" & Err.Number & " expected 500"
+
+' Option Explicit inside same ExecuteGlobal string enforces Dim requirement
+Err.Clear
+ExecuteGlobal "Option Explicit : noDimExecGlobal = 102"
+Call ok(Err.Number <> 0, "ExecuteGlobal Option Explicit undeclared should error: err=" & Err.Number)
+todo_wine_ok Err.Number = 500, "ExecuteGlobal Option Explicit undeclared: err=" & Err.Number & " expected 500"
+
+' Option Explicit with Dim in same string works
+Err.Clear
+ExecuteGlobal "Option Explicit : Dim oeDimVar : oeDimVar = 555"
+Call ok(Err.Number = 0, "ExecuteGlobal Option Explicit + Dim: err=" & Err.Number)
+Call ok(oeDimVar = 555, "ExecuteGlobal Option Explicit + Dim: oeDimVar = " & oeDimVar)
+
+' Option Explicit does not propagate to subsequent calls
+Err.Clear
+ExecuteGlobal "Option Explicit"
+Call ok(Err.Number = 0, "ExecuteGlobal Option Explicit alone: err=" & Err.Number)
+Err.Clear
+ExecuteGlobal "noDimAfterOE = 123"
+Call ok(Err.Number = 0, "ExecuteGlobal after separate OE: err=" & Err.Number)
+
+On Error Goto 0
+
+
+' Eval/Execute/ExecuteGlobal error handling tests
+On Error Resume Next
+
+' Test Eval with syntax error
+Err.Clear
+Call Eval("1 + ")
+Call ok(Err.Number = 1002, "Eval syntax error: Err.Number = " & Err.Number & " expected 1002")
+Call ok(Err.Description = "Syntax error", "Eval syntax error: Err.Description = """ & Err.Description & """ expected ""Syntax error""")
+Call ok(Err.Source = "Microsoft VBScript compilation error", "Eval syntax error: Err.Source = """ & Err.Source & """")
+
+' Test Execute with syntax error
+Err.Clear
+Execute "x = "
+Call ok(Err.Number = 1002, "Execute syntax error: Err.Number = " & Err.Number & " expected 1002")
+Call ok(Err.Description = "Syntax error", "Execute syntax error: Err.Description = """ & Err.Description & """ expected ""Syntax error""")
+Call ok(Err.Source = "Microsoft VBScript compilation error", "Execute syntax error: Err.Source = """ & Err.Source & """")
+
+' Test ExecuteGlobal with syntax error
+Err.Clear
+ExecuteGlobal "y = "
+Call ok(Err.Number = 1002, "ExecuteGlobal syntax error: Err.Number = " & Err.Number & " expected 1002")
+Call ok(Err.Description = "Syntax error", "ExecuteGlobal syntax error: Err.Description = """ & Err.Description & """ expected ""Syntax error""")
+Call ok(Err.Source = "Microsoft VBScript compilation error", "ExecuteGlobal syntax error: Err.Source = """ & Err.Source & """")
+
+' Eval with non-string arguments returns the value directly
+Err.Clear
+Call ok(Eval(123) = 123, "Eval(123) = " & Eval(123))
+Call ok(Err.Number = 0, "Eval(123) Err.Number = " & Err.Number)
+
+Err.Clear
+Call ok(Eval(True) = True, "Eval(True) = " & Eval(True))
+Call ok(Err.Number = 0, "Eval(True) Err.Number = " & Err.Number)
+
+Err.Clear
+Call ok(IsNull(Eval(Null)), "Eval(Null) should be Null")
+Call ok(Err.Number = 0, "Eval(Null) Err.Number = " & Err.Number)
+
+Err.Clear
+Call ok(IsEmpty(Eval(Empty)), "Eval(Empty) should be Empty")
+Call ok(Err.Number = 0, "Eval(Empty) Err.Number = " & Err.Number)
+
+' Execute with non-string arguments returns type mismatch
+Err.Clear
+Execute 123
+Call ok(Err.Number = 13, "Execute 123 Err.Number = " & Err.Number)
+
+Err.Clear
+Execute Null
+Call ok(Err.Number = 13, "Execute Null Err.Number = " & Err.Number)
+
+Err.Clear
+Execute Empty
+Call ok(Err.Number = 13, "Execute Empty Err.Number = " & Err.Number)
+
+' ExecuteGlobal with non-string arguments returns type mismatch
+Err.Clear
+ExecuteGlobal 123
+Call ok(Err.Number = 13, "ExecuteGlobal 123 Err.Number = " & Err.Number)
+
+Err.Clear
+ExecuteGlobal Null
+Call ok(Err.Number = 13, "ExecuteGlobal Null Err.Number = " & Err.Number)
+
+Err.Clear
+ExecuteGlobal Empty
+Call ok(Err.Number = 13, "ExecuteGlobal Empty Err.Number = " & Err.Number)
+
+' Eval with Dim is a syntax error (Eval expects an expression, not a statement)
+Err.Clear
+Eval "Dim evalDimVar"
+Call ok(Err.Number = 1002, "Eval Dim: Err.Number = " & Err.Number & " expected 1002")
+
+' Test runtime error in Eval is caught by On Error Resume Next
+Err.Clear
+Call Eval("CBool(""notabool"")")
+Call ok(Err.Number = 13, "Eval type mismatch: Err.Number = " & Err.Number & " expected 13")
+Call ok(Err.Source = "Microsoft VBScript runtime error", "Eval type mismatch: Err.Source = """ & Err.Source & """")
+
+On Error Goto 0
+
+' Test calling a dispatch variable as statement (invokes default property)
+funcCalled = ""
+Set obj = New DefaultSubTest1
+obj 3
+Call ok(funcCalled = "init3", "dispatch var as statement: funcCalled = " & funcCalled)
+
+' Test calling a dispatch variable (default Function, no args) as statement
+funcCalled = ""
+Set obj = New DefaultSubTest2
+obj
+Call ok(funcCalled = "init", "dispatch var (default func) as statement: funcCalled = " & funcCalled)
+
+' Test calling non-dispatch variables as statement gives type mismatch (error 13)
+On Error Resume Next
+
+dim intCallVar
+intCallVar = 42
+Err.Clear
+intCallVar
+Call ok(Err.Number = 13, "int var as statement: err = " & Err.Number)
+
+dim strCallVar
+strCallVar = "hello"
+Err.Clear
+strCallVar
+Call ok(Err.Number = 13, "string var as statement: err = " & Err.Number)
+
+dim emptyCallVar
+Err.Clear
+emptyCallVar
+Call ok(Err.Number = 13, "empty var as statement: err = " & Err.Number)
+
+dim boolCallVar
+boolCallVar = True
+Err.Clear
+boolCallVar
+Call ok(Err.Number = 13, "bool var as statement: err = " & Err.Number)
+
+On Error GoTo 0
 
 function wmi_array_bstr()
 const HKEY_LOCAL_MACHINE = &H80000002

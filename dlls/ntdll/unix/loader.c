@@ -94,7 +94,7 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(module);
 
-#if defined __i386__ || defined __x86_64__
+#if defined __i386__ || (defined __x86_64__ && !defined __APPLE__)
 #define SO_DLLS_SUPPORTED
 #endif
 
@@ -296,15 +296,12 @@ static WORD get_alt_machine( WORD machine )
 
 static void set_dll_path(void)
 {
-    char *p, *path = getenv( "WINEDLLPATH" ), *be_runtime = getenv( "PROTON_BATTLEYE_RUNTIME" ), *eac_runtime = getenv( "PROTON_EAC_RUNTIME" );
+    char *p, *path = getenv( "WINEDLLPATH" ), *be_runtime = getenv( "PROTON_BATTLEYE_RUNTIME" );
     int i, count = 0;
 
     if (path) for (p = path, count = 1; *p; p++) if (*p == ':') count++;
 
     if (be_runtime)
-        count += 2;
-
-    if (eac_runtime)
         count += 2;
 
     dll_paths = malloc( (count + 2) * sizeof(*dll_paths) );
@@ -332,24 +329,6 @@ static void set_dll_path(void)
 
         p = malloc( strlen(be_runtime) + strlen(lib64) + 1 );
         strcpy(p, be_runtime);
-        strcat(p, lib64);
-
-        dll_paths[count++] = p;
-    }
-
-    if (eac_runtime)
-    {
-        const char lib32[] = "/v2/lib32/";
-        const char lib64[] = "/v2/lib64/";
-
-        p = malloc( strlen(eac_runtime) + strlen(lib32) + 1 );
-        strcpy(p, eac_runtime);
-        strcat(p, lib32);
-
-        dll_paths[count++] = p;
-
-        p = malloc( strlen(eac_runtime) + strlen(lib64) + 1 );
-        strcpy(p, eac_runtime);
         strcat(p, lib64);
 
         dll_paths[count++] = p;
@@ -433,11 +412,7 @@ static void init_paths(void)
 
     if ((build_dir = remove_tail( ntdll_dir, "/dlls/ntdll" )))
     {
-#ifdef _WIN64
-        wineloader = build_path( build_dir, "loader/wine64" );
-#else
         wineloader = build_path( build_dir, "loader/wine" );
-#endif
         alt_build_dir = realpath_dirname( build_path( build_dir, "loader-wow64" ));
     }
     else
@@ -445,11 +420,7 @@ static void init_paths(void)
         if (!(dll_dir = remove_tail( ntdll_dir, get_so_dir(current_machine) ))) dll_dir = ntdll_dir;
         bin_dir = build_relative_path( dll_dir, LIBDIR "/wine", BINDIR );
         data_dir = build_relative_path( dll_dir, LIBDIR "/wine", DATADIR "/wine" );
-#ifdef _WIN64
-        wineloader = build_path( ntdll_dir, "wine64" );
-#else
         wineloader = build_path( ntdll_dir, "wine" );
-#endif
     }
 
     set_dll_path();
@@ -479,17 +450,10 @@ char *get_alternate_wineloader( WORD machine )
         machine = get_alt_machine( current_machine );
     }
 
-#ifdef _WIN64
     if (!build_dir)
         asprintf( &ret, "%s%s/wine", dll_dir, get_so_dir( machine ));
     else if (alt_build_dir)
         asprintf( &ret, "%s/loader/wine", alt_build_dir );
-#else
-    if (!build_dir)
-        asprintf( &ret, "%s%s/wine64", dll_dir, get_so_dir( machine ));
-    else if (alt_build_dir)
-        asprintf( &ret, "%s/loader/wine64", alt_build_dir );
-#endif
 
     return ret;
 }
@@ -918,7 +882,7 @@ static NTSTATUS load_so_dll( void *args )
     NTSTATUS status;
     DWORD len;
 
-    if (get_load_order( nt_name ) == LO_DISABLED) return STATUS_DLL_NOT_FOUND;
+    if (get_load_order( nt_name, FALSE, NULL ) == LO_DISABLED) return STATUS_DLL_NOT_FOUND;
     InitializeObjectAttributes( &attr, nt_name, OBJ_CASE_INSENSITIVE, 0, 0 );
     if (!get_nt_and_unix_names( &attr, &true_nt_name, &unix_name, FILE_OPEN, FALSE ))
     {
@@ -1308,30 +1272,30 @@ done:
  * Load the builtin dll if specified by load order configuration.
  * Return STATUS_IMAGE_ALREADY_LOADED if we should keep the native one that we have found.
  */
-NTSTATUS load_builtin( const struct pe_image_info *image_info, UNICODE_STRING *nt_name,
-                       ANSI_STRING *exp_name, USHORT machine, SECTION_IMAGE_INFORMATION *info,
-                       void **module, SIZE_T *size, ULONG_PTR limit_low, ULONG_PTR limit_high,
-                       off_t offset )
+NTSTATUS load_builtin( struct pe_mapping_info *pe_mapping, USHORT machine,
+                       SECTION_IMAGE_INFORMATION *info, void **module, SIZE_T *size,
+                       ULONG_PTR limit_low, ULONG_PTR limit_high, off_t offset )
 {
     NTSTATUS status;
-    USHORT search_machine = image_info->machine;
-    enum loadorder loadorder = get_load_order( nt_name );
+    USHORT sysdir_machine, search_machine = pe_mapping->image.machine;
+    BOOL is_system_dir = is_system_dir_path( &pe_mapping->nt_name, &sysdir_machine );
+    enum loadorder loadorder = get_load_order( &pe_mapping->nt_name, is_system_dir, pe_mapping );
 
     if (loadorder == LO_DISABLED) return STATUS_DLL_NOT_FOUND;
 
-    if (image_info->wine_builtin)
+    if (pe_mapping->image.wine_builtin)
     {
         if (loadorder == LO_NATIVE) return STATUS_DLL_NOT_FOUND;
         loadorder = LO_BUILTIN_NATIVE;  /* load builtin, then fallback to the file we found */
     }
-    else if (image_info->wine_fakedll)
+    else if (pe_mapping->image.wine_fakedll)
     {
-        TRACE( "%s is a fake Wine dll\n", debugstr_us(nt_name) );
+        TRACE( "%s is a fake Wine dll\n", debugstr_us(&pe_mapping->nt_name) );
         if (loadorder == LO_NATIVE) return STATUS_DLL_NOT_FOUND;
         loadorder = LO_BUILTIN;  /* builtin with no fallback since mapping a fake dll is not useful */
     }
 
-    if (is_arm64ec() && image_info->is_hybrid && search_machine == IMAGE_FILE_MACHINE_AMD64)
+    if (is_arm64ec() && pe_mapping->image.is_hybrid && search_machine == IMAGE_FILE_MACHINE_AMD64)
         search_machine = current_machine;
 
     switch (loadorder)
@@ -1340,11 +1304,12 @@ NTSTATUS load_builtin( const struct pe_image_info *image_info, UNICODE_STRING *n
     case LO_NATIVE_BUILTIN:
         return STATUS_IMAGE_ALREADY_LOADED;
     case LO_BUILTIN:
-        return find_builtin_dll( nt_name, exp_name, module, size, info, limit_low, limit_high,
-                                 search_machine, machine, FALSE, offset );
+        return find_builtin_dll( &pe_mapping->nt_name, &pe_mapping->exp_name, module, size, info,
+                                 limit_low, limit_high, search_machine, machine, FALSE, offset );
     default:
-        status = find_builtin_dll( nt_name, exp_name, module, size, info, limit_low, limit_high,
-                                   search_machine, machine, (loadorder == LO_DEFAULT), offset );
+        status = find_builtin_dll( &pe_mapping->nt_name, &pe_mapping->exp_name, module, size, info,
+                                   limit_low, limit_high, search_machine, machine,
+                                   (loadorder == LO_DEFAULT), offset );
         if (status == STATUS_DLL_NOT_FOUND || status == STATUS_NOT_SUPPORTED)
             return STATUS_IMAGE_ALREADY_LOADED;
         return status;
@@ -1448,18 +1413,15 @@ static const WCHAR *get_machine_wow64_dir( WORD machine )
 
 
 /***************************************************************************
- *	is_builtin_path
+ *	is_system_dir_path
  *
  * Check if path is inside a system directory, to support loading builtins
  * when the corresponding file doesn't exist yet.
  */
-BOOL is_builtin_path( const UNICODE_STRING *path, WORD *machine )
+BOOL is_system_dir_path( const UNICODE_STRING *path, WORD *machine )
 {
     unsigned int i, len = path->Length / sizeof(WCHAR), dirlen;
     const WCHAR *sysdir, *p = path->Buffer;
-
-    /* only fake builtin existence during prefix bootstrap */
-    if (!is_prefix_bootstrap) return FALSE;
 
     for (i = 0; i < supported_machines_count; i++)
     {
@@ -1521,16 +1483,17 @@ static NTSTATUS open_main_image( UNICODE_STRING *nt_name, void **module, SECTION
  */
 NTSTATUS load_main_exe( UNICODE_STRING *nt_name, USHORT load_machine, void **module )
 {
-    enum loadorder loadorder = get_load_order( nt_name );
     unsigned int status;
     SIZE_T size;
     USHORT search_machine;
+    BOOL is_system_dir = is_system_dir_path( nt_name, &search_machine );
+    enum loadorder loadorder = get_load_order( nt_name, is_system_dir, NULL );
 
     status = open_main_image( nt_name, module, &main_image_info, loadorder, load_machine );
     if (status != STATUS_DLL_NOT_FOUND) return status;
 
     /* if path is in system dir, we can load the builtin even if the file itself doesn't exist */
-    if (loadorder != LO_NATIVE && is_builtin_path( nt_name, &search_machine ))
+    if (loadorder != LO_NATIVE && is_prefix_bootstrap && is_system_dir)
         status = find_builtin_dll( nt_name, NULL, module, &size, &main_image_info, 0, 0,
                                    search_machine, load_machine, FALSE, 0 );
     return status;
