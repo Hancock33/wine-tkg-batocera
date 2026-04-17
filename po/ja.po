@@ -82,7 +82,7 @@ msgstr "変更(&M)..."
 
 #: dlls/appwiz.cpl/appwiz.rc:71 dlls/appwiz.cpl/appwiz.rc:45
 #: dlls/cryptui/cryptui.rc:351 dlls/msacm32/msacm32.rc:40
-#: programs/winecfg/winecfg.rc:205 programs/winecfg/winecfg.rc:242
+#: programs/winecfg/winecfg.rc:206 programs/winecfg/winecfg.rc:243
 #: programs/wordpad/wordpad.rc:256
 msgid "&Remove"
 msgstr "削除(&R)"
@@ -119,7 +119,7 @@ msgstr "サポート情報"
 #: programs/regedit/regedit.rc:325 programs/regedit/regedit.rc:341
 #: programs/regedit/regedit.rc:354 programs/regedit/regedit.rc:367
 #: programs/taskmgr/taskmgr.rc:442 programs/taskmgr/taskmgr.rc:517
-#: programs/winecfg/winecfg.rc:219 programs/winecfg/winecfg.rc:229
+#: programs/winecfg/winecfg.rc:220 programs/winecfg/winecfg.rc:230
 #: programs/winefile/winefile.rc:127 programs/winefile/winefile.rc:150
 #: programs/winefile/winefile.rc:180 programs/winemine/winemine.rc:73
 #: programs/winemine/winemine.rc:84 programs/winemine/winemine.rc:98
@@ -226,7 +226,7 @@ msgstr "インストール(&I)"
 #: programs/regedit/regedit.rc:342 programs/regedit/regedit.rc:355
 #: programs/regedit/regedit.rc:368 programs/taskmgr/taskmgr.rc:443
 #: programs/taskmgr/taskmgr.rc:518 programs/wineboot/wineboot.rc:34
-#: programs/winecfg/winecfg.rc:220 programs/winecfg/winecfg.rc:230
+#: programs/winecfg/winecfg.rc:221 programs/winecfg/winecfg.rc:231
 #: programs/winefile/winefile.rc:128 programs/winefile/winefile.rc:151
 #: programs/winefile/winefile.rc:181 programs/winemine/winemine.rc:99
 #: programs/wordpad/wordpad.rc:216 programs/wordpad/wordpad.rc:227
@@ -720,7 +720,7 @@ msgid "Font St&yle:"
 msgstr "スタイル(&Y):"
 
 #: dlls/comdlg32/comdlg32.rc:260 dlls/comdlg32/comdlg32.rc:439
-#: programs/winecfg/winecfg.rc:302
+#: programs/winecfg/winecfg.rc:303
 msgid "&Size:"
 msgstr "サイズ(&S):"
 
@@ -736,7 +736,7 @@ msgstr "取り消し線(&K)"
 msgid "&Underline"
 msgstr "下線(&U)"
 
-#: dlls/comdlg32/comdlg32.rc:270 programs/winecfg/winecfg.rc:300
+#: dlls/comdlg32/comdlg32.rc:270 programs/winecfg/winecfg.rc:301
 msgid "&Color:"
 msgstr "配色(&C):"
 
@@ -913,7 +913,7 @@ msgstr "部数(&C):"
 msgid "C&ollate"
 msgstr "部単位で印刷(&O)"
 
-#: dlls/comdlg32/comdlg32.rc:414 programs/winecfg/winecfg.rc:308
+#: dlls/comdlg32/comdlg32.rc:414 programs/winecfg/winecfg.rc:309
 msgid "Si&ze:"
 msgstr "サイズ(&Z):"
 
@@ -2441,7 +2441,7 @@ msgid "&File name:"
 msgstr "ファイル名(&F):"
 
 #: dlls/cryptui/cryptui.rc:301 dlls/cryptui/cryptui.rc:323
-#: dlls/cryptui/cryptui.rc:437 programs/winecfg/winecfg.rc:321
+#: dlls/cryptui/cryptui.rc:437 programs/winecfg/winecfg.rc:322
 msgid "B&rowse..."
 msgstr "参照(&R)..."
 
@@ -3796,11 +3796,19 @@ msgstr "Indeo5"
 msgid "Indeo Video Interactive version 5 video codec"
 msgstr "Indeo Video Interactive バージョン 5 ビデオ コーデック"
 
+#: dlls/iyuv_32/iyuv_32.rc:28
+msgid "IYUV codec"
+msgstr ""
+
+#: dlls/iyuv_32/iyuv_32.rc:29
+msgid "Intel Indeo IYUV codec"
+msgstr ""
+
 #: dlls/joy.cpl/joy.rc:37
 msgid "Joysticks"
 msgstr "ジョイスティック"
 
-#: dlls/joy.cpl/joy.rc:40 programs/winecfg/winecfg.rc:218
+#: dlls/joy.cpl/joy.rc:40 programs/winecfg/winecfg.rc:219
 msgid "&Disable"
 msgstr "無効化(&D)"
 
@@ -3973,7 +3981,7 @@ msgstr "引数は省略できません"
 msgid "Object not a collection"
 msgstr "オブジェクトはコレクションではありません"
 
-#: dlls/jscript/jscript.rc:38 dlls/vbscript/vbscript.rc:65
+#: dlls/jscript/jscript.rc:38 dlls/vbscript/vbscript.rc:68
 msgid "Syntax error"
 msgstr "構文エラー"
 
@@ -3981,27 +3989,27 @@ msgstr "構文エラー"
 msgid "Expected ';'"
 msgstr "「;」が必要です"
 
-#: dlls/jscript/jscript.rc:40 dlls/vbscript/vbscript.rc:66
+#: dlls/jscript/jscript.rc:40 dlls/vbscript/vbscript.rc:69
 msgid "Expected '('"
 msgstr "「(」が必要です"
 
-#: dlls/jscript/jscript.rc:41
+#: dlls/jscript/jscript.rc:41 dlls/vbscript/vbscript.rc:71
 msgid "Expected ')'"
 msgstr "「)」が必要です"
 
-#: dlls/jscript/jscript.rc:42 dlls/vbscript/vbscript.rc:67
+#: dlls/jscript/jscript.rc:42 dlls/vbscript/vbscript.rc:72
 msgid "Expected identifier"
 msgstr "識別子が必要です"
 
-#: dlls/jscript/jscript.rc:43 dlls/vbscript/vbscript.rc:68
+#: dlls/jscript/jscript.rc:43 dlls/vbscript/vbscript.rc:73
 msgid "Expected '='"
 msgstr "「=」が必要です"
 
-#: dlls/jscript/jscript.rc:44 dlls/vbscript/vbscript.rc:81
+#: dlls/jscript/jscript.rc:44 dlls/vbscript/vbscript.rc:92
 msgid "Invalid character"
 msgstr "使用できない文字です"
 
-#: dlls/jscript/jscript.rc:45 dlls/vbscript/vbscript.rc:82
+#: dlls/jscript/jscript.rc:45 dlls/vbscript/vbscript.rc:93
 msgid "Unterminated string constant"
 msgstr "文字列定数が終端していません"
 
@@ -4045,7 +4053,7 @@ msgstr "Microsoft JScript コンパイル エラー"
 msgid "Microsoft JScript runtime error"
 msgstr "Microsoft JScript 実行時エラー"
 
-#: dlls/jscript/jscript.rc:99 dlls/vbscript/vbscript.rc:100
+#: dlls/jscript/jscript.rc:99 dlls/vbscript/vbscript.rc:116
 msgid "Unknown runtime error"
 msgstr "未知の実行時エラー"
 
@@ -4069,7 +4077,7 @@ msgstr "'[object]' は日付オブジェクトではありません"
 msgid "Object expected"
 msgstr "オブジェクトを期待していました"
 
-#: dlls/jscript/jscript.rc:59
+#: dlls/jscript/jscript.rc:59 dlls/vbscript/vbscript.rc:65
 msgid "Illegal assignment"
 msgstr "不正な代入です"
 
@@ -4278,11 +4286,11 @@ msgstr "ファイルが見つかりません。\n"
 msgid "Path not found.\n"
 msgstr "パスが見つかりません。\n"
 
-#: dlls/kernelbase/winerror.mc:50 dlls/kernelbase/winerror.mc:3775
+#: dlls/kernelbase/winerror.mc:50 dlls/kernelbase/winerror.mc:3780
 msgid "Too many open files.\n"
 msgstr "これ以上ファイルを開けません。\n"
 
-#: dlls/kernelbase/winerror.mc:55 dlls/kernelbase/winerror.mc:3760
+#: dlls/kernelbase/winerror.mc:55 dlls/kernelbase/winerror.mc:3765
 msgid "Access denied.\n"
 msgstr "アクセスが拒否されました。\n"
 
@@ -5634,7 +5642,7 @@ msgstr "操作はユーザーによって中断されました。\n"
 msgid "File has a user-mapped section.\n"
 msgstr "ファイルにはユーザーマップされたセクションがあります。\n"
 
-#: dlls/kernelbase/winerror.mc:1760 dlls/kernelbase/winerror.mc:3790
+#: dlls/kernelbase/winerror.mc:1760 dlls/kernelbase/winerror.mc:3795
 msgid "Connection refused.\n"
 msgstr "接続は拒否されました。\n"
 
@@ -7220,66 +7228,72 @@ msgid "This network connection does not exist.\n"
 msgstr "このネットワーク接続は存在しません。\n"
 
 #: dlls/kernelbase/winerror.mc:3750
+#, fuzzy
+#| msgid "File or directory corrupt.\n"
+msgid "File or directory is not a reparse point.\n"
+msgstr "ファイルかディレクトリが破損しています。\n"
+
+#: dlls/kernelbase/winerror.mc:3755
 msgid "Call interrupted.\n"
 msgstr "呼び出しは割り込まれました。\n"
 
-#: dlls/kernelbase/winerror.mc:3755
+#: dlls/kernelbase/winerror.mc:3760
 msgid "Invalid file handle.\n"
 msgstr "ファイル ハンドルが正しくありません。\n"
 
-#: dlls/kernelbase/winerror.mc:3765
+#: dlls/kernelbase/winerror.mc:3770
 msgid "Invalid pointer address.\n"
 msgstr "ポインター アドレスが正しくありません。\n"
 
-#: dlls/kernelbase/winerror.mc:3770
+#: dlls/kernelbase/winerror.mc:3775
 msgid "Invalid argument.\n"
 msgstr "引数は正しくありません。\n"
 
-#: dlls/kernelbase/winerror.mc:3780
+#: dlls/kernelbase/winerror.mc:3785
 msgid "Cannot assign requested address.\n"
 msgstr "要求されたアドレスを割り当てられません。\n"
 
-#: dlls/kernelbase/winerror.mc:3785
+#: dlls/kernelbase/winerror.mc:3790
 msgid "Connection reset by peer.\n"
 msgstr "相手側により接続がリセットされました。\n"
 
-#: dlls/kernelbase/winerror.mc:3795
+#: dlls/kernelbase/winerror.mc:3800
 msgid "Host not found.\n"
 msgstr "ホストが見つかりません。\n"
 
-#: dlls/kernelbase/winerror.mc:3800
+#: dlls/kernelbase/winerror.mc:3805
 msgid "Nonauthoritative host not found.\n"
 msgstr "権威のないホストが見つかりません。\n"
 
-#: dlls/kernelbase/winerror.mc:3805
+#: dlls/kernelbase/winerror.mc:3810
 msgid "Nonrecoverable error.\n"
 msgstr "回復不能エラーです。\n"
 
-#: dlls/kernelbase/winerror.mc:3810
+#: dlls/kernelbase/winerror.mc:3815
 msgid "Name valid, no data record.\n"
 msgstr "名前は有効ですが、データ レコードがありません。\n"
 
-#: dlls/kernelbase/winerror.mc:3831
+#: dlls/kernelbase/winerror.mc:3836
 msgid "Not implemented.\n"
 msgstr "未実装です。\n"
 
-#: dlls/kernelbase/winerror.mc:3852
+#: dlls/kernelbase/winerror.mc:3857
 msgid "Call failed.\n"
 msgstr "呼び出しが失敗しました。\n"
 
-#: dlls/kernelbase/winerror.mc:3817
+#: dlls/kernelbase/winerror.mc:3822
 msgid "Unable to find matching object.\n"
 msgstr "一致するオブジェクトを見つけられません。\n"
 
-#: dlls/kernelbase/winerror.mc:3824
+#: dlls/kernelbase/winerror.mc:3829
 msgid "No Signature found in file.\n"
 msgstr "ファイルにデジタル署名がありません。\n"
 
-#: dlls/kernelbase/winerror.mc:3838
+#: dlls/kernelbase/winerror.mc:3843
 msgid "Invalid call.\n"
 msgstr "呼び出しは正しくありません。\n"
 
-#: dlls/kernelbase/winerror.mc:3845
+#: dlls/kernelbase/winerror.mc:3850
 msgid "Resource is not currently available.\n"
 msgstr "リソースは現在使用できません。\n"
 
@@ -8242,7 +8256,7 @@ msgstr "ハイパーリンク"
 msgid "Hyperlink Information"
 msgstr "ハイパーリンクの情報"
 
-#: dlls/mshtml/mshtml.rc:43 programs/winecfg/winecfg.rc:249
+#: dlls/mshtml/mshtml.rc:43 programs/winecfg/winecfg.rc:250
 msgid "&Type:"
 msgstr "タイプ(&T):"
 
@@ -9824,7 +9838,7 @@ msgid "b"
 msgstr "b"
 
 #: dlls/sane.ds/sane.rc:34 dlls/wineps.drv/wineps.rc:52
-#: programs/winecfg/winecfg.rc:188
+#: programs/winecfg/winecfg.rc:189
 msgctxt "unit: dots/inch"
 msgid "dpi"
 msgstr "dpi"
@@ -10365,7 +10379,7 @@ msgstr "名前(&O):"
 
 #: dlls/shell32/shell32.rc:345 programs/progman/progman.rc:182
 #: programs/progman/progman.rc:201 programs/progman/progman.rc:218
-#: programs/winecfg/winecfg.rc:247 programs/winefile/winefile.rc:129
+#: programs/winecfg/winecfg.rc:248 programs/winefile/winefile.rc:129
 msgid "&Browse..."
 msgstr "参照(&B)..."
 
@@ -10451,7 +10465,7 @@ msgstr "元の場所"
 msgid "Date deleted"
 msgstr "削除日"
 
-#: dlls/shell32/shell32.rc:151 programs/winecfg/winecfg.rc:106
+#: dlls/shell32/shell32.rc:151 programs/winecfg/winecfg.rc:107
 #: programs/winefile/winefile.rc:99
 msgctxt "display name"
 msgid "Desktop"
@@ -12959,176 +12973,252 @@ msgstr "名前付き引数が見つかりません"
 msgid "Wrong number of arguments or invalid property assignment"
 msgstr "引数の数に誤りがあるかプロパティの代入が正しくありません"
 
-#: dlls/vbscript/vbscript.rc:60
+#: dlls/vbscript/vbscript.rc:61
 msgid "Specified DLL function not found"
 msgstr "指定された DLL 関数が見つかりません"
 
-#: dlls/vbscript/vbscript.rc:61
+#: dlls/vbscript/vbscript.rc:60
+msgid "This key is already associated with an element of this collection"
+msgstr ""
+
+#: dlls/vbscript/vbscript.rc:62
 msgid "Variable uses an Automation type not supported in VBScript"
 msgstr "VBScript ではオートメーション型を使う変数はサポートされていません"
 
-#: dlls/vbscript/vbscript.rc:62
+#: dlls/vbscript/vbscript.rc:63
 msgid "The remote server machine does not exist or is unavailable"
 msgstr "リモートのサーバー機が存在しないか使用できません"
 
-#: dlls/vbscript/vbscript.rc:63
+#: dlls/vbscript/vbscript.rc:64
 #, fuzzy
 #| msgid "'|' is undefined"
 msgid "Variable is undefined"
 msgstr "'|'は未定義です"
 
-#: dlls/vbscript/vbscript.rc:64
+#: dlls/vbscript/vbscript.rc:66
 msgid "Invalid or unqualified reference"
 msgstr "正しくないか資格のない参照です"
 
-#: dlls/vbscript/vbscript.rc:69
+#: dlls/vbscript/vbscript.rc:67
 #, fuzzy
-#| msgid "Expected ';'"
-msgid "Expected 'To'"
-msgstr "「;」が必要です"
+#| msgid "Class does not exist.\n"
+msgid "Class not defined"
+msgstr "クラスは存在しません。\n"
 
 #: dlls/vbscript/vbscript.rc:70
 #, fuzzy
-#| msgid "Expected '@end'"
-msgid "Expected 'End'"
-msgstr "「@end」が必要です"
-
-#: dlls/vbscript/vbscript.rc:71
-#, fuzzy
-#| msgid "Expected '@end'"
-msgid "Expected 'Then'"
-msgstr "「@end」が必要です"
-
-#: dlls/vbscript/vbscript.rc:72
-#, fuzzy
-#| msgid "Expected '@end'"
-msgid "Expected 'Wend'"
-msgstr "「@end」が必要です"
-
-#: dlls/vbscript/vbscript.rc:73
-#, fuzzy
 #| msgid "Expected ';'"
-msgid "Expected 'Loop'"
+msgid "Expected ']'"
 msgstr "「;」が必要です"
 
 #: dlls/vbscript/vbscript.rc:74
 #, fuzzy
 #| msgid "Expected ';'"
-msgid "Expected 'Next'"
+msgid "Expected 'If'"
 msgstr "「;」が必要です"
 
 #: dlls/vbscript/vbscript.rc:75
 #, fuzzy
 #| msgid "Expected ';'"
-msgid "Expected 'Case'"
+msgid "Expected 'To'"
 msgstr "「;」が必要です"
 
 #: dlls/vbscript/vbscript.rc:76
 #, fuzzy
 #| msgid "Expected '@end'"
-msgid "Expected statement"
+msgid "Expected 'End'"
 msgstr "「@end」が必要です"
 
 #: dlls/vbscript/vbscript.rc:77
+#, fuzzy
+#| msgid "Expected ';'"
+msgid "Expected 'Function'"
+msgstr "「;」が必要です"
+
+#: dlls/vbscript/vbscript.rc:78
+#, fuzzy
+#| msgid "Expected ';'"
+msgid "Expected 'Sub'"
+msgstr "「;」が必要です"
+
+#: dlls/vbscript/vbscript.rc:79
+#, fuzzy
+#| msgid "Expected '@end'"
+msgid "Expected 'Then'"
+msgstr "「@end」が必要です"
+
+#: dlls/vbscript/vbscript.rc:80
+#, fuzzy
+#| msgid "Expected '@end'"
+msgid "Expected 'Wend'"
+msgstr "「@end」が必要です"
+
+#: dlls/vbscript/vbscript.rc:81
+#, fuzzy
+#| msgid "Expected ';'"
+msgid "Expected 'Loop'"
+msgstr "「;」が必要です"
+
+#: dlls/vbscript/vbscript.rc:82
+#, fuzzy
+#| msgid "Expected ';'"
+msgid "Expected 'Next'"
+msgstr "「;」が必要です"
+
+#: dlls/vbscript/vbscript.rc:83
+#, fuzzy
+#| msgid "Expected ';'"
+msgid "Expected 'Case'"
+msgstr "「;」が必要です"
+
+#: dlls/vbscript/vbscript.rc:84
+#, fuzzy
+#| msgid "Expected ';'"
+msgid "Expected 'Select'"
+msgstr "「;」が必要です"
+
+#: dlls/vbscript/vbscript.rc:85
+#, fuzzy
+#| msgid "Expected '@end'"
+msgid "Expected statement"
+msgstr "「@end」が必要です"
+
+#: dlls/vbscript/vbscript.rc:86
 #, fuzzy
 #| msgid "Unexpected end of input data stream\n"
 msgid "Expected end of statement"
 msgstr "予期しない入力データ ストリームの終端です\n"
 
-#: dlls/vbscript/vbscript.rc:78
+#: dlls/vbscript/vbscript.rc:87
 #, fuzzy
 #| msgid "Unterminated string constant"
 msgid "Expected integer constant"
 msgstr "文字列定数が終端していません"
 
-#: dlls/vbscript/vbscript.rc:79
+#: dlls/vbscript/vbscript.rc:88
 msgid "Expected 'While', 'Until' or end of statement"
 msgstr ""
 
-#: dlls/vbscript/vbscript.rc:80
+#: dlls/vbscript/vbscript.rc:90
+#, fuzzy
+#| msgid "Expected ';'"
+msgid "Expected 'With'"
+msgstr "「;」が必要です"
+
+#: dlls/vbscript/vbscript.rc:89
+#, fuzzy
+#| msgid "Secret too long.\n"
+msgid "Identifier too long"
+msgstr "シークレットが長すぎます。\n"
+
+#: dlls/vbscript/vbscript.rc:91
 #, fuzzy
 #| msgid "Invalid flag number.\n"
 msgid "Invalid number"
 msgstr "フラグの値は正しくありません。\n"
 
-#: dlls/vbscript/vbscript.rc:83
+#: dlls/vbscript/vbscript.rc:94
+#, fuzzy
+#| msgid "Invalid use of Null"
+msgid "Invalid use of 'Me' keyword"
+msgstr "Null の使い方が正しくありません"
+
+#: dlls/vbscript/vbscript.rc:95
 msgid "'loop' without 'do'"
 msgstr ""
 
-#: dlls/vbscript/vbscript.rc:84
+#: dlls/vbscript/vbscript.rc:96
 #, fuzzy
 #| msgid "Invalid printer state.\n"
 msgid "Invalid 'exit' statement"
 msgstr "プリンターの状態が正しくありません。\n"
 
-#: dlls/vbscript/vbscript.rc:85
+#: dlls/vbscript/vbscript.rc:97
 #, fuzzy
 #| msgid "Label redefined"
 msgid "Name redefined"
 msgstr "ラベルが再定義されました"
 
-#: dlls/vbscript/vbscript.rc:86
+#: dlls/vbscript/vbscript.rc:98
 msgid "Must be first statement on the line"
 msgstr ""
 
-#: dlls/vbscript/vbscript.rc:87
+#: dlls/vbscript/vbscript.rc:99
 msgid "Cannot use parentheses when calling a Sub"
 msgstr ""
 
-#: dlls/vbscript/vbscript.rc:88
+#: dlls/vbscript/vbscript.rc:100
 #, fuzzy
 #| msgid "Expected whitespace character\n"
 msgid "Expected literal constant"
 msgstr "空白文字が必要です\n"
 
-#: dlls/vbscript/vbscript.rc:89
+#: dlls/vbscript/vbscript.rc:101
 #, fuzzy
 #| msgid "Expected ';'"
 msgid "Expected 'In'"
 msgstr "「;」が必要です"
 
-#: dlls/vbscript/vbscript.rc:90
+#: dlls/vbscript/vbscript.rc:102
 #, fuzzy
 #| msgid "Expected ';'"
 msgid "Expected 'Class'"
 msgstr "「;」が必要です"
 
-#: dlls/vbscript/vbscript.rc:91
+#: dlls/vbscript/vbscript.rc:103
 msgid "Must be defined inside a Class"
 msgstr ""
 
-#: dlls/vbscript/vbscript.rc:92
+#: dlls/vbscript/vbscript.rc:104
 msgid "Expected Let or Set or Get in property declaration"
 msgstr ""
 
-#: dlls/vbscript/vbscript.rc:93
+#: dlls/vbscript/vbscript.rc:105
+#, fuzzy
+#| msgid "Expected ';'"
+msgid "Expected 'Property'"
+msgstr "「;」が必要です"
+
+#: dlls/vbscript/vbscript.rc:106
+msgid "Number of arguments must be consistent across properties specification"
+msgstr ""
+
+#: dlls/vbscript/vbscript.rc:107
+msgid "Cannot have multiple default property/method in a Class"
+msgstr ""
+
+#: dlls/vbscript/vbscript.rc:108
 msgid "Class initialize or terminate do not have arguments"
 msgstr ""
 
-#: dlls/vbscript/vbscript.rc:94
+#: dlls/vbscript/vbscript.rc:109
 msgid "Property set or let must have at least one argument"
 msgstr ""
 
-#: dlls/vbscript/vbscript.rc:95
+#: dlls/vbscript/vbscript.rc:110
 #, fuzzy
 #| msgid "Expected ';'"
 msgid "Unexpected 'Next'"
 msgstr "「;」が必要です"
 
-#: dlls/vbscript/vbscript.rc:96
+#: dlls/vbscript/vbscript.rc:111
 msgid "'Default' specification must also specify 'Public'"
 msgstr ""
 
-#: dlls/vbscript/vbscript.rc:98
+#: dlls/vbscript/vbscript.rc:112
+msgid "'Default' specification can only be on Property Get"
+msgstr ""
+
+#: dlls/vbscript/vbscript.rc:114
 msgid "Microsoft VBScript compilation error"
 msgstr "Microsoft VBScript コンパイル エラー"
 
-#: dlls/vbscript/vbscript.rc:99
+#: dlls/vbscript/vbscript.rc:115
 msgid "Microsoft VBScript runtime error"
 msgstr "Microsoft VBScript 実行時エラー"
 
 #: dlls/winemac.drv/winemac.rc:32 programs/wineboot/wineboot.rc:42
-#: programs/winecfg/winecfg.rc:143
+#: programs/winecfg/winecfg.rc:144
 msgid "Wine"
 msgstr "Wine"
 
@@ -14255,7 +14345,7 @@ msgid "Digi&tal"
 msgstr "デジタル(&T)"
 
 #: programs/clock/clock.rc:35 programs/notepad/notepad.rc:59
-#: programs/winecfg/winecfg.rc:315 programs/winefile/winefile.rc:63
+#: programs/winecfg/winecfg.rc:316 programs/winefile/winefile.rc:63
 #: programs/wordpad/wordpad.rc:84
 msgid "&Font..."
 msgstr "フォント(&F)..."
@@ -18902,7 +18992,7 @@ msgstr ""
 msgid "The Wine configuration in %s is being updated, please wait..."
 msgstr "%s にある Wine 設定を更新しています。しばらくお待ちください..."
 
-#: programs/winecfg/winecfg.rc:146
+#: programs/winecfg/winecfg.rc:147
 msgid ""
 "This program is free software; you can redistribute it and/or modify it "
 "under the terms of the GNU Lesser General Public License as published by the "
@@ -18914,23 +19004,23 @@ msgstr ""
 "望によってはそれ以降の バージョン のうちどれか) の定める条件の下で 再頒布 ま"
 "たは 改変 することができます。"
 
-#: programs/winecfg/winecfg.rc:148
+#: programs/winecfg/winecfg.rc:149
 msgid "Windows registration information"
 msgstr "Windows 登録情報"
 
-#: programs/winecfg/winecfg.rc:149
+#: programs/winecfg/winecfg.rc:150
 msgid "&Owner:"
 msgstr "所有者(&O):"
 
-#: programs/winecfg/winecfg.rc:151
+#: programs/winecfg/winecfg.rc:152
 msgid "Organi&zation:"
 msgstr "組織(&Z):"
 
-#: programs/winecfg/winecfg.rc:159
+#: programs/winecfg/winecfg.rc:160
 msgid "Application settings"
 msgstr "アプリケーション設定"
 
-#: programs/winecfg/winecfg.rc:160
+#: programs/winecfg/winecfg.rc:161
 msgid ""
 "Wine can mimic different Windows versions for each application. This tab is "
 "linked to the Libraries and Graphics tabs to allow you to change system-wide "
@@ -18940,55 +19030,55 @@ msgstr ""
 "ます。このタブはライブラリおよびグラフィック各タブと連動しますので、システム"
 "全体の設定や個別アプリケーションの設定の変更が行えます。"
 
-#: programs/winecfg/winecfg.rc:164
+#: programs/winecfg/winecfg.rc:165
 msgid "Add appli&cation..."
 msgstr "アプリケーションを追加(&C)..."
 
-#: programs/winecfg/winecfg.rc:165
+#: programs/winecfg/winecfg.rc:166
 msgid "&Remove application"
 msgstr "アプリケーションを削除(&R)"
 
-#: programs/winecfg/winecfg.rc:166
+#: programs/winecfg/winecfg.rc:167
 msgid "&Windows Version:"
 msgstr "&Windows バージョン:"
 
-#: programs/winecfg/winecfg.rc:174
+#: programs/winecfg/winecfg.rc:175
 msgid "Window settings"
 msgstr "ウィンドウ設定"
 
-#: programs/winecfg/winecfg.rc:175
+#: programs/winecfg/winecfg.rc:176
 msgid "Automatically capture the &mouse in full-screen windows"
 msgstr "フルスクリーン ウィンドウでマウスを自動的に捕捉する(&M)"
 
-#: programs/winecfg/winecfg.rc:176
+#: programs/winecfg/winecfg.rc:177
 msgid "Allow the window manager to &decorate the windows"
 msgstr "ウィンドウ マネージャーがウィンドウを装飾するのを許可する(&D)"
 
-#: programs/winecfg/winecfg.rc:177
+#: programs/winecfg/winecfg.rc:178
 msgid "Allow the &window manager to control the windows"
 msgstr "ウィンドウ マネージャーがウィンドウを制御するのを許可する(&W)"
 
-#: programs/winecfg/winecfg.rc:178
+#: programs/winecfg/winecfg.rc:179
 msgid "&Emulate a virtual desktop"
 msgstr "仮想デスクトップをエミュレートする(&E)"
 
-#: programs/winecfg/winecfg.rc:180
+#: programs/winecfg/winecfg.rc:181
 msgid "Desktop &size:"
 msgstr "デスクトップの大きさ(&S):"
 
-#: programs/winecfg/winecfg.rc:185
+#: programs/winecfg/winecfg.rc:186
 msgid "Screen resolution"
 msgstr "画面の解像度"
 
-#: programs/winecfg/winecfg.rc:189
+#: programs/winecfg/winecfg.rc:190
 msgid "This is a sample text using 10 point Tahoma"
 msgstr "10 ポイントの Tahoma による見本です"
 
-#: programs/winecfg/winecfg.rc:196
+#: programs/winecfg/winecfg.rc:197
 msgid "DLL overrides"
 msgstr "DLL オーバーライド"
 
-#: programs/winecfg/winecfg.rc:197
+#: programs/winecfg/winecfg.rc:198
 msgid ""
 "Dynamic Link Libraries can be specified individually to be either builtin "
 "(provided by Wine) or native (taken from Windows or provided by the "
@@ -18997,170 +19087,170 @@ msgstr ""
 "ダイナミック リンク ライブラリ (DLL) は個別に 内蔵版 (Wine提供) または ネイ"
 "ティブ版 (Windows もしくはアプリケーション提供のもの) を選ぶことができます。"
 
-#: programs/winecfg/winecfg.rc:199
+#: programs/winecfg/winecfg.rc:200
 msgid "&New override for library:"
 msgstr "ライブラリの新規オーバーライド(&N):"
 
-#: programs/winecfg/winecfg.rc:201
+#: programs/winecfg/winecfg.rc:202
 msgid "A&dd"
 msgstr "追加(&D)"
 
-#: programs/winecfg/winecfg.rc:202
+#: programs/winecfg/winecfg.rc:203
 msgid "Existing &overrides:"
 msgstr "既存のオーバーライド(&O):"
 
-#: programs/winecfg/winecfg.rc:204
+#: programs/winecfg/winecfg.rc:205
 msgid "&Edit..."
 msgstr "編集(&E)..."
 
-#: programs/winecfg/winecfg.rc:210
+#: programs/winecfg/winecfg.rc:211
 msgid "Edit Override"
 msgstr "オーバーライドの編集"
 
-#: programs/winecfg/winecfg.rc:213
+#: programs/winecfg/winecfg.rc:214
 msgid "Load order"
 msgstr "読み込み順序"
 
-#: programs/winecfg/winecfg.rc:214
+#: programs/winecfg/winecfg.rc:215
 msgid "&Builtin (Wine)"
 msgstr "内蔵版 (Wine)(&B)"
 
-#: programs/winecfg/winecfg.rc:215
+#: programs/winecfg/winecfg.rc:216
 msgid "&Native (Windows)"
 msgstr "ネイティブ版 (Windows)(&N)"
 
-#: programs/winecfg/winecfg.rc:216
+#: programs/winecfg/winecfg.rc:217
 msgid "Buil&tin then Native"
 msgstr "内蔵版後にネイティブ版(&T)"
 
-#: programs/winecfg/winecfg.rc:217
+#: programs/winecfg/winecfg.rc:218
 msgid "Nati&ve then Builtin"
 msgstr "ネイティブ版後に内蔵版(&V)"
 
-#: programs/winecfg/winecfg.rc:225
+#: programs/winecfg/winecfg.rc:226
 msgid "Select Drive Letter"
 msgstr "ドライブ レターを選択"
 
-#: programs/winecfg/winecfg.rc:237
+#: programs/winecfg/winecfg.rc:238
 msgid "Drive configuration"
 msgstr "ドライブの設定"
 
-#: programs/winecfg/winecfg.rc:238
+#: programs/winecfg/winecfg.rc:239
 msgid ""
 "Failed to connect to the mount manager; the drive configuration cannot be "
 "edited."
 msgstr ""
 "マウント マネージャーへの接続に失敗したため、ドライブ設定は変更できません。"
 
-#: programs/winecfg/winecfg.rc:241
+#: programs/winecfg/winecfg.rc:242
 msgid "A&dd..."
 msgstr "追加(&D)..."
 
-#: programs/winecfg/winecfg.rc:245
+#: programs/winecfg/winecfg.rc:246
 msgid "&Path:"
 msgstr "パス(&P):"
 
-#: programs/winecfg/winecfg.rc:252 programs/winecfg/winecfg.rc:37
+#: programs/winecfg/winecfg.rc:253 programs/winecfg/winecfg.rc:37
 msgid "Show Advan&ced"
 msgstr "詳細を表示(&C)"
 
-#: programs/winecfg/winecfg.rc:253
+#: programs/winecfg/winecfg.rc:254
 msgid "De&vice:"
 msgstr "デバイス(&V):"
 
-#: programs/winecfg/winecfg.rc:255
+#: programs/winecfg/winecfg.rc:256
 msgid "Bro&wse..."
 msgstr "参照(&W)..."
 
-#: programs/winecfg/winecfg.rc:257
+#: programs/winecfg/winecfg.rc:258
 msgid "&Label:"
 msgstr "ラベル(&L):"
 
-#: programs/winecfg/winecfg.rc:259
+#: programs/winecfg/winecfg.rc:260
 msgid "S&erial:"
 msgstr "シリアル番号(&E):"
 
-#: programs/winecfg/winecfg.rc:262
+#: programs/winecfg/winecfg.rc:263
 msgid "&Show dot files"
 msgstr "ドット ファイルを表示する(&S)"
 
-#: programs/winecfg/winecfg.rc:269
+#: programs/winecfg/winecfg.rc:270
 msgid "Driver diagnostics"
 msgstr "ドライバー診断"
 
-#: programs/winecfg/winecfg.rc:271
+#: programs/winecfg/winecfg.rc:272
 msgid "&Test Sound"
 msgstr "音をテスト(&T)"
 
-#: programs/winecfg/winecfg.rc:272
+#: programs/winecfg/winecfg.rc:273
 msgid "Defaults"
 msgstr "デフォルト"
 
-#: programs/winecfg/winecfg.rc:273
+#: programs/winecfg/winecfg.rc:274
 msgid "Output device:"
 msgstr "出力デバイス:"
 
-#: programs/winecfg/winecfg.rc:274
+#: programs/winecfg/winecfg.rc:275
 msgid "Voice output device:"
 msgstr "音声出力デバイス:"
 
-#: programs/winecfg/winecfg.rc:275
+#: programs/winecfg/winecfg.rc:276
 msgid "Input device:"
 msgstr "入力デバイス:"
 
-#: programs/winecfg/winecfg.rc:276
+#: programs/winecfg/winecfg.rc:277
 msgid "Voice input device:"
 msgstr "音声入力デバイス:"
 
-#: programs/winecfg/winecfg.rc:277
+#: programs/winecfg/winecfg.rc:278
 msgid "MIDI output device:"
 msgstr "MIDI 出力デバイス:"
 
-#: programs/winecfg/winecfg.rc:283 programs/winecfg/winecfg.rc:89
+#: programs/winecfg/winecfg.rc:284 programs/winecfg/winecfg.rc:89
 msgid "Speaker configuration"
 msgstr "スピーカー 設定"
 
-#: programs/winecfg/winecfg.rc:286
+#: programs/winecfg/winecfg.rc:287
 msgid "Speakers:"
 msgstr "スピーカー:"
 
-#: programs/winecfg/winecfg.rc:294
+#: programs/winecfg/winecfg.rc:295
 msgid "Appearance"
 msgstr "外観"
 
-#: programs/winecfg/winecfg.rc:295
+#: programs/winecfg/winecfg.rc:296
 msgid "&Theme:"
 msgstr "テーマ(&T):"
 
-#: programs/winecfg/winecfg.rc:297
+#: programs/winecfg/winecfg.rc:298
 msgid "&WinRT theme:"
 msgstr "&WinRT テーマ:"
 
-#: programs/winecfg/winecfg.rc:299
+#: programs/winecfg/winecfg.rc:300
 msgid "&Install theme..."
 msgstr "テーマのインストール(&I)..."
 
-#: programs/winecfg/winecfg.rc:304
+#: programs/winecfg/winecfg.rc:305
 msgid "It&em:"
 msgstr "項目(&E):"
 
-#: programs/winecfg/winecfg.rc:306
+#: programs/winecfg/winecfg.rc:307
 msgid "C&olor:"
 msgstr "色(&O):"
 
-#: programs/winecfg/winecfg.rc:312
+#: programs/winecfg/winecfg.rc:313
 msgid "MIME types"
 msgstr "MIME タイプ"
 
-#: programs/winecfg/winecfg.rc:313
+#: programs/winecfg/winecfg.rc:314
 msgid "Manage file and protocol &associations"
 msgstr "ファイルとプロトコル関連付けの管理(&A)"
 
-#: programs/winecfg/winecfg.rc:316
+#: programs/winecfg/winecfg.rc:317
 msgid "Folders"
 msgstr "フォルダー"
 
-#: programs/winecfg/winecfg.rc:319
+#: programs/winecfg/winecfg.rc:320
 msgid "&Link to:"
 msgstr "リンク先(&L):"
 
@@ -19241,26 +19331,32 @@ msgid "(System default)"
 msgstr "(システム デフォルト)"
 
 #: programs/winecfg/winecfg.rc:90
-msgid "5.1 Surround"
+#, fuzzy
+#| msgid "5.1 Surround"
+msgid "7.1 Surround"
 msgstr "5.1 サラウンド"
 
 #: programs/winecfg/winecfg.rc:91
+msgid "5.1 Surround"
+msgstr "5.1 サラウンド"
+
+#: programs/winecfg/winecfg.rc:92
 msgid "Quadraphonic"
 msgstr "4 チャンネル ステレオ"
 
-#: programs/winecfg/winecfg.rc:92
+#: programs/winecfg/winecfg.rc:93
 msgid "Stereo"
 msgstr "ステレオ"
 
-#: programs/winecfg/winecfg.rc:93
+#: programs/winecfg/winecfg.rc:94
 msgid "Mono"
 msgstr "モノラル"
 
-#: programs/winecfg/winecfg.rc:98
+#: programs/winecfg/winecfg.rc:99
 msgid "Light"
 msgstr "ライト"
 
-#: programs/winecfg/winecfg.rc:99
+#: programs/winecfg/winecfg.rc:100
 msgid "Dark"
 msgstr "ダーク"
 
@@ -19380,127 +19476,127 @@ msgstr ""
 "C ドライブを作成するためにドライブ タブ内の [追加] を忘れずにクリックしてくだ"
 "さい!\n"
 
-#: programs/winecfg/winecfg.rc:104
+#: programs/winecfg/winecfg.rc:105
 msgid "Controls Background"
 msgstr "コントロールの背景"
 
-#: programs/winecfg/winecfg.rc:105
+#: programs/winecfg/winecfg.rc:106
 msgid "Controls Text"
 msgstr "コントロールのテキスト"
 
-#: programs/winecfg/winecfg.rc:107
+#: programs/winecfg/winecfg.rc:108
 msgid "Menu Background"
 msgstr "メニューの背景"
 
-#: programs/winecfg/winecfg.rc:108
+#: programs/winecfg/winecfg.rc:109
 msgid "Menu Text"
 msgstr "メニューのテキスト"
 
-#: programs/winecfg/winecfg.rc:109
+#: programs/winecfg/winecfg.rc:110
 msgid "Scrollbar"
 msgstr "スクロール バー"
 
-#: programs/winecfg/winecfg.rc:110
+#: programs/winecfg/winecfg.rc:111
 msgid "Selection Background"
 msgstr "選択項目の背景"
 
-#: programs/winecfg/winecfg.rc:111
+#: programs/winecfg/winecfg.rc:112
 msgid "Selection Text"
 msgstr "選択項目のテキスト"
 
-#: programs/winecfg/winecfg.rc:112
+#: programs/winecfg/winecfg.rc:113
 msgid "Tooltip Background"
 msgstr "ヒントの背景"
 
-#: programs/winecfg/winecfg.rc:113
+#: programs/winecfg/winecfg.rc:114
 msgid "Tooltip Text"
 msgstr "ヒントのテキスト"
 
-#: programs/winecfg/winecfg.rc:114
+#: programs/winecfg/winecfg.rc:115
 msgid "Window Background"
 msgstr "ウィンドウの背景"
 
-#: programs/winecfg/winecfg.rc:115
+#: programs/winecfg/winecfg.rc:116
 msgid "Window Text"
 msgstr "ウィンドウのテキスト"
 
-#: programs/winecfg/winecfg.rc:116
+#: programs/winecfg/winecfg.rc:117
 msgid "Active Title Bar"
 msgstr "アクティブ タイトル バー"
 
-#: programs/winecfg/winecfg.rc:117
+#: programs/winecfg/winecfg.rc:118
 msgid "Active Title Text"
 msgstr "アクティブ タイトルのテキスト"
 
-#: programs/winecfg/winecfg.rc:118
+#: programs/winecfg/winecfg.rc:119
 msgid "Inactive Title Bar"
 msgstr "非アクティブ タイトル バー"
 
-#: programs/winecfg/winecfg.rc:119
+#: programs/winecfg/winecfg.rc:120
 msgid "Inactive Title Text"
 msgstr "非アクティブ タイトルのテキスト"
 
-#: programs/winecfg/winecfg.rc:120
+#: programs/winecfg/winecfg.rc:121
 msgid "Message Box Text"
 msgstr "メッセージ ボックスのテキスト"
 
-#: programs/winecfg/winecfg.rc:121
+#: programs/winecfg/winecfg.rc:122
 msgid "Application Workspace"
 msgstr "アプリケーション作業域"
 
-#: programs/winecfg/winecfg.rc:122
+#: programs/winecfg/winecfg.rc:123
 msgid "Window Frame"
 msgstr "ウィンドウの境界"
 
-#: programs/winecfg/winecfg.rc:123
+#: programs/winecfg/winecfg.rc:124
 msgid "Active Border"
 msgstr "アクティブ境界"
 
-#: programs/winecfg/winecfg.rc:124
+#: programs/winecfg/winecfg.rc:125
 msgid "Inactive Border"
 msgstr "非アクティブ境界"
 
-#: programs/winecfg/winecfg.rc:125
+#: programs/winecfg/winecfg.rc:126
 msgid "Controls Shadow"
 msgstr "コントロールの影"
 
-#: programs/winecfg/winecfg.rc:126
+#: programs/winecfg/winecfg.rc:127
 msgid "Gray Text"
 msgstr "灰色テキスト"
 
-#: programs/winecfg/winecfg.rc:127
+#: programs/winecfg/winecfg.rc:128
 msgid "Controls Highlight"
 msgstr "コントロールの明るい部分"
 
-#: programs/winecfg/winecfg.rc:128
+#: programs/winecfg/winecfg.rc:129
 msgid "Controls Dark Shadow"
 msgstr "コントロールの暗い影"
 
-#: programs/winecfg/winecfg.rc:129
+#: programs/winecfg/winecfg.rc:130
 msgid "Controls Light"
 msgstr "コントロールの明かり"
 
-#: programs/winecfg/winecfg.rc:130
+#: programs/winecfg/winecfg.rc:131
 msgid "Controls Alternate Background"
 msgstr "コントロールの別の背景"
 
-#: programs/winecfg/winecfg.rc:131
+#: programs/winecfg/winecfg.rc:132
 msgid "Hot Tracked Item"
 msgstr "選択中のアイテム"
 
-#: programs/winecfg/winecfg.rc:132
+#: programs/winecfg/winecfg.rc:133
 msgid "Active Title Bar Gradient"
 msgstr "アクティブ タイトル バーの階調"
 
-#: programs/winecfg/winecfg.rc:133
+#: programs/winecfg/winecfg.rc:134
 msgid "Inactive Title Bar Gradient"
 msgstr "非アクティブ タイトル バーの階調"
 
-#: programs/winecfg/winecfg.rc:134
+#: programs/winecfg/winecfg.rc:135
 msgid "Menu Highlight"
 msgstr "メニューの明るい部分"
 
-#: programs/winecfg/winecfg.rc:135
+#: programs/winecfg/winecfg.rc:136
 msgid "Menu Bar"
 msgstr "メニュー バー"
 
