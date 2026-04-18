@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at 40b52962 Updated vkd3d-latest patchset
-HEAD is now at ef8b7345af1 msxml3/tests: Run formatted output tests on the main thread.
+HEAD is now at 4782e315 Release v11.7
+HEAD is now at f051a28829e Release 11.7.
 
 2941e58d7d6e630e88b6e9539414f1d86736c7aa reverted 
 Auto-merging dlls/winebth.sys/winebluetooth.c
@@ -123,7 +123,6 @@ include/wine/server_protocol.h updated
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/odbc32-fixes/0020-odbc32-SQLPrepareW-add-ANSI-fallback.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/odbc32-fixes/0022-odbc32-SQLBindCol-remap-unicode-field-when-using-ANS.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/odbc32-fixes/0023-odbc32-SQLFetch-convert-to-ANSI-when-required.patch
-/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/odbc32-fixes/0025-odbc32-SQLDriverConnect-W-reuse-environment-handle-i.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/oleaut32-CreateTypeLib/0001-oleaut32-Implement-semi-stub-for-CreateTypeLib.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/oleaut32-default-pic-size/0001-oleaut32-preferentially-load-icons-having-the-desire.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/oleaut32_VarAdd/0001-oleaut32-VarAnd-use-VT_I4-when-converting-VT_BSTR.patch
@@ -281,7 +280,7 @@ Hunk #1 succeeded at 25 (offset -1 lines).
 Hunk #2 succeeded at 502 (offset -4 lines).
 Hunk #3 succeeded at 734 (offset -61 lines).
 patching file configure.ac
-Hunk #1 succeeded at 3545 (offset 83 lines).
+Hunk #1 succeeded at 3549 (offset 87 lines).
 patching file dlls/kernelbase/process.c
 Hunk #1 succeeded at 504 (offset -4 lines).
 Hunk #2 succeeded at 553 (offset -4 lines).
@@ -338,8 +337,8 @@ Hunk #3 succeeded at 537 with fuzz 1 (offset 110 lines).
 
 wow64_loader_hack.patch -- ( Hack around loader name for EAC on 10.2+ )
 patching file configure.ac
-Hunk #1 succeeded at 2066 (offset 33 lines).
-Hunk #2 succeeded at 2085 (offset 33 lines).
+Hunk #1 succeeded at 2070 (offset 37 lines).
+Hunk #2 succeeded at 2089 (offset 37 lines).
 patching file dlls/ntdll/unix/loader.c
 Hunk #1 succeeded at 433 (offset -43 lines).
 Hunk #2 succeeded at 445 (offset -43 lines).
@@ -362,9 +361,9 @@ Hunk #1 succeeded at 4 with fuzz 2.
 Applying hotfix wine-tkg-patches/hotfixes/autoconf-opencl-hotfix/opencl-fixup.mypatch
 patching file configure.ac
 Hunk #1 succeeded at 47 with fuzz 2 (offset -3 lines).
-Hunk #2 succeeded at 720 (offset 290 lines).
-Hunk #3 succeeded at 801 (offset 287 lines).
-Hunk #4 succeeded at 1023 with fuzz 2 (offset 268 lines).
+Hunk #2 succeeded at 724 (offset 294 lines).
+Hunk #3 succeeded at 805 (offset 291 lines).
+Hunk #4 succeeded at 1027 with fuzz 2 (offset 272 lines).
 
 wine-tkg-staging.patch -- ( Please don't report bugs about this wine build on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead. )
 patching file dlls/ntdll/loader.c
