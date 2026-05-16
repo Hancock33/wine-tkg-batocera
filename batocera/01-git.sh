@@ -6,7 +6,7 @@ find /tmp/wine-tkg/src/wine-git -name '.git*' -type f -exec rm -rf {} +
 cd /home/lee/github/wine-tkg-git/wine-tkg-git
 cp -a /tmp/wine-tkg/src/wine-git/* /home/lee/github/wine-tkg-batocera
 cp -f customization.cfg last_build_config.log prepare.log /home/lee/github/wine-tkg-batocera/custom
-cp -a /home/lee/github/batocera.tkg-wine /home/lee/github/wine-tkg-batocera/batocera
+cp -a ~/github/wine-tkg-git/wine-tkg-git/batocera /home/lee/github/wine-tkg-batocera/
 rm -rf /home/lee/github/wine-tkg-batocera/autom4te.cache
 rm -rf /home/lee/github/wine-tkg-batocera/configure~
 find /home/lee/github/wine-tkg-batocera -type f -name "*.orig" -exec rm -v {} \;
