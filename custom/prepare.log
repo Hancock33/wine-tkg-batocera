@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at f45e84d7 Release v11.10
-HEAD is now at 2cac6ccf33c Release 11.10.
+HEAD is now at 84f4e611 Updated dcomp-DCompositionCreateDevice2 patchset
+HEAD is now at f6c044e1890 Release 11.11.
 
 2941e58d7d6e630e88b6e9539414f1d86736c7aa reverted 
 Auto-merging dlls/winebth.sys/winebluetooth.c
@@ -178,6 +178,7 @@ include/wine/server_protocol.h updated
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0002-Updated-vkd3d-to-02a7a5d0e0ec3e9a0b922f7d1aba1150c48.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0003-Updated-vkd3d-to-ed2bf6e6c563a7f7ce315ca669e7cf302e1.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0004-Updated-vkd3d-to-99a96ed1554b8272151c05d964056d7e7bc.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0005-Updated-vkd3d-to-e02b9b10777225823e252bd4e1decf5cd00.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wbemdisp-ISWbemObject-Invoke/0001-wbemdisp-Support-DISPATCH_METHOD-in-ISWbemObject-Inv.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wbemdisp-ISWbemObject-Invoke/0002-vbscript-Support-VT_BSTR-VT_ARRAY-Iterator.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wbemdisp-ISWbemObject-Invoke/0003-wbemprox-Support-VT_BYREF-in-to_longlong.patch
@@ -254,10 +255,10 @@ Hunk #1 succeeded at 857 (offset 2 lines).
 
 proton-win10-default.patch -- ( Enforce win10 as default wine version )
 patching file programs/wineboot/wineboot.c
-Hunk #1 succeeded at 1633 (offset 182 lines).
-Hunk #2 succeeded at 1724 with fuzz 2 (offset 191 lines).
+Hunk #1 succeeded at 1653 (offset 202 lines).
+Hunk #2 succeeded at 1744 with fuzz 2 (offset 211 lines).
 patching file programs/wineboot/wineboot.c
-Hunk #1 succeeded at 1635 (offset -71 lines).
+Hunk #1 succeeded at 1655 (offset -51 lines).
 patching file loader/wine.inf.in
 Hunk #1 succeeded at 1391 with fuzz 2 (offset -1032 lines).
 patching file loader/wine.inf.in
@@ -269,8 +270,8 @@ patching file loader/wine.inf.in
 Hunk #1 succeeded at 1381 with fuzz 2 (offset -1075 lines).
 patching file programs/wineboot/wineboot.c
 Hunk #1 succeeded at 67 with fuzz 2 (offset -1 lines).
-Hunk #2 succeeded at 1827 (offset 221 lines).
-Hunk #3 succeeded at 1986 with fuzz 2 (offset 223 lines).
+Hunk #2 succeeded at 1847 (offset 241 lines).
+Hunk #3 succeeded at 2006 with fuzz 2 (offset 243 lines).
 
 proton_battleye.patch -- ( Add support for Proton's Battleye runtime )
 patching file dlls/kernel32/kernel32.spec
@@ -284,7 +285,7 @@ Hunk #1 succeeded at 25 (offset -1 lines).
 Hunk #2 succeeded at 502 (offset -4 lines).
 Hunk #3 succeeded at 734 (offset -61 lines).
 patching file configure.ac
-Hunk #1 succeeded at 3564 (offset 102 lines).
+Hunk #1 succeeded at 3556 (offset 94 lines).
 patching file dlls/kernelbase/process.c
 Hunk #1 succeeded at 504 (offset -4 lines).
 Hunk #2 succeeded at 553 (offset -4 lines).
@@ -321,13 +322,13 @@ Hunk #1 succeeded at 4 with fuzz 2.
 Applying hotfix wine-tkg-patches/hotfixes/autoconf-opencl-hotfix/opencl-fixup.mypatch
 patching file configure.ac
 Hunk #1 succeeded at 47 with fuzz 2 (offset -3 lines).
-Hunk #2 succeeded at 724 (offset 294 lines).
-Hunk #3 succeeded at 805 (offset 291 lines).
-Hunk #4 succeeded at 1027 with fuzz 2 (offset 272 lines).
+Hunk #2 succeeded at 725 (offset 295 lines).
+Hunk #3 succeeded at 806 (offset 292 lines).
+Hunk #4 succeeded at 1028 with fuzz 2 (offset 273 lines).
 
 wine-tkg-staging.patch -- ( Please don't report bugs about this wine build on winehq.org and use https://github.com/Frogging-Family/wine-tkg-git/issues instead. )
 patching file dlls/ntdll/loader.c
-Hunk #1 succeeded at 4630 with fuzz 1 (offset 1147 lines).
+Hunk #1 succeeded at 4645 with fuzz 1 (offset 1162 lines).
 
 Running make_vulkan
 Including features for Header boilerplate

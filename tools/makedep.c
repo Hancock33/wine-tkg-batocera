@@ -98,7 +98,8 @@ struct incl_file
 #define FLAG_C_IMPLIB       0x01000000  /* file is part of an import library */
 #define FLAG_C_UNIX         0x02000000  /* file is part of a Unix library */
 #define FLAG_C_CXX          0x04000000  /* file uses C++ */
-#define FLAG_ARM64EC_X64    0x08000000  /* use x86_64 object on ARM64EC */
+#define FLAG_C_ASM          0x08000000  /* file uses assembly */
+#define FLAG_ARM64EC_X64    0x10000000  /* use x86_64 object on ARM64EC */
 
 static const struct
 {
@@ -487,6 +488,22 @@ static const char *get_base_name( const char *name )
 
 
 /*******************************************************************
+ *         skip_initial_dir
+ */
+static const char *skip_initial_dir( const char *name, const char *dir )
+{
+    unsigned int len = strlen( dir );
+
+    if (!strncmp( name, dir, len ) && (!name[len] || name[len] == '/'))
+    {
+        while (name[len] == '/') len++;
+        return name + len;
+    }
+    return NULL;
+}
+
+
+/*******************************************************************
  *         replace_filename
  */
 static char *replace_filename( const char *path, const char *name )
@@ -552,6 +569,7 @@ static char *concat_paths( const char *base, const char *path )
 {
     int i, len;
     char *ret;
+    const char *p;
 
     if (!base || !base[0]) return xstrdup( path && path[0] ? path : "." );
     if (!path || !path[0]) return xstrdup( base );
@@ -559,15 +577,11 @@ static char *concat_paths( const char *base, const char *path )
 
     len = strlen( base );
     while (len && base[len - 1] == '/') len--;
-    while (len && !strncmp( path, "..", 2 ) && (!path[2] || path[2] == '/'))
+    while (len && (p = skip_initial_dir( path, ".." )))
     {
         for (i = len; i > 0; i--) if (base[i - 1] == '/') break;
         if (i == len - 2 && !memcmp( base + i, "..", 2 )) break;  /* we can't go up if we already have ".." */
-        if (i != len - 1 || base[i] != '.')
-        {
-            path += 2;
-            while (*path == '/') path++;
-        }
+        if (i != len - 1 || base[i] != '.') path = p;
         /* else ignore "." element */
         while (i > 0 && base[i - 1] == '/') i--;
         len = i;
@@ -634,7 +648,6 @@ static bool is_subdir_other_arch( const char *name, unsigned int arch )
     if (!p || p == name) return false;
     dir = get_basename( strmake( "%.*s", (int)(p - name), name ));
     if ((cpu = get_cpu_from_name( dir )) == -1) return false;
-    if (native_archs[arch] && cpu == get_cpu_from_name( archs.str[native_archs[arch]] )) return false;
     return cpu != get_cpu_from_name( archs.str[arch] );
 }
 
@@ -1142,6 +1155,16 @@ static void parse_c_file( struct file *source, FILE *file )
 
 
 /*******************************************************************
+ *         parse_asm_file
+ */
+static void parse_asm_file( struct file *source, FILE *file )
+{
+    source->flags |= FLAG_C_ASM;
+    parse_c_file( source, file );
+}
+
+
+/*******************************************************************
  *         parse_cxx_file
  */
 static void parse_cxx_file( struct file *source, FILE *file )
@@ -1260,12 +1283,14 @@ static const struct
 {
     { ".c",   parse_c_file },
     { ".h",   parse_c_file },
+    { ".inc", parse_c_file },
     { ".inl", parse_c_file },
     { ".l",   parse_c_file },
     { ".m",   parse_c_file },
     { ".rh",  parse_c_file },
     { ".x",   parse_c_file },
     { ".y",   parse_c_file },
+    { ".S",   parse_asm_file },
     { ".idl", parse_idl_file },
     { ".cpp", parse_cxx_file },
     { ".hpp", parse_cxx_file },
@@ -1526,12 +1551,37 @@ static struct makefile *find_importlib_module( const char *name )
 
     for (i = 0; i < subdirs.count; i++)
     {
-        if (strncmp( submakes[i]->obj_dir, "dlls/", 5 )) continue;
-        len = strlen(submakes[i]->obj_dir);
-        if (strncmp( submakes[i]->obj_dir + 5, name, len - 5 )) continue;
-        if (!name[len - 5] || !strcmp( name + len - 5, ".dll" )) return submakes[i];
+        const char *dir = skip_initial_dir( submakes[i]->obj_dir, "dlls" );
+        if (!dir) continue;
+        len = strlen(dir);
+        if (strncmp( dir, name, len )) continue;
+        if (!name[len] || !strcmp( name + len, ".dll" )) return submakes[i];
     }
     return NULL;
+}
+
+
+/*******************************************************************
+ *         is_external_header
+ */
+static bool is_external_header( struct incl_file *file )
+{
+    const char *filename = file->sourcename ? file->sourcename : file->file->name;
+    char *p, *name;
+
+    if (root_src_dir)
+    {
+        const char *relpath = skip_initial_dir( filename, root_src_dir );
+        if (relpath) filename = relpath;
+    }
+
+    name = xstrdup( filename );
+    while ((p = strrchr( name, '/' )))
+    {
+        *p = 0;
+        if (strarray_exists( external_dirs, name )) return true;
+    }
+    return false;
 }
 
 
@@ -1541,7 +1591,6 @@ static struct makefile *find_importlib_module( const char *name )
 static struct file *open_include_file( const struct makefile *make, struct incl_file *source )
 {
     struct file *file = NULL;
-    unsigned int len;
 
     errno = ENOENT;
 
@@ -1599,12 +1648,8 @@ static struct file *open_include_file( const struct makefile *make, struct incl_
     {
         if (root_src_dir)
         {
-            len = strlen( root_src_dir );
-            if (!strncmp( dir, root_src_dir, len ) && (!dir[len] || dir[len] == '/'))
-            {
-                while (dir[len] == '/') len++;
-                file = open_global_file( concat_paths( dir + len, source->name ), &source->filename );
-            }
+            const char *relpath = skip_initial_dir( dir, root_src_dir );
+            if (relpath) file = open_global_file( concat_paths( relpath, source->name ), &source->filename );
         }
         else
         {
@@ -1621,7 +1666,9 @@ static struct file *open_include_file( const struct makefile *make, struct incl_
     if ((file = open_same_dir_generated_file( make, source->included_by, source, ".h", ".idl" ))) return file;
     if ((file = open_file_same_dir( source->included_by, source->name, &source->filename ))) return file;
 
-    if (make->external) return NULL; /* ignore missing files in external libs */
+    /* ignore missing files in external libs */
+    if (make->external) return NULL;
+    if (source->included_by && is_external_header( source->included_by )) return NULL;
 
     fprintf( stderr, "%s:%d: error: ", source->included_by->file->name, source->included_line );
     perror( source->name );
@@ -3547,12 +3594,13 @@ static void output_source_one_arch( struct makefile *make, struct incl_file *sou
         if (!is_multiarch( arch )) return;
         if (!is_using_msvcrt( make ) && !make->staticlib && !(source->file->flags & FLAG_C_IMPLIB)) return;
         if ((source->file->flags & FLAG_C_CXX) && !get_expanded_arch_var( make, "CXX", arch )) return;
+        if ((source->file->flags & FLAG_C_ASM) && is_subdir_other_arch( source->name, arch )) return;
     }
     else if (source->file->flags & FLAG_C_UNIX)
     {
         if (!unix_lib_supported) return;
     }
-    else if (source->file->flags & FLAG_C_CXX)
+    else if (source->file->flags & (FLAG_C_CXX | FLAG_C_ASM))
     {
         return;
     }
@@ -3561,8 +3609,6 @@ static void output_source_one_arch( struct makefile *make, struct incl_file *sou
         if (!so_dll_supported) return;
         if (!(source->file->flags & FLAG_C_IMPLIB) && (!make->staticlib || make->external)) return;
     }
-
-    if (strendswith( source->name, ".S" ) && is_subdir_other_arch( source->name, arch )) return;
 
     obj_name = strmake( "%s%s.o", source->arch ? "" : arch_dirs[arch], obj );
     strarray_add( targets, obj_name );
@@ -3748,6 +3794,7 @@ static const struct
     { "l", output_source_l },
     { "h", output_source_h },
     { "rh", output_source_h },
+    { "inc", output_source_h },
     { "inl", output_source_h },
     { "ver", output_source_ver },
     { "rc", output_source_rc },
@@ -4829,12 +4876,8 @@ static void load_sources( struct makefile *make )
     {
         if (!strncmp( arg, "-I", 2 ))
         {
-            const char *dir = arg + 2;
-            if (!strncmp( dir, "./", 2 ))
-            {
-                dir += 2;
-                while (*dir == '/') dir++;
-            }
+            const char *dir = skip_initial_dir( arg + 2, "." );
+            if (!dir) dir = arg + 2;
             strarray_add_uniq( &make->include_paths, dir );
         }
         else if (!strncmp( arg, "-D", 2 ) || !strncmp( arg, "-U", 2 ))

@@ -629,6 +629,7 @@ This is an error since --enable-archs=$wine_arch was requested.])])
       i386) WINE_TRY_PE_CFLAGS([-fno-omit-frame-pointer])
             WINE_TRY_PE_CFLAGS([-mpreferred-stack-boundary=2])
             WINE_TRY_PE_CFLAGS([-mlong-double-64])
+            WINE_TRY_PE_CFLAGS([-msse2])
             WINE_TRY_PE_CFLAGS([-Wl,--disable-stdcall-fixup],
                                [AS_VAR_APPEND([${wine_arch}_LDFLAGS],[" -Wl,--disable-stdcall-fixup"])]) ;;
       x86_64) WINE_TRY_PE_CFLAGS([-Wformat-overflow])
@@ -1220,15 +1221,6 @@ then
     then
         WINE_NOTICE([libvkd3d ${notice_platform}MinGW development files not found (or too old); using bundled version.])
     fi
-
-    WINE_MINGW_PACKAGE_FLAGS(ZLIB,[zlib],[-lz],
-        [WINE_CHECK_MINGW_HEADER(zlib.h,
-            [WINE_CHECK_MINGW_LIB(z,inflate,[:],[ZLIB_PE_CFLAGS=""; ZLIB_PE_LIBS=""],[$ZLIB_PE_LIBS])],
-            [ZLIB_PE_CFLAGS=""; ZLIB_PE_LIBS=""])])
-    if test "x$ZLIB_PE_LIBS" = "x"
-    then
-        WINE_NOTICE([zlib ${notice_platform}MinGW development files not found; using bundled version.])
-    fi
 fi
 
 WINE_EXTLIB_FLAGS(CAPSTONE, capstone, capstone, "-I\$(top_srcdir)/libs/capstone/include")
@@ -1247,8 +1239,8 @@ WINE_EXTLIB_FLAGS(MPG123, mpg123, mpg123, "-I\$(top_srcdir)/libs/mpg123/src/incl
 WINE_EXTLIB_FLAGS(MUSL, musl, musl)
 WINE_EXTLIB_FLAGS(PNG, png, "png \$(ZLIB_PE_LIBS)", "-I\$(top_srcdir)/libs/png")
 WINE_EXTLIB_FLAGS(SQLITE3, sqlite3, sqlite3)
+WINE_EXTLIB_FLAGS(SYMCRYPT, symcrypt, symcrypt, "-I\$(top_srcdir)/libs/symcrypt/inc")
 WINE_EXTLIB_FLAGS(TIFF, tiff, "tiff \$(ZLIB_PE_LIBS)", "-I\$(top_srcdir)/libs/tiff/libtiff")
-WINE_EXTLIB_FLAGS(TOMCRYPT, tomcrypt, tomcrypt, "-I\$(top_srcdir)/libs/tomcrypt/src/headers -DLTC_NO_PROTOTYPES -DLTC_SOURCE")
 WINE_EXTLIB_FLAGS(UNWIND, unwind, unwind, "-I\$(top_srcdir)/libs/unwind/include")
 WINE_EXTLIB_FLAGS(VKD3D, vkd3d, vkd3d, "-I\$(top_srcdir)/libs/vkd3d/include")
 WINE_EXTLIB_FLAGS(XML2, xml2, xml2, "-I\$(top_srcdir)/libs/xml2/include -DLIBXML_STATIC")
@@ -3548,8 +3540,8 @@ WINE_CONFIG_MAKEFILE(libs/sqlite3)
 WINE_CONFIG_MAKEFILE(libs/strmbase)
 WINE_CONFIG_MAKEFILE(libs/strmiids)
 WINE_CONFIG_MAKEFILE(libs/strsafe)
+WINE_CONFIG_MAKEFILE(libs/symcrypt)
 WINE_CONFIG_MAKEFILE(libs/tiff)
-WINE_CONFIG_MAKEFILE(libs/tomcrypt)
 WINE_CONFIG_MAKEFILE(libs/unwind)
 WINE_CONFIG_MAKEFILE(libs/uuid)
 WINE_CONFIG_MAKEFILE(libs/vkd3d)
@@ -3800,7 +3792,7 @@ dnl Rules for generated source files
 
 WINE_APPEND_RULE(
 [dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-11.10.r0.gf45e84d7\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
+	@version=\`(echo \"wine-11.10.r4.g84f4e611\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$[@]) || echo \$\$build >\$[@] || (rm -f \$[@] && exit 1)
 dlls/wineandroid.drv/wine-debug.apk: dlls/wineandroid.drv/build.gradle ${wine_srcdir}dlls/wineandroid.drv/AndroidManifest.xml ${wine_srcdir}dlls/wineandroid.drv/WineActivity.java ${wine_srcdir}dlls/wineandroid.drv/wine.svg
