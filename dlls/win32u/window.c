@@ -2383,7 +2383,7 @@ static BOOL expose_window_surface( HWND hwnd, UINT flags, const RECT *rect, UINT
         add_bounds_rect( &surface->bounds, &exposed_rect );
     }
     window_surface_unlock( surface );
-    if (surface->alpha_mask) window_surface_flush( surface );
+    window_surface_flush( surface );
     window_surface_release( surface );
     return TRUE;
 }
@@ -5267,6 +5267,8 @@ LRESULT destroy_window( HWND hwnd )
 
     send_message( hwnd, WM_NCDESTROY, 0, 0 );
 
+    if (hwnd == get_capture()) user_driver->pSetCapture( NULL, 0, toplevel );
+
     if (toplevel && toplevel != hwnd) update_window_state( toplevel );
 
     /* FIXME: do we need to fake QS_MOUSEMOVE wakebit? */
@@ -5406,6 +5408,7 @@ void destroy_thread_windows(void)
         struct window_surface *surface;
         struct destroy_entry *next;
     } *entry, *free_list = NULL;
+    HWND capture = get_capture(), toplevel = NtUserGetAncestor( capture, GA_ROOT );
     struct list drawables = LIST_INIT(drawables);
     HANDLE handle = 0;
     WND *win;
@@ -5454,6 +5457,8 @@ void destroy_thread_windows(void)
     {
         free_list = entry->next;
         TRACE( "destroying %p\n", entry );
+
+        if (entry->handle == capture) user_driver->pSetCapture( NULL, 0, toplevel );
 
         detach_client_surfaces( entry->handle );
         user_driver->pDestroyWindow( entry->handle );

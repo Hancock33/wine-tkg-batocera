@@ -40,6 +40,8 @@
 WINE_DEFAULT_DEBUG_CHANNEL(win);
 WINE_DECLARE_DEBUG_CHANNEL(keyboard);
 
+#define HIMETRIC_PER_INCH 2540
+
 static const WCHAR keyboard_layouts_keyW[] =
 {
     '\\','R','e','g','i','s','t','r','y',
@@ -1887,7 +1889,7 @@ BOOL set_capture_window( HWND hwnd, UINT gui_flags, HWND *prev_ret )
 
     if (ret)
     {
-        user_driver->pSetCapture( hwnd, gui_flags );
+        user_driver->pSetCapture( NtUserGetAncestor( hwnd, GA_ROOT ), gui_flags, NtUserGetAncestor( previous, GA_ROOT ) );
 
         if (previous)
             NtUserNotifyWinEvent( EVENT_SYSTEM_CAPTUREEND, previous, OBJID_WINDOW, 0 );
@@ -2859,5 +2861,38 @@ INT WINAPI NtUserScheduleDispatchNotification( HWND hwnd )
 BOOL WINAPI NtUserInitializeTouchInjection( UINT max_count, UINT mode )
 {
     FIXME( "max_count %u, mode %#x stub!\n", max_count, mode );
+    return TRUE;
+}
+
+/**********************************************************************
+ *       NtUserGetPointerType    (win32u.@)
+ */
+BOOL WINAPI NtUserGetPointerType( UINT32 id, POINTER_INPUT_TYPE *type )
+{
+    FIXME( "id %u, type %p stub!\n", id, type );
+    RtlSetLastWin32Error( ERROR_CALL_NOT_IMPLEMENTED );
+    return FALSE;
+}
+
+/**********************************************************************
+ *       NtUserGetPointerDeviceRects    (win32u.@)
+ */
+BOOL WINAPI NtUserGetPointerDeviceRects( HANDLE handle, RECT *device_rect, RECT *display_rect )
+{
+    RECT rect;
+
+    if (handle != INVALID_HANDLE_VALUE)
+    {
+        FIXME( "Pointer devices are not implemented!\n" );
+        RtlSetLastWin32Error( ERROR_NO_DATA );
+        return FALSE;
+    }
+
+    rect = get_virtual_screen_rect( 0, MDT_DEFAULT );
+    SetRect( device_rect, 0, 0, (rect.right - rect.left) * HIMETRIC_PER_INCH / get_system_dpi(),
+             (rect.bottom - rect.top) * HIMETRIC_PER_INCH / get_system_dpi() );
+    *display_rect = get_virtual_screen_rect( get_thread_dpi(), MDT_DEFAULT );
+
+    TRACE( "returning device %s, display %s\n", wine_dbgstr_rect(device_rect), wine_dbgstr_rect(display_rect) );
     return TRUE;
 }

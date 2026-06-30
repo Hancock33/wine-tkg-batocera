@@ -963,7 +963,7 @@ static void shader_sm4_read_dcl_index_range(struct vkd3d_shader_instruction *ins
     struct vkd3d_shader_index_range *index_range = &ins->declaration.index_range;
     struct vsir_program *program = priv->program;
     unsigned int i, register_idx, register_count;
-    const struct shader_signature *signature;
+    const struct vsir_signature *signature;
     struct sm4_index_range_array *ranges;
     enum vsir_register_type type;
     unsigned int *io_masks;
@@ -1042,7 +1042,9 @@ static void shader_sm4_read_dcl_index_range(struct vkd3d_shader_instruction *ins
 
     for (i = 0; i < register_count; ++i)
     {
-        const struct signature_element *e = vsir_signature_find_element_for_reg(signature, register_idx + i, write_mask);
+        const struct vsir_signature_element *e;
+
+        e = vsir_signature_find_element_for_reg(signature, register_idx + i, write_mask);
         /* Index ranges should not contain non-arrayed sysvals. FXC tries to forbid this but it is buggy,
          * and can emit a range containing a sysval if the sysval is not actually accessed. */
         if (e && e->sysval_semantic && register_count > 1 && !vsir_sysval_semantic_is_tess_factor(e->sysval_semantic)
@@ -1140,7 +1142,7 @@ static void shader_sm4_read_dcl_input_ps(struct vkd3d_shader_instruction *ins, u
         uint32_t opcode_token, const uint32_t *tokens, unsigned int token_count, struct vkd3d_shader_sm4_parser *tpf)
 {
     struct vsir_dst_operand *dst = &ins->declaration.dst;
-    struct signature_element *e;
+    struct vsir_signature_element *e;
 
     ins->flags = (opcode_token & VKD3D_SM4_INTERPOLATION_MODE_MASK) >> VKD3D_SM4_INTERPOLATION_MODE_SHIFT;
     if (tpf_read_dst_operand(tpf, &tokens, &tokens[token_count], VSIR_DATA_F32, dst))
@@ -1159,7 +1161,7 @@ static void shader_sm4_read_dcl_input_ps_siv(struct vkd3d_shader_instruction *in
         uint32_t opcode_token, const uint32_t *tokens, unsigned int token_count, struct vkd3d_shader_sm4_parser *tpf)
 {
     struct vsir_dst_operand *dst = &ins->declaration.register_semantic.reg;
-    struct signature_element *e;
+    struct vsir_signature_element *e;
 
     ins->flags = (opcode_token & VKD3D_SM4_INTERPOLATION_MODE_MASK) >> VKD3D_SM4_INTERPOLATION_MODE_SHIFT;
     if (tpf_read_dst_operand(tpf, &tokens, &tokens[token_count], VSIR_DATA_F32, dst))
@@ -2797,18 +2799,18 @@ static bool shader_sm4_init(struct vkd3d_shader_sm4_parser *sm4, struct vsir_pro
     return true;
 }
 
-static void uninvert_used_masks(struct shader_signature *signature)
+static void uninvert_used_masks(struct vsir_signature *signature)
 {
     for (unsigned int i = 0; i < signature->element_count; ++i)
     {
-        struct signature_element *e = &signature->elements[i];
+        struct vsir_signature_element *e = &signature->elements[i];
 
         e->used_mask = e->mask & ~e->used_mask;
     }
 }
 
 static bool shader_sm4_parser_validate_signature(struct vkd3d_shader_sm4_parser *sm4,
-        const struct shader_signature *signature, unsigned int *masks, const char *name)
+        const struct vsir_signature *signature, unsigned int *masks, const char *name)
 {
     unsigned int i, register_idx, register_count, mask;
 
@@ -2908,7 +2910,7 @@ int tpf_parse(const struct vkd3d_shader_compile_info *compile_info, uint64_t con
             if (program->patch_constant_signature.element_count != 0)
             {
                 WARN("The patch constant signature only makes sense for Hull and Domain Shaders, ignoring it.\n");
-                shader_signature_cleanup(&program->patch_constant_signature);
+                vsir_signature_cleanup(&program->patch_constant_signature);
             }
             break;
     }
@@ -3227,6 +3229,8 @@ bool sm4_sysval_semantic_from_semantic_name(enum vkd3d_shader_sysval_semantic *s
         return false;
     if (!output && version->type == VKD3D_SHADER_TYPE_GEOMETRY)
         return false;
+    if (output && version->type == VKD3D_SHADER_TYPE_PIXEL)
+        return false;
 
     *sysval_semantic = VKD3D_SHADER_SV_NONE;
     return true;
@@ -3247,8 +3251,8 @@ static void add_section(struct tpf_compiler *tpf, uint32_t tag, struct vkd3d_byt
 
 static int signature_element_pointer_compare(const void *x, const void *y)
 {
-    const struct signature_element *e = *(const struct signature_element **)x;
-    const struct signature_element *f = *(const struct signature_element **)y;
+    const struct vsir_signature_element *e = *(const struct vsir_signature_element **)x;
+    const struct vsir_signature_element *f = *(const struct vsir_signature_element **)y;
     int ret;
 
     if ((ret = vkd3d_u32_compare(e->stream_index, f->stream_index)))
@@ -3258,11 +3262,11 @@ static int signature_element_pointer_compare(const void *x, const void *y)
     return vkd3d_u32_compare(e->mask, f->mask);
 }
 
-static void tpf_write_signature(struct tpf_compiler *tpf, const struct shader_signature *signature, uint32_t tag)
+static void tpf_write_signature(struct tpf_compiler *tpf, const struct vsir_signature *signature, uint32_t tag)
 {
     bool has_minimum_precision = tpf->program->global_flags & VKD3DSGF_ENABLE_MINIMUM_PRECISION;
     const struct vkd3d_shader_version *version = &tpf->program->shader_version;
-    const struct signature_element **sorted_elements;
+    const struct vsir_signature_element **sorted_elements;
     struct vkd3d_bytecode_buffer buffer = {0};
     bool has_stream_index, output;
     unsigned int i;
@@ -3286,7 +3290,7 @@ static void tpf_write_signature(struct tpf_compiler *tpf, const struct shader_si
 
     for (i = 0; i < signature->element_count; ++i)
     {
-        const struct signature_element *element = sorted_elements[i];
+        const struct vsir_signature_element *element = sorted_elements[i];
         enum vkd3d_shader_sysval_semantic sysval;
         uint32_t used_mask = element->used_mask;
 
@@ -3311,7 +3315,7 @@ static void tpf_write_signature(struct tpf_compiler *tpf, const struct shader_si
 
     for (i = 0; i < signature->element_count; ++i)
     {
-        const struct signature_element *element = sorted_elements[i];
+        const struct vsir_signature_element *element = sorted_elements[i];
         size_t name_index = 2 + i * 6;
         size_t string_offset;
 

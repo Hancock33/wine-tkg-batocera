@@ -1590,13 +1590,12 @@ void call_raise_user_exception_dispatcher( struct thread_data *data )
 NTSTATUS call_user_exception_dispatcher( struct thread_data *data, EXCEPTION_RECORD *rec, CONTEXT *context )
 {
     struct syscall_frame *frame = get_syscall_frame( data );
-    ULONG esp = (frame->esp - sizeof(struct exc_stack_layout)) & ~3;
     struct exc_stack_layout *stack;
     XSAVE_AREA_HEADER *src_xs;
 
     if (rec->ExceptionCode == EXCEPTION_BREAKPOINT) context->Eip--;
 
-    stack = (struct exc_stack_layout *)((esp - sizeof(*stack) - xstate_size) & ~(ULONG_PTR)63);
+    stack = (struct exc_stack_layout *)((frame->esp - sizeof(*stack) - xstate_size) & ~(ULONG_PTR)63);
     stack->rec_ptr      = &stack->rec;
     stack->context_ptr  = &stack->context;
     stack->rec          = *rec;
@@ -1922,9 +1921,11 @@ static BOOL handle_syscall_trap( struct thread_data *data, ucontext_t *sigcontex
         EIP_sig( sigcontext ) = (ULONG)__wine_unix_call_dispatcher_prolog_end;
         fixup_frame_fpu_state( frame, sigcontext );
     }
-    else if (siginfo->si_code == 4 /* TRAP_HWBKPT */ && is_inside_syscall( data, ESP_sig(sigcontext) ))
+    else if (siginfo->si_code == 4 /* TRAP_HWBKPT */ &&
+             (is_inside_syscall( data, ESP_sig(sigcontext) ) ||
+              is_inside_signal_stack( data, (void *)ESP_sig(sigcontext) )))
     {
-        TRACE_(seh)( "ignoring HWBKPT in syscall eip=%p\n", (void *)EIP_sig(sigcontext) );
+        TRACE_(seh)( "ignoring HWBKPT eip=%p\n", (void *)EIP_sig(sigcontext) );
         return TRUE;
     }
     else return FALSE;

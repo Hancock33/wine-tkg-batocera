@@ -151,6 +151,7 @@ static const char *fontforge;
 static const char *convert;
 static const char *flex;
 static const char *bison;
+static const char *nasm;
 static const char *rsvg;
 static const char *icotool;
 static const char *msgfmt;
@@ -1175,6 +1176,37 @@ static void parse_cxx_file( struct file *source, FILE *file )
 
 
 /*******************************************************************
+ *         parse_nasm_directive
+ */
+static void parse_nasm_directive( struct file *source, char *str )
+{
+    str = skip_spaces( str );
+    if (*str++ != '%') return;
+    str = skip_spaces( str );
+
+    if (!strncmp( str, "include", 7 ))
+        parse_include_directive( source, str + 7 );
+    else if (!strncmp( str, "pragma", 6 ))
+        parse_pragma_directive( source, str + 6 );
+}
+
+
+/*******************************************************************
+ *         parse_nasm_file
+ */
+static void parse_nasm_file( struct file *source, FILE *file )
+{
+    char *buffer;
+
+    input_line = 0;
+    while ((buffer = get_line( file )))
+    {
+        parse_nasm_directive( source, buffer );
+    }
+}
+
+
+/*******************************************************************
  *         parse_rc_file
  */
 static void parse_rc_file( struct file *source, FILE *file )
@@ -1291,6 +1323,7 @@ static const struct
     { ".x",   parse_c_file },
     { ".y",   parse_c_file },
     { ".S",   parse_asm_file },
+    { ".asm", parse_nasm_file },
     { ".idl", parse_idl_file },
     { ".cpp", parse_cxx_file },
     { ".hpp", parse_cxx_file },
@@ -2508,6 +2541,7 @@ static struct install_command *find_install_command( enum install_rules rules, s
 
     ARRAY_FOR_EACH( cmd, &install_commands[rules], struct install_command )
     {
+        if (cmd->dest) continue;
         if (strcmp( cmd->dir, dir )) continue;
         if (args.count != cmd->args.count) continue;
         for (i = 0; i < args.count; i++) if (strcmp( args.str[i], cmd->args.str[i] )) break;
@@ -3576,6 +3610,45 @@ static void output_source_winmd( struct makefile *make, struct incl_file *source
 
 
 /*******************************************************************
+ *         output_source_nasm
+ */
+static void output_source_nasm( struct makefile *make, struct incl_file *source, const char *obj )
+{
+    struct strarray defines = get_source_defines( make, source, obj );
+    struct strarray targets = empty_strarray;
+    unsigned int arch;
+
+    if (!nasm) return;
+
+    for (arch = 1; arch < archs.count; arch++)
+    {
+        int cpu = get_cpu_from_name( archs.str[arch] );
+        const char *obj_name;
+
+        if (cpu != CPU_i386 && cpu != CPU_x86_64) continue;
+
+        obj_name = strmake( "%s%s.o", arch_dirs[arch], obj );
+        strarray_add( &targets, obj_name );
+        strarray_add( &make->object_files[arch], obj_name );
+
+        output( "%s: %s\n", obj_dir_path( make, obj_name ), source->filename );
+        output( "\t%s%s -o $@ %s", cmd_prefix( "AS" ), nasm, source->filename );
+        output_filename( cpu == CPU_i386 ? "-fwin32" : "-fwin64" );
+        output_filenames( defines );
+        output( "\n" );
+    }
+
+    if (targets.count && source->dependencies.count)
+    {
+        output_filenames_obj_dir( make, targets );
+        output( ":" );
+        output_filenames( source->dependencies );
+        output( "\n" );
+    }
+}
+
+
+/*******************************************************************
  *         output_source_one_arch
  */
 static void output_source_one_arch( struct makefile *make, struct incl_file *source, const char *obj,
@@ -3587,6 +3660,7 @@ static void output_source_one_arch( struct makefile *make, struct incl_file *sou
     struct strarray cflags = empty_strarray;
 
     if (make->disabled[arch] && !(source->file->flags & FLAG_C_IMPLIB)) return;
+    if (is_subdir_other_arch( source->name, arch )) return;
 
     if (arch)
     {
@@ -3594,7 +3668,6 @@ static void output_source_one_arch( struct makefile *make, struct incl_file *sou
         if (!is_multiarch( arch )) return;
         if (!is_using_msvcrt( make ) && !make->staticlib && !(source->file->flags & FLAG_C_IMPLIB)) return;
         if ((source->file->flags & FLAG_C_CXX) && !get_expanded_arch_var( make, "CXX", arch )) return;
-        if ((source->file->flags & FLAG_C_ASM) && is_subdir_other_arch( source->name, arch )) return;
     }
     else if (source->file->flags & FLAG_C_UNIX)
     {
@@ -3812,6 +3885,7 @@ static const struct
     { "spec", output_source_spec },
     { "xml", output_source_xml },
     { "winmd", output_source_winmd },
+    { "asm", output_source_nasm },
     { NULL, output_source_default }
 };
 
@@ -4675,6 +4749,7 @@ static void output_silent_rules(void)
 {
     static const char *cmds[] =
     {
+        "AS",
         "BISON",
         "BUILD",
         "CC",
@@ -5035,6 +5110,7 @@ int main( int argc, char *argv[] )
     convert            = get_expanded_make_variable( top_makefile, "CONVERT" );
     flex               = get_expanded_make_variable( top_makefile, "FLEX" );
     bison              = get_expanded_make_variable( top_makefile, "BISON" );
+    nasm               = get_expanded_make_variable( top_makefile, "NASM" );
     rsvg               = get_expanded_make_variable( top_makefile, "RSVG" );
     icotool            = get_expanded_make_variable( top_makefile, "ICOTOOL" );
     msgfmt             = get_expanded_make_variable( top_makefile, "MSGFMT" );
@@ -5045,6 +5121,7 @@ int main( int argc, char *argv[] )
 
     if (root_src_dir && !strcmp( root_src_dir, "." )) root_src_dir = NULL;
     if (tools_dir && !strcmp( tools_dir, "." )) tools_dir = NULL;
+    if (nasm && !strcmp( nasm, "false" )) nasm = NULL;
     if (!exe_ext) exe_ext = "";
     if (!dll_ext[0]) dll_ext[0] = "";
     if (!tools_ext) tools_ext = "";

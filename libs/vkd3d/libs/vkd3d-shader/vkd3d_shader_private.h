@@ -183,6 +183,7 @@ enum vkd3d_shader_error
     VKD3D_SHADER_ERROR_HLSL_MISPLACED_STREAM_OUTPUT     = 5044,
     VKD3D_SHADER_ERROR_HLSL_MISSING_INPUT_PATCH         = 5045,
     VKD3D_SHADER_ERROR_HLSL_CANNOT_FLATTEN              = 5046,
+    VKD3D_SHADER_ERROR_HLSL_FUNCTION_MISSING_SEMANTIC   = 5047,
 
     VKD3D_SHADER_WARNING_HLSL_IMPLICIT_TRUNCATION       = 5300,
     VKD3D_SHADER_WARNING_HLSL_DIVISION_BY_ZERO          = 5301,
@@ -728,6 +729,7 @@ enum vsir_register_type
     VSIR_REGISTER_WAVELANEINDEX,
     VSIR_REGISTER_PARAMETER,
     VSIR_REGISTER_POINT_COORD,
+    VSIR_REGISTER_OUT_POINT_SIZE,
 
     VSIR_REGISTER_TYPE_COUNT,
 
@@ -1254,7 +1256,7 @@ static inline bool vsir_sysval_semantic_is_clip_cull(enum vkd3d_shader_sysval_se
     return sysval_semantic == VKD3D_SHADER_SV_CLIP_DISTANCE || sysval_semantic == VKD3D_SHADER_SV_CULL_DISTANCE;
 }
 
-struct signature_element
+struct vsir_signature_element
 {
     /* sort_index is not a property of the signature element, it is just a
      * convenience field used to retain the original order in a signature and
@@ -1277,12 +1279,12 @@ struct signature_element
     unsigned int target_location;
 };
 
-static inline void vsir_signature_element_cleanup(struct signature_element *e)
+static inline void vsir_signature_element_cleanup(struct vsir_signature_element *e)
 {
     vkd3d_free((void *)e->semantic_name);
 }
 
-static inline bool vsir_signature_element_is_array(const struct signature_element *element,
+static inline bool vsir_signature_element_is_array(const struct vsir_signature_element *element,
         const struct vsir_normalisation_flags *flags)
 {
     enum vkd3d_shader_sysval_semantic semantic = element->sysval_semantic;
@@ -1296,19 +1298,19 @@ static inline bool vsir_signature_element_is_array(const struct signature_elemen
     return false;
 }
 
-struct shader_signature
+struct vsir_signature
 {
-    struct signature_element *elements;
+    struct vsir_signature_element *elements;
     size_t elements_capacity;
     unsigned int element_count;
 };
 
-struct signature_element *vsir_signature_find_element_for_reg(const struct shader_signature *signature,
+void vsir_signature_cleanup(struct vsir_signature *signature);
+struct vsir_signature_element *vsir_signature_find_element_for_reg(const struct vsir_signature *signature,
         unsigned int reg_idx, unsigned int write_mask);
-bool vsir_signature_find_sysval(const struct shader_signature *signature,
+bool vsir_signature_find_sysval(const struct vsir_signature *signature,
         enum vkd3d_shader_sysval_semantic sysval, unsigned int semantic_index, unsigned int *element_index);
-unsigned int vsir_signature_next_location(const struct shader_signature *signature);
-void shader_signature_cleanup(struct shader_signature *signature);
+unsigned int vsir_signature_next_location(const struct vsir_signature *signature);
 
 struct vsir_features
 {
@@ -1321,9 +1323,9 @@ struct dxbc_shader_desc
     const uint32_t *byte_code;
     size_t byte_code_size;
     bool is_dxil;
-    struct shader_signature input_signature;
-    struct shader_signature output_signature;
-    struct shader_signature patch_constant_signature;
+    struct vsir_signature input_signature;
+    struct vsir_signature output_signature;
+    struct vsir_signature patch_constant_signature;
     struct vsir_features features;
 };
 
@@ -1686,14 +1688,21 @@ const struct vkd3d_shader_descriptor_info1 *vkd3d_shader_find_descriptor(
     enum vkd3d_shader_descriptor_type type, unsigned int register_id);
 void vkd3d_shader_free_scan_descriptor_info1(struct vkd3d_shader_scan_descriptor_info1 *scan_descriptor_info);
 
+struct vsir_compile_info
+{
+    enum vkd3d_shader_api_version api_version;
+};
+
+void vsir_compile_info_init(struct vsir_compile_info *vsir, const struct vkd3d_shader_compile_info *vkd3d);
+
 struct vsir_program
 {
     struct vkd3d_shader_version shader_version;
     struct vkd3d_shader_instruction_array instructions;
 
-    struct shader_signature input_signature;
-    struct shader_signature output_signature;
-    struct shader_signature patch_constant_signature;
+    struct vsir_signature input_signature;
+    struct vsir_signature output_signature;
+    struct vsir_signature patch_constant_signature;
 
     struct vkd3d_shader_scan_descriptor_info1 descriptors;
     size_t descriptors_size;
@@ -1945,8 +1954,8 @@ uint64_t vkd3d_shader_init_config_flags(void);
 bool sm1_register_from_semantic_name(const struct vkd3d_shader_version *version, const char *semantic_name,
         unsigned int semantic_index, bool output, enum vkd3d_shader_sysval_semantic *sysval,
         enum vsir_register_type *type, unsigned int *reg);
-bool sm1_usage_from_semantic_name(const char *semantic_name,
-        uint32_t semantic_index, enum vkd3d_decl_usage *usage, uint32_t *usage_idx);
+bool sm1_usage_from_semantic_name(const struct vkd3d_shader_version *version, const char *semantic_name,
+        uint32_t semantic_index, bool output, enum vkd3d_decl_usage *usage, uint32_t *usage_idx);
 bool sm4_register_from_semantic_name(const struct vkd3d_shader_version *version,
         const char *semantic_name, bool output, enum vsir_register_type *type, bool *has_idx);
 bool shader_sm4_is_scalar_register(const struct vsir_operand *reg);
@@ -1972,7 +1981,7 @@ void free_dxbc_shader_desc(struct dxbc_shader_desc *desc);
 int shader_extract_from_dxbc(const struct vkd3d_shader_code *dxbc,
         struct vkd3d_shader_message_context *message_context, const char *source_name, struct dxbc_shader_desc *desc);
 int shader_parse_input_signature(const struct vkd3d_shader_code *dxbc,
-        struct vkd3d_shader_message_context *message_context, struct shader_signature *signature);
+        struct vkd3d_shader_message_context *message_context, struct vsir_signature *signature);
 
 int d3dbc_compile(struct vsir_program *program, uint64_t config_flags,
         const struct vkd3d_shader_compile_info *compile_info, const struct vkd3d_shader_code *ctab,

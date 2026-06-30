@@ -1,5 +1,4 @@
 MODULE    = tiptsf.dll
-IMPORTS   =
 
 SOURCES = \
 	tiptsf.idl \

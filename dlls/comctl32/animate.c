@@ -620,8 +620,6 @@ static BOOL ANIMATE_GetAviInfo(ANIMATE_INFO *infoPtr)
 
 static BOOL ANIMATE_GetAviCodec(ANIMATE_INFO *infoPtr)
 {
-    DWORD	outSize;
-
     /* check uncompressed AVI */
     if ((infoPtr->ash.fccHandler == mmioFOURCC('D', 'I', 'B', ' ')) ||
        (infoPtr->ash.fccHandler == mmioFOURCC('R', 'L', 'E', ' ')) ||

@@ -20,6 +20,7 @@
 #define COBJMACROS
 
 #include "windef.h"
+#include <initguid.h>
 #include "oleidl.h"
 #include "rpcproxy.h"
 #include "rtscom.h"
@@ -28,10 +29,6 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(rtscom);
 
-// TODO FIXME.
-#include <initguid.h>
-DEFINE_GUID(CLSID_RealTimeStylus, 0xe26b366d, 0xf998, 0x43ce, 0x83, 0x6f, 0xcb, 0x6d, 0x90, 0x44, 0x32, 0xb0);
-DEFINE_GUID(IID_IRealTimeStylus, 0xa8bb5d22, 0x3144, 0x4a7b, 0x93,0xcd, 0xf3,0x4a,0x16,0xbe,0x51,0x3a);
 
 struct rtstylus
 {

@@ -4013,6 +4013,7 @@ static TEB *init_teb( void *ptr, BOOL is_wow )
     teb32->Peb = PtrToUlong( (char *)peb + page_size );
     teb32->Tib.Self = PtrToUlong( teb32 );
     teb32->Tib.ExceptionList = ~0u;
+    teb32->Tib.FiberData = 0x1e00;
     teb32->ActivationContextStackPointer = PtrToUlong( &teb32->ActivationContextStack );
     teb32->ActivationContextStack.FrameListCache.Flink =
         teb32->ActivationContextStack.FrameListCache.Blink =
@@ -4025,9 +4026,11 @@ static TEB *init_teb( void *ptr, BOOL is_wow )
 #else
     teb = (TEB *)teb32;
     teb32->Tib.ExceptionList = ~0u;
+    teb32->Tib.FiberData = 0x1e00;
     teb64->Peb = PtrToUlong( (char *)peb - page_size );
     teb64->Tib.Self = PtrToUlong( teb64 );
     teb64->Tib.ExceptionList = PtrToUlong( teb32 );
+    teb64->Tib.FiberData = 0x1e00;
     teb64->ActivationContextStackPointer = PtrToUlong( &teb64->ActivationContextStack );
     teb64->ActivationContextStack.FrameListCache.Flink =
         teb64->ActivationContextStack.FrameListCache.Blink =
@@ -4044,6 +4047,7 @@ static TEB *init_teb( void *ptr, BOOL is_wow )
     teb->Peb = peb;
     teb->Tib.Self = &teb->Tib;
     teb->Tib.StackBase = (void *)~0ul;
+    teb->Tib.FiberData = (void *)0x1e00;
     teb->ActivationContextStackPointer = &teb->ActivationContextStack;
     InitializeListHead( &teb->ActivationContextStack.FrameListCache );
     teb->StaticUnicodeString.Buffer = teb->StaticUnicodeBuffer;
@@ -4584,7 +4588,7 @@ static NTSTATUS grow_thread_stack( struct thread_data *data, char *page, struct 
     mprotect_range( page, host_page_size, 0, 0 );
     if (page >= stack_info->start + host_page_size + stack_info->guaranteed)
     {
-        set_page_vprot_bits( page - host_page_size, host_page_size, VPROT_COMMITTED | VPROT_GUARD, 0 );
+        set_page_vprot_bits( page - host_page_size, host_page_size, VPROT_COMMITTED | VPROT_READ | VPROT_WRITE | VPROT_GUARD, 0 );
         mprotect_range( page - host_page_size, host_page_size, 0, 0 );
     }
     else  /* inside guaranteed space -> overflow exception */

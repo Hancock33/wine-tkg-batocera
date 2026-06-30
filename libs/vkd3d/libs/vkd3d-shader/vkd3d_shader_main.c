@@ -876,19 +876,13 @@ static enum vkd3d_result vsir_parse(const struct vkd3d_shader_compile_info *comp
         const struct shader_dump_data *dump_data, struct vkd3d_shader_message_context *message_context,
         struct vsir_program *program, struct vkd3d_shader_code *reflection_data)
 {
-    enum vkd3d_shader_api_version api_version = VKD3D_SHADER_API_VERSION_1_2;
     struct vkd3d_shader_compile_info preprocessed_info;
+    struct vsir_compile_info vsir_compile_info;
     struct vkd3d_shader_code preprocessed;
     enum vkd3d_result ret;
     unsigned int i;
 
-    for (i = 0; i < compile_info->option_count; ++i)
-    {
-        const struct vkd3d_shader_compile_option *option = &compile_info->options[i];
-
-        if (option->name == VKD3D_SHADER_COMPILE_OPTION_API_VERSION)
-            api_version = option->value;
-    }
+    vsir_compile_info_init(&vsir_compile_info, compile_info);
 
     switch (compile_info->source_type)
     {
@@ -929,7 +923,7 @@ static enum vkd3d_result vsir_parse(const struct vkd3d_shader_compile_info *comp
         return ret;
     }
 
-    if (api_version <= VKD3D_SHADER_API_VERSION_1_19)
+    if (vsir_compile_info.api_version <= VKD3D_SHADER_API_VERSION_1_19)
     {
         program->f16_denormal_mode = VKD3D_SHADER_DENORMAL_MODE_ANY;
         program->f32_denormal_mode = VKD3D_SHADER_DENORMAL_MODE_ANY;
@@ -988,11 +982,11 @@ void vkd3d_shader_free_messages(char *messages)
     vkd3d_free(messages);
 }
 
-static bool vkd3d_shader_signature_from_shader_signature(struct vkd3d_shader_signature *signature,
-        const struct shader_signature *src)
+static bool vkd3d_shader_signature_from_vsir(struct vkd3d_shader_signature *signature,
+        const struct vsir_signature *src)
 {
     struct vkd3d_shader_signature_element *d;
-    const struct signature_element *e;
+    const struct vsir_signature_element *e;
     size_t count, i, j;
 
     for (i = 0, count = 0; i < src->element_count; ++i)
@@ -1038,6 +1032,7 @@ static bool vkd3d_shader_signature_from_shader_signature(struct vkd3d_shader_sig
 
 struct vkd3d_shader_scan_context
 {
+    struct vsir_compile_info compile_info;
     const struct vkd3d_shader_version *version;
     const struct vkd3d_shader_d3dbc_source_info *d3dbc_source_info;
 
@@ -1062,13 +1057,8 @@ struct vkd3d_shader_scan_context
     size_t cf_info_size;
     size_t cf_info_count;
 
-    enum vkd3d_shader_api_version api_version;
-
     struct vkd3d_shader_scan_combined_resource_sampler_info *combined_sampler_info;
     size_t combined_samplers_size;
-
-    enum vkd3d_shader_tessellator_output_primitive output_primitive;
-    enum vkd3d_shader_tessellator_partitioning partitioning;
 };
 
 #define vkd3d_shader_scan_error(context, error, ...) \
@@ -1102,25 +1092,15 @@ static void vkd3d_shader_scan_context_init(struct vkd3d_shader_scan_context *con
         struct vkd3d_shader_scan_combined_resource_sampler_info *combined_sampler_info,
         struct vkd3d_shader_message_context *message_context)
 {
-    unsigned int i;
-
     memset(context, 0, sizeof(*context));
+    vsir_compile_info_init(&context->compile_info, compile_info);
     context->version = version;
     context->scan_descriptor_info = scan_descriptor_info;
     context->message_context = message_context;
     context->location.source_name = compile_info->source_name;
     context->location.line = 2; /* Line 1 is the version token. */
-    context->api_version = VKD3D_SHADER_API_VERSION_1_2;
     context->combined_sampler_info = combined_sampler_info;
     context->d3dbc_source_info = vkd3d_find_struct(compile_info->next, D3DBC_SOURCE_INFO);
-
-    for (i = 0; i < compile_info->option_count; ++i)
-    {
-        const struct vkd3d_shader_compile_option *option = &compile_info->options[i];
-
-        if (option->name == VKD3D_SHADER_COMPILE_OPTION_API_VERSION)
-            context->api_version = option->value;
-    }
 }
 
 static void vkd3d_shader_scan_context_cleanup(struct vkd3d_shader_scan_context *context)
@@ -1475,12 +1455,6 @@ static int vkd3d_shader_scan_instruction(struct vkd3d_shader_scan_context *conte
                     VKD3D_SHADER_RESOURCE_BUFFER, VSIR_DATA_U32, 0,
                     instruction->declaration.structured_resource.byte_stride, false, instruction->flags);
             break;
-        case VSIR_OP_DCL_TESSELLATOR_OUTPUT_PRIMITIVE:
-            context->output_primitive = instruction->declaration.tessellator_output_primitive;
-            break;
-        case VSIR_OP_DCL_TESSELLATOR_PARTITIONING:
-            context->partitioning = instruction->declaration.tessellator_partitioning;
-            break;
         case VSIR_OP_IF:
         case VSIR_OP_IFC:
             cf_info = vkd3d_shader_scan_push_cf_info(context);
@@ -1737,15 +1711,15 @@ static enum vkd3d_result convert_descriptor_info(struct vkd3d_shader_scan_contex
         dst->flags = src->flags;
         dst->count = src->count;
 
-        if (context->api_version <= VKD3D_SHADER_API_VERSION_1_15
+        if (context->compile_info.api_version <= VKD3D_SHADER_API_VERSION_1_15
                 && dst->type == VKD3D_SHADER_DESCRIPTOR_TYPE_SAMPLER)
             dst->resource_data_type = VKD3D_SHADER_RESOURCE_DATA_UINT;
 
-        if (context->api_version < VKD3D_SHADER_API_VERSION_1_3
+        if (context->compile_info.api_version < VKD3D_SHADER_API_VERSION_1_3
                 && dst->resource_data_type >= VKD3D_SHADER_RESOURCE_DATA_MIXED)
         {
             ERR("Invalid resource data type %#x for API version %#x.\n",
-                    src->resource_data_type, context->api_version);
+                    src->resource_data_type, context->compile_info.api_version);
             dst->resource_data_type = VKD3D_SHADER_RESOURCE_DATA_FLOAT;
         }
     }
@@ -1812,10 +1786,9 @@ static int vsir_program_scan(struct vsir_program *program, const struct vkd3d_sh
 
     if (!ret && signature_info)
     {
-        if (!vkd3d_shader_signature_from_shader_signature(&signature_info->input, &program->input_signature)
-                || !vkd3d_shader_signature_from_shader_signature(&signature_info->output,
-                        &program->output_signature)
-                || !vkd3d_shader_signature_from_shader_signature(&signature_info->patch_constant,
+        if (!vkd3d_shader_signature_from_vsir(&signature_info->input, &program->input_signature)
+                || !vkd3d_shader_signature_from_vsir(&signature_info->output, &program->output_signature)
+                || !vkd3d_shader_signature_from_vsir(&signature_info->patch_constant,
                         &program->patch_constant_signature))
         {
             ret = VKD3D_ERROR_OUT_OF_MEMORY;
@@ -1827,8 +1800,8 @@ static int vsir_program_scan(struct vsir_program *program, const struct vkd3d_sh
 
     if (!ret && tessellation_info)
     {
-        tessellation_info->output_primitive = context.output_primitive;
-        tessellation_info->partitioning = context.partitioning;
+        tessellation_info->output_primitive = program->tess_output_primitive;
+        tessellation_info->partitioning = program->tess_partitioning;
     }
 
     if (!ret && thread_group_size_info)
@@ -2177,7 +2150,7 @@ void vkd3d_shader_free_root_signature(struct vkd3d_shader_versioned_root_signatu
     desc->version = 0;
 }
 
-void shader_signature_cleanup(struct shader_signature *signature)
+void vsir_signature_cleanup(struct vsir_signature *signature)
 {
     for (unsigned int i = 0; i < signature->element_count; ++i)
     {
@@ -2193,7 +2166,7 @@ int vkd3d_shader_parse_input_signature(const struct vkd3d_shader_code *dxbc,
         struct vkd3d_shader_signature *signature, char **messages)
 {
     struct vkd3d_shader_message_context message_context;
-    struct shader_signature shader_signature;
+    struct vsir_signature shader_signature;
     int ret;
 
     TRACE("dxbc {%p, %zu}, signature %p, messages %p.\n", dxbc->code, dxbc->size, signature, messages);
@@ -2207,10 +2180,10 @@ int vkd3d_shader_parse_input_signature(const struct vkd3d_shader_code *dxbc,
     vkd3d_shader_string_from_message_context(messages, &message_context);
     vkd3d_shader_message_context_cleanup(&message_context);
 
-    if (!vkd3d_shader_signature_from_shader_signature(signature, &shader_signature))
+    if (!vkd3d_shader_signature_from_vsir(signature, &shader_signature))
         ret = VKD3D_ERROR_OUT_OF_MEMORY;
 
-    shader_signature_cleanup(&shader_signature);
+    vsir_signature_cleanup(&shader_signature);
     return ret;
 }
 

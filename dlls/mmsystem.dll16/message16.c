@@ -342,7 +342,7 @@ static MMSYSTEM_MapType	MMSYSTDRV_MidiOut_Map16To32W  (DWORD wMsg, DWORD_PTR* lp
         /* dwBufferLength can be reduced between prepare & write */
         if (wMsg == MODM_LONGDATA && mh32->hdr.dwBufferLength < mh16->dwBufferLength)
         {
-            ERR("Size of buffer has been increased from %d to %d, keeping initial value\n",
+            ERR("Size of buffer has been increased from %lu to %lu, keeping initial value\n",
                 mh32->hdr.dwBufferLength, mh16->dwBufferLength);
         }
         else

@@ -4529,7 +4529,7 @@ static enum vkd3d_result sm6_parser_globals_init(struct sm6_parser *sm6)
     return VKD3D_OK;
 }
 
-static void dst_param_io_init(struct vsir_dst_operand *param, const struct signature_element *e,
+static void dst_param_io_init(struct vsir_dst_operand *param, const struct vsir_signature_element *e,
         enum vsir_register_type reg_type, enum vsir_dimension dimension)
 {
     enum vkd3d_shader_component_type component_type;
@@ -4588,13 +4588,13 @@ static enum vsir_register_type register_type_from_dxil_semantic_kind(
     }
 }
 
-static bool sm6_parser_init_signature(struct sm6_parser *sm6, const struct shader_signature *s,
+static bool sm6_parser_init_signature(struct sm6_parser *sm6, const struct vsir_signature *s,
         bool is_input, enum vsir_register_type reg_type, struct vsir_dst_operand *params)
 {
     enum vkd3d_shader_type shader_type = sm6->program->shader_version.type;
     bool is_patch_constant, is_control_point;
+    const struct vsir_signature_element *e;
     enum vsir_register_type io_reg_type;
-    const struct signature_element *e;
     struct vsir_dst_operand *param;
     unsigned int i, count;
 
@@ -4659,7 +4659,7 @@ static bool sm6_parser_init_signature(struct sm6_parser *sm6, const struct shade
     return true;
 }
 
-static int sm6_parser_init_output_signature(struct sm6_parser *sm6, const struct shader_signature *output_signature)
+static int sm6_parser_init_output_signature(struct sm6_parser *sm6, const struct vsir_signature *output_signature)
 {
     if (!(sm6->output_params = vsir_program_get_dst_operands(sm6->program, output_signature->element_count)))
     {
@@ -4674,7 +4674,7 @@ static int sm6_parser_init_output_signature(struct sm6_parser *sm6, const struct
     return VKD3D_OK;
 }
 
-static int sm6_parser_init_input_signature(struct sm6_parser *sm6, const struct shader_signature *input_signature)
+static int sm6_parser_init_input_signature(struct sm6_parser *sm6, const struct vsir_signature *input_signature)
 {
     if (!(sm6->input_params = vsir_program_get_dst_operands(sm6->program, input_signature->element_count)))
     {
@@ -4690,7 +4690,7 @@ static int sm6_parser_init_input_signature(struct sm6_parser *sm6, const struct 
 }
 
 static int sm6_parser_init_patch_constant_signature(struct sm6_parser *sm6,
-        const struct shader_signature *patch_constant_signature)
+        const struct vsir_signature *patch_constant_signature)
 {
     bool is_input = sm6->program->shader_version.type == VKD3D_SHADER_TYPE_DOMAIN;
 
@@ -6151,11 +6151,11 @@ static void sm6_parser_emit_dx_dot(struct sm6_parser *dxil, enum dx_intrinsic_op
 static void sm6_parser_emit_dx_eval_attrib(struct sm6_parser *sm6, enum dx_intrinsic_opcode op,
         const struct sm6_value **operands, struct function_emission_state *state)
 {
-    const struct shader_signature *signature;
+    const struct vsir_signature_element *e;
+    const struct vsir_signature *signature;
     struct vkd3d_shader_instruction *ins;
     unsigned int row_index, column_index;
     struct vsir_src_operand *src_params;
-    const struct signature_element *e;
 
     row_index = sm6_value_get_constant_uint(operands[0], sm6);
     column_index = sm6_value_get_constant_uint(operands[2], sm6);
@@ -6466,11 +6466,11 @@ static void sm6_parser_emit_dx_load_input(struct sm6_parser *sm6, enum dx_intrin
     bool is_patch_constant = op == DX_LOAD_PATCH_CONSTANT;
     struct vsir_program *program = sm6->program;
     unsigned int count, row_index, column_index;
-    const struct shader_signature *signature;
+    const struct vsir_signature_element *e;
+    const struct vsir_signature *signature;
     const struct vsir_dst_operand *params;
     struct vkd3d_shader_instruction *ins;
     struct vsir_src_operand *src_param;
-    const struct signature_element *e;
 
     row_index = sm6_value_get_constant_uint(operands[0], sm6);
     column_index = sm6_value_get_constant_uint(operands[2], sm6);
@@ -7060,7 +7060,7 @@ static void sm6_parser_emit_dx_sample(struct sm6_parser *dxil, enum dx_intrinsic
 static void sm6_parser_emit_dx_sample_index(struct sm6_parser *dxil, enum dx_intrinsic_opcode op,
         const struct sm6_value **operands, struct function_emission_state *state)
 {
-    const struct shader_signature *signature = &dxil->program->input_signature;
+    const struct vsir_signature *signature = &dxil->program->input_signature;
     struct vkd3d_shader_instruction *ins;
     struct vsir_src_operand *src_param;
     unsigned int element_idx;
@@ -7147,13 +7147,13 @@ static void sm6_parser_emit_dx_store_output(struct sm6_parser *dxil, enum dx_int
 {
     bool is_patch_constant = op == DX_STORE_PATCH_CONSTANT;
     struct vsir_program *program = dxil->program;
-    const struct shader_signature *signature;
+    const struct vsir_signature_element *e;
+    const struct vsir_signature *signature;
     struct vkd3d_shader_instruction *ins;
     unsigned int row_index, column_index;
     const struct vsir_operand *template;
     struct vsir_src_operand *src_param;
     struct vsir_dst_operand *dst_param;
-    const struct signature_element *e;
     const struct sm6_value *value;
 
     row_index = sm6_value_get_constant_uint(operands[0], dxil);
@@ -10611,7 +10611,7 @@ static enum vkd3d_result sm6_parser_resources_init(struct sm6_parser *sm6)
     return VKD3D_OK;
 }
 
-static void signature_element_read_additional_element_values(struct signature_element *e,
+static void signature_element_read_additional_element_values(struct vsir_signature_element *e,
         const struct sm6_metadata_node *node, struct sm6_parser *sm6)
 {
     unsigned int i, operand_count, value, tag;
@@ -10671,12 +10671,12 @@ static void signature_element_read_additional_element_values(struct signature_el
 }
 
 static enum vkd3d_result sm6_parser_read_signature(struct sm6_parser *sm6, const struct sm6_metadata_value *m,
-        struct shader_signature *s, enum vkd3d_tessellator_domain tessellator_domain, bool is_input)
+        struct vsir_signature *s, enum vkd3d_tessellator_domain tessellator_domain, bool is_input)
 {
     unsigned int i, j, column_count, operand_count, index;
     const struct sm6_metadata_node *node, *element_node;
+    struct vsir_signature_element *elements, *e;
     struct vsir_program *program = sm6->program;
-    struct signature_element *elements, *e;
     unsigned int values[10];
     bool native_16bit;
     bool is_register;
@@ -10863,7 +10863,7 @@ static enum vkd3d_result sm6_parser_read_signature(struct sm6_parser *sm6, const
         return VKD3D_ERROR_OUT_OF_MEMORY;
     }
 
-    shader_signature_cleanup(s);
+    vsir_signature_cleanup(s);
     s->elements = elements;
     s->element_count = operand_count;
 
@@ -11681,7 +11681,7 @@ static enum vkd3d_result sm6_parser_init(struct sm6_parser *sm6, struct vsir_pro
             if (program->patch_constant_signature.element_count != 0)
             {
                 WARN("The patch constant signature only makes sense for Hull and Domain Shaders, ignoring it.\n");
-                shader_signature_cleanup(&program->patch_constant_signature);
+                vsir_signature_cleanup(&program->patch_constant_signature);
             }
             break;
     }
