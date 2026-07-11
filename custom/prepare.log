@@ -1,6 +1,6 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at 8c2d3dee Rebase against f26c699db5176caee6883210f949110de3af520d.
+HEAD is now at d1f772d1 Release v11.13
 HEAD is now at 6eb2e4c32cc Release 11.13.
 
 2941e58d7d6e630e88b6e9539414f1d86736c7aa reverted 
