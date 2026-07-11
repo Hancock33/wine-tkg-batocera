@@ -756,21 +756,122 @@ static int convert_parameter_info(const struct vkd3d_shader_compile_info *compil
 
 void vsir_compile_info_init(struct vsir_compile_info *vsir, const struct vkd3d_shader_compile_info *vkd3d)
 {
+    enum vkd3d_shader_compile_option_backward_compatibility compatibility_flags = 0;
+    enum vkd3d_shader_compile_option_feature_flags features = 0;
     const struct vkd3d_shader_compile_option *option;
     unsigned int i;
 
     *vsir = (struct vsir_compile_info)
     {
+        .formatting = VKD3D_SHADER_COMPILE_OPTION_FORMATTING_INDENT
+                | VKD3D_SHADER_COMPILE_OPTION_FORMATTING_HEADER,
         .api_version = VKD3D_SHADER_API_VERSION_1_2,
+        .write_tess_geom_point_size = true,
     };
+
+    if (!vkd3d)
+        goto done;
 
     for (i = 0; i < vkd3d->option_count; ++i)
     {
         option = &vkd3d->options[i];
 
-        if (option->name == VKD3D_SHADER_COMPILE_OPTION_API_VERSION)
-            vsir->api_version = option->value;
+        switch (option->name)
+        {
+            case VKD3D_SHADER_COMPILE_OPTION_STRIP_DEBUG:
+                vsir->strip_debug = !!option->value;
+                break;
+
+            case VKD3D_SHADER_COMPILE_OPTION_BUFFER_UAV:
+                if (option->value == VKD3D_SHADER_COMPILE_OPTION_BUFFER_UAV_STORAGE_TEXEL_BUFFER)
+                    vsir->ssbo_uavs = false;
+                else if (option->value == VKD3D_SHADER_COMPILE_OPTION_BUFFER_UAV_STORAGE_BUFFER)
+                    vsir->ssbo_uavs = true;
+                else
+                    WARN("Ignoring unrecognised value %#x for option %#x.\n", option->value, option->name);
+                break;
+
+            case VKD3D_SHADER_COMPILE_OPTION_FORMATTING:
+                vsir->formatting = option->value;
+                break;
+
+            case VKD3D_SHADER_COMPILE_OPTION_API_VERSION:
+                vsir->api_version = option->value;
+                break;
+
+            case VKD3D_SHADER_COMPILE_OPTION_TYPED_UAV:
+                if (option->value == VKD3D_SHADER_COMPILE_OPTION_TYPED_UAV_READ_FORMAT_R32)
+                    vsir->uav_read_without_format = false;
+                else if (option->value == VKD3D_SHADER_COMPILE_OPTION_TYPED_UAV_READ_FORMAT_UNKNOWN)
+                    vsir->uav_read_without_format = true;
+                else
+                    WARN("Ignoring unrecognised value %#x for option %#x.\n", option->value, option->name);
+                break;
+
+            case VKD3D_SHADER_COMPILE_OPTION_WRITE_TESS_GEOM_POINT_SIZE:
+                vsir->write_tess_geom_point_size = !!option->value;
+                break;
+
+            case VKD3D_SHADER_COMPILE_OPTION_PACK_MATRIX_ORDER:
+                if (option->value == VKD3D_SHADER_COMPILE_OPTION_PACK_MATRIX_ROW_MAJOR
+                        || option->value == VKD3D_SHADER_COMPILE_OPTION_PACK_MATRIX_COLUMN_MAJOR)
+                    vsir->matrix_majority = option->value;
+                else
+                    WARN("Ignoring unrecognised value %#x for option %#x.\n", option->value, option->name);
+                break;
+
+            case VKD3D_SHADER_COMPILE_OPTION_BACKWARD_COMPATIBILITY:
+                compatibility_flags = option->value;
+                break;
+
+            case VKD3D_SHADER_COMPILE_OPTION_FRAGMENT_COORDINATE_ORIGIN:
+                if (option->value == VKD3D_SHADER_COMPILE_OPTION_FRAGMENT_COORDINATE_ORIGIN_UPPER_LEFT)
+                    vsir->fragment_origin_lower_left = false;
+                else if (option->value == VKD3D_SHADER_COMPILE_OPTION_FRAGMENT_COORDINATE_ORIGIN_LOWER_LEFT)
+                    vsir->fragment_origin_lower_left = true;
+                else
+                    WARN("Ignoring unrecognised value %#x for option %#x.\n", option->value, option->name);
+                break;
+
+            case VKD3D_SHADER_COMPILE_OPTION_FEATURE:
+                features = option->value;
+                break;
+
+            case VKD3D_SHADER_COMPILE_OPTION_CHILD_EFFECT:
+                vsir->child_effect = !!option->value;
+                break;
+
+            case VKD3D_SHADER_COMPILE_OPTION_WARN_IMPLICIT_TRUNCATION:
+            case VKD3D_SHADER_COMPILE_OPTION_INCLUDE_EMPTY_BUFFERS_IN_EFFECTS:
+            case VKD3D_SHADER_COMPILE_OPTION_DENORMAL_MODE_F16:
+            case VKD3D_SHADER_COMPILE_OPTION_DENORMAL_MODE_F32:
+            case VKD3D_SHADER_COMPILE_OPTION_DENORMAL_MODE_F64:
+                break;
+
+            default:
+                WARN("Ignoring unrecognised option %#x with value %#x.\n", option->name, option->value);
+                break;
+        }
     }
+
+done:
+    if (compatibility_flags & VKD3D_SHADER_COMPILE_OPTION_BACKCOMPAT_MAP_SEMANTIC_NAMES)
+        vsir->map_semantic_names = true;
+    if (compatibility_flags & VKD3D_SHADER_COMPILE_OPTION_DOUBLE_AS_FLOAT_ALIAS)
+        vsir->double_as_float_alias = true;
+    if (compatibility_flags & VKD3D_SHADER_COMPILE_OPTION_CONST_GLOBAL_UNIFORMS)
+        vsir->const_global_uniforms = true;
+    if (compatibility_flags & VKD3D_SHADER_COMPILE_OPTION_BACKCOMPAT_ALLOW_HALF_GLOBALS)
+        vsir->allow_half_globals = true;
+
+    if (features & VKD3D_SHADER_COMPILE_OPTION_FEATURE_INT64)
+        vsir->feature_int64 = true;
+    if (features & VKD3D_SHADER_COMPILE_OPTION_FEATURE_FLOAT64 || vsir->api_version <= VKD3D_SHADER_API_VERSION_1_10)
+        vsir->feature_float64 = true;
+    if (features & VKD3D_SHADER_COMPILE_OPTION_FEATURE_WAVE_OPS)
+        vsir->feature_wave_ops = true;
+    if (features & VKD3D_SHADER_COMPILE_OPTION_FEATURE_ZERO_INITIALIZE_WORKGROUP_MEMORY)
+        vsir->feature_zero_init_tgsm = true;
 }
 
 bool vsir_program_init(struct vsir_program *program, const struct vkd3d_shader_compile_info *compile_info,
@@ -830,7 +931,7 @@ void vsir_program_cleanup(struct vsir_program *program)
     vsir_signature_cleanup(&program->input_signature);
     vsir_signature_cleanup(&program->output_signature);
     vsir_signature_cleanup(&program->patch_constant_signature);
-    vkd3d_shader_free_scan_descriptor_info1(&program->descriptors);
+    vsir_descriptor_info_cleanup(&program->descriptors);
     shader_param_allocator_destroy(&program->src_operands);
     shader_param_allocator_destroy(&program->dst_operands);
     for (i = 0; i < program->icb_count; ++i)
@@ -899,24 +1000,24 @@ unsigned int vsir_signature_next_location(const struct vsir_signature *signature
     return max_row;
 }
 
-struct vkd3d_shader_descriptor_info1 *vsir_program_add_descriptor(struct vsir_program *program,
+struct vsir_descriptor *vsir_program_add_descriptor(struct vsir_program *program,
         enum vkd3d_shader_descriptor_type type, unsigned int register_id, const struct vsir_register_range *range,
         enum vkd3d_shader_resource_type resource_type, enum vsir_data_type resource_data_type)
 {
-    struct vkd3d_shader_scan_descriptor_info1 *info = &program->descriptors;
-    struct vkd3d_shader_descriptor_info1 *d;
+    struct vsir_descriptor_info *info = &program->descriptors;
+    struct vsir_descriptor *d;
 
     if (!info)
         return NULL;
 
-    if (!vkd3d_array_reserve((void **)&info->descriptors, &program->descriptors_size,
-            info->descriptor_count + 1, sizeof(*info->descriptors)))
+    if (!vkd3d_array_reserve((void **)&info->descriptors, &info->capacity,
+            info->count + 1, sizeof(*info->descriptors)))
     {
         ERR("Failed to allocate descriptor info.\n");
         return NULL;
     }
 
-    d = &info->descriptors[info->descriptor_count];
+    d = &info->descriptors[info->count];
     memset(d, 0, sizeof(*d));
     d->type = type;
     d->register_id = register_id;
@@ -925,7 +1026,7 @@ struct vkd3d_shader_descriptor_info1 *vsir_program_add_descriptor(struct vsir_pr
     d->resource_type = resource_type;
     d->resource_data_type = resource_data_type;
     d->count = (range->last == ~0u) ? ~0u : range->last - range->first + 1;
-    ++info->descriptor_count;
+    ++info->count;
 
     return d;
 }
@@ -2322,8 +2423,8 @@ fail:
 static enum vkd3d_result vsir_program_lower_texld_sm1(struct vsir_program *program,
         struct vkd3d_shader_instruction *ins, struct vkd3d_shader_message_context *message_context)
 {
-    const struct vkd3d_shader_descriptor_info1 *sampler;
     unsigned int idx = ins->dst[0].reg.idx[0].offset;
+    const struct vsir_descriptor *sampler;
     struct vsir_src_operand *srcs;
 
     /* texld DST, t# -> sample DST, t#, resource#, sampler# */
@@ -2415,8 +2516,8 @@ static enum vkd3d_result vsir_program_lower_texldp(struct vsir_program *program,
 static enum vkd3d_result vsir_program_lower_texld(struct vsir_program *program,
         struct vkd3d_shader_instruction *tex, struct vkd3d_shader_message_context *message_context)
 {
-    const struct vkd3d_shader_descriptor_info1 *sampler;
     unsigned int idx = tex->src[1].reg.idx[0].offset;
+    const struct vsir_descriptor *sampler;
     struct vsir_src_operand *srcs;
 
     VKD3D_ASSERT(tex->src[1].reg.idx_count == 1);
@@ -2554,7 +2655,7 @@ static enum vkd3d_result vsir_program_lower_tex(struct vsir_program *program,
     struct vkd3d_shader_instruction *ins = vsir_program_iterator_current(it);
     const struct vkd3d_shader_location location = ins->location;
     unsigned int idxN = ins->dst[0].reg.idx[0].offset, idxM;
-    const struct vkd3d_shader_descriptor_info1 *sampler;
+    const struct vsir_descriptor *sampler;
     struct vsir_src_operand *srcs;
     uint32_t coords_swizzle;
 
@@ -2963,11 +3064,11 @@ static enum vkd3d_result vsir_program_lower_texbem(struct vsir_program *program,
 {
     struct vkd3d_shader_instruction *ins = vsir_program_iterator_current(it);
     const struct vkd3d_shader_location location = ins->location;
-    const struct vkd3d_shader_descriptor_info1 *descriptor;
     bool is_texbeml = (ins->opcode == VSIR_OP_TEXBEML);
     unsigned int idx = ins->dst[0].reg.idx[0].offset;
     uint32_t ssa_coords, ssa_luminance, ssa_sample;
     const struct vsir_src_operand *src = ins->src;
+    const struct vsir_descriptor *descriptor;
     struct vsir_src_operand orig_coords;
     bool projected;
 
@@ -12688,7 +12789,7 @@ static void vsir_validate_label_register(struct validation_context *ctx, const s
 static void vsir_validate_descriptor_indices(struct validation_context *ctx,
         const struct vsir_operand *reg, enum vkd3d_shader_descriptor_type type, const char *name)
 {
-    const struct vkd3d_shader_descriptor_info1 *descriptor;
+    const struct vsir_descriptor *descriptor;
 
     if (reg->idx[0].rel_addr)
         validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_INDEX,
@@ -13856,12 +13957,13 @@ static void vsir_validate_signature(struct validation_context *ctx, const struct
 
 static void vsir_validate_descriptors(struct validation_context *ctx)
 {
-    const struct vkd3d_shader_scan_descriptor_info1 *descriptors = &ctx->program->descriptors;
+    const struct vsir_descriptor_info *descriptors = &ctx->program->descriptors;
+    enum vsir_data_type data_type;
     unsigned int i;
 
-    for (i = 0; i < descriptors->descriptor_count; ++i)
+    for (i = 0; i < descriptors->count; ++i)
     {
-        const struct vkd3d_shader_descriptor_info1 *descriptor = &descriptors->descriptors[i];
+        const struct vsir_descriptor *descriptor = &descriptors->descriptors[i];
         uint32_t flags_mask = 0, uav_flags_mask = 0;
 
         if (descriptor->type >= VKD3D_SHADER_DESCRIPTOR_TYPE_COUNT)
@@ -13877,14 +13979,22 @@ static void vsir_validate_descriptors(struct validation_context *ctx)
                     "Descriptor %u has invalid resource type %#x for descriptor type %#x.",
                     i, descriptor->resource_type, descriptor->type);
 
-        if (descriptor->resource_data_type >= VSIR_DATA_TYPE_COUNT)
+        data_type = descriptor->resource_data_type;
+        if (data_type >= VSIR_DATA_TYPE_COUNT)
             validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_DATA_TYPE,
-                    "Descriptor %u has invalid resource data type %#x.", i, descriptor->resource_data_type);
-        else if ((descriptor->resource_data_type == VSIR_DATA_UNUSED)
-                != (descriptor->type == VKD3D_SHADER_DESCRIPTOR_TYPE_SAMPLER))
+                    "Descriptor %u has invalid resource data type %#x.", i, data_type);
+        else if ((data_type == VSIR_DATA_UNUSED) != (descriptor->type == VKD3D_SHADER_DESCRIPTOR_TYPE_SAMPLER))
             validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_DATA_TYPE,
                     "Descriptor %u has invalid resource data type %#x for descriptor type %#x.",
-                    i, descriptor->resource_data_type, descriptor->type);
+                    i, data_type, descriptor->type);
+        else if ((descriptor->flags & VKD3D_SHADER_DESCRIPTOR_INFO_FLAG_RAW_BUFFER) && data_type != VSIR_DATA_U32)
+            validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_DATA_TYPE,
+                    "Descriptor %u is a raw buffer descriptor but has resource data type \"%s\" (%#x).",
+                    i, vsir_data_type_get_name(data_type, "<unknown>"), data_type);
+        else if (descriptor->structure_stride && data_type != VSIR_DATA_U32)
+            validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_DATA_TYPE,
+                    "Descriptor %u is a structured resource descriptor but has resource data type \"%s\" (%#x).",
+                    i, vsir_data_type_get_name(data_type, "<unknown>"), data_type);
 
         if (!descriptor->count || (descriptor->count > UINT_MAX - descriptor->register_index
                 && descriptor->count != UINT_MAX))

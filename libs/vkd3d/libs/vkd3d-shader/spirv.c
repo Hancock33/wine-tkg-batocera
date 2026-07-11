@@ -2943,9 +2943,7 @@ struct spirv_compiler
     struct vkd3d_shader_location location;
     bool failed;
 
-    bool strip_debug;
-    bool ssbo_uavs;
-    bool uav_read_without_format;
+    struct vsir_compile_info compile_info;
     SpvExecutionMode fragment_coordinate_origin;
 
     struct rb_tree symbol_table;
@@ -2998,10 +2996,6 @@ struct spirv_compiler
     unsigned int spec_constant_count;
     struct vkd3d_shader_spec_constant *spec_constants;
     size_t spec_constants_size;
-    enum vkd3d_shader_compile_option_formatting_flags formatting;
-    enum vkd3d_shader_compile_option_feature_flags features;
-    enum vkd3d_shader_api_version api_version;
-    bool write_tess_geom_point_size;
 
     struct vkd3d_string_buffer_cache string_buffers;
 
@@ -3139,90 +3133,17 @@ static struct spirv_compiler *spirv_compiler_create(struct vsir_program *program
         compiler->spirv_target_info = target_info;
     }
 
+    vsir_compile_info_init(&compiler->compile_info, compile_info);
     if (TRACE_ON())
         spirv_compiler_trace_extensions(compiler);
 
     vkd3d_spirv_builder_init(&compiler->spirv_builder,
             spirv_compiler_get_entry_point_name(compiler), compile_info->source_name);
 
-    compiler->formatting = VKD3D_SHADER_COMPILE_OPTION_FORMATTING_INDENT
-            | VKD3D_SHADER_COMPILE_OPTION_FORMATTING_HEADER;
-    compiler->write_tess_geom_point_size = true;
-    compiler->fragment_coordinate_origin = SpvExecutionModeOriginUpperLeft;
-
-    for (i = 0; i < compile_info->option_count; ++i)
-    {
-        const struct vkd3d_shader_compile_option *option = &compile_info->options[i];
-
-        switch (option->name)
-        {
-            case VKD3D_SHADER_COMPILE_OPTION_STRIP_DEBUG:
-                compiler->strip_debug = !!option->value;
-                break;
-
-            case VKD3D_SHADER_COMPILE_OPTION_BUFFER_UAV:
-                if (option->value == VKD3D_SHADER_COMPILE_OPTION_BUFFER_UAV_STORAGE_TEXEL_BUFFER)
-                    compiler->ssbo_uavs = false;
-                else if (option->value == VKD3D_SHADER_COMPILE_OPTION_BUFFER_UAV_STORAGE_BUFFER)
-                    compiler->ssbo_uavs = true;
-                else
-                    WARN("Ignoring unrecognised value %#x for option %#x.\n", option->value, option->name);
-                break;
-
-            case VKD3D_SHADER_COMPILE_OPTION_FORMATTING:
-                compiler->formatting = option->value;
-                break;
-
-            case VKD3D_SHADER_COMPILE_OPTION_API_VERSION:
-                compiler->api_version = option->value;
-                break;
-
-            case VKD3D_SHADER_COMPILE_OPTION_TYPED_UAV:
-                if (option->value == VKD3D_SHADER_COMPILE_OPTION_TYPED_UAV_READ_FORMAT_R32)
-                    compiler->uav_read_without_format = false;
-                else if (option->value == VKD3D_SHADER_COMPILE_OPTION_TYPED_UAV_READ_FORMAT_UNKNOWN)
-                    compiler->uav_read_without_format = true;
-                else
-                    WARN("Ignoring unrecognised value %#x for option %#x.\n", option->value, option->name);
-                break;
-
-            case VKD3D_SHADER_COMPILE_OPTION_WRITE_TESS_GEOM_POINT_SIZE:
-                compiler->write_tess_geom_point_size = option->value;
-                break;
-
-            case VKD3D_SHADER_COMPILE_OPTION_FRAGMENT_COORDINATE_ORIGIN:
-                if (option->value == VKD3D_SHADER_COMPILE_OPTION_FRAGMENT_COORDINATE_ORIGIN_UPPER_LEFT)
-                    compiler->fragment_coordinate_origin = SpvExecutionModeOriginUpperLeft;
-                else if (option->value == VKD3D_SHADER_COMPILE_OPTION_FRAGMENT_COORDINATE_ORIGIN_LOWER_LEFT)
-                    compiler->fragment_coordinate_origin = SpvExecutionModeOriginLowerLeft;
-                else
-                    WARN("Ignoring unrecognised value %#x for option %#x.\n", option->value, option->name);
-                break;
-
-            case VKD3D_SHADER_COMPILE_OPTION_FEATURE:
-                compiler->features = option->value;
-                break;
-
-            case VKD3D_SHADER_COMPILE_OPTION_PACK_MATRIX_ORDER:
-            case VKD3D_SHADER_COMPILE_OPTION_BACKWARD_COMPATIBILITY:
-            case VKD3D_SHADER_COMPILE_OPTION_CHILD_EFFECT:
-            case VKD3D_SHADER_COMPILE_OPTION_WARN_IMPLICIT_TRUNCATION:
-            case VKD3D_SHADER_COMPILE_OPTION_INCLUDE_EMPTY_BUFFERS_IN_EFFECTS:
-            case VKD3D_SHADER_COMPILE_OPTION_DENORMAL_MODE_F16:
-            case VKD3D_SHADER_COMPILE_OPTION_DENORMAL_MODE_F32:
-            case VKD3D_SHADER_COMPILE_OPTION_DENORMAL_MODE_F64:
-                /* Explicitly ignored for this target. */
-                break;
-
-            default:
-                WARN("Ignoring unrecognised option %#x with value %#x.\n", option->name, option->value);
-                break;
-        }
-    }
-
-    /* Explicit enabling of float64 was not required for API versions <= 1.10. */
-    if (compiler->api_version <= VKD3D_SHADER_API_VERSION_1_10)
-        compiler->features |= VKD3D_SHADER_COMPILE_OPTION_FEATURE_FLOAT64;
+    if (compiler->compile_info.fragment_origin_lower_left)
+        compiler->fragment_coordinate_origin = SpvExecutionModeOriginLowerLeft;
+    else
+        compiler->fragment_coordinate_origin = SpvExecutionModeOriginUpperLeft;
 
     rb_init(&compiler->symbol_table, vkd3d_symbol_compare);
 
@@ -3274,7 +3195,8 @@ static struct spirv_compiler *spirv_compiler_create(struct vsir_program *program
 static bool spirv_compiler_use_storage_buffer(const struct spirv_compiler *compiler,
         const struct vkd3d_symbol_resource_data *resource)
 {
-    return compiler->ssbo_uavs && resource->resource_type_info->resource_type == VKD3D_SHADER_RESOURCE_BUFFER;
+    return compiler->compile_info.ssbo_uavs
+            && resource->resource_type_info->resource_type == VKD3D_SHADER_RESOURCE_BUFFER;
 }
 
 static enum vkd3d_shader_spirv_environment spirv_compiler_get_target_environment(
@@ -4272,7 +4194,7 @@ static bool spirv_compiler_enable_descriptor_indexing(struct spirv_compiler *com
             break;
         case VSIR_REGISTER_UAV:
             if (resource_type == VKD3D_SHADER_RESOURCE_BUFFER)
-                vkd3d_spirv_enable_capability(builder, compiler->ssbo_uavs
+                vkd3d_spirv_enable_capability(builder, compiler->compile_info.ssbo_uavs
                         ? SpvCapabilityStorageBufferArrayDynamicIndexing
                         : SpvCapabilityStorageTexelBufferArrayDynamicIndexingEXT);
             else
@@ -6237,7 +6159,7 @@ static void spirv_compiler_emit_global_flags(struct spirv_compiler *compiler, en
 
     if (flags & (VKD3DSGF_ENABLE_DOUBLE_PRECISION_FLOAT_OPS | VKD3DSGF_ENABLE_11_1_DOUBLE_EXTENSIONS))
     {
-        if (compiler->features & VKD3D_SHADER_COMPILE_OPTION_FEATURE_FLOAT64)
+        if (compiler->compile_info.feature_float64)
         {
             vkd3d_spirv_enable_capability(&compiler->spirv_builder, SpvCapabilityFloat64);
             spirv_compiler_emit_denormal_mode(compiler, 64, compiler->program->f64_denormal_mode);
@@ -6252,7 +6174,7 @@ static void spirv_compiler_emit_global_flags(struct spirv_compiler *compiler, en
 
     if (flags & VKD3DSGF_ENABLE_INT64)
     {
-        if (compiler->features & VKD3D_SHADER_COMPILE_OPTION_FEATURE_INT64)
+        if (compiler->compile_info.feature_int64)
             vkd3d_spirv_enable_capability(&compiler->spirv_builder, SpvCapabilityInt64);
         else
             spirv_compiler_error(compiler, VKD3D_SHADER_ERROR_SPV_UNSUPPORTED_FEATURE,
@@ -6262,7 +6184,7 @@ static void spirv_compiler_emit_global_flags(struct spirv_compiler *compiler, en
 
     if (flags & VKD3DSGF_ENABLE_RELAXED_TYPED_UAV_FORMATS)
     {
-        if (!compiler->uav_read_without_format)
+        if (!compiler->compile_info.uav_read_without_format)
             spirv_compiler_error(compiler, VKD3D_SHADER_ERROR_SPV_UNSUPPORTED_FEATURE,
                     "The target environment does not support accessing storage images without specifying a format.");
         flags &= ~VKD3DSGF_ENABLE_RELAXED_TYPED_UAV_FORMATS;
@@ -6270,7 +6192,7 @@ static void spirv_compiler_emit_global_flags(struct spirv_compiler *compiler, en
 
     if (flags & VKD3DSGF_ENABLE_WAVE_INTRINSICS)
     {
-        if (!(compiler->features & VKD3D_SHADER_COMPILE_OPTION_FEATURE_WAVE_OPS))
+        if (!compiler->compile_info.feature_wave_ops)
             spirv_compiler_error(compiler, VKD3D_SHADER_ERROR_SPV_UNSUPPORTED_FEATURE,
                     "The target environment does not support wave ops.");
         else if (!spirv_compiler_is_spirv_min_1_3_target(compiler))
@@ -6454,16 +6376,15 @@ static void spirv_compiler_emit_push_constant_buffers(struct spirv_compiler *com
     }
 }
 
-static const struct vkd3d_shader_descriptor_info1 *spirv_compiler_get_descriptor_info(
-        struct spirv_compiler *compiler, enum vkd3d_shader_descriptor_type type,
-        const struct vsir_register_range *range)
+static const struct vsir_descriptor *spirv_compiler_get_descriptor_info(struct spirv_compiler *compiler,
+        enum vkd3d_shader_descriptor_type type, const struct vsir_register_range *range)
 {
-    const struct vkd3d_shader_scan_descriptor_info1 *descriptor_info = &compiler->program->descriptors;
+    const struct vsir_descriptor_info *descriptor_info = &compiler->program->descriptors;
     unsigned int register_last = (range->last == ~0u) ? range->first : range->last;
-    const struct vkd3d_shader_descriptor_info1 *d;
+    const struct vsir_descriptor *d;
     unsigned int i;
 
-    for (i = 0; i < descriptor_info->descriptor_count; ++i)
+    for (i = 0; i < descriptor_info->count; ++i)
     {
         d = &descriptor_info->descriptors[i];
         if (d->type == type && d->register_space == range->space && d->register_index <= range->first
@@ -6494,7 +6415,7 @@ static void spirv_compiler_decorate_descriptor(struct spirv_compiler *compiler,
 static uint32_t spirv_compiler_build_descriptor_variable(struct spirv_compiler *compiler,
         SpvStorageClass storage_class, uint32_t type_id, const struct vsir_operand *reg,
         const struct vsir_register_range *range, enum vkd3d_shader_resource_type resource_type,
-        const struct vkd3d_shader_descriptor_info1 *descriptor, bool is_uav_counter,
+        const struct vsir_descriptor *descriptor, bool is_uav_counter,
         struct vkd3d_descriptor_variable_info *var_info)
 {
     struct vkd3d_spirv_builder *builder = &compiler->spirv_builder;
@@ -6567,7 +6488,7 @@ static uint32_t spirv_compiler_build_descriptor_variable(struct spirv_compiler *
 }
 
 static void spirv_compiler_emit_cbv_declaration(struct spirv_compiler *compiler,
-        const struct vsir_register_range *range, const struct vkd3d_shader_descriptor_info1 *descriptor)
+        const struct vsir_register_range *range, const struct vsir_descriptor *descriptor)
 {
     struct vkd3d_spirv_builder *builder = &compiler->spirv_builder;
     uint32_t vec4_id, array_type_id, length_id, struct_id, var_id;
@@ -6628,7 +6549,7 @@ static void spirv_compiler_emit_cbv_declaration(struct spirv_compiler *compiler,
 }
 
 static void spirv_compiler_emit_sampler_declaration(struct spirv_compiler *compiler,
-        const struct vsir_register_range *range, const struct vkd3d_shader_descriptor_info1 *descriptor)
+        const struct vsir_register_range *range, const struct vsir_descriptor *descriptor)
 {
     const SpvStorageClass storage_class = SpvStorageClassUniformConstant;
     struct vkd3d_spirv_builder *builder = &compiler->spirv_builder;
@@ -6675,7 +6596,7 @@ static const struct vkd3d_spirv_resource_type *spirv_compiler_enable_resource_ty
     return resource_type_info;
 }
 
-static SpvImageFormat image_format_for_image_read(enum vsir_data_type data_type)
+static SpvImageFormat image_format_for_image_read(struct spirv_compiler *compiler, enum vsir_data_type data_type)
 {
     /* The following formats are supported by Direct3D 11 hardware for UAV
      * typed loads. A newer hardware may support more formats for UAV typed
@@ -6692,7 +6613,9 @@ static SpvImageFormat image_format_for_image_read(enum vsir_data_type data_type)
         case VSIR_DATA_U32:
             return SpvImageFormatR32ui;
         default:
-            FIXME("Unhandled type %#x.\n", data_type);
+            spirv_compiler_error(compiler, VKD3D_SHADER_ERROR_SPV_NOT_IMPLEMENTED,
+                    "Unhandled data type \"%s\" (%#x).",
+                    vsir_data_type_get_name(data_type, "<unknown>"), data_type);
             return SpvImageFormatUnknown;
     }
 }
@@ -6702,7 +6625,7 @@ static uint32_t spirv_compiler_get_image_type_id(struct spirv_compiler *compiler
         const struct vkd3d_spirv_resource_type *resource_type_info, enum vsir_data_type data_type, bool raw_structured)
 {
     struct vkd3d_spirv_builder *builder = &compiler->spirv_builder;
-    const struct vkd3d_shader_descriptor_info1 *d;
+    const struct vsir_descriptor *d;
     bool uav_read, uav_atomics;
     uint32_t sampled_type_id;
     SpvImageFormat format;
@@ -6714,8 +6637,8 @@ static uint32_t spirv_compiler_get_image_type_id(struct spirv_compiler *compiler
                 VKD3D_SHADER_DESCRIPTOR_TYPE_UAV, range);
         uav_read = !!(d->flags & VKD3D_SHADER_DESCRIPTOR_INFO_FLAG_UAV_READ);
         uav_atomics = !!(d->flags & VKD3D_SHADER_DESCRIPTOR_INFO_FLAG_UAV_ATOMICS);
-        if (raw_structured || uav_atomics || (uav_read && !compiler->uav_read_without_format))
-            format = image_format_for_image_read(data_type);
+        if (raw_structured || uav_atomics || (uav_read && !compiler->compile_info.uav_read_without_format))
+            format = image_format_for_image_read(compiler, data_type);
         else if (uav_read)
             vkd3d_spirv_enable_capability(builder, SpvCapabilityStorageImageReadWithoutFormat);
     }
@@ -6799,7 +6722,7 @@ static void spirv_compiler_emit_combined_sampler_declarations(struct spirv_compi
 }
 
 static void spirv_compiler_emit_resource_declaration(struct spirv_compiler *compiler,
-        const struct vsir_register_range *range, const struct vkd3d_shader_descriptor_info1 *descriptor)
+        const struct vsir_register_range *range, const struct vsir_descriptor *descriptor)
 {
     bool raw = descriptor->flags & VKD3D_SHADER_DESCRIPTOR_INFO_FLAG_RAW_BUFFER;
     enum vkd3d_shader_resource_type resource_type = descriptor->resource_type;
@@ -6839,7 +6762,7 @@ static void spirv_compiler_emit_resource_declaration(struct spirv_compiler *comp
         return;
     }
 
-    if (compiler->ssbo_uavs && is_uav && resource_type == VKD3D_SHADER_RESOURCE_BUFFER)
+    if (compiler->compile_info.ssbo_uavs && is_uav && resource_type == VKD3D_SHADER_RESOURCE_BUFFER)
     {
         uint32_t array_type_id, struct_id;
 
@@ -6891,7 +6814,7 @@ static void spirv_compiler_emit_resource_declaration(struct spirv_compiler *comp
                 storage_class = SpvStorageClassAtomicCounter;
                 type_id = counter_type_id;
             }
-            else if (compiler->ssbo_uavs)
+            else if (compiler->compile_info.ssbo_uavs)
             {
                 uint32_t length_id, array_type_id, struct_id;
 
@@ -6936,7 +6859,7 @@ static void spirv_compiler_emit_workgroup_memory(struct spirv_compiler *compiler
     const SpvStorageClass storage_class = SpvStorageClassWorkgroup;
     struct vkd3d_symbol reg_symbol;
 
-    if (zero_init && !(compiler->features & VKD3D_SHADER_COMPILE_OPTION_FEATURE_ZERO_INITIALIZE_WORKGROUP_MEMORY))
+    if (zero_init && !compiler->compile_info.feature_zero_init_tgsm)
         spirv_compiler_error(compiler, VKD3D_SHADER_ERROR_SPV_UNSUPPORTED_FEATURE,
                 "The target environment does not support zero-initialized workgroup memory.");
 
@@ -7037,7 +6960,7 @@ static void spirv_compiler_emit_point_size(struct spirv_compiler *compiler)
      * PointSize for tessellation and geometry shaders. In that case the point
      * size defaults to 1.0. */
     if (spirv_compiler_is_opengl_target(compiler) || compiler->shader_type == VKD3D_SHADER_TYPE_VERTEX
-            || compiler->write_tess_geom_point_size)
+            || compiler->compile_info.write_tess_geom_point_size)
     {
         struct vsir_dst_operand dst;
 
@@ -9151,8 +9074,7 @@ static void spirv_compiler_emit_store_uav_raw_structured(struct spirv_compiler *
                 &src[0], VKD3DSP_WRITEMASK_0, &src[1], VKD3DSP_WRITEMASK_0);
 
         data = &src[instruction->src_count - 1];
-        VKD3D_ASSERT(data->reg.data_type == VSIR_DATA_U32);
-        val_id = spirv_compiler_emit_load_src(compiler, data, dst->write_mask);
+        val_id = spirv_compiler_emit_load_src_with_type(compiler, data, dst->write_mask, VSIR_DATA_U32);
 
         component_count = vsir_write_mask_component_count(dst->write_mask);
         for (component_idx = 0; component_idx < component_count; ++component_idx)
@@ -9179,8 +9101,7 @@ static void spirv_compiler_emit_store_uav_raw_structured(struct spirv_compiler *
                 type_id, image.structure_stride, &src[0], VKD3DSP_WRITEMASK_0, &src[1], VKD3DSP_WRITEMASK_0);
 
         data = &src[instruction->src_count - 1];
-        VKD3D_ASSERT(data->reg.data_type == VSIR_DATA_U32);
-        val_id = spirv_compiler_emit_load_src(compiler, data, dst->write_mask);
+        val_id = spirv_compiler_emit_load_src_with_type(compiler, data, dst->write_mask, VSIR_DATA_U32);
 
         component_count = vsir_write_mask_component_count(dst->write_mask);
         for (component_idx = 0; component_idx < component_count; ++component_idx)
@@ -9386,7 +9307,7 @@ static void spirv_compiler_emit_uav_counter_instruction(struct spirv_compiler *c
         pointer_id = counter_id;
         memory_semantics |= SpvMemorySemanticsAtomicCounterMemoryMask;
     }
-    else if (compiler->ssbo_uavs)
+    else if (compiler->compile_info.ssbo_uavs)
     {
         ptr_type_id = vkd3d_spirv_get_op_type_pointer(builder, SpvStorageClassUniform, type_id);
         coordinate_id = spirv_compiler_get_constant_uint(compiler, 0);
@@ -9602,7 +9523,7 @@ static void spirv_compiler_emit_bufinfo(struct spirv_compiler *compiler,
     uint32_t constituents[2];
     unsigned int write_mask;
 
-    if (compiler->ssbo_uavs && src->reg.type == VSIR_REGISTER_UAV)
+    if (compiler->compile_info.ssbo_uavs && src->reg.type == VSIR_REGISTER_UAV)
     {
         resource_symbol = spirv_compiler_find_resource(compiler, &src->reg);
 
@@ -10272,7 +10193,7 @@ static void spirv_compiler_handle_instruction(struct spirv_compiler *compiler,
      * This is an issue for hull shaders in particular, because we don't go
      * through vkd3d_spirv_builder_begin_main_function() before getting here
      * in that case. */
-    if (!compiler->strip_debug && compiler->spirv_builder.function_stream.word_count)
+    if (!compiler->compile_info.strip_debug && compiler->spirv_builder.function_stream.word_count)
         vkd3d_spirv_build_op_line(&compiler->spirv_builder, &instruction->location);
 
     switch (instruction->opcode)
@@ -10667,12 +10588,12 @@ static void spirv_compiler_emit_io_declarations(struct spirv_compiler *compiler)
 
 static void spirv_compiler_emit_descriptor_declarations(struct spirv_compiler *compiler)
 {
-    const struct vkd3d_shader_scan_descriptor_info1 *descriptors = &compiler->program->descriptors;
+    const struct vsir_descriptor_info *descriptors = &compiler->program->descriptors;
     unsigned int i;
 
-    for (i = 0; i < descriptors->descriptor_count; ++i)
+    for (i = 0; i < descriptors->count; ++i)
     {
-        const struct vkd3d_shader_descriptor_info1 *descriptor = &descriptors->descriptors[i];
+        const struct vsir_descriptor *descriptor = &descriptors->descriptors[i];
         struct vsir_register_range range;
 
         range.first = descriptor->register_index;
@@ -10857,7 +10778,7 @@ static int spirv_compiler_generate_spirv(struct spirv_compiler *compiler,
         spirv_compiler_emit_shader_epilogue_function(compiler);
     }
 
-    if (compiler->strip_debug)
+    if (compiler->compile_info.strip_debug)
         vkd3d_spirv_stream_clear(&builder->debug_stream);
 
     environment = spirv_compiler_get_target_environment(compiler);
@@ -10898,7 +10819,7 @@ static int spirv_compiler_generate_spirv(struct spirv_compiler *compiler,
     {
         struct vkd3d_shader_code text;
         if (vkd3d_spirv_binary_to_text(spirv, compile_info->source_name, environment,
-                compiler->formatting, &text, compiler->message_context) != VKD3D_OK)
+                compiler->compile_info.formatting, &text, compiler->message_context) != VKD3D_OK)
             return VKD3D_ERROR;
         vkd3d_shader_free_shader_code(spirv);
         *spirv = text;

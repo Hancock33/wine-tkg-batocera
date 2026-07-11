@@ -47,7 +47,7 @@ AC_ARG_WITH(krb5,      AS_HELP_STRING([--without-krb5],[do not use krb5 (Kerbero
 AC_ARG_WITH(mingw,     AS_HELP_STRING([--without-mingw],[do not use the MinGW cross-compiler]))
 AC_ARG_WITH(netapi,    AS_HELP_STRING([--without-netapi],[do not use the Samba NetAPI library]))
 AC_ARG_WITH(opencl,    AS_HELP_STRING([--without-opencl],[do not use OpenCL]),
-            [if test "x$withval" = "xno"; then ac_cv_header_OpenCL_opencl_h=no; fi])
+            [if test "x$withval" = "xno"; then ac_cv_header_CL_opencl_h=no; fi])
 AC_ARG_WITH(opengl,    AS_HELP_STRING([--without-opengl],[do not use OpenGL]))
 AC_ARG_WITH(oss,       AS_HELP_STRING([--without-oss],[do not use the OSS sound support]))
 AC_ARG_WITH(pcap,      AS_HELP_STRING([--without-pcap],[do not use the Packet Capture library]))
@@ -723,13 +723,14 @@ m4_ifdef([AC_SYS_YEAR2038],
          [test "$ac_cv_sys_file_offset_bits" = 64 && AC_DEFINE(_TIME_BITS,64,[Define to 64 to enable 64-bit time_t])])
 
 AC_CHECK_HEADERS(\
-	OpenCL/opencl.h \
 	arpa/inet.h \
 	arpa/nameser.h \
+	asm/hwcap.h \
 	asm/termbits.h \
 	asm/types.h \
 	asm/user.h \
-        bluetooth/bluetooth.h \
+	bluetooth/bluetooth.h \
+	dev/evdev/input.h \
 	elf.h \
 	gettext-po.h \
 	link.h \
@@ -805,6 +806,8 @@ AC_CHECK_HEADERS(\
 	valgrind/memcheck.h \
 	valgrind/valgrind.h
 )
+dnl Wine use HAVE_OPENCL_OPENCL_H to condition, explicit it.
+AC_CHECK_HEADER(CL/opencl.h,[AC_DEFINE(HAVE_OPENCL_OPENCL_H, 1, [Define to 1 if you have the <CL/opencl.h> header file.])])
 AC_HEADER_MAJOR()
 
 dnl **** Checks for headers that depend on other ones ****
@@ -1025,7 +1028,7 @@ case $host_os in
         AC_SUBST(COREAUDIO_LIBS,"-framework CoreFoundation -framework CoreAudio -framework AudioUnit -framework AudioToolbox -framework CoreMIDI")
         enable_winecoreaudio_drv=${enable_winecoreaudio_drv:-yes}
     fi
-    if test "$ac_cv_header_OpenCL_opencl_h" = "yes"
+    if test "$ac_cv_header_CL_opencl_h" = "yes"
     then
         AC_SUBST(OPENCL_LIBS,"-framework OpenCL")
         ac_cv_func_clGetPlatformInfo=yes
@@ -1104,7 +1107,16 @@ case $host_os in
           *)
             WINE_TRY_CFLAGS([-static-pie],
                             [AS_VAR_APPEND([WINEPRELOADER_LDFLAGS],[" -static-pie"])],
-                            [AS_VAR_APPEND([WINEPRELOADER_LDFLAGS],[" -static -Wl,-Ttext=0x7d7d00000000"])])
+            [
+                case $HOST_ARCH in
+                  aarch64)
+                    dnl AArch64 kernels may be limited to 39 bits of address
+                    dnl space; limit the text section load address to that.
+                    AS_VAR_APPEND([WINEPRELOADER_LDFLAGS],[" -static -Wl,-Ttext=0x7d7d000000"]) ;;
+                  *)
+                    AS_VAR_APPEND([WINEPRELOADER_LDFLAGS],[" -static -Wl,-Ttext=0x7d7d00000000"]) ;;
+                esac
+            ])
             ;;
         esac
         ;;
@@ -1291,7 +1303,6 @@ then
 
     dnl *** All of the following tests require X11/Xlib.h
     AC_CHECK_HEADERS([X11/extensions/shape.h \
-                      X11/extensions/XInput.h \
                       X11/extensions/XInput2.h \
                       X11/extensions/XShm.h \
                       X11/extensions/Xfixes.h \
@@ -1512,10 +1523,11 @@ dnl **** Check for libpcsclite ****
 if test "x$with_pcsclite" != "xno"
 then
     WINE_PACKAGE_FLAGS(PCSCLITE,[libpcsclite],[-lpcsclite],,,
-                 [AC_CHECK_FUNC(SCardEstablishContext,[:],[PCSCLITE_LIBS=""])],
-                 [case $host_os in
-                    darwin*) AC_SUBST(PCSCLITE_LIBS,"-framework PCSC") ;;
-                  esac])
+                 [AC_CHECK_FUNC(SCardEstablishContext,[:],
+                    [case $host_os in
+                        darwin*) PCSCLITE_LIBS="-framework PCSC" ;;
+                        *) PCSCLITE_LIBS="";;
+                     esac])])
 fi
 WINE_NOTICE_WITH(pcsclite,[test "x$PCSCLITE_LIBS" = x],
                  [libpcsclite not found, smart cards won't be supported.],
@@ -3802,7 +3814,7 @@ dnl Rules for generated source files
 
 WINE_APPEND_RULE(
 [dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-11.12.r0.gbc50fb14\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
+	@version=\`(echo \"wine-11.12.r13.g8c2d3dee\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$[@]) || echo \$\$build >\$[@] || (rm -f \$[@] && exit 1)
 dlls/wineandroid.drv/wine-debug.apk: dlls/wineandroid.drv/build.gradle ${wine_srcdir}dlls/wineandroid.drv/AndroidManifest.xml ${wine_srcdir}dlls/wineandroid.drv/WineActivity.java ${wine_srcdir}dlls/wineandroid.drv/wine.svg

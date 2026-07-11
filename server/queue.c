@@ -593,7 +593,7 @@ static void set_cursor_pos( struct desktop *desktop, int x, int y )
         return;
     }
 
-    if (!(msg = alloc_hardware_message( 0, source, get_tick_count(), 0 ))) return;
+    if (!(msg = alloc_hardware_message( 0xff515700, source, get_tick_count(), 0 ))) return;
 
     msg->msg = WM_MOUSEMOVE;
     msg->x   = x;
@@ -2033,7 +2033,7 @@ static int is_current_process_foreground( struct desktop *desktop )
 #define WINE_MOUSE_HANDLE 1
 #define WINE_KEYBOARD_HANDLE 2
 
-static void rawmouse_init( struct rawinput *header, RAWMOUSE *rawmouse, int x, int y, unsigned int flags,
+static bool rawmouse_init( struct rawinput *header, RAWMOUSE *rawmouse, int x, int y, unsigned int flags,
                            unsigned int buttons, lparam_t info )
 {
     static const unsigned int button_flags[] =
@@ -2053,9 +2053,7 @@ static void rawmouse_init( struct rawinput *header, RAWMOUSE *rawmouse, int x, i
     header->wparam = 0;
     header->usage  = MAKELONG(HID_USAGE_GENERIC_MOUSE, HID_USAGE_PAGE_GENERIC);
 
-    rawmouse->usFlags       = 0;
-    if (flags & MOUSEEVENTF_ABSOLUTE)    rawmouse->usFlags |= MOUSE_MOVE_ABSOLUTE;
-    if (flags & MOUSEEVENTF_VIRTUALDESK) rawmouse->usFlags |= MOUSE_VIRTUAL_DESKTOP;
+    rawmouse->usFlags       = MOUSE_MOVE_RELATIVE;
     rawmouse->usButtonFlags = 0;
     rawmouse->usButtonData  = 0;
     for (i = 1; i < ARRAY_SIZE(button_flags); ++i)
@@ -2087,6 +2085,8 @@ static void rawmouse_init( struct rawinput *header, RAWMOUSE *rawmouse, int x, i
     rawmouse->lLastX             = x;
     rawmouse->lLastY             = y;
     rawmouse->ulExtraInformation = info;
+
+    return x || y || rawmouse->usButtonFlags;
 }
 
 static void rawkeyboard_init( struct rawinput *rawinput, RAWKEYBOARD *keyboard, unsigned short scan, unsigned short vkey,
@@ -2157,9 +2157,9 @@ struct rawinput_message
 };
 
 /* check if process is supposed to receive a WM_INPUT message and eventually queue it */
-static void queue_rawinput_message( struct desktop *desktop, struct process *process, void *args )
+static void queue_rawinput_message( struct desktop *desktop, struct process *process,
+                                    const struct rawinput_message *raw_msg )
 {
-    const struct rawinput_message *raw_msg = args;
     const struct rawinput_device *device;
     struct hardware_msg_data *msg_data;
     struct message *msg;
@@ -2216,7 +2216,7 @@ static void queue_rawinput_message( struct desktop *desktop, struct process *pro
     queue_hardware_message( desktop, msg, 1 );
 }
 
-static void dispatch_rawinput_message( struct desktop *desktop, struct rawinput_message *raw_msg )
+static void dispatch_rawinput_message( struct desktop *desktop, const struct rawinput_message *raw_msg )
 {
     struct process *process;
 
@@ -2226,8 +2226,10 @@ static void dispatch_rawinput_message( struct desktop *desktop, struct rawinput_
 
 /* queue a hardware message for a mouse event */
 static int queue_mouse_message( struct desktop *desktop, user_handle_t win, const union hw_input *input,
-                                unsigned int origin, struct msg_queue *sender, unsigned int send_flags )
+                                unsigned int origin, struct msg_queue *sender, bool rawinput )
 {
+    static const POINT empty_raw = {0};
+
     desktop_shm_t *desktop_shm = desktop->shared;
     struct hardware_msg_data *msg_data;
     struct rawinput_message raw_msg;
@@ -2236,6 +2238,7 @@ static int queue_mouse_message( struct desktop *desktop, user_handle_t win, cons
     unsigned int i, time = get_tick_count(), flags;
     struct hw_msg_source source = { IMDT_MOUSE, origin };
     lparam_t wparam = input->mouse.data << 16;
+    const POINT *raw = &empty_raw;
     int wait = 0, x, y;
 
     static const unsigned int messages[] =
@@ -2255,6 +2258,13 @@ static int queue_mouse_message( struct desktop *desktop, user_handle_t win, cons
         WM_MOUSEHWHEEL   /* 0x1000 = MOUSEEVENTF_HWHEEL */
     };
 
+    if (input->mouse.raw_count != get_req_data_size() / sizeof(*raw))
+    {
+        set_error( STATUS_INVALID_PARAMETER );
+        return 0;
+    }
+    if (input->mouse.raw_count) raw = get_req_data();
+
     SHARED_WRITE_BEGIN( desktop_shm, desktop_shm_t )
     {
         shared->cursor.last_change = time;
@@ -2264,6 +2274,16 @@ static int queue_mouse_message( struct desktop *desktop, user_handle_t win, cons
     flags = input->mouse.flags;
     time  = input->mouse.time;
     if (!time) time = desktop_shm->cursor.last_change;
+
+    if (win && origin == IMO_HARDWARE && flags == (MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE))
+    {
+        struct rectangle rect = { input->mouse.x, input->mouse.y, input->mouse.x + 1, input->mouse.y + 1 };
+        unsigned char state = (desktop_shm->keystate[VK_LBUTTON] | desktop_shm->keystate[VK_MBUTTON] |
+                               desktop_shm->keystate[VK_RBUTTON] | desktop_shm->keystate[VK_XBUTTON1] |
+                               desktop_shm->keystate[VK_XBUTTON2]) & 0x80;
+        input_shm_t *input_shm = sender && sender->input ? sender->input->shared : NULL;
+        if (!state && input_shm && !input_shm->capture) set_window_rect_visible( win, rect );
+    }
 
     if (flags & MOUSEEVENTF_MOVE)
     {
@@ -2286,7 +2306,7 @@ static int queue_mouse_message( struct desktop *desktop, user_handle_t win, cons
         y = desktop_shm->cursor.y;
     }
 
-    if (!(send_flags & SEND_HWMSG_NO_RAW) && (foreground = get_foreground_thread( desktop, win )))
+    if ((foreground = get_foreground_thread( desktop, win )))
     {
         memset( &raw_msg, 0, sizeof(raw_msg) );
         raw_msg.foreground = foreground;
@@ -2294,14 +2314,21 @@ static int queue_mouse_message( struct desktop *desktop, user_handle_t win, cons
         raw_msg.time       = time;
         raw_msg.message    = WM_INPUT;
         raw_msg.flags      = flags;
-        rawmouse_init( &raw_msg.rawinput, &raw_msg.data.mouse, input->mouse.x, input->mouse.y,
-                       raw_msg.flags, input->mouse.data, input->mouse.info );
 
-        dispatch_rawinput_message( desktop, &raw_msg );
+        for (int i = 0, count = max( 1, input->mouse.raw_count ); i < count; i++)
+        {
+            int raw_x, raw_y;
+
+            raw_x = rawinput ? raw[i].x : x - desktop_shm->cursor.x;
+            raw_y = rawinput ? raw[i].y : y - desktop_shm->cursor.y;
+
+            if (rawmouse_init( &raw_msg.rawinput, &raw_msg.data.mouse, raw_x, raw_y,
+                               raw_msg.flags, input->mouse.data, input->mouse.info ))
+                dispatch_rawinput_message( desktop, &raw_msg );
+        }
+
         release_object( foreground );
     }
-
-    if (send_flags & SEND_HWMSG_NO_MSG) return 0;
 
     for (i = 0; i < ARRAY_SIZE( messages ); i++)
     {
@@ -2333,14 +2360,14 @@ static int queue_mouse_message( struct desktop *desktop, user_handle_t win, cons
 }
 
 static int queue_keyboard_message( struct desktop *desktop, user_handle_t win, const union hw_input *input,
-                                   unsigned int origin, struct msg_queue *sender, int repeat, unsigned int send_flags);
+                                   unsigned int origin, struct msg_queue *sender, int repeat );
 
 static void key_repeat_timeout( void *private )
 {
     struct desktop *desktop = private;
 
     desktop->key_repeat.timeout = NULL;
-    queue_keyboard_message( desktop, desktop->key_repeat.win, &desktop->key_repeat.input, IMO_HARDWARE, NULL, 1, 0 );
+    queue_keyboard_message( desktop, desktop->key_repeat.win, &desktop->key_repeat.input, IMO_HARDWARE, NULL, 1 );
 }
 
 static void stop_key_repeat( struct desktop *desktop )
@@ -2353,7 +2380,7 @@ static void stop_key_repeat( struct desktop *desktop )
 
 /* queue a hardware message for a keyboard event */
 static int queue_keyboard_message( struct desktop *desktop, user_handle_t win, const union hw_input *input,
-                                   unsigned int origin, struct msg_queue *sender, int repeat, unsigned int send_flags )
+                                   unsigned int origin, struct msg_queue *sender, int repeat )
 {
     desktop_shm_t *desktop_shm = desktop->shared;
     struct hw_msg_source source = { IMDT_KEYBOARD, origin };
@@ -2476,7 +2503,7 @@ static int queue_keyboard_message( struct desktop *desktop, user_handle_t win, c
         }
     }
 
-    if (!(send_flags & SEND_HWMSG_NO_RAW) && ((!unicode && (foreground = get_foreground_thread( desktop, win )))))
+    if (!unicode && (foreground = get_foreground_thread( desktop, win )))
     {
         struct rawinput_message raw_msg = {0};
         raw_msg.foreground = foreground;
@@ -2490,8 +2517,6 @@ static int queue_keyboard_message( struct desktop *desktop, user_handle_t win, c
         dispatch_rawinput_message( desktop, &raw_msg );
         release_object( foreground );
     }
-
-    if (send_flags & SEND_HWMSG_NO_MSG) return 0;
 
     if (!(msg = alloc_hardware_message( input->kbd.info, source, time, 0 ))) return 0;
     msg_data = msg->data;
@@ -2915,6 +2940,7 @@ void post_message( user_handle_t win, unsigned int message, lparam_t wparam, lpa
         msg->result    = NULL;
         msg->data      = NULL;
         msg->data_size = 0;
+        msg->unique_id = get_unique_post_id();
 
         get_message_defaults( thread->queue, &msg->x, &msg->y, &msg->time );
 
@@ -2947,7 +2973,6 @@ void send_notify_message( user_handle_t win, unsigned int message, lparam_t wpar
         msg->result    = NULL;
         msg->data      = NULL;
         msg->data_size = 0;
-        msg->unique_id = get_unique_post_id();
 
         get_message_defaults( thread->queue, &msg->x, &msg->y, &msg->time );
 
@@ -3260,6 +3285,7 @@ DECL_HANDLER(send_hardware_message)
     struct desktop *desktop;
     unsigned int origin = (req->flags & SEND_HWMSG_INJECTED ? IMO_INJECTED : IMO_HARDWARE);
     struct msg_queue *sender = req->flags & SEND_HWMSG_INJECTED ? get_current_queue() : NULL;
+    bool rawinput = !!(req->flags & SEND_HWMSG_RAWINPUT);
     desktop_shm_t *desktop_shm;
     int wait = 0;
 
@@ -3279,10 +3305,10 @@ DECL_HANDLER(send_hardware_message)
     switch (req->input.type)
     {
     case INPUT_MOUSE:
-        wait = queue_mouse_message( desktop, req->win, &req->input, origin, sender, req->flags );
+        wait = queue_mouse_message( desktop, req->win, &req->input, origin, sender, rawinput );
         break;
     case INPUT_KEYBOARD:
-        wait = queue_keyboard_message( desktop, req->win, &req->input, origin, sender, 0, req->flags );
+        wait = queue_keyboard_message( desktop, req->win, &req->input, origin, sender, 0 );
         break;
     case INPUT_HARDWARE:
         queue_custom_hardware_message( desktop, req->win, origin, &req->input );

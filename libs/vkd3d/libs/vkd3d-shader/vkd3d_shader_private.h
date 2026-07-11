@@ -1661,7 +1661,7 @@ enum vsir_normalisation_level
 
 const char *vsir_denorm_mode_get_name(enum vkd3d_shader_denormal_mode m, const char *error);
 
-struct vkd3d_shader_descriptor_info1
+struct vsir_descriptor
 {
     enum vkd3d_shader_descriptor_type type;
     unsigned int register_space;
@@ -1677,20 +1677,36 @@ struct vkd3d_shader_descriptor_info1
     uint32_t uav_flags;
 };
 
-struct vkd3d_shader_scan_descriptor_info1
+struct vsir_descriptor_info
 {
-    struct vkd3d_shader_descriptor_info1 *descriptors;
-    unsigned int descriptor_count;
+    struct vsir_descriptor *descriptors;
+    size_t capacity, count;
 };
 
-const struct vkd3d_shader_descriptor_info1 *vkd3d_shader_find_descriptor(
-    const struct vkd3d_shader_scan_descriptor_info1 *info,
-    enum vkd3d_shader_descriptor_type type, unsigned int register_id);
-void vkd3d_shader_free_scan_descriptor_info1(struct vkd3d_shader_scan_descriptor_info1 *scan_descriptor_info);
+const struct vsir_descriptor *vkd3d_shader_find_descriptor(
+    const struct vsir_descriptor_info *info, enum vkd3d_shader_descriptor_type type, unsigned int register_id);
+void vsir_descriptor_info_cleanup(struct vsir_descriptor_info *info);
 
 struct vsir_compile_info
 {
+    enum vkd3d_shader_compile_option_formatting_flags formatting;
     enum vkd3d_shader_api_version api_version;
+    enum vkd3d_shader_compile_option_pack_matrix_order matrix_majority;
+
+    uint32_t strip_debug : 1;
+    uint32_t ssbo_uavs : 1;
+    uint32_t uav_read_without_format : 1;
+    uint32_t write_tess_geom_point_size : 1;
+    uint32_t map_semantic_names : 1;
+    uint32_t double_as_float_alias : 1;
+    uint32_t const_global_uniforms : 1;
+    uint32_t allow_half_globals : 1;
+    uint32_t fragment_origin_lower_left : 1;
+    uint32_t feature_int64 : 1;
+    uint32_t feature_float64 : 1;
+    uint32_t feature_wave_ops : 1;
+    uint32_t feature_zero_init_tgsm : 1;
+    uint32_t child_effect : 1;
 };
 
 void vsir_compile_info_init(struct vsir_compile_info *vsir, const struct vkd3d_shader_compile_info *vkd3d);
@@ -1704,8 +1720,7 @@ struct vsir_program
     struct vsir_signature output_signature;
     struct vsir_signature patch_constant_signature;
 
-    struct vkd3d_shader_scan_descriptor_info1 descriptors;
-    size_t descriptors_size;
+    struct vsir_descriptor_info descriptors;
 
     unsigned int parameter_count;
     const struct vkd3d_shader_parameter1 *parameters;
@@ -1752,7 +1767,7 @@ struct vsir_program
     enum vkd3d_shader_denormal_mode f64_denormal_mode;
 };
 
-struct vkd3d_shader_descriptor_info1 *vsir_program_add_descriptor(struct vsir_program *program,
+struct vsir_descriptor *vsir_program_add_descriptor(struct vsir_program *program,
         enum vkd3d_shader_descriptor_type type, unsigned int register_id, const struct vsir_register_range *range,
         enum vkd3d_shader_resource_type resource_type, enum vsir_data_type resource_data_type);
 bool vsir_program_add_icb(struct vsir_program *program, struct vkd3d_shader_immediate_constant_buffer *icb);
@@ -1852,7 +1867,7 @@ enum vsir_asm_flags
 };
 
 enum vkd3d_result d3d_asm_compile(struct vsir_program *program,
-        const struct vkd3d_shader_compile_info *compile_info, struct vkd3d_shader_code *out,
+        const struct vsir_compile_info *compile_info, struct vkd3d_shader_code *out,
         enum vsir_asm_flags flags, struct vkd3d_shader_message_context *message_context);
 void vkd3d_string_buffer_cleanup(struct vkd3d_string_buffer *buffer);
 struct vkd3d_string_buffer *vkd3d_string_buffer_get(struct vkd3d_string_buffer_cache *list);
@@ -1960,8 +1975,7 @@ bool sm4_register_from_semantic_name(const struct vkd3d_shader_version *version,
         const char *semantic_name, bool output, enum vsir_register_type *type, bool *has_idx);
 bool shader_sm4_is_scalar_register(const struct vsir_operand *reg);
 bool sm4_sysval_semantic_from_semantic_name(enum vkd3d_shader_sysval_semantic *sysval_semantic,
-        const struct vkd3d_shader_version *version,
-        enum vkd3d_shader_compile_option_backward_compatibility compatibility_flags,
+        const struct vkd3d_shader_version *version, bool semantic_compat_mapping,
         enum vkd3d_tessellator_domain domain, const char *semantic_name,
         unsigned int semantic_idx, bool output, bool is_patch_constant_func, bool is_primitive);
 

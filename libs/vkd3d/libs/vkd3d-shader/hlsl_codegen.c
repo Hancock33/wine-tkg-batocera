@@ -282,7 +282,7 @@ static bool replace_deref_path_with_offset(struct hlsl_ctx *ctx, struct hlsl_der
      * are removed later by dce. So it is not a problem to just cleanup their derefs. */
     if (type->class == HLSL_CLASS_STRUCT || type->class == HLSL_CLASS_ARRAY)
     {
-        hlsl_cleanup_deref(deref);
+        hlsl_deref_cleanup(deref);
         return true;
     }
 
@@ -291,7 +291,7 @@ static bool replace_deref_path_with_offset(struct hlsl_ctx *ctx, struct hlsl_der
     offset = new_offset_instr_from_deref(ctx, &block, deref, &offset_component, &instr->loc);
     list_move_before(&instr->entry, &block.instrs);
 
-    hlsl_cleanup_deref(deref);
+    hlsl_deref_cleanup(deref);
     hlsl_src_from_node(&deref->rel_offset, offset);
     deref->const_offset = offset_component;
 
@@ -552,12 +552,12 @@ static uint32_t combine_field_storage_modifiers(uint32_t modifiers, uint32_t fie
 }
 
 static void prepend_input_copy(struct hlsl_ctx *ctx, struct list *semantic_vars,
-        struct hlsl_block *block, uint32_t prim_index, struct hlsl_ir_load *lhs,
-        uint32_t modifiers, struct hlsl_semantic *semantic, bool force_align)
+        struct hlsl_block *block, uint32_t prim_index, const struct hlsl_deref *deref,
+        uint32_t modifiers, struct hlsl_semantic *semantic, bool force_align, const struct vkd3d_shader_location *loc)
 {
-    struct hlsl_type *type = lhs->node.data_type, *vector_type_src, *vector_type_dst;
-    struct vkd3d_shader_location *loc = &lhs->node.loc;
-    struct hlsl_ir_var *var = lhs->src.var;
+    const struct hlsl_type *type = hlsl_deref_get_type(ctx, deref);
+    struct hlsl_type *vector_type_src, *vector_type_dst;
+    struct hlsl_ir_var *var = deref->var;
     struct hlsl_ir_node *c;
     unsigned int i;
 
@@ -601,7 +601,7 @@ static void prepend_input_copy(struct hlsl_ctx *ctx, struct list *semantic_vars,
                     modifiers, semantic, 0, false, force_align, true, loc)))
                 return;
             ++semantic->index;
-            hlsl_init_simple_deref_from_var(&prim_deref, input);
+            hlsl_deref_init_simple(&prim_deref, input);
 
             idx = hlsl_block_add_uint_constant(ctx, block, prim_index, &var->loc);
 
@@ -611,8 +611,7 @@ static void prepend_input_copy(struct hlsl_ctx *ctx, struct list *semantic_vars,
             instr = &load->node;
         }
         else if (ctx->profile->type == VKD3D_SHADER_TYPE_PIXEL && hlsl_version_ge(ctx, 4, 0)
-                && (ctx->compatibility_flags & VKD3D_SHADER_COMPILE_OPTION_BACKCOMPAT_MAP_SEMANTIC_NAMES)
-                && !ascii_strcasecmp(semantic->name, "VFACE"))
+                && ctx->compile_info.map_semantic_names && !ascii_strcasecmp(semantic->name, "VFACE"))
         {
             /* VFACE on sm4 has sm3 semantics, returning 1.0 or -1.0.
              * Also, the variable can be declared as float (which is not true
@@ -655,45 +654,42 @@ static void prepend_input_copy(struct hlsl_ctx *ctx, struct list *semantic_vars,
         {
             c = hlsl_block_add_uint_constant(ctx, block, i, &var->loc);
 
-            hlsl_block_add_store_index(ctx, block, &lhs->src, c, cast, 0, &var->loc);
+            hlsl_block_add_store_index(ctx, block, deref, c, cast, 0, &var->loc);
         }
         else
         {
             VKD3D_ASSERT(i == 0);
 
-            hlsl_block_add_store_index(ctx, block, &lhs->src, NULL, cast, 0, &var->loc);
+            hlsl_block_add_store_index(ctx, block, deref, NULL, cast, 0, &var->loc);
         }
     }
 }
 
 static void prepend_input_copy_recurse(struct hlsl_ctx *ctx, struct list *semantic_vars,
-        struct hlsl_block *block, uint32_t prim_index, struct hlsl_ir_load *lhs,
-        uint32_t modifiers, struct hlsl_semantic *semantic, bool force_align)
+        struct hlsl_block *block, uint32_t prim_index, const struct hlsl_deref *deref,
+        uint32_t modifiers, struct hlsl_semantic *semantic, bool force_align, const struct vkd3d_shader_location *loc)
 {
-    struct vkd3d_shader_location *loc = &lhs->node.loc;
-    struct hlsl_type *type = lhs->node.data_type;
-    struct hlsl_ir_var *var = lhs->src.var;
+    const struct hlsl_type *type = hlsl_deref_get_type(ctx, deref);
+    struct hlsl_ir_var *var = deref->var;
     struct hlsl_ir_node *c;
     unsigned int i;
 
     if (type->class == HLSL_CLASS_ARRAY || type->class == HLSL_CLASS_STRUCT)
     {
-        struct hlsl_ir_load *element_load;
         struct hlsl_struct_field *field;
 
         for (i = 0; i < hlsl_type_element_count(type); ++i)
         {
             uint32_t element_modifiers;
+            struct hlsl_deref child;
 
             if (type->class == HLSL_CLASS_STRUCT)
                 loc = &type->e.record.fields[i].loc;
 
             c = hlsl_block_add_uint_constant(ctx, block, i, &var->loc);
 
-            /* This redundant load is expected to be deleted later by DCE. */
-            if (!(element_load = hlsl_new_load_index(ctx, &lhs->src, c, loc)))
+            if (!hlsl_deref_init_child(&child, deref, c, ctx))
                 return;
-            hlsl_block_add_instr(block, &element_load->node);
 
             if (type->class == HLSL_CLASS_ARRAY)
             {
@@ -704,7 +700,7 @@ static void prepend_input_copy_recurse(struct hlsl_ctx *ctx, struct list *semant
                     prim_index = i;
 
                 prepend_input_copy_recurse(ctx, semantic_vars, block, prim_index,
-                        element_load, element_modifiers, semantic, force_align);
+                        &child, element_modifiers, semantic, force_align, loc);
             }
             else
             {
@@ -712,6 +708,7 @@ static void prepend_input_copy_recurse(struct hlsl_ctx *ctx, struct list *semant
                 if (hlsl_type_is_resource(field->type))
                 {
                     hlsl_fixme(ctx, &field->loc, "Prepend uniform copies for resource components within structs.");
+                    hlsl_deref_cleanup(&child);
                     continue;
                 }
                 element_modifiers = combine_field_storage_modifiers(modifiers, field->storage_modifiers);
@@ -721,7 +718,7 @@ static void prepend_input_copy_recurse(struct hlsl_ctx *ctx, struct list *semant
                 {
                     warn_on_field_semantic(ctx, field, semantic);
                     prepend_input_copy_recurse(ctx, semantic_vars, block, prim_index,
-                            element_load, element_modifiers, semantic, force_align);
+                            &child, element_modifiers, semantic, force_align, loc);
                 }
                 else
                 {
@@ -730,17 +727,22 @@ static void prepend_input_copy_recurse(struct hlsl_ctx *ctx, struct list *semant
                     validate_field_semantic(ctx, field);
 
                     if (!(hlsl_clone_semantic(ctx, &semantic_copy, &field->semantic)))
+                    {
+                        hlsl_deref_cleanup(&child);
                         return;
+                    }
                     prepend_input_copy_recurse(ctx, semantic_vars, block, prim_index,
-                            element_load, element_modifiers, &semantic_copy, force_align);
+                            &child, element_modifiers, &semantic_copy, force_align, loc);
                     hlsl_cleanup_semantic(&semantic_copy);
                 }
             }
+
+            hlsl_deref_cleanup(&child);
         }
     }
     else
     {
-        prepend_input_copy(ctx, semantic_vars, block, prim_index, lhs, modifiers, semantic, force_align);
+        prepend_input_copy(ctx, semantic_vars, block, prim_index, deref, modifiers, semantic, force_align, loc);
     }
 }
 
@@ -750,34 +752,32 @@ static void prepend_input_var_copy(struct hlsl_ctx *ctx, struct hlsl_block *body
         struct list *semantic_vars, struct hlsl_ir_var *var)
 {
     struct hlsl_semantic semantic_copy;
-    struct hlsl_ir_load *load;
+    struct hlsl_deref deref;
     struct hlsl_block block;
 
     hlsl_block_init(&block);
 
-    /* This redundant load is expected to be deleted later by DCE. */
-    if (!(load = hlsl_new_var_load(ctx, var, &var->loc)))
-        return;
-    hlsl_block_add_instr(&block, &load->node);
+    hlsl_deref_init_simple(&deref, var);
 
     if (!hlsl_clone_semantic(ctx, &semantic_copy, &var->semantic))
     {
         hlsl_block_cleanup(&block);
         return;
     }
-    prepend_input_copy_recurse(ctx, semantic_vars, &block, 0, load, var->storage_modifiers, &semantic_copy, false);
+    prepend_input_copy_recurse(ctx, semantic_vars, &block, 0, &deref,
+            var->storage_modifiers, &semantic_copy, false, &var->loc);
     hlsl_cleanup_semantic(&semantic_copy);
 
     list_move_head(&body->instrs, &block.instrs);
 }
 
-static void append_output_copy(struct hlsl_ctx *ctx, struct hlsl_block *block,
-        struct list *semantic_vars, struct hlsl_ir_load *rhs, uint32_t modifiers,
-        struct hlsl_semantic *semantic, uint32_t stream_index, bool force_align, bool create)
+static void append_output_copy(struct hlsl_ctx *ctx, struct hlsl_block *block, struct list *semantic_vars,
+        const struct hlsl_deref *deref, uint32_t modifiers, struct hlsl_semantic *semantic, uint32_t stream_index,
+        bool force_align, bool create, const struct vkd3d_shader_location *loc)
 {
-    struct hlsl_type *type = rhs->node.data_type, *vector_type;
-    struct vkd3d_shader_location *loc = &rhs->node.loc;
-    struct hlsl_ir_var *var = rhs->src.var;
+    const struct hlsl_type *type = hlsl_deref_get_type(ctx, deref);
+    struct hlsl_ir_var *var = deref->var;
+    struct hlsl_type *vector_type;
     struct hlsl_ir_node *c;
     unsigned int i;
 
@@ -810,25 +810,25 @@ static void append_output_copy(struct hlsl_ctx *ctx, struct hlsl_block *block,
         if (type->class == HLSL_CLASS_MATRIX)
         {
             c = hlsl_block_add_uint_constant(ctx, block, i, &var->loc);
-            load = hlsl_block_add_load_index(ctx, block, &rhs->src, c, &var->loc);
+            load = hlsl_block_add_load_index(ctx, block, deref, c, &var->loc);
         }
         else
         {
             VKD3D_ASSERT(i == 0);
 
-            load = hlsl_block_add_load_index(ctx, block, &rhs->src, NULL, &var->loc);
+            load = hlsl_block_add_load_index(ctx, block, deref, NULL, &var->loc);
         }
 
         hlsl_block_add_simple_store(ctx, block, output, load);
     }
 }
 
-static void append_output_copy_recurse(struct hlsl_ctx *ctx, struct hlsl_block *block, struct list *semantic_vars,
-        const struct hlsl_type *type, struct hlsl_ir_load *rhs, uint32_t modifiers, struct hlsl_semantic *semantic,
-        uint32_t stream_index, bool force_align, bool create)
+static void append_output_copy_recurse(struct hlsl_ctx *ctx, struct hlsl_block *block,
+        struct list *semantic_vars, const struct hlsl_type *type, const struct hlsl_deref *deref,
+        uint32_t modifiers, struct hlsl_semantic *semantic, uint32_t stream_index,
+        bool force_align, bool create, const struct vkd3d_shader_location *loc)
 {
-    struct vkd3d_shader_location *loc = &rhs->node.loc;
-    struct hlsl_ir_var *var = rhs->src.var;
+    struct hlsl_ir_var *var = deref->var;
     struct hlsl_ir_node *c;
     unsigned int i;
 
@@ -837,17 +837,16 @@ static void append_output_copy_recurse(struct hlsl_ctx *ctx, struct hlsl_block *
         for (i = 0; i < hlsl_type_element_count(type); ++i)
         {
             const struct hlsl_type *element_type;
-            struct hlsl_ir_load *element_load;
             struct hlsl_struct_field *field;
             uint32_t element_modifiers;
+            struct hlsl_deref child;
 
             if (type->class == HLSL_CLASS_STRUCT)
                 loc = &type->e.record.fields[i].loc;
 
             c = hlsl_block_add_uint_constant(ctx, block, i, &var->loc);
-            if (!(element_load = hlsl_new_load_index(ctx, &rhs->src, c, loc)))
+            if (!hlsl_deref_init_child(&child, deref, c, ctx))
                 return;
-            hlsl_block_add_instr(block, &element_load->node);
 
             if (type->class == HLSL_CLASS_ARRAY)
             {
@@ -855,14 +854,17 @@ static void append_output_copy_recurse(struct hlsl_ctx *ctx, struct hlsl_block *
                 element_modifiers = modifiers;
                 force_align = true;
 
-                append_output_copy_recurse(ctx, block, semantic_vars, element_type, element_load,
-                        element_modifiers, semantic, stream_index, force_align, create);
+                append_output_copy_recurse(ctx, block, semantic_vars, element_type, &child,
+                        element_modifiers, semantic, stream_index, force_align, create, loc);
             }
             else
             {
                 field = &type->e.record.fields[i];
                 if (hlsl_type_is_resource(field->type))
+                {
+                    hlsl_deref_cleanup(&child);
                     continue;
+                }
                 element_type = field->type;
                 element_modifiers = combine_field_storage_modifiers(modifiers, field->storage_modifiers);
                 force_align = (i == 0);
@@ -871,8 +873,8 @@ static void append_output_copy_recurse(struct hlsl_ctx *ctx, struct hlsl_block *
                 {
                     warn_on_field_semantic(ctx, field, semantic);
 
-                    append_output_copy_recurse(ctx, block, semantic_vars, element_type, element_load,
-                            element_modifiers, semantic, stream_index, force_align, create);
+                    append_output_copy_recurse(ctx, block, semantic_vars, element_type, &child,
+                            element_modifiers, semantic, stream_index, force_align, create, loc);
                 }
                 else
                 {
@@ -881,17 +883,23 @@ static void append_output_copy_recurse(struct hlsl_ctx *ctx, struct hlsl_block *
                     validate_field_semantic(ctx, field);
 
                     if (!hlsl_clone_semantic(ctx, &semantic_copy, &field->semantic))
+                    {
+                        hlsl_deref_cleanup(&child);
                         continue;
-                    append_output_copy_recurse(ctx, block, semantic_vars, element_type, element_load,
-                            element_modifiers, &semantic_copy, stream_index, force_align, create);
+                    }
+                    append_output_copy_recurse(ctx, block, semantic_vars, element_type, &child,
+                            element_modifiers, &semantic_copy, stream_index, force_align, create, loc);
                     hlsl_cleanup_semantic(&semantic_copy);
                 }
             }
+
+            hlsl_deref_cleanup(&child);
         }
     }
     else
     {
-        append_output_copy(ctx, block, semantic_vars, rhs, modifiers, semantic, stream_index, force_align, create);
+        append_output_copy(ctx, block, semantic_vars, deref, modifiers,
+                semantic, stream_index, force_align, create, loc);
     }
 }
 
@@ -902,18 +910,16 @@ static void append_output_var_copy(struct hlsl_ctx *ctx, struct hlsl_block *body
         struct list *semantic_vars, struct hlsl_ir_var *var)
 {
     struct hlsl_semantic semantic_copy;
-    struct hlsl_ir_load *load;
+    struct hlsl_deref deref;
 
-    /* This redundant load is expected to be deleted later by DCE. */
-    if (!(load = hlsl_new_var_load(ctx, var, &var->loc)))
-        return;
-    hlsl_block_add_instr(body, &load->node);
+    hlsl_deref_init_simple(&deref, var);
 
     if (!hlsl_clone_semantic(ctx, &semantic_copy, &var->semantic))
         return;
     append_output_copy_recurse(ctx, body, semantic_vars, var->data_type,
-            load, var->storage_modifiers, &semantic_copy, 0, false, true);
+            &deref, var->storage_modifiers, &semantic_copy, 0, false, true, &var->loc);
     hlsl_cleanup_semantic(&semantic_copy);
+    hlsl_deref_cleanup(&deref);
 }
 
 bool hlsl_transform_ir(struct hlsl_ctx *ctx, bool (*func)(struct hlsl_ctx *ctx, struct hlsl_ir_node *, void *),
@@ -936,7 +942,10 @@ bool hlsl_transform_ir(struct hlsl_ctx *ctx, bool (*func)(struct hlsl_ctx *ctx, 
         }
         else if (instr->type == HLSL_IR_LOOP)
         {
-            progress |= hlsl_transform_ir(ctx, func, &hlsl_ir_loop(instr)->body, context);
+            struct hlsl_ir_loop *loop = hlsl_ir_loop(instr);
+
+            progress |= hlsl_transform_ir(ctx, func, &loop->body, context);
+            progress |= hlsl_transform_ir(ctx, func, &loop->iter, context);
         }
         else if (instr->type == HLSL_IR_SWITCH)
         {
@@ -977,7 +986,11 @@ static bool hlsl_transform_ir_once(struct hlsl_ctx *ctx,
         }
         else if (instr->type == HLSL_IR_LOOP)
         {
-            if (hlsl_transform_ir_once(ctx, func, &hlsl_ir_loop(instr)->body, context))
+            struct hlsl_ir_loop *loop = hlsl_ir_loop(instr);
+
+            if (hlsl_transform_ir_once(ctx, func, &loop->body, context))
+                return true;
+            if (hlsl_transform_ir_once(ctx, func, &loop->iter, context))
                 return true;
         }
         else if (instr->type == HLSL_IR_SWITCH)
@@ -1218,6 +1231,10 @@ static bool lower_return(struct hlsl_ctx *ctx, struct hlsl_ir_function_decl *fun
         else if (instr->type == HLSL_IR_LOOP)
         {
             has_early_return |= lower_return(ctx, func, &hlsl_ir_loop(instr)->body, true);
+            /* The iterator can't directly contain a return, since it can only
+             * contain an expression and return is a statement. However it can
+             * contain a call. */
+            lower_return(ctx, func, &hlsl_ir_loop(instr)->iter, true);
 
             if (has_early_return)
             {
@@ -1367,7 +1384,7 @@ static struct hlsl_ir_node *add_zero_mipmap_level(struct hlsl_ctx *ctx, struct h
             hlsl_get_vector_type(ctx, HLSL_TYPE_UINT, dim_count + 1), loc)))
         return NULL;
 
-    hlsl_init_simple_deref_from_var(&coords_deref, coords);
+    hlsl_deref_init_simple(&coords_deref, coords);
     hlsl_block_add_store_index(ctx, block, &coords_deref, NULL, index, (1u << dim_count) - 1, loc);
 
     zero = hlsl_block_add_uint_constant(ctx, block, 0, loc);
@@ -1415,7 +1432,7 @@ static struct hlsl_ir_node *lower_complex_casts(struct hlsl_ctx *ctx,
 
     if (!(var = hlsl_new_synthetic_var(ctx, "cast", dst_type, &instr->loc)))
         return NULL;
-    hlsl_init_simple_deref_from_var(&var_deref, var);
+    hlsl_deref_init_simple(&var_deref, var);
 
     for (dst_idx = 0; dst_idx < dst_comp_count; ++dst_idx)
     {
@@ -1471,7 +1488,7 @@ static struct hlsl_ir_node *lower_matrix_swizzles(struct hlsl_ctx *ctx,
 
     if (!(var = hlsl_new_synthetic_var(ctx, "matrix-swizzle", instr->data_type, &instr->loc)))
         return NULL;
-    hlsl_init_simple_deref_from_var(&var_deref, var);
+    hlsl_deref_init_simple(&var_deref, var);
 
     for (i = 0; i < instr->data_type->e.numeric.dimx; ++i)
     {
@@ -1594,7 +1611,7 @@ static struct hlsl_ir_node *lower_index_load(struct hlsl_ctx *ctx, struct hlsl_i
 
                 if (!(var = hlsl_new_synthetic_var(ctx, "row", instr->data_type, &instr->loc)))
                     return NULL;
-                hlsl_init_simple_deref_from_var(&row_deref, var);
+                hlsl_deref_init_simple(&row_deref, var);
 
                 for (unsigned int i = 0; i < mat->data_type->e.numeric.dimx; ++i)
                 {
@@ -1680,7 +1697,7 @@ static struct hlsl_ir_node *lower_index_load(struct hlsl_ctx *ctx, struct hlsl_i
     {
         if (!(var = hlsl_new_synthetic_var(ctx, "index-val", val->data_type, &instr->loc)))
             return NULL;
-        hlsl_init_simple_deref_from_var(&var_deref, var);
+        hlsl_deref_init_simple(&var_deref, var);
         deref = &var_deref;
 
         hlsl_block_add_simple_store(ctx, block, var, val);
@@ -1696,7 +1713,7 @@ static struct hlsl_ir_node *lower_index_load(struct hlsl_ctx *ctx, struct hlsl_i
 
         if (!(var = hlsl_new_synthetic_var(ctx, "row", instr->data_type, &instr->loc)))
             return NULL;
-        hlsl_init_simple_deref_from_var(&row_deref, var);
+        hlsl_deref_init_simple(&row_deref, var);
 
         for (i = 0; i < mat->data_type->e.numeric.dimx; ++i)
         {
@@ -1763,6 +1780,7 @@ void hlsl_lower_index_loads(struct hlsl_ctx *ctx, struct hlsl_block *block)
 
             case HLSL_IR_LOOP:
                 hlsl_lower_index_loads(ctx, &hlsl_ir_loop(instr)->body);
+                hlsl_lower_index_loads(ctx, &hlsl_ir_loop(instr)->iter);
                 break;
 
             case HLSL_IR_SWITCH:
@@ -1887,7 +1905,7 @@ static enum vkd3d_result resource_access_from_deref(struct hlsl_ctx *ctx, struct
         return VKD3D_ERROR_NOT_FOUND;
     }
 
-    if (!hlsl_init_deref(ctx, resource_deref, deref->var, resource_idx))
+    if (!hlsl_deref_init(resource_deref, deref->var, resource_idx, ctx))
     {
         vkd3d_free(deref_types);
         return VKD3D_ERROR;
@@ -2018,7 +2036,7 @@ static struct hlsl_ir_node *lower_resource_stores(struct hlsl_ctx *ctx,
                 NULL, coords, store->rhs.node, store->writemask, &instr->loc);
     }
 
-    hlsl_cleanup_deref(&resource_deref);
+    hlsl_deref_cleanup(&resource_deref);
     return res;
 }
 
@@ -2071,12 +2089,12 @@ static struct hlsl_ir_node *generate_interlocked_coords(struct hlsl_ctx *ctx,
                 hlsl_get_vector_type(ctx, HLSL_TYPE_UINT, 2), &instr->loc)))
             goto done;
 
-        hlsl_init_simple_deref_from_var(&structured_coords_deref, structured_coords);
+        hlsl_deref_init_simple(&structured_coords_deref, structured_coords);
 
         hlsl_block_add_store_component(ctx, block, &structured_coords_deref, 0, coords);
         hlsl_block_add_store_component(ctx, block, &structured_coords_deref, 1, field_offset);
 
-        hlsl_cleanup_deref(&structured_coords_deref);
+        hlsl_deref_cleanup(&structured_coords_deref);
 
         coords = hlsl_block_add_simple_load(ctx, block, structured_coords, &instr->loc);
     }
@@ -2101,9 +2119,9 @@ static struct hlsl_ir_node *generate_interlocked_coords(struct hlsl_ctx *ctx,
     {
         struct hlsl_ir_interlocked *new_interlocked = hlsl_ir_interlocked(res);
 
-        hlsl_cleanup_deref(&new_interlocked->dst);
+        hlsl_deref_cleanup(&new_interlocked->dst);
 
-        if (!hlsl_copy_deref(ctx, &new_interlocked->dst, &resource_deref))
+        if (!hlsl_deref_copy(&new_interlocked->dst, &resource_deref, ctx))
         {
             hlsl_free_instr(res);
             res = NULL;
@@ -2116,7 +2134,7 @@ static struct hlsl_ir_node *generate_interlocked_coords(struct hlsl_ctx *ctx,
     }
 
 done:
-    hlsl_cleanup_deref(&resource_deref);
+    hlsl_deref_cleanup(&resource_deref);
     return res;
 }
 
@@ -2139,8 +2157,11 @@ static unsigned int index_instructions(struct hlsl_block *block, unsigned int in
         }
         else if (instr->type == HLSL_IR_LOOP)
         {
-            index = index_instructions(&hlsl_ir_loop(instr)->body, index);
-            hlsl_ir_loop(instr)->next_index = index;
+            struct hlsl_ir_loop *loop = hlsl_ir_loop(instr);
+
+            index = index_instructions(&loop->body, index);
+            index = index_instructions(&loop->iter, index);
+            loop->next_index = index;
         }
         else if (instr->type == HLSL_IR_SWITCH)
         {
@@ -2841,7 +2862,7 @@ static bool copy_propagation_replace_with_deref(struct hlsl_ctx *ctx,
             goto done;
     }
 
-    if (!hlsl_init_deref(ctx, &tmp_deref, x, path_len))
+    if (!hlsl_deref_init(&tmp_deref, x, path_len, ctx))
         goto done;
 
     for (k = 0; k < path_len; ++k)
@@ -2893,7 +2914,7 @@ static bool copy_propagation_replace_with_deref(struct hlsl_ctx *ctx,
     success = true;
 
 done:
-    hlsl_cleanup_deref(&tmp_deref);
+    hlsl_deref_cleanup(&tmp_deref);
     hlsl_block_cleanup(&block);
     vkd3d_free(c);
     vkd3d_free(d);
@@ -3028,8 +3049,8 @@ static bool copy_propagation_transform_object_load(struct hlsl_ctx *ctx,
         return false;
     }
 
-    hlsl_cleanup_deref(deref);
-    hlsl_copy_deref(ctx, deref, &load->src);
+    hlsl_deref_cleanup(deref);
+    hlsl_deref_copy(deref, &load->src, ctx);
 
     return true;
 }
@@ -3128,6 +3149,7 @@ static void copy_propagation_invalidate_from_block(struct hlsl_ctx *ctx, struct 
                 struct hlsl_ir_loop *loop = hlsl_ir_loop(instr);
 
                 copy_propagation_invalidate_from_block(ctx, state, &loop->body, time);
+                copy_propagation_invalidate_from_block(ctx, state, &loop->iter, time);
 
                 break;
             }
@@ -3186,11 +3208,29 @@ static bool copy_propagation_process_loop(struct hlsl_ctx *ctx, struct hlsl_ir_l
 {
     bool progress = false;
 
+    /* With if/else and switch, we can propagate stores from before the CF into
+     * the body of the CF. Invalidation is for the benefit of the containing
+     * block. With loops, invalidation serves a dual purpose; besides
+     * invalidating for the benefit of the containing block we also need to
+     * invalidate for the benefit of the loop block itself. I.e. in a sense the
+     * loop block might have already executed.
+     *
+     * For that reason we invalidate before processing. On the other hand, we
+     * don't need to invalidate again after processing. The containing code
+     * doesn't care where we invalidate and we only need to do it once. The
+     * stores we add during processing only go in the scope we're going to pop. */
     copy_propagation_invalidate_from_block(ctx, state, &loop->body, loop->node.index);
     copy_propagation_invalidate_from_block(ctx, state, &loop->iter, loop->node.index);
 
     copy_propagation_push_scope(state, ctx);
     progress |= copy_propagation_transform_block(ctx, &loop->body, state);
+    if (state->stopped)
+        return progress;
+    copy_propagation_pop_scope(state);
+
+    /* The existence of 'continue' means this can't be in the same scope. */
+    copy_propagation_push_scope(state, ctx);
+    progress |= copy_propagation_transform_block(ctx, &loop->iter, state);
     if (state->stopped)
         return progress;
     copy_propagation_pop_scope(state);
@@ -3410,7 +3450,10 @@ static void find_vectorizable_expr_groups(struct hlsl_ctx *ctx, struct hlsl_bloc
         }
         else if (instr->type == HLSL_IR_LOOP)
         {
-            find_vectorizable_expr_groups(ctx, &hlsl_ir_loop(instr)->body, state);
+            struct hlsl_ir_loop *loop = hlsl_ir_loop(instr);
+
+            find_vectorizable_expr_groups(ctx, &loop->body, state);
+            find_vectorizable_expr_groups(ctx, &loop->iter, state);
         }
         else if (instr->type == HLSL_IR_SWITCH)
         {
@@ -3761,7 +3804,10 @@ static void find_vectorizable_store_groups(struct hlsl_ctx *ctx, struct hlsl_blo
         }
         else if (instr->type == HLSL_IR_LOOP)
         {
-            find_vectorizable_store_groups(ctx, &hlsl_ir_loop(instr)->body, state);
+            struct hlsl_ir_loop *loop = hlsl_ir_loop(instr);
+
+            find_vectorizable_store_groups(ctx, &loop->body, state);
+            find_vectorizable_store_groups(ctx, &loop->iter, state);
         }
         else if (instr->type == HLSL_IR_SWITCH)
         {
@@ -4305,6 +4351,7 @@ static bool lower_stream_appends(struct hlsl_ctx *ctx, struct hlsl_ir_node *inst
     const struct hlsl_type *type;
     struct hlsl_ir_node *rhs;
     struct hlsl_ir_var *var;
+    struct hlsl_deref deref;
     struct hlsl_block block;
     uint32_t stream_index;
     bool progress = false;
@@ -4330,7 +4377,12 @@ static bool lower_stream_appends(struct hlsl_ctx *ctx, struct hlsl_ir_node *inst
 
     hlsl_block_init(&block);
 
-    if (rhs->type != HLSL_IR_LOAD)
+    if (rhs->type == HLSL_IR_LOAD)
+    {
+        if (!hlsl_deref_copy(&deref, &hlsl_ir_load(rhs)->src, ctx))
+            return false;
+    }
+    else
     {
         struct hlsl_ir_var *tmp_var;
 
@@ -4341,12 +4393,14 @@ static bool lower_stream_appends(struct hlsl_ctx *ctx, struct hlsl_ir_node *inst
             goto done;
         hlsl_block_add_simple_store(ctx, &block, tmp_var, rhs);
         split_copies(ctx, &block);
-        rhs = hlsl_block_add_simple_load(ctx, &block, tmp_var, &instr->loc);
+        hlsl_deref_init_simple(&deref, tmp_var);
     }
 
-    append_output_copy_recurse(ctx, &block, append_ctx->semantic_vars, type->e.so.type, hlsl_ir_load(rhs),
+    append_output_copy_recurse(ctx, &block, append_ctx->semantic_vars, type->e.so.type, &deref,
             var->storage_modifiers, &semantic_copy, var->regs[HLSL_REGSET_STREAM_OUTPUTS].index,
-            false, !append_ctx->created[stream_index]);
+            false, !append_ctx->created[stream_index], &instr->loc);
+
+    hlsl_deref_cleanup(&deref);
 
     append_ctx->created[stream_index] = true;
 
@@ -5057,12 +5111,12 @@ static struct hlsl_ir_node *lower_nonconstant_array_loads(struct hlsl_ctx *ctx,
 
         var_load = hlsl_block_add_simple_load(ctx, block, var, &cut_index->loc);
 
-        if (!hlsl_copy_deref(ctx, &deref_copy, deref))
+        if (!hlsl_deref_copy(&deref_copy, deref, ctx))
             return NULL;
         hlsl_src_remove(&deref_copy.path[i_cut]);
         hlsl_src_from_node(&deref_copy.path[i_cut], const_i);
         specific_load = hlsl_block_add_load_index(ctx, block, &deref_copy, NULL, &cut_index->loc);
-        hlsl_cleanup_deref(&deref_copy);
+        hlsl_deref_cleanup(&deref_copy);
 
         operands[0] = equals;
         operands[1] = specific_load;
@@ -5186,7 +5240,7 @@ static bool lower_separate_samples(struct hlsl_ctx *ctx, struct hlsl_ir_node *in
 
     /* Only change the deref's var, keep the path. */
     load->resource.var = var;
-    hlsl_cleanup_deref(&load->sampler);
+    hlsl_deref_cleanup(&load->sampler);
     load->sampler.var = NULL;
 
     return true;
@@ -5283,7 +5337,7 @@ static bool lower_combined_samples(struct hlsl_ctx *ctx, struct hlsl_ir_node *in
 
     }
 
-    hlsl_copy_deref(ctx, &load->sampler, &load->resource);
+    hlsl_deref_copy(&load->sampler, &load->resource, ctx);
     load->resource.var = var;
     VKD3D_ASSERT(hlsl_deref_get_type(ctx, &load->resource)->class == HLSL_CLASS_TEXTURE);
     VKD3D_ASSERT(hlsl_deref_get_type(ctx, &load->sampler)->class == HLSL_CLASS_SAMPLER);
@@ -5683,7 +5737,7 @@ static struct hlsl_ir_node *lower_trig(struct hlsl_ctx *ctx, struct hlsl_ir_node
 
         if (!(var = hlsl_new_synthetic_var(ctx, "sincos", type, &instr->loc)))
             return NULL;
-        hlsl_init_simple_deref_from_var(&var_deref, var);
+        hlsl_deref_init_simple(&var_deref, var);
 
         for (i = 0; i < type->e.numeric.dimx; ++i)
         {
@@ -6507,6 +6561,8 @@ static void compute_liveness_recurse(struct hlsl_block *block, unsigned int loop
 
             compute_liveness_recurse(&loop->body, loop_first ? loop_first : instr->index,
                     loop_last ? loop_last : loop->next_index);
+            compute_liveness_recurse(&loop->iter, loop_first ? loop_first : instr->index,
+                    loop_last ? loop_last : loop->next_index);
             if (loop->unroll_limit.node)
                 loop->unroll_limit.node->last_read = last_read;
             break;
@@ -7181,6 +7237,7 @@ static void allocate_temp_registers_recurse(struct hlsl_ctx *ctx, struct hlsl_bl
             {
                 struct hlsl_ir_loop *loop = hlsl_ir_loop(instr);
                 allocate_temp_registers_recurse(ctx, &loop->body);
+                VKD3D_ASSERT(list_empty(&loop->iter.instrs));
                 break;
             }
 
@@ -7743,8 +7800,9 @@ static struct vsir_signature_element *generate_signature_entry(struct hlsl_ctx *
     {
         bool has_idx;
 
-        if (!sm4_sysval_semantic_from_semantic_name(&sysval, &version, ctx->compatibility_flags, ctx->domain,
-                var->semantic.name, var->semantic.index, output, ctx->is_patch_constant_func, is_primitive))
+        if (!sm4_sysval_semantic_from_semantic_name(&sysval, &version,
+                ctx->compile_info.map_semantic_names, ctx->domain, var->semantic.name,
+                var->semantic.index, output, ctx->is_patch_constant_func, is_primitive))
         {
             hlsl_error(ctx, &var->loc, VKD3D_SHADER_ERROR_HLSL_INVALID_SEMANTIC,
                     "Invalid semantic '%s'.", var->semantic.name);
@@ -10313,7 +10371,7 @@ static bool sm1_generate_vsir_instr_expr_cast(struct hlsl_ctx *ctx,
                     return true;
 
                 case HLSL_TYPE_DOUBLE:
-                    if (ctx->compatibility_flags & VKD3D_SHADER_COMPILE_OPTION_DOUBLE_AS_FLOAT_ALIAS)
+                    if (ctx->compile_info.double_as_float_alias)
                     {
                         generate_vsir_instr_expr_single_instr_op(ctx, program, expr, VSIR_OP_MOV, 0, 0, true);
                         return true;
@@ -10383,8 +10441,7 @@ static bool sm1_generate_vsir_instr_expr(struct hlsl_ctx *ctx, struct vsir_progr
     if (!hlsl_is_numeric_type(type))
         goto err;
 
-    if (type->e.numeric.type == HLSL_TYPE_DOUBLE
-            && !(ctx->compatibility_flags & VKD3D_SHADER_COMPILE_OPTION_DOUBLE_AS_FLOAT_ALIAS))
+    if (type->e.numeric.type == HLSL_TYPE_DOUBLE && !ctx->compile_info.double_as_float_alias)
     {
         hlsl_error(ctx, &instr->loc, VKD3D_SHADER_ERROR_HLSL_INVALID_TYPE,
                 "The 'double' type is not supported for the %s profile.", ctx->profile->name);
@@ -11423,7 +11480,7 @@ static void ctab_write_uniforms(struct ctab_ctx *ctab)
     {
         for (r = 0; r <= HLSL_REGSET_LAST; ++r)
         {
-            if (var->semantic.name || !var->regs[r].allocated || !var->last_read)
+            if (!var->is_uniform || !var->regs[r].allocated || !var->last_read)
                 continue;
 
             ++uniform_count;
@@ -11462,7 +11519,7 @@ static void ctab_write_uniforms(struct ctab_ctx *ctab)
     {
         for (r = 0; r <= HLSL_REGSET_LAST; ++r)
         {
-            if (var->semantic.name || !var->regs[r].allocated || !var->last_read)
+            if (!var->is_uniform || !var->regs[r].allocated || !var->last_read)
                 continue;
 
             put_u32(buffer, 0); /* name */
@@ -11492,7 +11549,7 @@ static void ctab_write_uniforms(struct ctab_ctx *ctab)
             enum hlsl_sampler_dim sampler_dim = HLSL_SAMPLER_DIM_GENERIC;
             size_t var_offset, name_offset;
 
-            if (var->semantic.name || !var->regs[r].allocated || !var->last_read)
+            if (!var->is_uniform || !var->regs[r].allocated || !var->last_read)
                 continue;
 
             /* Arrays can be used with multiple different dimensions.
@@ -11546,7 +11603,7 @@ static void ctab_write_uniforms(struct ctab_ctx *ctab)
                         switch (comp_type->e.numeric.type)
                         {
                             case HLSL_TYPE_DOUBLE:
-                                if (ctx->compatibility_flags & VKD3D_SHADER_COMPILE_OPTION_DOUBLE_AS_FLOAT_ALIAS)
+                                if (ctx->compile_info.double_as_float_alias)
                                     uni.u = var->default_values[k].number.u;
                                 else
                                     uni.u = 0;
@@ -11685,7 +11742,7 @@ static void sm4_generate_vsir_instr_dcl_semantic(struct hlsl_ctx *ctx, struct vs
     uint32_t write_mask;
     bool has_idx;
 
-    sm4_sysval_semantic_from_semantic_name(&semantic, version, ctx->compatibility_flags, ctx->domain,
+    sm4_sysval_semantic_from_semantic_name(&semantic, version, ctx->compile_info.map_semantic_names, ctx->domain,
             var->semantic.name, var->semantic.index, output, ctx->is_patch_constant_func, is_primitive);
     if (semantic == ~0u)
         semantic = VKD3D_SHADER_SV_NONE;
@@ -13841,7 +13898,7 @@ static enum vsir_data_type get_vsir_resource_data_type(const struct hlsl_type *t
     const struct hlsl_type *format = type->e.resource.format;
 
     if (type->sampler_dim == HLSL_SAMPLER_DIM_STRUCTURED_BUFFER)
-        return VSIR_DATA_MIXED;
+        return VSIR_DATA_U32;
 
     switch (format->e.numeric.type)
     {
@@ -14142,9 +14199,9 @@ static void generate_vsir_descriptors_for_var(struct hlsl_ctx *ctx, struct vsir_
     for (unsigned int k = 0; k < component_count; ++k)
     {
         const struct hlsl_type *component_type = hlsl_type_get_component_type(ctx, var->data_type, k);
-        struct vkd3d_shader_descriptor_info1 *d;
         struct vsir_register_range range;
         unsigned int regset_offset;
+        struct vsir_descriptor *d;
         enum hlsl_regset regset;
         uint32_t id;
 
@@ -14206,9 +14263,9 @@ static void generate_vsir_descriptors_for_var(struct hlsl_ctx *ctx, struct vsir_
 
 static void generate_vsir_descriptors(struct hlsl_ctx *ctx, struct vsir_program *program)
 {
-    struct vkd3d_shader_descriptor_info1 *d;
     struct vsir_register_range range;
     const struct hlsl_ir_var *var;
+    struct vsir_descriptor *d;
 
     if (program->shader_version.major < 4)
     {

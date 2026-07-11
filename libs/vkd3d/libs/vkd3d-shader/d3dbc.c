@@ -1004,7 +1004,7 @@ static void d3dbc_add_combined_sampler_descriptor(struct vkd3d_shader_sm1_parser
     const struct vkd3d_shader_d3dbc_source_info *source_info = d3dbc->d3dbc_source_info;
     struct vsir_register_range range = {.first = sampler_idx, .last = sampler_idx};
     struct vsir_program *program = d3dbc->program;
-    struct vkd3d_shader_descriptor_info1 *d;
+    struct vsir_descriptor *d;
 
     if (!vsir_program_add_descriptor(program, VKD3D_SHADER_DESCRIPTOR_TYPE_SRV,
             sampler_idx, &range, resource_type, VSIR_DATA_F32))
@@ -1598,8 +1598,8 @@ int d3dbc_parse(const struct vkd3d_shader_compile_info *compile_info, uint64_t c
         struct vkd3d_shader_message_context *message_context, struct vsir_program *program)
 {
     struct vkd3d_shader_sm1_parser sm1 = {0};
-    struct vkd3d_shader_descriptor_info1 *d;
     struct vkd3d_shader_instruction *ins;
+    struct vsir_descriptor *d;
     unsigned int i;
     int ret;
 

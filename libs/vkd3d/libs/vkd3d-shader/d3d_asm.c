@@ -2007,16 +2007,16 @@ static void shader_print_descriptor_name(struct vkd3d_d3d_asm_compiler *compiler
 }
 
 static void shader_print_descriptors(struct vkd3d_d3d_asm_compiler *compiler,
-        const struct vkd3d_shader_scan_descriptor_info1 *descriptors)
+        const struct vsir_descriptor_info *descriptors)
 {
     struct vkd3d_string_buffer *buffer = &compiler->buffer;
     unsigned int i;
 
     vkd3d_string_buffer_printf(buffer, "%s.descriptors%s\n",
             compiler->colours.opcode, compiler->colours.reset);
-    for (i = 0; i < descriptors->descriptor_count; ++i)
+    for (i = 0; i < descriptors->count; ++i)
     {
-        const struct vkd3d_shader_descriptor_info1 *d = &descriptors->descriptors[i];
+        const struct vsir_descriptor *d = &descriptors->descriptors[i];
 
         vkd3d_string_buffer_printf(buffer, "%s.descriptor%s ", compiler->colours.opcode, compiler->colours.reset);
         shader_print_descriptor_name(compiler, d->type, d->register_id);
@@ -2048,11 +2048,10 @@ static void shader_print_descriptors(struct vkd3d_d3d_asm_compiler *compiler,
     }
 }
 
-enum vkd3d_result d3d_asm_compile(struct vsir_program *program, const struct vkd3d_shader_compile_info *compile_info,
+enum vkd3d_result d3d_asm_compile(struct vsir_program *program, const struct vsir_compile_info *compile_info,
         struct vkd3d_shader_code *out, enum vsir_asm_flags flags, struct vkd3d_shader_message_context *message_context)
 {
     const struct vkd3d_shader_version *shader_version = &program->shader_version;
-    enum vkd3d_shader_compile_option_formatting_flags formatting;
     struct vkd3d_d3d_asm_compiler compiler =
     {
         .flags = flags,
@@ -2061,7 +2060,7 @@ enum vkd3d_result d3d_asm_compile(struct vsir_program *program, const struct vkd
     enum vkd3d_result result = VKD3D_OK;
     struct vkd3d_string_buffer *buffer;
     struct vsir_program_iterator it;
-    unsigned int indent, i, j;
+    unsigned int indent, i;
     const char *indent_str;
 
     static const struct vkd3d_d3d_asm_colours no_colours =
@@ -2095,30 +2094,18 @@ enum vkd3d_result d3d_asm_compile(struct vsir_program *program, const struct vkd
         .write_mask = "\x1b[93m",
     };
 
-    formatting = VKD3D_SHADER_COMPILE_OPTION_FORMATTING_INDENT
-            | VKD3D_SHADER_COMPILE_OPTION_FORMATTING_HEADER;
-    if (compile_info)
-    {
-        for (i = 0; i < compile_info->option_count; ++i)
-        {
-            const struct vkd3d_shader_compile_option *option = &compile_info->options[i];
-
-            if (option->name == VKD3D_SHADER_COMPILE_OPTION_FORMATTING)
-                formatting = option->value;
-        }
-    }
-
-    if (formatting & VKD3D_SHADER_COMPILE_OPTION_FORMATTING_COLOUR)
+    if (compile_info->formatting & VKD3D_SHADER_COMPILE_OPTION_FORMATTING_COLOUR)
         compiler.colours = colours;
     else
         compiler.colours = no_colours;
-    if (formatting & VKD3D_SHADER_COMPILE_OPTION_FORMATTING_INDENT)
+    if (compile_info->formatting & VKD3D_SHADER_COMPILE_OPTION_FORMATTING_INDENT)
         indent_str = "    ";
     else
         indent_str = "";
     /* The signatures we emit only make sense for DXBC shaders. d3dbc doesn't
      * even have an explicit concept of signature. */
-    if (formatting & VKD3D_SHADER_COMPILE_OPTION_FORMATTING_IO_SIGNATURES && shader_version->major >= 4)
+    if (compile_info->formatting & VKD3D_SHADER_COMPILE_OPTION_FORMATTING_IO_SIGNATURES
+            && shader_version->major >= 4)
         compiler.flags |= VSIR_ASM_FLAG_DUMP_SIGNATURES;
 
     buffer = &compiler.buffer;
@@ -2178,7 +2165,7 @@ enum vkd3d_result d3d_asm_compile(struct vsir_program *program, const struct vkd
                 break;
         }
 
-        for (j = 0; j < indent; ++j)
+        for (i = 0; i < indent; ++i)
         {
             vkd3d_string_buffer_printf(buffer, "%s", indent_str);
         }
@@ -2354,6 +2341,7 @@ void vsir_program_trace(struct vsir_program *program)
             | VSIR_ASM_FLAG_DUMP_SIGNATURES | VSIR_ASM_FLAG_DUMP_DESCRIPTORS
             | VSIR_ASM_FLAG_DUMP_DENORM_MODES;
     struct vkd3d_shader_message_context message_context;
+    struct vsir_compile_info compile_info;
     struct vkd3d_shader_code code;
     const char *p, *q, *end;
 
@@ -2364,7 +2352,8 @@ void vsir_program_trace(struct vsir_program *program)
     trace_signature(&program->patch_constant_signature, "Patch-constant");
     trace_io_declarations(program);
 
-    if (d3d_asm_compile(program, NULL, &code, flags, &message_context) != VKD3D_OK)
+    vsir_compile_info_init(&compile_info, NULL);
+    if (d3d_asm_compile(program, &compile_info, &code, flags, &message_context) != VKD3D_OK)
         return;
 
     vkd3d_shader_message_context_cleanup(&message_context);

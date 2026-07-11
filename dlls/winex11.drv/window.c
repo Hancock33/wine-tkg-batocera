@@ -147,7 +147,7 @@ static const char *debugstr_monitor_indices( const struct monitor_indices *monit
     return wine_dbg_sprintf( "%ld,%ld,%ld,%ld", monitors->indices[0], monitors->indices[1], monitors->indices[2], monitors->indices[3] );
 }
 
-static pthread_mutex_t win_data_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t win_data_mutex;
 
 static void host_window_add_ref( struct host_window *win )
 {
@@ -2769,10 +2769,6 @@ BOOL X11DRV_CreateWindow( HWND hwnd )
         struct x11drv_thread_data *data = x11drv_init_thread_data();
         XSetWindowAttributes attr;
 
-        /* listen to raw xinput event in the desktop window thread */
-        data->xinput2_rawinput = TRUE;
-        x11drv_xinput2_enable( data->display, DefaultRootWindow( data->display ) );
-
         /* create the cursor clipping window */
         attr.override_redirect = TRUE;
         attr.event_mask = StructureNotifyMask | FocusChangeMask;
@@ -3278,7 +3274,7 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
            debugstr_window_rects(new_rects), new_style, swp_flags );
 
     /* visible windows are only hidden after SWP_HIDEWINDOW is used */
-    if (data->pending_state.wm_state != WithdrawnState && !(new_style & WS_VISIBLE) &&
+    if (data->desired_state.wm_state != WithdrawnState && !(new_style & WS_VISIBLE) &&
         !(swp_flags & SWP_HIDEWINDOW))
     {
         WARN( "win %p/%lx not yet hidden, delaying unmapping\n", hwnd, data->whole_window );
@@ -3286,7 +3282,7 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
     }
 
     /* layered windows are mapped only once their attributes are set */
-    if (data->pending_state.wm_state == WithdrawnState && (new_style & WS_VISIBLE) &&
+    if (data->desired_state.wm_state == WithdrawnState && (new_style & WS_VISIBLE) &&
         (ex_style & (WS_EX_LAYERED | WS_EX_COMPOSITED)) == WS_EX_LAYERED && !data->layered && !IsRectEmpty( &new_rects->window ))
     {
         WARN( "win %p/%lx is layered, delaying mapping\n", hwnd, data->whole_window );

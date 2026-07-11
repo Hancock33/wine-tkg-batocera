@@ -3061,12 +3061,10 @@ static bool get_insidetessfactor_sysval_semantic(enum vkd3d_shader_sysval_semant
 }
 
 bool sm4_sysval_semantic_from_semantic_name(enum vkd3d_shader_sysval_semantic *sysval_semantic,
-        const struct vkd3d_shader_version *version,
-        enum vkd3d_shader_compile_option_backward_compatibility compatibility_flags,
+        const struct vkd3d_shader_version *version, bool semantic_compat_mapping,
         enum vkd3d_tessellator_domain domain, const char *semantic_name,
         unsigned int semantic_idx, bool output, bool is_patch_constant_func, bool is_primitive)
 {
-    bool semantic_compat_mapping = (compatibility_flags & VKD3D_SHADER_COMPILE_OPTION_BACKCOMPAT_MAP_SEMANTIC_NAMES);
     unsigned int i;
 
     static const struct
