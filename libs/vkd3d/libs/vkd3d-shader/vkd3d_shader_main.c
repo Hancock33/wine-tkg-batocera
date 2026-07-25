@@ -880,7 +880,6 @@ static enum vkd3d_result vsir_parse(const struct vkd3d_shader_compile_info *comp
     struct vsir_compile_info vsir_compile_info;
     struct vkd3d_shader_code preprocessed;
     enum vkd3d_result ret;
-    unsigned int i;
 
     vsir_compile_info_init(&vsir_compile_info, compile_info);
 
@@ -923,35 +922,12 @@ static enum vkd3d_result vsir_parse(const struct vkd3d_shader_compile_info *comp
         return ret;
     }
 
-    if (vsir_compile_info.api_version <= VKD3D_SHADER_API_VERSION_1_19)
-    {
-        program->f16_denormal_mode = VKD3D_SHADER_DENORMAL_MODE_ANY;
-        program->f32_denormal_mode = VKD3D_SHADER_DENORMAL_MODE_ANY;
-        program->f64_denormal_mode = VKD3D_SHADER_DENORMAL_MODE_ANY;
-    }
-
-    for (i = 0; i < compile_info->option_count; ++i)
-    {
-        const struct vkd3d_shader_compile_option *option = &compile_info->options[i];
-
-        switch (option->name)
-        {
-            case VKD3D_SHADER_COMPILE_OPTION_DENORMAL_MODE_F16:
-                program->f16_denormal_mode = option->value;
-                break;
-
-            case VKD3D_SHADER_COMPILE_OPTION_DENORMAL_MODE_F32:
-                program->f32_denormal_mode = option->value;
-                break;
-
-            case VKD3D_SHADER_COMPILE_OPTION_DENORMAL_MODE_F64:
-                program->f64_denormal_mode = option->value;
-                break;
-
-            default:
-                break;
-        }
-    }
+    if (vsir_compile_info.denormal_mode_override_f16)
+        program->f16_denormal_mode = vsir_compile_info.denormal_mode_f16;
+    if (vsir_compile_info.denormal_mode_override_f32)
+        program->f32_denormal_mode = vsir_compile_info.denormal_mode_f32;
+    if (vsir_compile_info.denormal_mode_override_f64)
+        program->f64_denormal_mode = vsir_compile_info.denormal_mode_f64;
 
     if ((ret = vsir_program_validate(program, config_flags, compile_info->source_name, message_context)) < 0)
     {
@@ -1196,8 +1172,7 @@ static bool vkd3d_shader_instruction_is_uav_read(const struct vkd3d_shader_instr
     enum vkd3d_shader_opcode opcode = instruction->opcode;
 
     return (VSIR_OP_ATOMIC_AND <= opcode && opcode <= VSIR_OP_ATOMIC_XOR)
-            || (VSIR_OP_IMM_ATOMIC_ALLOC <= opcode && opcode <= VSIR_OP_IMM_ATOMIC_XOR)
-            || opcode == VSIR_OP_LD_UAV_TYPED
+            || vsir_opcode_is_imm_atomic(opcode) || opcode == VSIR_OP_LD_UAV_TYPED
             || (opcode == VSIR_OP_LD_RAW && instruction->src[1].reg.type == VSIR_REGISTER_UAV)
             || (opcode == VSIR_OP_LD_STRUCTURED && instruction->src[2].reg.type == VSIR_REGISTER_UAV);
 }
@@ -1225,8 +1200,7 @@ static bool vkd3d_shader_instruction_is_uav_atomic_op(const struct vkd3d_shader_
 {
     enum vkd3d_shader_opcode opcode = instruction->opcode;
 
-    return (VSIR_OP_ATOMIC_AND <= opcode && opcode <= VSIR_OP_ATOMIC_XOR)
-            || (VSIR_OP_IMM_ATOMIC_ALLOC <= opcode && opcode <= VSIR_OP_IMM_ATOMIC_XOR);
+    return (VSIR_OP_ATOMIC_AND <= opcode && opcode <= VSIR_OP_ATOMIC_XOR) || vsir_opcode_is_imm_atomic(opcode);
 }
 
 static void vkd3d_shader_scan_record_uav_atomic_op(struct vkd3d_shader_scan_context *context,

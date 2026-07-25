@@ -171,9 +171,18 @@ static void shader_glsl_print_image_name(struct vkd3d_string_buffer *buffer,
         vkd3d_string_buffer_printf(buffer, "_%u", space);
 }
 
+static void shader_glsl_print_tgsm_name(struct vkd3d_string_buffer *buffer,
+        struct vkd3d_glsl_generator *gen, unsigned int idx)
+{
+    vkd3d_string_buffer_printf(buffer, "%s_tgsm_%u", gen->prefix, idx);
+}
+
 static void shader_glsl_print_operand_name(struct vkd3d_string_buffer *buffer,
         struct vkd3d_glsl_generator *gen, const struct vsir_operand *reg)
 {
+    unsigned int element_idx;
+    bool is_array;
+
     switch (reg->type)
     {
         case VSIR_REGISTER_TEMP:
@@ -181,7 +190,10 @@ static void shader_glsl_print_operand_name(struct vkd3d_string_buffer *buffer,
             break;
 
         case VSIR_REGISTER_INPUT:
-            if (reg->idx_count != 1)
+            element_idx = reg->idx[reg->idx_count - 1].offset;
+            is_array = vsir_signature_element_is_array(&gen->program->input_signature.elements[element_idx],
+                    &gen->program->normalisation_flags);
+            if (reg->idx_count != 1 + is_array)
             {
                 vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
                         "Internal compiler error: Unhandled input register index count %u.", reg->idx_count);
@@ -189,15 +201,12 @@ static void shader_glsl_print_operand_name(struct vkd3d_string_buffer *buffer,
                         vsir_register_type_get_name(reg->type, "<unknown>"), reg->type);
                 break;
             }
-            if (reg->idx[0].rel_addr)
-            {
-                vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
-                        "Internal compiler error: Unhandled input register indirect addressing.");
-                vkd3d_string_buffer_printf(buffer, "<unhandled register \"%s\" (%#x)>",
-                        vsir_register_type_get_name(reg->type, "<unknown>"), reg->type);
-                break;
-            }
-            vkd3d_string_buffer_printf(buffer, "%s_in[%u]", gen->prefix, reg->idx[0].offset);
+
+            vkd3d_string_buffer_printf(buffer, "%s_in_%u", gen->prefix, element_idx);
+            if (is_array)
+                shader_glsl_print_subscript(buffer, gen, reg->idx[0].rel_addr, reg->idx[0].offset);
+            else
+                shader_glsl_print_subscript(buffer, gen, NULL, 0);
             break;
 
         case VSIR_REGISTER_OUTPUT:
@@ -488,6 +497,62 @@ static void shader_glsl_print_subscript(struct vkd3d_string_buffer *buffer,
     glsl_src_cleanup(&r, &gen->string_buffers);
 }
 
+static void shader_glsl_print_raw_structured_address(struct vkd3d_string_buffer *buffer,
+        struct vkd3d_glsl_generator *gen, size_t stride, const struct vsir_src_operand *index,
+        uint32_t index_mask, const struct vsir_src_operand *offset, uint32_t offset_mask)
+{
+    bool const_index = false, const_offset = false;
+    int v_index, v_offset;
+    unsigned int swizzle;
+
+    if (!stride)
+    {
+        const_index = true;
+        v_index = 0;
+    }
+    else if (index->reg.type == VSIR_REGISTER_IMMCONST)
+    {
+        const_index = true;
+        swizzle = vsir_swizzle_get_component(index->swizzle, vkd3d_ctz(index_mask));
+        v_index = index->reg.u.immconst_u32[swizzle] * stride;
+    }
+
+    if (offset->reg.type == VSIR_REGISTER_IMMCONST)
+    {
+        const_offset = true;
+        swizzle = vsir_swizzle_get_component(offset->swizzle, vkd3d_ctz(offset_mask));
+        v_offset = offset->reg.u.immconst_u32[swizzle] / 4;
+    }
+
+    if (const_index && const_offset)
+    {
+        vkd3d_string_buffer_printf(buffer, "%d", v_index + v_offset);
+        return;
+    }
+
+    if (!const_index)
+    {
+        shader_glsl_print_src(buffer, gen, index, index_mask, VSIR_DATA_I32);
+        vkd3d_string_buffer_printf(buffer, " * %zu", stride);
+        if (!const_offset || v_offset)
+            vkd3d_string_buffer_printf(buffer, " + ");
+    }
+    else if (v_index)
+    {
+        vkd3d_string_buffer_printf(buffer, "%d + ", v_index);
+    }
+
+    if (!const_offset)
+    {
+        shader_glsl_print_src(buffer, gen, offset, offset_mask, VSIR_DATA_I32);
+        vkd3d_string_buffer_printf(buffer, " / 4");
+    }
+    else if (v_offset)
+    {
+        vkd3d_string_buffer_printf(buffer, "%d", v_offset);
+    }
+}
+
 static void VKD3D_PRINTF_FUNC(4, 0) shader_glsl_vprint_assignment(struct vkd3d_glsl_generator *gen,
         struct glsl_dst *dst, enum vsir_data_type data_type, const char *format, va_list args)
 {
@@ -559,58 +624,111 @@ static void shader_glsl_unhandled(struct vkd3d_glsl_generator *gen, const struct
 }
 
 static void shader_glsl_atomic(struct vkd3d_glsl_generator *gen,
-        const struct vkd3d_shader_instruction *ins, const char *op)
+        const struct vkd3d_shader_instruction *ins, const char *tgsm_op, const char *image_op)
 {
     unsigned int descriptor_id, resource_idx, resource_space, stride;
+    bool is_imm = vsir_opcode_is_imm_atomic(ins->opcode);
     struct vkd3d_string_buffer *buffer = gen->buffer;
+    const struct vsir_dst_operand *resource_dst;
     const struct vsir_descriptor *d;
     enum vsir_data_type data_type;
     enum vsir_register_type type;
+    bool is_tgsm = false;
+    struct vsir_tgsm *t;
+    struct glsl_dst dst;
+    const char *op;
 
-    if ((type = ins->dst[0].reg.type) != VSIR_REGISTER_UAV)
-    {
-        vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
-                "Internal compiler error: Unhandled register type \"%s\" (%#x).\n.",
-                vsir_register_type_get_name(type, "<unknown>"), type);
-        return;
-    }
-
-    if (ins->dst[0].reg.idx[0].rel_addr || ins->dst[0].reg.idx[1].rel_addr)
+    resource_dst = &ins->dst[is_imm];
+    if (resource_dst->reg.idx[0].rel_addr || resource_dst->reg.idx[1].rel_addr)
         vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_UNSUPPORTED,
                 "Descriptor indexing is not supported.");
 
-    descriptor_id = ins->dst[0].reg.idx[0].offset;
-    resource_idx = ins->dst[0].reg.idx[1].offset;
-    if ((d = vkd3d_shader_find_descriptor(&gen->program->descriptors,
-            VKD3D_SHADER_DESCRIPTOR_TYPE_UAV, descriptor_id)))
+    descriptor_id = resource_dst->reg.idx[0].offset;
+    if ((type = resource_dst->reg.type) == VSIR_REGISTER_GROUPSHAREDMEM)
     {
-        resource_space = d->register_space;
-        data_type = d->resource_data_type;
-        stride = d->structure_stride / 4;
+        data_type = VSIR_DATA_U32;
+        if ((t = vsir_program_find_tgsm(gen->program, descriptor_id)))
+        {
+            stride = t->structure_stride / 4;
+        }
+        else
+        {
+            vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
+                    "Internal compiler error: Undeclared TGSM descriptor %u.", descriptor_id);
+            stride = 0;
+        }
+        is_tgsm = true;
+        op = tgsm_op;
     }
     else
     {
-        vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
-                "Internal compiler error: Undeclared descriptor %u.", descriptor_id);
-        resource_space = 0;
-        data_type = VSIR_DATA_F32;
-        stride = 0;
+        if (type != VSIR_REGISTER_UAV)
+        {
+            vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
+                    "Internal compiler error: Unhandled register type \"%s\" (%#x).\n.",
+                    vsir_register_type_get_name(type, "<unknown>"), type);
+            return;
+        }
+
+        resource_idx = resource_dst->reg.idx[1].offset;
+        if ((d = vkd3d_shader_find_descriptor(&gen->program->descriptors,
+                VKD3D_SHADER_DESCRIPTOR_TYPE_UAV, descriptor_id)))
+        {
+            resource_space = d->register_space;
+            data_type = d->resource_data_type;
+            stride = d->structure_stride / 4;
+        }
+        else
+        {
+            vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
+                    "Internal compiler error: Undeclared descriptor %u.", descriptor_id);
+            resource_space = 0;
+            data_type = VSIR_DATA_F32;
+            stride = 0;
+        }
+        op = image_op;
     }
 
-    shader_glsl_print_indent(buffer, gen->indent);
+    if (is_imm)
+        buffer = vkd3d_string_buffer_get(&gen->string_buffers);
+    else
+        shader_glsl_print_indent(buffer, gen->indent);
+
     vkd3d_string_buffer_printf(buffer, "%s(", op);
-    shader_glsl_print_image_name(buffer, gen, resource_idx, resource_space);
-    vkd3d_string_buffer_printf(buffer, ", ");
-    if (stride)
+    if (is_tgsm)
     {
-        shader_glsl_print_src(buffer, gen, &ins->src[0], VKD3DSP_WRITEMASK_0, VSIR_DATA_I32);
-        vkd3d_string_buffer_printf(buffer, " * %u + ", stride);
+        shader_glsl_print_tgsm_name(buffer, gen, descriptor_id);
+        vkd3d_string_buffer_printf(buffer, "[");
     }
-    shader_glsl_print_src(buffer, gen, &ins->src[0], VKD3DSP_WRITEMASK_1, VSIR_DATA_I32);
-    vkd3d_string_buffer_printf(buffer, " / 4");
-    vkd3d_string_buffer_printf(buffer, ", ");
+    else
+    {
+        shader_glsl_print_image_name(buffer, gen, resource_idx, resource_space);
+        vkd3d_string_buffer_printf(buffer, ", ");
+    }
+    shader_glsl_print_raw_structured_address(buffer, gen, stride, &ins->src[0],
+            VKD3DSP_WRITEMASK_0, &ins->src[0], VKD3DSP_WRITEMASK_1);
+    vkd3d_string_buffer_printf(buffer, "%s, ", is_tgsm ? "]" : "");
     shader_glsl_print_src(buffer, gen, &ins->src[1], VKD3DSP_WRITEMASK_0, data_type);
-    vkd3d_string_buffer_printf(buffer, ");\n");
+    if (ins->src_count >= 3)
+    {
+        vkd3d_string_buffer_printf(buffer, ", ");
+        shader_glsl_print_src(buffer, gen, &ins->src[2], VKD3DSP_WRITEMASK_0, data_type);
+    }
+    vkd3d_string_buffer_printf(buffer, ")");
+
+    if (is_imm)
+    {
+        glsl_dst_init(&dst, gen, ins, &ins->dst[0]);
+        shader_glsl_print_assignment_ext(gen, &dst, data_type, "%s", buffer->buffer);
+        glsl_dst_cleanup(&dst, &gen->string_buffers);
+    }
+    else
+    {
+        vkd3d_string_buffer_printf(buffer, ";\n");
+    }
+
+    if (buffer != gen->buffer)
+        vkd3d_string_buffer_release(&gen->string_buffers, buffer);
 }
 
 static void shader_glsl_binop(struct vkd3d_glsl_generator *gen,
@@ -1124,40 +1242,59 @@ static void shader_glsl_sample(struct vkd3d_glsl_generator *gen, const struct vk
 static void shader_glsl_load_raw_structured(struct vkd3d_glsl_generator *gen,
         const struct vkd3d_shader_instruction *ins)
 {
-    unsigned int count, descriptor_id, resource_idx, resource_space, i, stride, src_idx = 0;
     const struct vsir_src_operand *resource_src = &ins->src[ins->src_count - 1];
+    unsigned int count, descriptor_id, resource_idx, resource_space, i, stride;
     struct vkd3d_string_buffer *coord, *load;
     uint32_t dst_mask, mask, swizzle;
     const struct vsir_descriptor *d;
     enum vsir_register_type type;
+    bool is_tgsm = false;
+    struct vsir_tgsm *t;
     struct glsl_dst dst;
-
-    if ((type = resource_src->reg.type) != VSIR_REGISTER_RESOURCE)
-    {
-        vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
-                "Internal compiler error: Unhandled register type \"%s\" (%#x).\n.",
-                vsir_register_type_get_name(type, "<unknown>"), type);
-        return;
-    }
 
     if (resource_src->reg.idx[0].rel_addr || resource_src->reg.idx[1].rel_addr)
         vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_UNSUPPORTED,
                 "Descriptor indexing is not supported.");
 
     descriptor_id = resource_src->reg.idx[0].offset;
-    resource_idx = resource_src->reg.idx[1].offset;
-    if ((d = vkd3d_shader_find_descriptor(&gen->program->descriptors,
-            VKD3D_SHADER_DESCRIPTOR_TYPE_SRV, descriptor_id)))
+    if ((type = resource_src->reg.type) == VSIR_REGISTER_GROUPSHAREDMEM)
     {
-        resource_space = d->register_space;
-        stride = d->structure_stride / 4;
+        if ((t = vsir_program_find_tgsm(gen->program, descriptor_id)))
+        {
+            stride = t->structure_stride / 4;
+        }
+        else
+        {
+            vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
+                    "Internal compiler error: Undeclared TGSM descriptor %u.", descriptor_id);
+            stride = 0;
+        }
+        is_tgsm = true;
     }
     else
     {
-        vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
-                "Internal compiler error: Undeclared UAV descriptor %u.", descriptor_id);
-        resource_space = 0;
-        stride = 0;
+        if (type != VSIR_REGISTER_RESOURCE)
+        {
+            vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
+                    "Internal compiler error: Unhandled register type \"%s\" (%#x).\n.",
+                    vsir_register_type_get_name(type, "<unknown>"), type);
+            return;
+        }
+
+        resource_idx = resource_src->reg.idx[1].offset;
+        if ((d = vkd3d_shader_find_descriptor(&gen->program->descriptors,
+                VKD3D_SHADER_DESCRIPTOR_TYPE_SRV, descriptor_id)))
+        {
+            resource_space = d->register_space;
+            stride = d->structure_stride / 4;
+        }
+        else
+        {
+            vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
+                    "Internal compiler error: Undeclared UAV descriptor %u.", descriptor_id);
+            resource_space = 0;
+            stride = 0;
+        }
     }
 
     glsl_dst_init(&dst, gen, ins, &ins->dst[0]);
@@ -1165,12 +1302,10 @@ static void shader_glsl_load_raw_structured(struct vkd3d_glsl_generator *gen,
     load = vkd3d_string_buffer_get(&gen->string_buffers);
 
     if (ins->opcode == VSIR_OP_LD_STRUCTURED)
-    {
-        shader_glsl_print_src(coord, gen, &ins->src[src_idx++], VKD3DSP_WRITEMASK_0, VSIR_DATA_I32);
-        vkd3d_string_buffer_printf(coord, " * %u + ", stride);
-    }
-    shader_glsl_print_src(coord, gen, &ins->src[src_idx++], VKD3DSP_WRITEMASK_0, VSIR_DATA_I32);
-    vkd3d_string_buffer_printf(coord, " / 4");
+        shader_glsl_print_raw_structured_address(coord, gen, stride, &ins->src[0],
+                VKD3DSP_WRITEMASK_0, &ins->src[1], VKD3DSP_WRITEMASK_0);
+    else
+        shader_glsl_print_raw_structured_address(coord, gen, 0, NULL, 0, &ins->src[0], VKD3DSP_WRITEMASK_0);
 
     dst_mask = ins->dst[0].write_mask;
     count = vsir_write_mask_component_count(dst_mask);
@@ -1181,13 +1316,22 @@ static void shader_glsl_load_raw_structured(struct vkd3d_glsl_generator *gen,
 
         if (count > 1)
             shader_glsl_print_indent(load, gen->indent + 2);
-        vkd3d_string_buffer_printf(load, "texelFetch(");
-        shader_glsl_print_combined_sampler_name(load, gen, resource_idx,
-                resource_space, VKD3D_SHADER_DUMMY_SAMPLER_INDEX, 0);
-        vkd3d_string_buffer_printf(load, ", %s", coord->buffer);
+        if (is_tgsm)
+        {
+            shader_glsl_print_tgsm_name(load, gen, descriptor_id);
+            vkd3d_string_buffer_printf(load, "[%s", coord->buffer);
+        }
+        else
+        {
+            vkd3d_string_buffer_printf(load, "texelFetch(");
+            shader_glsl_print_combined_sampler_name(load, gen, resource_idx,
+                    resource_space, VKD3D_SHADER_DUMMY_SAMPLER_INDEX, 0);
+            vkd3d_string_buffer_printf(load, ", %s", coord->buffer);
+        }
         if ((swizzle = vsir_swizzle_get_component(resource_src->swizzle, i)))
             vkd3d_string_buffer_printf(load, " + %u", swizzle);
-        vkd3d_string_buffer_printf(load, ").x%s", dst_mask & ~(mask | (mask - 1)) ? ",\n" : "");
+        vkd3d_string_buffer_printf(load, "%s%s", is_tgsm ? "]" : ").x",
+                dst_mask & ~(mask | (mask - 1)) ? ",\n" : "");
     }
 
     if (count > 1)
@@ -1263,49 +1407,73 @@ static void shader_glsl_load_uav_typed(struct vkd3d_glsl_generator *gen, const s
 static void shader_glsl_store_raw_structured(struct vkd3d_glsl_generator *gen,
         const struct vkd3d_shader_instruction *ins)
 {
-    unsigned int descriptor_id, resource_idx, resource_space, i, stride, src_idx = 0;
+    unsigned int descriptor_id, resource_idx, resource_space, i, stride, src_idx;
     struct vkd3d_string_buffer *buffer = gen->buffer;
     struct vkd3d_string_buffer *coord;
     const struct vsir_descriptor *d;
     enum vsir_register_type type;
+    bool is_tgsm = false;
+    struct vsir_tgsm *t;
     uint32_t mask;
-
-    if ((type = ins->dst[0].reg.type) != VSIR_REGISTER_UAV)
-    {
-        vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
-                "Internal compiler error: Unhandled register type \"%s\" (%#x).\n.",
-                vsir_register_type_get_name(type, "<unknown>"), type);
-        return;
-    }
 
     if (ins->dst[0].reg.idx[0].rel_addr || ins->dst[0].reg.idx[1].rel_addr)
         vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_UNSUPPORTED,
                 "Descriptor indexing is not supported.");
 
     descriptor_id = ins->dst[0].reg.idx[0].offset;
-    resource_idx = ins->dst[0].reg.idx[1].offset;
-    if ((d = vkd3d_shader_find_descriptor(&gen->program->descriptors, VKD3D_SHADER_DESCRIPTOR_TYPE_UAV, descriptor_id)))
+    if ((type = ins->dst[0].reg.type) == VSIR_REGISTER_GROUPSHAREDMEM)
     {
-        resource_space = d->register_space;
-        stride = d->structure_stride / 4;
+        if ((t = vsir_program_find_tgsm(gen->program, descriptor_id)))
+        {
+            stride = t->structure_stride / 4;
+        }
+        else
+        {
+            vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
+                    "Internal compiler error: Undeclared TGSM descriptor %u.", descriptor_id);
+            stride = 0;
+        }
+        is_tgsm = true;
     }
     else
     {
-        vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
-                "Internal compiler error: Undeclared descriptor %u.", descriptor_id);
-        resource_space = 0;
-        stride = 0;
+        if (type != VSIR_REGISTER_UAV)
+        {
+            vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
+                    "Internal compiler error: Unhandled register type \"%s\" (%#x).\n.",
+                    vsir_register_type_get_name(type, "<unknown>"), type);
+            return;
+        }
+
+        resource_idx = ins->dst[0].reg.idx[1].offset;
+        if ((d = vkd3d_shader_find_descriptor(&gen->program->descriptors,
+                VKD3D_SHADER_DESCRIPTOR_TYPE_UAV, descriptor_id)))
+        {
+            resource_space = d->register_space;
+            stride = d->structure_stride / 4;
+        }
+        else
+        {
+            vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
+                    "Internal compiler error: Undeclared descriptor %u.", descriptor_id);
+            resource_space = 0;
+            stride = 0;
+        }
     }
 
     coord = vkd3d_string_buffer_get(&gen->string_buffers);
 
     if (ins->opcode == VSIR_OP_STORE_STRUCTURED)
     {
-        shader_glsl_print_src(coord, gen, &ins->src[src_idx++], VKD3DSP_WRITEMASK_0, VSIR_DATA_I32);
-        vkd3d_string_buffer_printf(coord, " * %u + ", stride);
+        shader_glsl_print_raw_structured_address(coord, gen, stride, &ins->src[0],
+                VKD3DSP_WRITEMASK_0, &ins->src[1], VKD3DSP_WRITEMASK_0);
+        src_idx = 2;
     }
-    shader_glsl_print_src(coord, gen, &ins->src[src_idx++], VKD3DSP_WRITEMASK_0, VSIR_DATA_I32);
-    vkd3d_string_buffer_printf(coord, " / 4");
+    else
+    {
+        shader_glsl_print_raw_structured_address(coord, gen, 0, NULL, 0, &ins->src[0], VKD3DSP_WRITEMASK_0);
+        src_idx = 1;
+    }
 
     for (i = 0; i < VKD3D_VEC4_SIZE; ++i)
     {
@@ -1313,14 +1481,27 @@ static void shader_glsl_store_raw_structured(struct vkd3d_glsl_generator *gen,
             continue;
 
         shader_glsl_print_indent(buffer, gen->indent);
-        vkd3d_string_buffer_printf(buffer, "imageStore(");
-        shader_glsl_print_image_name(buffer, gen, resource_idx, resource_space);
-        vkd3d_string_buffer_printf(buffer, ", %s", coord->buffer);
-        if (i)
-            vkd3d_string_buffer_printf(buffer, " + %u", i);
-        vkd3d_string_buffer_printf(buffer, ", uvec4(");
-        shader_glsl_print_src(buffer, gen, &ins->src[src_idx], mask, VSIR_DATA_U32);
-        vkd3d_string_buffer_printf(buffer, ", 0, 0, 0));\n");
+        if (is_tgsm)
+        {
+            shader_glsl_print_tgsm_name(buffer, gen, descriptor_id);
+            vkd3d_string_buffer_printf(buffer, "[%s", coord->buffer);
+            if (i)
+                vkd3d_string_buffer_printf(buffer, " + %u", i);
+            vkd3d_string_buffer_printf(buffer, "] = ");
+            shader_glsl_print_src(buffer, gen, &ins->src[src_idx], mask, VSIR_DATA_U32);
+            vkd3d_string_buffer_printf(buffer, ";\n");
+        }
+        else
+        {
+            vkd3d_string_buffer_printf(buffer, "imageStore(");
+            shader_glsl_print_image_name(buffer, gen, resource_idx, resource_space);
+            vkd3d_string_buffer_printf(buffer, ", %s", coord->buffer);
+            if (i)
+                vkd3d_string_buffer_printf(buffer, " + %u", i);
+            vkd3d_string_buffer_printf(buffer, ", uvec4(");
+            shader_glsl_print_src(buffer, gen, &ins->src[src_idx], mask, VSIR_DATA_U32);
+            vkd3d_string_buffer_printf(buffer, ", 0, 0, 0));\n");
+        }
     }
 
     vkd3d_string_buffer_release(&gen->string_buffers, coord);
@@ -1550,50 +1731,53 @@ static void shader_glsl_shader_prologue(struct vkd3d_glsl_generator *gen)
     {
         e = &signature->elements[i];
 
-        if (e->target_location == SIGNATURE_TARGET_LOCATION_UNUSED)
-            continue;
-
-        shader_glsl_print_indent(buffer, gen->indent);
-        vkd3d_string_buffer_printf(buffer, "%s_in[%u]", gen->prefix, e->register_index);
-        shader_glsl_print_write_mask(buffer, e->mask);
-        if (e->sysval_semantic == VKD3D_SHADER_SV_NONE)
+        for (unsigned int j = 0; j < e->register_count; ++j)
         {
-            if (gen->interstage_input)
+            shader_glsl_print_indent(buffer, gen->indent);
+            vkd3d_string_buffer_printf(buffer, "%s_in_%u[%u]", gen->prefix, i, j);
+            shader_glsl_print_write_mask(buffer, e->mask);
+            if (e->sysval_semantic == VKD3D_SHADER_SV_NONE)
             {
-                vkd3d_string_buffer_printf(buffer, " = shader_in.reg_%u", e->target_location);
-                if (e->target_location >= gen->limits.input_count)
-                    vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
-                            "Internal compiler error: Input element %u specifies target location %u, "
-                            "but only %u inputs are supported.",
-                            i, e->target_location, gen->limits.input_count);
+                if (e->target_location == SIGNATURE_TARGET_LOCATION_UNUSED)
+                    break;
+
+                if (gen->interstage_input)
+                {
+                    vkd3d_string_buffer_printf(buffer, " = shader_in.reg_%u", e->target_location + j);
+                    if (!vkd3d_bound_range(e->target_location, e->register_count, gen->limits.input_count))
+                        vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
+                                "Internal compiler error: Input element %u specifies %u inputs "
+                                "starting at target location %u, but only %u inputs are supported.",
+                                i, e->register_count, e->target_location, gen->limits.input_count);
+                }
+                else
+                {
+                    switch (e->component_type)
+                    {
+                        case VKD3D_SHADER_COMPONENT_UINT:
+                            vkd3d_string_buffer_printf(buffer, " = uintBitsToFloat(shader_in_%u[%u])", i, j);
+                            break;
+                        case VKD3D_SHADER_COMPONENT_INT:
+                            vkd3d_string_buffer_printf(buffer, " = intBitsToFloat(shader_in_%u[%u])", i, j);
+                            break;
+                        default:
+                            vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
+                                    "Internal compiler error: Unhandled input component type %#x.", e->component_type);
+                            /* fall through */
+                        case VKD3D_SHADER_COMPONENT_FLOAT:
+                            vkd3d_string_buffer_printf(buffer, " = shader_in_%u[%u]", i, j);
+                            break;
+                    }
+                }
             }
             else
             {
-                switch (e->component_type)
-                {
-                    case VKD3D_SHADER_COMPONENT_UINT:
-                        vkd3d_string_buffer_printf(buffer, " = uintBitsToFloat(shader_in_%u)", i);
-                        break;
-                    case VKD3D_SHADER_COMPONENT_INT:
-                        vkd3d_string_buffer_printf(buffer, " = intBitsToFloat(shader_in_%u)", i);
-                        break;
-                    default:
-                        vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
-                                "Internal compiler error: Unhandled input component type %#x.", e->component_type);
-                        /* fall through */
-                    case VKD3D_SHADER_COMPONENT_FLOAT:
-                        vkd3d_string_buffer_printf(buffer, " = shader_in_%u", i);
-                        break;
-                }
+                vkd3d_string_buffer_printf(buffer, " = ");
+                shader_glsl_print_sysval_name(buffer, gen, e->sysval_semantic, e->semantic_index);
             }
+            shader_glsl_print_write_mask(buffer, e->mask);
+            vkd3d_string_buffer_printf(buffer, ";\n");
         }
-        else
-        {
-            vkd3d_string_buffer_printf(buffer, " = ");
-            shader_glsl_print_sysval_name(buffer, gen, e->sysval_semantic, e->semantic_index);
-        }
-        shader_glsl_print_write_mask(buffer, e->mask);
-        vkd3d_string_buffer_printf(buffer, ";\n");
     }
 }
 
@@ -1609,13 +1793,16 @@ static void shader_glsl_shader_epilogue(struct vkd3d_glsl_generator *gen)
     {
         e = &signature->elements[i];
 
-        if (e->target_location == SIGNATURE_TARGET_LOCATION_UNUSED)
+        if (!gen->interstage_output && e->sysval_semantic != VKD3D_SHADER_SV_TARGET)
             continue;
 
         type = e->component_type;
         shader_glsl_print_indent(buffer, gen->indent);
         if (e->sysval_semantic == VKD3D_SHADER_SV_NONE)
         {
+            if (e->target_location == SIGNATURE_TARGET_LOCATION_UNUSED)
+                continue;
+
             if (gen->interstage_output)
             {
                 type = VKD3D_SHADER_COMPONENT_FLOAT;
@@ -1641,17 +1828,17 @@ static void shader_glsl_shader_epilogue(struct vkd3d_glsl_generator *gen)
         switch (type)
         {
             case VKD3D_SHADER_COMPONENT_UINT:
-                vkd3d_string_buffer_printf(buffer, " = floatBitsToUint(%s_out[%u])", gen->prefix, e->register_index);
+                vkd3d_string_buffer_printf(buffer, " = floatBitsToUint(%s_out[%u])", gen->prefix, i);
                 break;
             case VKD3D_SHADER_COMPONENT_INT:
-                vkd3d_string_buffer_printf(buffer, " = floatBitsToInt(%s_out[%u])", gen->prefix, e->register_index);
+                vkd3d_string_buffer_printf(buffer, " = floatBitsToInt(%s_out[%u])", gen->prefix, i);
                 break;
             default:
                 vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
                         "Internal compiler error: Unhandled output component type %#x.", e->component_type);
                 /* fall through */
             case VKD3D_SHADER_COMPONENT_FLOAT:
-                vkd3d_string_buffer_printf(buffer, " = %s_out[%u]", gen->prefix, e->register_index);
+                vkd3d_string_buffer_printf(buffer, " = %s_out[%u]", gen->prefix, i);
                 break;
         }
         shader_glsl_print_write_mask(buffer, e->mask);
@@ -1667,14 +1854,9 @@ static void shader_glsl_shader_epilogue(struct vkd3d_glsl_generator *gen)
 
 static void shader_glsl_ret(struct vkd3d_glsl_generator *gen, const struct vkd3d_shader_instruction *ins)
 {
-    const struct vkd3d_shader_version *version = &gen->program->shader_version;
-
-    if (version->major >= 4)
-    {
-        shader_glsl_shader_epilogue(gen);
-        shader_glsl_print_indent(gen->buffer, gen->indent);
-        vkd3d_string_buffer_printf(gen->buffer, "return;\n");
-    }
+    shader_glsl_shader_epilogue(gen);
+    shader_glsl_print_indent(gen->buffer, gen->indent);
+    vkd3d_string_buffer_printf(gen->buffer, "return;\n");
 }
 
 static void shader_glsl_dcl_indexable_temp(struct vkd3d_glsl_generator *gen,
@@ -1741,7 +1923,7 @@ static void vkd3d_glsl_handle_instruction(struct vkd3d_glsl_generator *gen,
             shader_glsl_binop(gen, ins, "&");
             break;
         case VSIR_OP_ATOMIC_IADD:
-            shader_glsl_atomic(gen, ins, "imageAtomicAdd");
+            shader_glsl_atomic(gen, ins, "atomicAdd", "imageAtomicAdd");
             break;
         case VSIR_OP_BREAK:
             shader_glsl_break(gen);
@@ -1822,6 +2004,9 @@ static void vkd3d_glsl_handle_instruction(struct vkd3d_glsl_generator *gen,
             break;
         case VSIR_OP_IF:
             shader_glsl_if(gen, ins);
+            break;
+        case VSIR_OP_IMM_ATOMIC_CMP_EXCH:
+            shader_glsl_atomic(gen, ins, "atomicCompSwap", "imageAtomicCompSwap");
             break;
         case VSIR_OP_MAD:
             shader_glsl_intrinsic(gen, ins, "fma");
@@ -2362,10 +2547,20 @@ static void shader_glsl_generate_sampler_declaration(struct vkd3d_glsl_generator
     vkd3d_string_buffer_printf(buffer, ";\n");
 }
 
+static void shader_glsl_generate_tgsm_declaration(struct vkd3d_glsl_generator *gen, struct vsir_tgsm *t)
+{
+    struct vkd3d_string_buffer *buffer = gen->buffer;
+
+    vkd3d_string_buffer_printf(buffer, "shared uint ");
+    shader_glsl_print_tgsm_name(buffer, gen, t->id);
+    vkd3d_string_buffer_printf(buffer, "[%zu];\n", t->byte_count / 4);
+}
+
 static void shader_glsl_generate_descriptor_declarations(struct vkd3d_glsl_generator *gen)
 {
     const struct vkd3d_shader_scan_combined_resource_sampler_info *sampler_info = gen->combined_sampler_info;
     const struct vsir_descriptor_info *descriptors = &gen->program->descriptors;
+    const struct vsir_program *program = gen->program;
     const struct vsir_descriptor *descriptor;
     unsigned int i;
 
@@ -2399,7 +2594,11 @@ static void shader_glsl_generate_descriptor_declarations(struct vkd3d_glsl_gener
     {
         shader_glsl_generate_sampler_declaration(gen, &sampler_info->combined_samplers[i]);
     }
-    if (descriptors->count)
+    for (i = 0; i < program->tgsm_count; ++i)
+    {
+        shader_glsl_generate_tgsm_declaration(gen, &program->tgsms[i]);
+    }
+    if (descriptors->count || program->tgsm_count)
         vkd3d_string_buffer_printf(gen->buffer, "\n");
 }
 
@@ -2511,7 +2710,7 @@ static void shader_glsl_generate_input_declarations(struct vkd3d_glsl_generator 
                             "Internal compiler error: Unhandled input component type %#x.", e->component_type);
                     break;
             }
-            vkd3d_string_buffer_printf(buffer, " shader_in_%u;\n", i);
+            vkd3d_string_buffer_printf(buffer, " shader_in_%u[%u];\n", i, e->register_count);
             ++count;
         }
         if (count)
@@ -2537,15 +2736,8 @@ static void shader_glsl_generate_output_declarations(struct vkd3d_glsl_generator
         {
             e = &signature->elements[i];
 
-            if (e->target_location == SIGNATURE_TARGET_LOCATION_UNUSED)
-                continue;
-
             if (e->sysval_semantic != VKD3D_SHADER_SV_TARGET)
-            {
-                vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
-                        "Internal compiler error: Unhandled system value %#x.", e->sysval_semantic);
                 continue;
-            }
 
             if (e->min_precision != VKD3D_SHADER_MINIMUM_PRECISION_NONE)
             {
@@ -2644,8 +2836,11 @@ static void shader_glsl_generate_declarations(struct vkd3d_glsl_generator *gen)
     shader_glsl_generate_input_declarations(gen);
     shader_glsl_generate_output_declarations(gen);
 
-    if (gen->limits.input_count)
-        vkd3d_string_buffer_printf(buffer, "vec4 %s_in[%u];\n", gen->prefix, gen->limits.input_count);
+    for (unsigned int i = 0; i < program->input_signature.element_count; ++i)
+    {
+        vkd3d_string_buffer_printf(buffer, "vec4 %s_in_%u[%u];\n", gen->prefix, i,
+                program->input_signature.elements[i].register_count);
+    }
     if (gen->limits.output_count)
         vkd3d_string_buffer_printf(buffer, "vec4 %s_out[%u];\n", gen->prefix, gen->limits.output_count);
     if (bitmap_is_set(gen->program->io_dcls, VSIR_REGISTER_SAMPLEMASK))

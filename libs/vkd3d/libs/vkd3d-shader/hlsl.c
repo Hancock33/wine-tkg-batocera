@@ -1661,16 +1661,9 @@ static void init_node(struct hlsl_ir_node *node, enum hlsl_ir_node_type type,
     list_init(&node->uses);
 }
 
-struct hlsl_ir_node *hlsl_new_simple_store(struct hlsl_ctx *ctx, struct hlsl_ir_var *lhs, struct hlsl_ir_node *rhs)
-{
-    struct hlsl_deref lhs_deref;
-
-    hlsl_deref_init_simple(&lhs_deref, lhs);
-    return hlsl_new_store_index(ctx, &lhs_deref, NULL, rhs, 0, &rhs->loc);
-}
-
-struct hlsl_ir_node *hlsl_new_store_index(struct hlsl_ctx *ctx, const struct hlsl_deref *lhs,
-        struct hlsl_ir_node *idx, struct hlsl_ir_node *rhs, unsigned int writemask, const struct vkd3d_shader_location *loc)
+static struct hlsl_ir_node *hlsl_new_store_index(struct hlsl_ctx *ctx,
+        const struct hlsl_deref *lhs, struct hlsl_ir_node *idx, struct hlsl_ir_node *rhs,
+        unsigned int writemask, const struct vkd3d_shader_location *loc)
 {
     struct hlsl_ir_store *store;
 
@@ -1808,7 +1801,8 @@ struct hlsl_ir_node *hlsl_block_add_constant(struct hlsl_ctx *ctx, struct hlsl_b
     return append_new_instr(ctx, block, hlsl_new_constant(ctx, type, value, loc));
 }
 
-struct hlsl_ir_node *hlsl_new_bool_constant(struct hlsl_ctx *ctx, bool b, const struct vkd3d_shader_location *loc)
+static struct hlsl_ir_node *hlsl_new_bool_constant(struct hlsl_ctx *ctx,
+        bool b, const struct vkd3d_shader_location *loc)
 {
     struct hlsl_constant_value value;
 
@@ -1823,6 +1817,12 @@ static struct hlsl_ir_node *hlsl_new_float_constant(struct hlsl_ctx *ctx, float 
 
     value.u[0].f = f;
     return hlsl_new_constant(ctx, hlsl_get_scalar_type(ctx, HLSL_TYPE_FLOAT), &value, loc);
+}
+
+struct hlsl_ir_node *hlsl_block_add_bool_constant(struct hlsl_ctx *ctx, struct hlsl_block *block,
+        bool b, const struct vkd3d_shader_location *loc)
+{
+    return append_new_instr(ctx, block, hlsl_new_bool_constant(ctx, b, loc));
 }
 
 struct hlsl_ir_node *hlsl_block_add_float_constant(struct hlsl_ctx *ctx, struct hlsl_block *block,
@@ -2114,7 +2114,7 @@ struct hlsl_ir_node *hlsl_new_switch(struct hlsl_ctx *ctx, struct hlsl_ir_node *
     return &s->node;
 }
 
-struct hlsl_ir_load *hlsl_new_load_index(struct hlsl_ctx *ctx, const struct hlsl_deref *deref,
+static struct hlsl_ir_load *hlsl_new_load_index(struct hlsl_ctx *ctx, const struct hlsl_deref *deref,
         struct hlsl_ir_node *idx, const struct vkd3d_shader_location *loc)
 {
     struct hlsl_ir_load *load;
@@ -2147,8 +2147,8 @@ struct hlsl_ir_node *hlsl_block_add_load_index(struct hlsl_ctx *ctx, struct hlsl
     return append_new_instr(ctx, block, load ? &load->node : NULL);
 }
 
-struct hlsl_ir_load *hlsl_new_load_parent(struct hlsl_ctx *ctx, const struct hlsl_deref *deref,
-        const struct vkd3d_shader_location *loc)
+struct hlsl_ir_node *hlsl_block_add_load_parent(struct hlsl_ctx *ctx, struct hlsl_block *block,
+        const struct hlsl_deref *deref, const struct vkd3d_shader_location *loc)
 {
     /* This deref can only exists temporarily because it is not the real owner of its members. */
     struct hlsl_deref tmp_deref;
@@ -2157,7 +2157,7 @@ struct hlsl_ir_load *hlsl_new_load_parent(struct hlsl_ctx *ctx, const struct hls
 
     tmp_deref = *deref;
     tmp_deref.path_len = deref->path_len - 1;
-    return hlsl_new_load_index(ctx, &tmp_deref, NULL, loc);
+    return hlsl_block_add_load_index(ctx, block, &tmp_deref, NULL, loc);
 }
 
 struct hlsl_ir_load *hlsl_new_var_load(struct hlsl_ctx *ctx, struct hlsl_ir_var *var,
@@ -5151,8 +5151,6 @@ static bool hlsl_ctx_init(struct hlsl_ctx *ctx, struct vkd3d_shader_source_list 
         const struct vkd3d_shader_compile_info *compile_info, const struct hlsl_profile_info *profile,
         struct vkd3d_shader_message_context *message_context)
 {
-    unsigned int i;
-
     memset(ctx, 0, sizeof(*ctx));
 
     vsir_compile_info_init(&ctx->compile_info, compile_info);
@@ -5205,27 +5203,6 @@ static bool hlsl_ctx_init(struct hlsl_ctx *ctx, struct vkd3d_shader_source_list 
         return false;
     }
     ctx->cur_buffer = ctx->globals_buffer;
-
-    ctx->warn_implicit_truncation = true;
-
-    for (i = 0; i < compile_info->option_count; ++i)
-    {
-        const struct vkd3d_shader_compile_option *option = &compile_info->options[i];
-
-        switch (option->name)
-        {
-            case VKD3D_SHADER_COMPILE_OPTION_WARN_IMPLICIT_TRUNCATION:
-                ctx->warn_implicit_truncation = option->value;
-                break;
-
-            case VKD3D_SHADER_COMPILE_OPTION_INCLUDE_EMPTY_BUFFERS_IN_EFFECTS:
-                ctx->include_empty_buffers = option->value;
-                break;
-
-            default:
-                break;
-        }
-    }
 
     if (ctx->compile_info.matrix_majority == VKD3D_SHADER_COMPILE_OPTION_PACK_MATRIX_ROW_MAJOR)
         ctx->matrix_majority = HLSL_MODIFIER_ROW_MAJOR;

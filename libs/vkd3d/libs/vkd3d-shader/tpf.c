@@ -1314,22 +1314,35 @@ static void shader_sm5_read_dcl_uav_structured(struct vkd3d_shader_instruction *
 static void shader_sm5_read_dcl_tgsm_raw(struct vkd3d_shader_instruction *ins, uint32_t opcode,
         uint32_t opcode_token, const uint32_t *tokens, unsigned int token_count, struct vkd3d_shader_sm4_parser *tpf)
 {
-    tpf_read_dst_operand(tpf, &tokens, &tokens[token_count], VSIR_DATA_F32, &ins->declaration.tgsm_raw.reg);
-    ins->declaration.tgsm_raw.byte_count = *tokens;
-    if (ins->declaration.tgsm_raw.byte_count % 4)
-        FIXME("Byte count %u is not multiple of 4.\n", ins->declaration.tgsm_raw.byte_count);
-    ins->declaration.tgsm_raw.zero_init = false;
+    struct vkd3d_shader_tgsm_raw *tgsm = &ins->declaration.tgsm_raw;
+
+    tpf_read_dst_operand(tpf, &tokens, &tokens[token_count], VSIR_DATA_F32, &tgsm->reg);
+    tgsm->byte_count = *tokens;
+    if (tgsm->byte_count % 4)
+        FIXME("Byte count %u is not multiple of 4.\n", tgsm->byte_count);
+    tgsm->zero_init = false;
+
+    if (!vsir_program_add_tgsm(tpf->program, tgsm->reg.reg.idx[0].offset, tgsm->byte_count, 0))
+        vkd3d_shader_parser_error(&tpf->p, VKD3D_SHADER_ERROR_TPF_OUT_OF_MEMORY,
+                "Failed to add TGSM descriptor.\n");
 }
 
 static void shader_sm5_read_dcl_tgsm_structured(struct vkd3d_shader_instruction *ins, uint32_t opcode,
         uint32_t opcode_token, const uint32_t *tokens, unsigned int token_count, struct vkd3d_shader_sm4_parser *tpf)
 {
-    tpf_read_dst_operand(tpf, &tokens, &tokens[token_count], VSIR_DATA_F32, &ins->declaration.tgsm_structured.reg);
-    ins->declaration.tgsm_structured.byte_stride = *tokens++;
-    ins->declaration.tgsm_structured.structure_count = *tokens;
-    if (ins->declaration.tgsm_structured.byte_stride % 4)
-        FIXME("Byte stride %u is not multiple of 4.\n", ins->declaration.tgsm_structured.byte_stride);
-    ins->declaration.tgsm_structured.zero_init = false;
+    struct vkd3d_shader_tgsm_structured *tgsm = &ins->declaration.tgsm_structured;
+
+    tpf_read_dst_operand(tpf, &tokens, &tokens[token_count], VSIR_DATA_F32, &tgsm->reg);
+    tgsm->byte_stride = *tokens++;
+    tgsm->structure_count = *tokens;
+    if (tgsm->byte_stride % 4)
+        FIXME("Byte stride %u is not multiple of 4.\n", tgsm->byte_stride);
+    tgsm->zero_init = false;
+
+    if (!vsir_program_add_tgsm(tpf->program, tgsm->reg.reg.idx[0].offset,
+            tgsm->structure_count * tgsm->byte_stride, tgsm->byte_stride))
+        vkd3d_shader_parser_error(&tpf->p, VKD3D_SHADER_ERROR_TPF_OUT_OF_MEMORY,
+                "Failed to add TGSM descriptor.\n");
 }
 
 static void shader_sm5_read_dcl_resource_structured(struct vkd3d_shader_instruction *ins, uint32_t opcode,
@@ -2957,7 +2970,7 @@ int tpf_parse(const struct vkd3d_shader_compile_info *compile_info, uint64_t con
 }
 
 bool sm4_register_from_semantic_name(const struct vkd3d_shader_version *version,
-        const char *semantic_name, bool output, enum vsir_register_type *type, bool *has_idx)
+        const char *semantic_name, bool output, enum vsir_register_type *type)
 {
     unsigned int i;
 
@@ -2967,33 +2980,27 @@ bool sm4_register_from_semantic_name(const struct vkd3d_shader_version *version,
         bool output;
         enum vkd3d_shader_type shader_type;
         enum vsir_register_type type;
-        bool has_idx;
     }
     register_table[] =
     {
-        {"sv_dispatchthreadid",     false, VKD3D_SHADER_TYPE_COMPUTE,  VSIR_REGISTER_THREADID,         false},
-        {"sv_groupid",              false, VKD3D_SHADER_TYPE_COMPUTE,  VSIR_REGISTER_THREADGROUPID,    false},
-        {"sv_groupindex",           false, VKD3D_SHADER_TYPE_COMPUTE,  VSIR_REGISTER_LOCALTHREADINDEX, false},
-        {"sv_groupthreadid",        false, VKD3D_SHADER_TYPE_COMPUTE,  VSIR_REGISTER_LOCALTHREADID,    false},
+        {"sv_dispatchthreadid",     false, VKD3D_SHADER_TYPE_COMPUTE,  VSIR_REGISTER_THREADID},
+        {"sv_groupid",              false, VKD3D_SHADER_TYPE_COMPUTE,  VSIR_REGISTER_THREADGROUPID},
+        {"sv_groupindex",           false, VKD3D_SHADER_TYPE_COMPUTE,  VSIR_REGISTER_LOCALTHREADINDEX},
+        {"sv_groupthreadid",        false, VKD3D_SHADER_TYPE_COMPUTE,  VSIR_REGISTER_LOCALTHREADID},
 
-        {"sv_domainlocation",       false, VKD3D_SHADER_TYPE_DOMAIN,   VSIR_REGISTER_TESSCOORD,        false},
-        {"sv_primitiveid",          false, VKD3D_SHADER_TYPE_DOMAIN,   VSIR_REGISTER_PRIMID,           false},
+        {"sv_domainlocation",       false, VKD3D_SHADER_TYPE_DOMAIN,   VSIR_REGISTER_TESSCOORD},
+        {"sv_primitiveid",          false, VKD3D_SHADER_TYPE_DOMAIN,   VSIR_REGISTER_PRIMID},
 
-        {"sv_primitiveid",          false, VKD3D_SHADER_TYPE_GEOMETRY, VSIR_REGISTER_PRIMID,           false},
-        {"sv_gsinstanceid",         false, VKD3D_SHADER_TYPE_GEOMETRY, VSIR_REGISTER_GSINSTID,         false},
+        {"sv_primitiveid",          false, VKD3D_SHADER_TYPE_GEOMETRY, VSIR_REGISTER_PRIMID},
+        {"sv_gsinstanceid",         false, VKD3D_SHADER_TYPE_GEOMETRY, VSIR_REGISTER_GSINSTID},
 
-        {"sv_outputcontrolpointid", false, VKD3D_SHADER_TYPE_HULL,     VSIR_REGISTER_OUTPOINTID,       false},
-        {"sv_primitiveid",          false, VKD3D_SHADER_TYPE_HULL,     VSIR_REGISTER_PRIMID,           false},
+        {"sv_outputcontrolpointid", false, VKD3D_SHADER_TYPE_HULL,     VSIR_REGISTER_OUTPOINTID},
+        {"sv_primitiveid",          false, VKD3D_SHADER_TYPE_HULL,     VSIR_REGISTER_PRIMID},
 
-        /* Put sv_target in this table, instead of letting it fall through to
-         * default varying allocation, so that the register index matches the
-         * usage index. */
-        {"color",                   true,  VKD3D_SHADER_TYPE_PIXEL,    VSIR_REGISTER_OUTPUT,           true},
-        {"depth",                   true,  VKD3D_SHADER_TYPE_PIXEL,    VSIR_REGISTER_DEPTHOUT,         false},
-        {"sv_depth",                true,  VKD3D_SHADER_TYPE_PIXEL,    VSIR_REGISTER_DEPTHOUT,         false},
-        {"sv_target",               true,  VKD3D_SHADER_TYPE_PIXEL,    VSIR_REGISTER_OUTPUT,           true},
-        {"sv_coverage",             true,  VKD3D_SHADER_TYPE_PIXEL,    VSIR_REGISTER_SAMPLEMASK,       false},
-        {"sv_stencilref",           true,  VKD3D_SHADER_TYPE_PIXEL,    VSIR_REGISTER_OUTSTENCILREF,    false},
+        {"depth",                   true,  VKD3D_SHADER_TYPE_PIXEL,    VSIR_REGISTER_DEPTHOUT},
+        {"sv_depth",                true,  VKD3D_SHADER_TYPE_PIXEL,    VSIR_REGISTER_DEPTHOUT},
+        {"sv_coverage",             true,  VKD3D_SHADER_TYPE_PIXEL,    VSIR_REGISTER_SAMPLEMASK},
+        {"sv_stencilref",           true,  VKD3D_SHADER_TYPE_PIXEL,    VSIR_REGISTER_OUTSTENCILREF},
     };
 
     for (i = 0; i < ARRAY_SIZE(register_table); ++i)
@@ -3004,7 +3011,6 @@ bool sm4_register_from_semantic_name(const struct vkd3d_shader_version *version,
         {
             if (type)
                 *type = register_table[i].type;
-            *has_idx = register_table[i].has_idx;
             return true;
         }
     }

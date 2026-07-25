@@ -2006,10 +2006,11 @@ static void shader_print_descriptor_name(struct vkd3d_d3d_asm_compiler *compiler
                 compiler->colours.error, t, id, compiler->colours.reset);
 }
 
-static void shader_print_descriptors(struct vkd3d_d3d_asm_compiler *compiler,
-        const struct vsir_descriptor_info *descriptors)
+static void shader_print_descriptors(struct vkd3d_d3d_asm_compiler *compiler, const struct vsir_program *program)
 {
+    const struct vsir_descriptor_info *descriptors = &program->descriptors;
     struct vkd3d_string_buffer *buffer = &compiler->buffer;
+    const char *tgsm_name;
     unsigned int i;
 
     vkd3d_string_buffer_printf(buffer, "%s.descriptors%s\n",
@@ -2044,6 +2045,25 @@ static void shader_print_descriptors(struct vkd3d_d3d_asm_compiler *compiler,
             shader_print_hex_literal(compiler, ", flags=", d->flags, "");
         if (d->uav_flags)
             shader_print_hex_literal(compiler, ", uav_flags=", d->uav_flags, "");
+        vkd3d_string_buffer_printf(buffer, "\n");
+    }
+
+    tgsm_name = vsir_register_type_get_name(VSIR_REGISTER_GROUPSHAREDMEM, NULL);
+    for (i = 0; i < program->tgsm_count; ++i)
+    {
+        const struct vsir_tgsm *t = &program->tgsms[i];
+
+        vkd3d_string_buffer_printf(buffer, "%s.descriptor%s ", compiler->colours.opcode, compiler->colours.reset);
+        vkd3d_string_buffer_printf(buffer, "%s%s%u%s",
+                compiler->colours.reg, tgsm_name, t->id, compiler->colours.reset);
+        if (t->alignment)
+            shader_print_hex_literal(compiler, ", alignment=", t->alignment, "");
+        shader_print_hex_literal(compiler, ", size=", t->byte_count, "");
+        if (t->structure_stride)
+            shader_print_hex_literal(compiler, ", stride=", t->structure_stride, "");
+        if (t->zero_init)
+            vkd3d_string_buffer_printf(buffer, ", %szero-init%s",
+                    compiler->colours.enumerant, compiler->colours.reset);
         vkd3d_string_buffer_printf(buffer, "\n");
     }
 }
@@ -2131,7 +2151,7 @@ enum vkd3d_result d3d_asm_compile(struct vsir_program *program, const struct vsi
     }
 
     if (compiler.flags & VSIR_ASM_FLAG_DUMP_DESCRIPTORS)
-        shader_print_descriptors(&compiler, &program->descriptors);
+        shader_print_descriptors(&compiler, program);
 
     if (compiler.flags & (VSIR_ASM_FLAG_DUMP_SIGNATURES | VSIR_ASM_FLAG_DUMP_DESCRIPTORS
                 | VSIR_ASM_FLAG_DUMP_DENORM_MODES))

@@ -1,9 +1,9 @@
-# Last wine-tkg-staging-git configuration - Sat Jul 11 03:24:35 PM BST 2026 :
+# Last wine-tkg-staging-git configuration - Sat Jul 25 09:28:22 AM BST 2026 :
 
 Local cfg files used
 
-Wine (plain) version: 11.13.r0.g6eb2e4c32cc
-Using wine-staging patchset (version 11.13.r0.gd1f772d1)
+Wine (plain) version: 11.14.r0.g1012f3d9950
+Using wine-staging patchset (version 11.14.r0.g3e0623e0)
 
 Not using vkd3d native library for d3d12 translation (allows using vkd3d-proton)
 

@@ -670,6 +670,11 @@ static inline bool vsir_opcode_is_control_point_phase(enum vkd3d_shader_opcode o
     return op == VSIR_OP_HS_CONTROL_POINT_PHASE;
 }
 
+static inline bool vsir_opcode_is_imm_atomic(enum vkd3d_shader_opcode op)
+{
+    return VSIR_OP_IMM_ATOMIC_ALLOC <= op && op <= VSIR_OP_IMM_ATOMIC_XOR;
+}
+
 enum vsir_register_type
 {
     VSIR_REGISTER_TEMP,
@@ -1359,12 +1364,6 @@ struct vkd3d_shader_raw_resource
     struct vkd3d_shader_resource resource;
 };
 
-struct vkd3d_shader_tgsm
-{
-    unsigned int size;
-    unsigned int stride;
-};
-
 struct vkd3d_shader_tgsm_raw
 {
     struct vsir_dst_operand reg;
@@ -1692,6 +1691,9 @@ struct vsir_compile_info
     enum vkd3d_shader_compile_option_formatting_flags formatting;
     enum vkd3d_shader_api_version api_version;
     enum vkd3d_shader_compile_option_pack_matrix_order matrix_majority;
+    enum vkd3d_shader_denormal_mode denormal_mode_f16;
+    enum vkd3d_shader_denormal_mode denormal_mode_f32;
+    enum vkd3d_shader_denormal_mode denormal_mode_f64;
 
     uint32_t strip_debug : 1;
     uint32_t ssbo_uavs : 1;
@@ -1707,9 +1709,23 @@ struct vsir_compile_info
     uint32_t feature_wave_ops : 1;
     uint32_t feature_zero_init_tgsm : 1;
     uint32_t child_effect : 1;
+    uint32_t warn_implicit_truncation : 1;
+    uint32_t include_empty_buffers : 1;
+    uint32_t denormal_mode_override_f16 : 1;
+    uint32_t denormal_mode_override_f32 : 1;
+    uint32_t denormal_mode_override_f64 : 1;
 };
 
 void vsir_compile_info_init(struct vsir_compile_info *vsir, const struct vkd3d_shader_compile_info *vkd3d);
+
+struct vsir_tgsm
+{
+    unsigned int id;
+    size_t alignment;
+    size_t byte_count;
+    size_t structure_stride;
+    bool zero_init;
+};
 
 struct vsir_program
 {
@@ -1721,6 +1737,9 @@ struct vsir_program
     struct vsir_signature patch_constant_signature;
 
     struct vsir_descriptor_info descriptors;
+
+    struct vsir_tgsm *tgsms;
+    size_t tgsm_capacity, tgsm_count;
 
     unsigned int parameter_count;
     const struct vkd3d_shader_parameter1 *parameters;
@@ -1771,9 +1790,12 @@ struct vsir_descriptor *vsir_program_add_descriptor(struct vsir_program *program
         enum vkd3d_shader_descriptor_type type, unsigned int register_id, const struct vsir_register_range *range,
         enum vkd3d_shader_resource_type resource_type, enum vsir_data_type resource_data_type);
 bool vsir_program_add_icb(struct vsir_program *program, struct vkd3d_shader_immediate_constant_buffer *icb);
+struct vsir_tgsm *vsir_program_add_tgsm(struct vsir_program *program,
+        unsigned int register_id, size_t byte_count, size_t stride);
 enum vkd3d_result vsir_program_allocate_temp_registers(struct vsir_program *program, uint64_t config_flags,
         const struct vkd3d_shader_compile_info *compile_info, struct vkd3d_shader_message_context *message_context);
 void vsir_program_cleanup(struct vsir_program *program);
+struct vsir_tgsm *vsir_program_find_tgsm(struct vsir_program *program, unsigned int register_id);
 const struct vkd3d_shader_parameter1 *vsir_program_get_parameter(
         const struct vsir_program *program, enum vkd3d_shader_parameter_name name);
 bool vsir_program_init(struct vsir_program *program, const struct vkd3d_shader_compile_info *compile_info,
@@ -1972,7 +1994,7 @@ bool sm1_register_from_semantic_name(const struct vkd3d_shader_version *version,
 bool sm1_usage_from_semantic_name(const struct vkd3d_shader_version *version, const char *semantic_name,
         uint32_t semantic_index, bool output, enum vkd3d_decl_usage *usage, uint32_t *usage_idx);
 bool sm4_register_from_semantic_name(const struct vkd3d_shader_version *version,
-        const char *semantic_name, bool output, enum vsir_register_type *type, bool *has_idx);
+        const char *semantic_name, bool output, enum vsir_register_type *type);
 bool shader_sm4_is_scalar_register(const struct vsir_operand *reg);
 bool sm4_sysval_semantic_from_semantic_name(enum vkd3d_shader_sysval_semantic *sysval_semantic,
         const struct vkd3d_shader_version *version, bool semantic_compat_mapping,

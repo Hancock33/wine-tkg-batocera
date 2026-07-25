@@ -1276,9 +1276,6 @@ struct hlsl_ctx
     uint32_t in_state_block : 1;
     /* Whether the numthreads() attribute has been provided in the entry-point function. */
     uint32_t found_numthreads : 1;
-
-    bool include_empty_buffers;
-    bool warn_implicit_truncation;
 };
 
 static inline bool hlsl_version_ge(const struct hlsl_ctx *ctx, unsigned int major, unsigned int minor)
@@ -1614,6 +1611,8 @@ struct hlsl_ir_node *hlsl_block_add_constant(struct hlsl_ctx *ctx, struct hlsl_b
 struct hlsl_ir_node *hlsl_block_add_expr(struct hlsl_ctx *ctx, struct hlsl_block *block,
         enum hlsl_ir_expr_op op, struct hlsl_ir_node *operands[HLSL_MAX_OPERANDS],
         struct hlsl_type *data_type, const struct vkd3d_shader_location *loc);
+struct hlsl_ir_node *hlsl_block_add_bool_constant(struct hlsl_ctx *ctx, struct hlsl_block *block,
+        bool b, const struct vkd3d_shader_location *loc);
 struct hlsl_ir_node *hlsl_block_add_float_constant(struct hlsl_ctx *ctx, struct hlsl_block *block,
         float f, const struct vkd3d_shader_location *loc);
 void hlsl_block_add_if(struct hlsl_ctx *ctx, struct hlsl_block *block,
@@ -1629,6 +1628,8 @@ struct hlsl_ir_node *hlsl_block_add_load_component(struct hlsl_ctx *ctx, struct 
         const struct hlsl_deref *deref, unsigned int comp, const struct vkd3d_shader_location *loc);
 struct hlsl_ir_node *hlsl_block_add_load_index(struct hlsl_ctx *ctx, struct hlsl_block *block,
         const struct hlsl_deref *deref, struct hlsl_ir_node *idx, const struct vkd3d_shader_location *loc);
+struct hlsl_ir_node *hlsl_block_add_load_parent(struct hlsl_ctx *ctx, struct hlsl_block *block,
+        const struct hlsl_deref *deref, const struct vkd3d_shader_location *loc);
 void hlsl_block_add_loop(struct hlsl_ctx *ctx, struct hlsl_block *block,
         struct hlsl_block *iter, struct hlsl_block *body, enum hlsl_loop_unroll_type unroll_type,
         struct hlsl_ir_node *unroll_limit, const struct vkd3d_shader_location *loc);
@@ -1720,7 +1721,6 @@ struct hlsl_type *hlsl_new_array_type(struct hlsl_ctx *ctx, struct hlsl_type *ba
         unsigned int array_size, enum hlsl_array_type array_type);
 struct hlsl_ir_node *hlsl_new_binary_expr(struct hlsl_ctx *ctx, enum hlsl_ir_expr_op op, struct hlsl_ir_node *arg1,
         struct hlsl_ir_node *arg2);
-struct hlsl_ir_node *hlsl_new_bool_constant(struct hlsl_ctx *ctx, bool b, const struct vkd3d_shader_location *loc);
 struct hlsl_buffer *hlsl_new_buffer(struct hlsl_ctx *ctx, enum hlsl_buffer_type type, const char *name,
         uint32_t modifiers, const struct hlsl_reg_reservation *reservation, struct hlsl_scope *annotations,
         const struct vkd3d_shader_location *loc);
@@ -1747,16 +1747,8 @@ bool hlsl_constant_is_one(struct hlsl_ir_constant *c);
 
 struct hlsl_ir_load *hlsl_new_var_load(struct hlsl_ctx *ctx, struct hlsl_ir_var *var,
         const struct vkd3d_shader_location *loc);
-struct hlsl_ir_load *hlsl_new_load_index(struct hlsl_ctx *ctx, const struct hlsl_deref *deref,
-        struct hlsl_ir_node *idx, const struct vkd3d_shader_location *loc);
-struct hlsl_ir_load *hlsl_new_load_parent(struct hlsl_ctx *ctx, const struct hlsl_deref *deref,
-        const struct vkd3d_shader_location *loc);
 struct hlsl_ir_node *hlsl_add_load_component(struct hlsl_ctx *ctx, struct hlsl_block *block,
         struct hlsl_ir_node *var_instr, unsigned int comp, const struct vkd3d_shader_location *loc);
-
-struct hlsl_ir_node *hlsl_new_simple_store(struct hlsl_ctx *ctx, struct hlsl_ir_var *lhs, struct hlsl_ir_node *rhs);
-struct hlsl_ir_node *hlsl_new_store_index(struct hlsl_ctx *ctx, const struct hlsl_deref *lhs,
-        struct hlsl_ir_node *idx, struct hlsl_ir_node *rhs, unsigned int writemask, const struct vkd3d_shader_location *loc);
 
 bool hlsl_index_is_noncontiguous(struct hlsl_ir_index *index);
 bool hlsl_index_is_resource_access(struct hlsl_ir_index *index);

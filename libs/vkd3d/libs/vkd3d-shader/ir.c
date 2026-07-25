@@ -767,6 +767,7 @@ void vsir_compile_info_init(struct vsir_compile_info *vsir, const struct vkd3d_s
                 | VKD3D_SHADER_COMPILE_OPTION_FORMATTING_HEADER,
         .api_version = VKD3D_SHADER_API_VERSION_1_2,
         .write_tess_geom_point_size = true,
+        .warn_implicit_truncation = true,
     };
 
     if (!vkd3d)
@@ -842,10 +843,26 @@ void vsir_compile_info_init(struct vsir_compile_info *vsir, const struct vkd3d_s
                 break;
 
             case VKD3D_SHADER_COMPILE_OPTION_WARN_IMPLICIT_TRUNCATION:
+                vsir->warn_implicit_truncation = !!option->value;
+                break;
+
             case VKD3D_SHADER_COMPILE_OPTION_INCLUDE_EMPTY_BUFFERS_IN_EFFECTS:
+                vsir->include_empty_buffers = !!option->value;
+                break;
+
             case VKD3D_SHADER_COMPILE_OPTION_DENORMAL_MODE_F16:
+                vsir->denormal_mode_override_f16 = true;
+                vsir->denormal_mode_f16 = option->value;
+                break;
+
             case VKD3D_SHADER_COMPILE_OPTION_DENORMAL_MODE_F32:
+                vsir->denormal_mode_override_f32 = true;
+                vsir->denormal_mode_f32 = option->value;
+                break;
+
             case VKD3D_SHADER_COMPILE_OPTION_DENORMAL_MODE_F64:
+                vsir->denormal_mode_override_f64 = true;
+                vsir->denormal_mode_f64 = option->value;
                 break;
 
             default:
@@ -872,6 +889,25 @@ done:
         vsir->feature_wave_ops = true;
     if (features & VKD3D_SHADER_COMPILE_OPTION_FEATURE_ZERO_INITIALIZE_WORKGROUP_MEMORY)
         vsir->feature_zero_init_tgsm = true;
+
+    if (vsir->api_version <= VKD3D_SHADER_API_VERSION_1_19)
+    {
+        if (!vsir->denormal_mode_override_f16)
+        {
+            vsir->denormal_mode_override_f16 = true;
+            vsir->denormal_mode_f16 = VKD3D_SHADER_DENORMAL_MODE_ANY;
+        }
+        if (!vsir->denormal_mode_override_f32)
+        {
+            vsir->denormal_mode_override_f32 = true;
+            vsir->denormal_mode_f32 = VKD3D_SHADER_DENORMAL_MODE_ANY;
+        }
+        if (!vsir->denormal_mode_override_f64)
+        {
+            vsir->denormal_mode_override_f64 = true;
+            vsir->denormal_mode_f64 = VKD3D_SHADER_DENORMAL_MODE_ANY;
+        }
+    }
 }
 
 bool vsir_program_init(struct vsir_program *program, const struct vkd3d_shader_compile_info *compile_info,
@@ -1029,6 +1065,42 @@ struct vsir_descriptor *vsir_program_add_descriptor(struct vsir_program *program
     ++info->count;
 
     return d;
+}
+
+struct vsir_tgsm *vsir_program_add_tgsm(struct vsir_program *program,
+        unsigned int register_id, size_t byte_count, size_t stride)
+{
+    struct vsir_tgsm *t;
+
+    if (!vkd3d_array_reserve((void **)&program->tgsms, &program->tgsm_capacity,
+            program->tgsm_count + 1, sizeof(*program->tgsms)))
+    {
+        ERR("Failed to allocate tgsm info.\n");
+        return NULL;
+    }
+
+    t = &program->tgsms[program->tgsm_count++];
+    *t = (struct vsir_tgsm)
+    {
+        .id = register_id,
+        .byte_count = byte_count,
+        .structure_stride = stride,
+    };
+
+    return t;
+}
+
+struct vsir_tgsm *vsir_program_find_tgsm(struct vsir_program *program, unsigned int register_id)
+{
+    size_t i;
+
+    for (i = 0; i < program->tgsm_count; ++i)
+    {
+        if (program->tgsms[i].id == register_id)
+            return &program->tgsms[i];
+    }
+
+    return NULL;
 }
 
 const char *debug_vsir_writemask(unsigned int writemask)
@@ -1860,6 +1932,43 @@ static enum vkd3d_result vsir_program_lower_pow(struct vsir_program *program, st
 
 fail:
     vsir_program_iterator_nop_range(&it, pow, &location);
+
+    return VKD3D_ERROR_OUT_OF_MEMORY;
+}
+
+static enum vkd3d_result vsir_program_lower_sub(struct vsir_program *program, struct vsir_program_iterator *sub)
+{
+    struct vkd3d_shader_instruction *ins = vsir_program_iterator_current(sub);
+    const struct vkd3d_shader_location location = ins->location;
+    const struct vsir_src_operand *src = ins->src;
+    const struct vsir_dst_operand *dst = ins->dst;
+    struct vsir_program_iterator it;
+    unsigned int neg_id;
+
+    /* sub DST, SRC0, SRC1
+     *      ->
+     * neg srNEG, SRC1
+     * add DST, SRC0, srNEG */
+
+    if (!(ins = vsir_program_iterator_insert_before(sub, &it, 1)))
+        return VKD3D_ERROR_OUT_OF_MEMORY;
+    if (!vsir_instruction_init_with_params(program, ins, &location, VSIR_OP_NEG, 1, 1))
+        goto fail;
+    neg_id = program->ssa_count++;
+    vsir_dst_operand_init_ssa(&ins->dst[0], neg_id, src[1].reg.data_type, src[1].reg.dimension);
+    ins->src[0] = src[1];
+
+    ins = vsir_program_iterator_next(&it);
+    if (!vsir_instruction_init_with_params(program, ins, &location, VSIR_OP_ADD, 1, 2))
+        goto fail;
+    ins->dst[0] = dst[0];
+    ins->src[0] = src[0];
+    vsir_src_operand_init_ssa(&ins->src[1], neg_id, src[1].reg.data_type, src[1].reg.dimension);
+
+    return VKD3D_OK;
+
+fail:
+    vsir_program_iterator_nop_range(&it, sub, &location);
 
     return VKD3D_ERROR_OUT_OF_MEMORY;
 }
@@ -3260,6 +3369,146 @@ static enum vkd3d_result vsir_program_lower_dcl_output(struct vsir_program *prog
     return VKD3D_OK;
 }
 
+static enum vkd3d_result vsir_program_lower_d3dbc_modifiers(struct vsir_program *program,
+        struct vsir_program_iterator *it, struct vkd3d_shader_message_context *message_context)
+{
+    struct vkd3d_shader_instruction *ins = vsir_program_iterator_current(it);
+    struct vkd3d_shader_instruction *new_ins;
+    unsigned int tmp_dst_id, tmp_src_id, i;
+    struct vsir_program_iterator new_it;
+    float scale;
+
+    for (i = 0; i < ins->src_count; ++i)
+    {
+        bool bias = false, negate = false, x2 = false;
+        struct vsir_src_operand *src = &ins->src[i];
+
+        switch (src->modifiers)
+        {
+            case VKD3DSPSM_BIASNEG:
+                bias = true;
+                negate = true;
+                break;
+
+            case VKD3DSPSM_BIAS:
+                bias = true;
+                break;
+
+            case VKD3DSPSM_SIGN:
+                bias = true;
+                x2 = true;
+                break;
+
+            default:
+                continue;
+        }
+
+        if (!(new_ins = vsir_program_iterator_insert_before(it, &new_it, 1 + bias + x2 + negate)))
+            return VKD3D_ERROR_OUT_OF_MEMORY;
+        ins = vsir_program_iterator_current(it);
+
+        if (!vsir_instruction_init_with_params(program, new_ins, &ins->location, VSIR_OP_MOV, 1, 1))
+            goto fail;
+        new_ins->src[0] = *src;
+        new_ins->src[0].modifiers = VKD3DSPSM_NONE;
+        tmp_src_id = program->ssa_count++;
+        vsir_dst_operand_init_ssa(&new_ins->dst[0], tmp_src_id, src->reg.data_type, src->reg.dimension);
+
+        if (bias)
+        {
+            new_ins = vsir_program_iterator_next(&new_it);
+            if (!vsir_instruction_init_with_params(program, new_ins, &ins->location, VSIR_OP_ADD, 1, 2))
+                goto fail;
+            vsir_src_operand_init_ssa(&new_ins->src[0], tmp_src_id, src->reg.data_type, src->reg.dimension);
+            vsir_src_operand_init_const_f32(&new_ins->src[1], -0.5f);
+            tmp_src_id = program->ssa_count++;
+            vsir_dst_operand_init_ssa(&new_ins->dst[0], tmp_src_id, src->reg.data_type, src->reg.dimension);
+        }
+
+        if (x2)
+        {
+            new_ins = vsir_program_iterator_next(&new_it);
+            if (!vsir_instruction_init_with_params(program, new_ins, &ins->location, VSIR_OP_MUL, 1, 2))
+                goto fail;
+            vsir_src_operand_init_ssa(&new_ins->src[0], tmp_src_id, src->reg.data_type, src->reg.dimension);
+            vsir_src_operand_init_const_f32(&new_ins->src[1], 2.0f);
+            tmp_src_id = program->ssa_count++;
+            vsir_dst_operand_init_ssa(&new_ins->dst[0], tmp_src_id, src->reg.data_type, src->reg.dimension);
+        }
+
+        if (negate)
+        {
+            new_ins = vsir_program_iterator_next(&new_it);
+            if (!vsir_instruction_init_with_params(program, new_ins, &ins->location, VSIR_OP_NEG, 1, 1))
+                goto fail;
+            vsir_src_operand_init_ssa(&new_ins->src[0], tmp_src_id, src->reg.data_type, src->reg.dimension);
+            tmp_src_id = program->ssa_count++;
+            vsir_dst_operand_init_ssa(&new_ins->dst[0], tmp_src_id, src->reg.data_type, src->reg.dimension);
+        }
+
+        vsir_src_operand_init_ssa(src, tmp_src_id, src->reg.data_type, src->reg.dimension);
+    }
+
+    for (i = 0; i < ins->dst_count; ++i)
+    {
+        struct vsir_dst_operand *dst = &ins->dst[i];
+
+        if (!dst->shift)
+            continue;
+
+        switch (dst->shift)
+        {
+            case 1: /* _x2 */
+                scale = 2.0f;
+                break;
+            case 2: /* _x4 */
+                scale = 4.0f;
+                break;
+            case 3: /* _x8 */
+                scale = 8.0f;
+                break;
+            case 13: /* _d8 */
+                scale = 0.125f;
+                break;
+            case 14: /* _d4 */
+                scale = 0.25f;
+                break;
+            case 15: /* _d2 */
+                scale = 0.5f;
+                break;
+            default:
+                vkd3d_shader_error(message_context, &ins->location, VKD3D_SHADER_ERROR_VSIR_NOT_IMPLEMENTED,
+                        "Unhandled destination shift %#x.", dst->shift);
+                return VKD3D_ERROR_NOT_IMPLEMENTED;
+        }
+
+        if (!vsir_program_iterator_insert_after(it, 1))
+            return VKD3D_ERROR_OUT_OF_MEMORY;
+        new_ins = vsir_program_iterator_next(it);
+        ins = vsir_program_iterator_prev(it);
+
+        if (!vsir_instruction_init_with_params(program, new_ins, &ins->location, VSIR_OP_MUL, 1, 2))
+        {
+            vsir_instruction_init(new_ins, &ins->location, VSIR_OP_NOP);
+            return VKD3D_ERROR_OUT_OF_MEMORY;
+        }
+
+        new_ins->dst[0] = *dst;
+        new_ins->dst[0].shift = 0;
+
+        tmp_dst_id = program->ssa_count++;
+        vsir_dst_operand_init_ssa(dst, tmp_dst_id, dst->reg.data_type, dst->reg.dimension);
+        vsir_src_operand_init_ssa(&new_ins->src[0], tmp_dst_id, dst->reg.data_type, dst->reg.dimension);
+        vsir_src_operand_init_const_f32(&new_ins->src[1], scale);
+    }
+
+    return VKD3D_OK;
+
+fail:
+    vsir_program_iterator_nop_range(&new_it, it, &ins->location);
+    return VKD3D_ERROR_OUT_OF_MEMORY;
+}
+
 static enum vkd3d_result vsir_program_lower_d3dbc_instructions(struct vsir_program *program,
         struct vsir_transformation_context *ctx)
 {
@@ -3271,6 +3520,10 @@ static enum vkd3d_result vsir_program_lower_d3dbc_instructions(struct vsir_progr
     for (ins = vsir_program_iterator_head(&it); ins; ins = vsir_program_iterator_next(&it))
     {
         enum vkd3d_result ret;
+
+        if ((ret = vsir_program_lower_d3dbc_modifiers(program, &it, message_context)) < 0)
+            return ret;
+        ins = vsir_program_iterator_current(&it);
 
         switch (ins->opcode)
         {
@@ -3322,6 +3575,10 @@ static enum vkd3d_result vsir_program_lower_d3dbc_instructions(struct vsir_progr
 
             case VSIR_OP_SINCOS:
                 ret = vsir_program_lower_sm1_sincos(program, &it);
+                break;
+
+            case VSIR_OP_SUB:
+                ret = vsir_program_lower_sub(program, &it);
                 break;
 
             case VSIR_OP_TEXBEM:
@@ -3426,28 +3683,26 @@ static struct vkd3d_shader_instruction *vsir_program_iterator_dcl_indexable_temp
 static enum vkd3d_result vsir_program_copy_d3dbc_input_to_indexable_temp(struct vsir_program *program,
         struct vsir_transformation_context *ctx, unsigned int *idxtemp_idx)
 {
-    struct vsir_program_iterator dcl_it = vsir_program_iterator(&program->instructions);
     struct vsir_program_iterator mov_it = vsir_program_iterator(&program->instructions);
     struct vsir_program_iterator it = vsir_program_iterator(&program->instructions);
     struct vkd3d_shader_location loc = ctx->null_location;
-    struct vkd3d_shader_instruction *ins, *dcl_ins;
-    struct vkd3d_shader_semantic *semantic;
+    struct vkd3d_shader_instruction *ins;
     size_t register_size = 0;
-    size_t dcl_count = 0;
 
     *idxtemp_idx = vsir_program_get_idxtemp_count(program);
 
+    for (unsigned int i = 0; i < program->input_signature.element_count; ++i)
+    {
+        const struct vsir_signature_element *e = &program->input_signature.elements[i];
+
+        register_size = max(register_size, e->register_index + 1);
+    }
+
+    if (!register_size)
+        return VKD3D_OK;
+
     for (ins = vsir_program_iterator_head(&it); ins; ins = vsir_program_iterator_next(&it))
     {
-        if (ins->opcode == VSIR_OP_DCL)
-        {
-            semantic = &ins->declaration.semantic;
-            if (semantic->resource.reg.reg.type != VSIR_REGISTER_INPUT)
-                continue;
-            register_size = max(register_size, semantic->resource.reg.reg.idx[0].offset + 1);
-            ++dcl_count;
-        }
-
         if (!vsir_instruction_is_dcl(ins) && ins->opcode != VSIR_OP_NOP)
         {
             loc = ins->location;
@@ -3455,48 +3710,37 @@ static enum vkd3d_result vsir_program_copy_d3dbc_input_to_indexable_temp(struct 
         }
     }
 
-    if (!register_size)
-        return VKD3D_OK;
     if (!vsir_program_iterator_dcl_indexable_temp_before(ctx, &it, *idxtemp_idx, register_size))
         return VKD3D_ERROR_OUT_OF_MEMORY;
-    if (!(ins = vsir_program_iterator_insert_before(&it, &mov_it, dcl_count)))
+    if (!(ins = vsir_program_iterator_insert_before(&it, &mov_it, program->input_signature.element_count)))
         return VKD3D_ERROR_OUT_OF_MEMORY;
 
-    for (dcl_ins = vsir_program_iterator_head(&dcl_it); dcl_ins; dcl_ins = vsir_program_iterator_next(&dcl_it))
+    for (unsigned int i = 0; i < program->input_signature.element_count; ++i)
     {
+        const struct vsir_signature_element *e = &program->input_signature.elements[i];
         struct vsir_dst_operand *dst;
         struct vsir_src_operand *src;
 
-        if (dcl_ins->opcode == VSIR_OP_DCL)
-        {
-            semantic = &dcl_ins->declaration.semantic;
-            if (semantic->resource.reg.reg.type != VSIR_REGISTER_INPUT)
-                continue;
+        if (!vsir_instruction_init_with_params(program, ins, &loc, VSIR_OP_MOV, 1, 1))
+            goto fail;
 
-            if (!vsir_instruction_init_with_params(program, ins, &dcl_ins->location, VSIR_OP_MOV, 1, 1))
-                goto fail;
+        dst = &ins->dst[0];
+        vsir_dst_operand_init(dst, VSIR_REGISTER_IDXTEMP, VSIR_DATA_F32, 2);
+        dst->reg.idx[0].offset = *idxtemp_idx;
+        dst->reg.idx[1].offset = e->register_index;
+        dst->reg.dimension = VSIR_DIMENSION_VEC4;
+        dst->write_mask = e->mask;
 
-            dst = &ins->dst[0];
-            vsir_dst_operand_init(dst, VSIR_REGISTER_IDXTEMP, VSIR_DATA_F32, 2);
-            dst->reg.idx[0].offset = *idxtemp_idx;
-            dst->reg.idx[1].offset = semantic->resource.reg.reg.idx[0].offset;
-            dst->reg.dimension = VSIR_DIMENSION_VEC4;
-            dst->write_mask = semantic->resource.reg.write_mask;
+        src = &ins->src[0];
+        vsir_src_operand_init(src, VSIR_REGISTER_INPUT, VSIR_DATA_F32, 1);
+        src->reg.idx[0].offset = e->register_index;
+        src->reg.dimension = VSIR_DIMENSION_VEC4;
+        src->modifiers = 0;
+        src->swizzle = vsir_swizzle_from_writemask(e->mask);
 
-            src = &ins->src[0];
-            vsir_src_operand_init(src, VSIR_REGISTER_INPUT, VSIR_DATA_F32, 1);
-            src->reg.idx[0].offset = semantic->resource.reg.reg.idx[0].offset;
-            src->reg.dimension = VSIR_DIMENSION_VEC4;
-            src->modifiers = 0;
-            src->swizzle = vsir_swizzle_from_writemask(semantic->resource.reg.write_mask);
-
-            ins = vsir_program_iterator_next(&mov_it);
-
-            if (--dcl_count == 0)
-                return VKD3D_OK;
-        }
+        ins = vsir_program_iterator_next(&mov_it);
     }
-    vkd3d_unreachable();
+    return VKD3D_OK;
 
 fail:
     vsir_program_iterator_prev(&it);
@@ -3740,6 +3984,8 @@ static enum vkd3d_result vsir_program_lower_instructions(struct vsir_program *pr
             case VSIR_OP_DCL_TESSELLATOR_DOMAIN:
             case VSIR_OP_DCL_TESSELLATOR_OUTPUT_PRIMITIVE:
             case VSIR_OP_DCL_TESSELLATOR_PARTITIONING:
+            case VSIR_OP_DCL_TGSM_RAW:
+            case VSIR_OP_DCL_TGSM_STRUCTURED:
             case VSIR_OP_DCL_THREAD_GROUP:
             case VSIR_OP_DCL_UAV_RAW:
             case VSIR_OP_DCL_UAV_STRUCTURED:
@@ -4637,7 +4883,7 @@ static enum vkd3d_result instruction_array_normalise_hull_shader_control_point_i
     struct vkd3d_shader_instruction *ins;
     struct vsir_program_iterator it;
     enum vkd3d_result ret;
-    unsigned int i, j;
+    unsigned int i;
 
     VKD3D_ASSERT(program->normalisation_level == VSIR_NORMALISED_SM4);
 
@@ -4663,9 +4909,9 @@ static enum vkd3d_result instruction_array_normalise_hull_shader_control_point_i
             default:
                 if (vsir_instruction_is_dcl(ins))
                     break;
-                for (j = 0; j < ins->dst_count; ++j)
+                for (i = 0; i < ins->dst_count; ++i)
                 {
-                    if (!vsir_dst_operand_normalise_outpointid(&ins->dst[j], &normaliser))
+                    if (!vsir_dst_operand_normalise_outpointid(&ins->dst[i], &normaliser))
                         return VKD3D_ERROR_OUT_OF_MEMORY;
                 }
                 break;
@@ -4674,7 +4920,7 @@ static enum vkd3d_result instruction_array_normalise_hull_shader_control_point_i
 
     normaliser.phase = VSIR_OP_INVALID;
 
-    for (ins = vsir_program_iterator_head(&it), i = 0; ins; ins = vsir_program_iterator_next(&it), ++i)
+    for (ins = vsir_program_iterator_head(&it); ins; ins = vsir_program_iterator_next(&it))
     {
         switch (ins->opcode)
         {

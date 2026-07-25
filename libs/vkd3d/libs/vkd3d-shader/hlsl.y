@@ -376,7 +376,7 @@ static struct hlsl_ir_node *add_implicit_conversion(struct hlsl_ctx *ctx, struct
     {
         if (hlsl_is_numeric_type(dst_type) && hlsl_is_numeric_type(src_type)
                 && dst_type->e.numeric.dimx * dst_type->e.numeric.dimy < src_type->e.numeric.dimx * src_type->e.numeric.dimy
-                && ctx->warn_implicit_truncation)
+                && ctx->compile_info.warn_implicit_truncation)
             hlsl_warning(ctx, loc, VKD3D_SHADER_WARNING_HLSL_IMPLICIT_TRUNCATION, "Implicit truncation of %s type.",
                     src_type->class == HLSL_CLASS_VECTOR ? "vector" : "matrix");
     }
@@ -9546,15 +9546,9 @@ primary_expr:
         }
     | boolean
         {
-            struct hlsl_ir_node *c;
-
-            if (!(c = hlsl_new_bool_constant(ctx, $1, &@1)))
+            if (!($$ = make_empty_block(ctx)))
                 YYABORT;
-            if (!($$ = make_block(ctx, c)))
-            {
-                hlsl_free_instr(c);
-                YYABORT;
-            }
+            hlsl_block_add_bool_constant(ctx, $$, $1, &@1);
         }
     | STRING
         {
