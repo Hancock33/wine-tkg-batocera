@@ -178,7 +178,7 @@ static enum vkd3d_result standard_include_init(struct include_ctx *ctx, const ch
     const char *last_slash = NULL;
     const char *ptr;
 
-    for (ptr = initial_filename; *ptr; ++ptr)
+    for (ptr = initial_filename; ptr && *ptr; ++ptr)
     {
 #ifdef _WIN32
         if (*ptr == '/' || *ptr == '\\')

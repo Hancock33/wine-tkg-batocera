@@ -412,6 +412,7 @@ static void shader_glsl_print_src(struct vkd3d_string_buffer *buffer, struct vkd
     struct vkd3d_string_buffer *register_name;
     enum vsir_data_type src_data_type;
     unsigned int size;
+    bool scalar;
 
     register_name = vkd3d_string_buffer_get(&gen->string_buffers);
 
@@ -433,11 +434,13 @@ static void shader_glsl_print_src(struct vkd3d_string_buffer *buffer, struct vkd
             break;
     }
 
+    scalar = reg->dimension == VSIR_DIMENSION_SCALAR && vsir_write_mask_component_count(mask) == 1;
+
     shader_glsl_print_operand_name(register_name, gen, reg);
 
-    size = reg->dimension == VSIR_DIMENSION_VEC4 ? 4 : 1;
+    size = scalar ? 1 : 4;
     shader_glsl_print_bitcast(buffer, gen, register_name->buffer, data_type, src_data_type, size);
-    if (reg->dimension == VSIR_DIMENSION_VEC4)
+    if (!scalar)
         shader_glsl_print_swizzle(buffer, vsir_src->swizzle, mask);
 
     vkd3d_string_buffer_release(&gen->string_buffers, register_name);
@@ -1553,31 +1556,7 @@ static void shader_glsl_store_uav_typed(struct vkd3d_glsl_generator *gen, const 
     glsl_src_init(&image_coord, gen, &ins->src[0], coord_mask);
     image_data = vkd3d_string_buffer_get(&gen->string_buffers);
 
-    if (ins->src[1].reg.dimension == VSIR_DIMENSION_SCALAR)
-    {
-        switch (data_type)
-        {
-            case VSIR_DATA_I32:
-                vkd3d_string_buffer_printf(image_data, "ivec4(");
-                break;
-            case VSIR_DATA_U32:
-                vkd3d_string_buffer_printf(image_data, "uvec4(");
-                break;
-            default:
-                vkd3d_glsl_compiler_error(gen, VKD3D_SHADER_ERROR_GLSL_INTERNAL,
-                        "Internal compiler error: Unhandled data type \"%s\" (%#x).",
-                        vsir_data_type_get_name(data_type, "<unknown>"), data_type);
-                /* fall through */
-            case VSIR_DATA_F32:
-            case VSIR_DATA_SNORM:
-            case VSIR_DATA_UNORM:
-                vkd3d_string_buffer_printf(image_data, "vec4(");
-                break;
-        }
-    }
     shader_glsl_print_src(image_data, gen, &ins->src[1], VKD3DSP_WRITEMASK_ALL, data_type);
-    if (ins->src[1].reg.dimension == VSIR_DIMENSION_SCALAR)
-        vkd3d_string_buffer_printf(image_data, ", 0, 0, 0)");
 
     shader_glsl_print_indent(gen->buffer, gen->indent);
     vkd3d_string_buffer_printf(gen->buffer, "imageStore(");
@@ -1937,6 +1916,9 @@ static void vkd3d_glsl_handle_instruction(struct vkd3d_glsl_generator *gen,
         case VSIR_OP_COS:
             shader_glsl_intrinsic(gen, ins, "cos");
             break;
+        case VSIR_OP_COUNTBITS:
+            shader_glsl_intrinsic(gen, ins, "bitCount");
+            break;
         case VSIR_OP_DCL_INDEXABLE_TEMP:
             shader_glsl_dcl_indexable_temp(gen, ins);
             break;
@@ -1978,6 +1960,9 @@ static void vkd3d_glsl_handle_instruction(struct vkd3d_glsl_generator *gen,
         case VSIR_OP_EXP:
             shader_glsl_intrinsic(gen, ins, "exp2");
             break;
+        case VSIR_OP_FIRSTBIT_LO:
+            shader_glsl_intrinsic(gen, ins, "findLSB");
+            break;
         case VSIR_OP_FRC:
             shader_glsl_intrinsic(gen, ins, "fract");
             break;
@@ -2004,6 +1989,10 @@ static void vkd3d_glsl_handle_instruction(struct vkd3d_glsl_generator *gen,
             break;
         case VSIR_OP_IF:
             shader_glsl_if(gen, ins);
+            break;
+        case VSIR_OP_ILOG2:
+        case VSIR_OP_ULOG2:
+            shader_glsl_intrinsic(gen, ins, "findMSB");
             break;
         case VSIR_OP_IMM_ATOMIC_CMP_EXCH:
             shader_glsl_atomic(gen, ins, "atomicCompSwap", "imageAtomicCompSwap");

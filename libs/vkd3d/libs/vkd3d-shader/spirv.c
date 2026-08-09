@@ -7453,13 +7453,12 @@ static enum GLSLstd450 spirv_compiler_map_ext_glsl_instruction(
         {VSIR_OP_DMAX,            GLSLstd450NMax},
         {VSIR_OP_DMIN,            GLSLstd450NMin},
         {VSIR_OP_EXP,             GLSLstd450Exp2},
-        {VSIR_OP_FIRSTBIT_HI,     GLSLstd450FindUMsb},
         {VSIR_OP_FIRSTBIT_LO,     GLSLstd450FindILsb},
-        {VSIR_OP_FIRSTBIT_SHI,    GLSLstd450FindSMsb},
         {VSIR_OP_FRC,             GLSLstd450Fract},
         {VSIR_OP_HCOS,            GLSLstd450Cosh},
         {VSIR_OP_HSIN,            GLSLstd450Sinh},
         {VSIR_OP_HTAN,            GLSLstd450Tanh},
+        {VSIR_OP_ILOG2,           GLSLstd450FindSMsb},
         {VSIR_OP_IMAX,            GLSLstd450SMax},
         {VSIR_OP_IMIN,            GLSLstd450SMin},
         {VSIR_OP_LOG,             GLSLstd450Log2},
@@ -7474,6 +7473,7 @@ static enum GLSLstd450 spirv_compiler_map_ext_glsl_instruction(
         {VSIR_OP_SIN,             GLSLstd450Sin},
         {VSIR_OP_SQRT,            GLSLstd450Sqrt},
         {VSIR_OP_TAN,             GLSLstd450Tan},
+        {VSIR_OP_ULOG2,           GLSLstd450FindUMsb},
         {VSIR_OP_UMAX,            GLSLstd450UMax},
         {VSIR_OP_UMIN,            GLSLstd450UMin},
     };
@@ -7491,16 +7491,16 @@ static enum GLSLstd450 spirv_compiler_map_ext_glsl_instruction(
 static void spirv_compiler_emit_ext_glsl_instruction(struct spirv_compiler *compiler,
         const struct vkd3d_shader_instruction *instruction)
 {
-    uint32_t instr_set_id, type_id, val_id, rev_val_id, uint_max_id, condition_id;
     struct vkd3d_spirv_builder *builder = &compiler->spirv_builder;
     const struct vsir_src_operand *src = instruction->src;
     const struct vsir_dst_operand *dst = instruction->dst;
+    uint32_t instr_set_id, type_id, val_id;
     uint32_t src_id[SPIRV_MAX_SRC_COUNT];
-    unsigned int i, component_count;
     enum GLSLstd450 glsl_inst;
+    unsigned int i;
 
-    if (data_type_is_64_bit(src[0].reg.data_type) && (instruction->opcode == VSIR_OP_FIRSTBIT_HI
-            || instruction->opcode == VSIR_OP_FIRSTBIT_LO || instruction->opcode == VSIR_OP_FIRSTBIT_SHI))
+    if (data_type_is_64_bit(src[0].reg.data_type) && (instruction->opcode == VSIR_OP_FIRSTBIT_LO
+            || instruction->opcode == VSIR_OP_ILOG2 || instruction->opcode == VSIR_OP_ULOG2))
     {
         /* At least some drivers support this anyway, but if validation is enabled it will fail. */
         spirv_compiler_error(compiler, VKD3D_SHADER_ERROR_SPV_NOT_IMPLEMENTED,
@@ -7530,19 +7530,6 @@ static void spirv_compiler_emit_ext_glsl_instruction(struct spirv_compiler *comp
 
     val_id = vkd3d_spirv_build_op_ext_inst(builder, type_id,
             instr_set_id, glsl_inst, src_id, instruction->src_count);
-
-    if (instruction->opcode == VSIR_OP_FIRSTBIT_HI
-            || instruction->opcode == VSIR_OP_FIRSTBIT_SHI)
-    {
-        /* In D3D bits are numbered from the most significant bit. */
-        component_count = vsir_write_mask_component_count(dst->write_mask);
-        uint_max_id = spirv_compiler_get_constant_uint_vector(compiler, UINT32_MAX, component_count);
-        condition_id = vkd3d_spirv_build_op_tr2(builder, &builder->function_stream, SpvOpIEqual,
-                spirv_get_type_id(compiler, VSIR_DATA_BOOL, component_count), val_id, uint_max_id);
-        rev_val_id = vkd3d_spirv_build_op_isub(builder, type_id,
-                spirv_compiler_get_constant_uint_vector(compiler, 31, component_count), val_id);
-        val_id = vkd3d_spirv_build_op_select(builder, type_id, condition_id, val_id, rev_val_id);
-    }
 
     spirv_compiler_emit_store_dst(compiler, dst, val_id);
 }
@@ -7774,7 +7761,17 @@ static void spirv_compiler_emit_ftoi(struct spirv_compiler *compiler,
 
     /* VSIR allows the destination of a signed conversion to be unsigned. */
 
-    int_max_id = spirv_compiler_get_constant_vector(compiler, dst->reg.data_type, component_count, INT_MAX);
+    if (data_type_is_64_bit(dst->reg.data_type))
+    {
+        int_max_id = spirv_compiler_get_constant64(compiler, dst->reg.data_type,
+                component_count, (uint64_t[]){INT64_MAX, INT64_MAX});
+        zero_id = spirv_compiler_get_constant64(compiler, dst->reg.data_type, component_count, (uint64_t[]){0, 0});
+    }
+    else
+    {
+        int_max_id = spirv_compiler_get_constant_vector(compiler, dst->reg.data_type, component_count, INT_MAX);
+        zero_id = spirv_compiler_get_constant_vector(compiler, dst->reg.data_type, component_count, 0);
+    }
     condition_type_id = spirv_get_type_id(compiler, VSIR_DATA_BOOL, component_count);
     condition_id = vkd3d_spirv_build_op_tr2(builder, &builder->function_stream,
             SpvOpFOrdGreaterThanEqual, condition_type_id, val_id, float_max_id);
@@ -7782,7 +7779,6 @@ static void spirv_compiler_emit_ftoi(struct spirv_compiler *compiler,
     val_id = vkd3d_spirv_build_op_tr1(builder, &builder->function_stream, SpvOpConvertFToS, dst_type_id, val_id);
     val_id = vkd3d_spirv_build_op_select(builder, dst_type_id, condition_id, int_max_id, val_id);
 
-    zero_id = spirv_compiler_get_constant_vector(compiler, dst->reg.data_type, component_count, 0);
     condition_id = vkd3d_spirv_build_op_tr1(builder, &builder->function_stream, SpvOpIsNan, condition_type_id, src_id);
     val_id = vkd3d_spirv_build_op_select(builder, dst_type_id, condition_id, zero_id, val_id);
 
@@ -7827,7 +7823,11 @@ static void spirv_compiler_emit_ftou(struct spirv_compiler *compiler,
     src_id = spirv_compiler_emit_load_src(compiler, src, write_mask);
     val_id = vkd3d_spirv_build_op_glsl_std450_max(builder, src_type_id, src_id, zero_id);
 
-    uint_max_id = spirv_compiler_get_constant_uint_vector(compiler, UINT_MAX, component_count);
+    if (data_type_is_64_bit(dst->reg.data_type))
+        uint_max_id = spirv_compiler_get_constant_uint64_vector(compiler, UINT64_MAX, component_count);
+    else
+        uint_max_id = spirv_compiler_get_constant_uint_vector(compiler, UINT_MAX, component_count);
+
     condition_type_id = spirv_get_type_id(compiler, VSIR_DATA_BOOL, component_count);
     condition_id = vkd3d_spirv_build_op_tr2(builder, &builder->function_stream,
             SpvOpFOrdGreaterThanEqual, condition_type_id, val_id, float_max_id);
@@ -10255,10 +10255,9 @@ static void spirv_compiler_handle_instruction(struct spirv_compiler *compiler,
         case VSIR_OP_DMAX:
         case VSIR_OP_DMIN:
         case VSIR_OP_EXP:
-        case VSIR_OP_FIRSTBIT_HI:
         case VSIR_OP_FIRSTBIT_LO:
-        case VSIR_OP_FIRSTBIT_SHI:
         case VSIR_OP_FRC:
+        case VSIR_OP_ILOG2:
         case VSIR_OP_IMAX:
         case VSIR_OP_IMIN:
         case VSIR_OP_LOG:
@@ -10273,6 +10272,7 @@ static void spirv_compiler_handle_instruction(struct spirv_compiler *compiler,
         case VSIR_OP_SIN:
         case VSIR_OP_SQRT:
         case VSIR_OP_TAN:
+        case VSIR_OP_ULOG2:
         case VSIR_OP_UMAX:
         case VSIR_OP_UMIN:
             spirv_compiler_emit_ext_glsl_instruction(compiler, instruction);

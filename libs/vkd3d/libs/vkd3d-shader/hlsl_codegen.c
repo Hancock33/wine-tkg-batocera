@@ -2157,6 +2157,468 @@ static unsigned int index_instructions(struct hlsl_block *block, unsigned int in
 }
 
 /*
+ * Dead store elimination. The basic idea is to remove useless stores, in
+ * particular those to variables that don't have any subsequent load, and
+ * also those in sequences like this:
+ *
+ *   2: <any instruction>
+ *   3: v = @2
+ *   4: <any instruction>
+ *   5: v = @4
+ *   6: load(v)
+ *
+ * Where the first store(@3) is useless since it is overridden by a second store
+ * (@5) before being read (@6).
+ */
+
+struct dse_stores_array
+{
+    struct hlsl_ir_store **elements;
+    size_t count, capacity;
+};
+
+static void dse_stores_array_add(struct hlsl_ctx *ctx, struct dse_stores_array *array, struct hlsl_ir_store *store)
+{
+    if (!hlsl_array_reserve(ctx, (void **)&array->elements,
+            &array->capacity, array->count + 1, sizeof(*array->elements)))
+        return;
+    array->elements[array->count++] = store;
+}
+
+static void dse_stores_array_cleanup(struct dse_stores_array *array)
+{
+    vkd3d_free(array->elements);
+}
+
+static struct hlsl_ir_store *dse_stores_array_find(struct dse_stores_array *array, struct hlsl_ir_store *store)
+{
+    return bsearch(&store, array->elements, array->count, sizeof(*array->elements), vkd3d_ptrptr_compare);
+}
+
+static void dse_stores_array_sort(struct dse_stores_array *array)
+{
+    qsort(array->elements, array->count, sizeof(*array->elements), vkd3d_ptrptr_compare);
+}
+
+struct dse_var_def
+{
+    struct rb_entry entry;
+    struct hlsl_ir_var *var;
+    /* For each component, the stores that could be responsible for its
+     * current value. */
+    struct dse_stores_array possible_stores[];
+};
+
+static void dse_var_def_record_store(struct hlsl_ctx *ctx, struct dse_var_def *var_def,
+        unsigned int component, uint32_t writemask, struct hlsl_ir_store *store, bool flush_others)
+{
+    struct dse_stores_array *stores;
+    unsigned int i;
+
+    for (i = 0; i < 4; ++i)
+    {
+        if (!(writemask & (1u << i)))
+            continue;
+
+        stores = &var_def->possible_stores[component + i];
+        if (flush_others)
+            stores->count = 0;
+        dse_stores_array_add(ctx, stores, store);
+    }
+}
+
+static int dse_var_def_entry_compare(const void *key, const struct rb_entry *entry)
+{
+    struct dse_var_def *var_def = RB_ENTRY_VALUE(entry, struct dse_var_def, entry);
+
+    return vkd3d_ptr_compare(key, var_def->var);
+}
+
+static void dse_var_def_entry_destroy(struct rb_entry *entry, void *context)
+{
+    struct dse_var_def *var_def = RB_ENTRY_VALUE(entry, struct dse_var_def, entry);
+    unsigned int component_count, i;
+
+    component_count = hlsl_type_component_count(var_def->var->data_type);
+    for (i = 0; i < component_count; ++i)
+    {
+        dse_stores_array_cleanup(&var_def->possible_stores[i]);
+    }
+    vkd3d_free(var_def);
+}
+
+struct dse_scope
+{
+    struct rb_tree var_defs;
+};
+
+static void dse_scope_init(struct dse_scope *scope)
+{
+    rb_init(&scope->var_defs, dse_var_def_entry_compare);
+}
+
+static void dse_scope_cleanup(struct dse_scope *scope)
+{
+    rb_destroy(&scope->var_defs, dse_var_def_entry_destroy, NULL);
+}
+
+static struct dse_var_def *dse_scope_create_var_def(struct hlsl_ctx *ctx,
+        struct dse_scope *scope, struct hlsl_ir_var *var)
+{
+    unsigned int component_count;
+    struct dse_var_def *var_def;
+    struct rb_entry *entry;
+    int res;
+
+    if ((entry = rb_get(&scope->var_defs, var)))
+        return RB_ENTRY_VALUE(entry, struct dse_var_def, entry);
+
+    component_count = hlsl_type_component_count(var->data_type);
+    if (!(var_def = hlsl_alloc(ctx, offsetof(struct dse_var_def, possible_stores[component_count]))))
+        return NULL;
+    var_def->var = var;
+
+    res = rb_put(&scope->var_defs, var, &var_def->entry);
+    VKD3D_ASSERT(!res);
+
+    return var_def;
+}
+
+struct dse_var_def_copy_over_context
+{
+    struct hlsl_ctx *ctx;
+    struct dse_scope *dst;
+};
+
+static void dse_var_def_entry_copy_over(struct rb_entry *entry, void *context)
+{
+    struct dse_var_def *var_def = RB_ENTRY_VALUE(entry, struct dse_var_def, entry);
+    struct dse_var_def_copy_over_context *copy_ctx = context;
+    struct hlsl_ir_var *var = var_def->var;
+    struct hlsl_ctx *ctx = copy_ctx->ctx;
+    unsigned int component_count, i, j;
+    struct dse_var_def *dst_var_def;
+
+    component_count = hlsl_type_component_count(var->data_type);
+    if (!(dst_var_def = dse_scope_create_var_def(ctx, copy_ctx->dst, var_def->var)))
+        return;
+
+    for (i = 0; i < component_count; ++i)
+    {
+        struct dse_stores_array *array = &var_def->possible_stores[i];
+
+        for (j = 0; j < array->count; ++j)
+        {
+            dse_stores_array_add(ctx, &dst_var_def->possible_stores[i], array->elements[j]);
+        }
+    }
+}
+
+static void dse_scope_copy_over(struct hlsl_ctx *ctx, struct dse_scope *dst, struct dse_scope *src)
+{
+    struct dse_var_def_copy_over_context copy_ctx;
+
+    copy_ctx.ctx = ctx;
+    copy_ctx.dst = dst;
+    rb_for_each_entry(&src->var_defs, dse_var_def_entry_copy_over, &copy_ctx);
+}
+
+struct dse_scope_stack
+{
+    struct dse_scope *elements;
+    size_t count, capacity;
+};
+
+static struct dse_scope *dse_scope_stack_top(struct dse_scope_stack *stack)
+{
+    return &stack->elements[stack->count - 1];
+}
+
+static struct dse_scope *dse_scope_stack_push(struct hlsl_ctx *ctx, struct dse_scope_stack *stack)
+{
+    struct dse_scope *scope;
+
+    if (!(hlsl_array_reserve(ctx, (void **)&stack->elements,
+            &stack->capacity, stack->count + 1, sizeof(*stack->elements))))
+        return NULL;
+
+    scope = &stack->elements[stack->count++];
+    dse_scope_init(scope);
+
+    return scope;
+}
+
+static void dse_scope_stack_pop(struct dse_scope_stack *stack)
+{
+    dse_scope_cleanup(&stack->elements[--stack->count]);
+}
+
+static void dse_scope_stack_cleanup(struct dse_scope_stack *stack)
+{
+    while (stack->count)
+    {
+        dse_scope_stack_pop(stack);
+    }
+    vkd3d_free(stack->elements);
+}
+
+struct dse_state
+{
+    struct dse_scope_stack scopes;
+
+    /* Stores marked as read anywhere in the program. */
+    struct dse_stores_array stores;
+
+    unsigned int breakable_scopes;
+};
+
+static void dse_mark_store_as_read(struct hlsl_ctx *ctx, struct dse_state *state, struct hlsl_ir_store *store)
+{
+    dse_stores_array_add(ctx, &state->stores, store);
+}
+
+static void dse_stores_array_mark_all(struct hlsl_ctx *ctx,
+        struct dse_stores_array *array, struct dse_state *state)
+{
+    for (unsigned int i = 0; i < array->count; ++i)
+    {
+        dse_mark_store_as_read(ctx, state, array->elements[i]);
+    }
+    /* We can empty the array since stores only need to be marked once. */
+    array->count = 0;
+}
+
+static bool dse_state_init(struct hlsl_ctx *ctx, struct dse_state *state)
+{
+    memset(state, 0, sizeof(*state));
+    if (!dse_scope_stack_push(ctx, &state->scopes))
+        return false;
+
+    return true;
+}
+
+static void dse_state_cleanup(struct dse_state *state)
+{
+    dse_stores_array_cleanup(&state->stores);
+    dse_scope_stack_cleanup(&state->scopes);
+}
+
+static void dse_mark_all_var_component_stores(struct hlsl_ctx *ctx,
+        struct dse_state *state, struct hlsl_ir_var *var, unsigned int component)
+{
+    struct dse_var_def *var_def;
+    struct dse_scope *scope;
+    struct rb_entry *entry;
+    unsigned int i;
+
+    for (i = 0; i < state->scopes.count; ++i)
+    {
+        scope = &state->scopes.elements[i];
+        if (!(entry = rb_get(&scope->var_defs, var)))
+            continue;
+        var_def = RB_ENTRY_VALUE(entry, struct dse_var_def, entry);
+        dse_stores_array_mark_all(ctx, &var_def->possible_stores[component], state);
+    }
+}
+
+static void dse_transform_store(struct hlsl_ctx *ctx, struct dse_state *state, struct hlsl_ir_store *store)
+{
+    struct hlsl_deref *lhs = &store->lhs;
+    struct hlsl_ir_var *var = lhs->var;
+    struct dse_var_def *var_def;
+    unsigned int start, count;
+
+    /* TODO: We exclude all stores to output semantics from this pass by
+     * always marking them as read, but we could handle these if we simulate
+     * reads to all the output semantics at the end of the program. */
+    if (var->is_output_semantic || var->is_tgsm)
+    {
+        dse_mark_store_as_read(ctx, state, store);
+        return;
+    }
+
+    if (!(var_def = dse_scope_create_var_def(ctx, dse_scope_stack_top(&state->scopes), var)))
+        return;
+
+    if (hlsl_component_index_range_from_deref(ctx, lhs, &start, &count))
+    {
+        bool flush_others = !state->breakable_scopes;
+        uint32_t writemask = store->writemask;
+
+        if (!hlsl_is_numeric_type(store->rhs.node->data_type))
+            writemask = VKD3DSP_WRITEMASK_0;
+        dse_var_def_record_store(ctx, var_def, start, writemask, store, flush_others);
+
+        return;
+    }
+
+    /* TODO: Instead of marking all relative address stores as read, we can
+     * add the store to all var_def components without flushing others, or
+     * better: all components within range. */
+    dse_mark_store_as_read(ctx, state, store);
+}
+
+static void dse_transform_load(struct hlsl_ctx *ctx, struct dse_state *state, struct hlsl_ir_load *load)
+{
+    struct hlsl_deref *src = &load->src;
+    struct hlsl_ir_var *var = src->var;
+    unsigned int start, count, i;
+
+    if (hlsl_component_index_range_from_deref(ctx, src, &start, &count))
+    {
+        /* TODO: We could see if all the load users are swizzles and in that
+         * case postpone the marking so the swizzles themselves do it. This
+         * could allow to narrow down the components that mark their stores. */
+        for (i = 0; i < count; ++i)
+        {
+            dse_mark_all_var_component_stores(ctx, state, var, start + i);
+        }
+
+        return;
+    }
+
+    /* TODO: Instead of marking all variable stores as read, we could only do
+     * it for the components within range. */
+    count = hlsl_type_component_count(var->data_type);
+    for (i = 0; i < count; ++i)
+    {
+        dse_mark_all_var_component_stores(ctx, state, var, i);
+    }
+}
+
+static void dse_process_block(struct hlsl_ctx *ctx, struct dse_state *state, struct hlsl_block *block);
+
+static void dse_process_if(struct hlsl_ctx *ctx, struct dse_state *state, struct hlsl_ir_if *iff)
+{
+    struct dse_scope conditional_stores;
+
+    dse_scope_init(&conditional_stores);
+
+    for (int t = 0; t < 2; ++t)
+    {
+        if (!dse_scope_stack_push(ctx, &state->scopes))
+            return;
+        dse_process_block(ctx, state, (t) ? &iff->else_block : &iff->then_block);
+        dse_scope_copy_over(ctx, &conditional_stores, dse_scope_stack_top(&state->scopes));
+        dse_scope_stack_pop(&state->scopes);
+    }
+
+    dse_scope_copy_over(ctx, dse_scope_stack_top(&state->scopes), &conditional_stores);
+    dse_scope_cleanup(&conditional_stores);
+}
+
+static void dse_process_loop(struct hlsl_ctx *ctx, struct dse_state *state, struct hlsl_ir_loop *loop)
+{
+    ++state->breakable_scopes;
+    /* Go through the loop body twice, to allow loads to mark stores that can
+     * appear afterwards in the loop body. */
+    /* It is not necessary to push an additional scope here since the point of
+     * using scopes is so that stores flush other stores in the same scope,
+     * which we are inhibiting when inside a loop.
+     * TODO: At some point we could allow this but we have to make sure that
+     * there are no CONTINUE or BREAK jumps between the stores. */
+    dse_process_block(ctx, state, &loop->body);
+    dse_process_block(ctx, state, &loop->body);
+    VKD3D_ASSERT(list_empty(&loop->iter.instrs));
+    --state->breakable_scopes;
+}
+
+static void dse_process_switch(struct hlsl_ctx *ctx, struct dse_state *state, struct hlsl_ir_switch *s)
+{
+    struct dse_scope conditional_stores;
+    struct hlsl_ir_switch_case *c;
+
+    dse_scope_init(&conditional_stores);
+
+    /* TODO: Since each switch case might contain arbitrary BREAK jumps, we
+     * inhibit the ability of stores to flush other stores, and we limit
+     * ourselves to just collect them and mark read ones. */
+    LIST_FOR_EACH_ENTRY(c, &s->cases, struct hlsl_ir_switch_case, entry)
+    {
+        if (!dse_scope_stack_push(ctx, &state->scopes))
+            return;
+        ++state->breakable_scopes;
+        dse_process_block(ctx, state, &c->body);
+        dse_scope_copy_over(ctx, &conditional_stores, dse_scope_stack_top(&state->scopes));
+        --state->breakable_scopes;
+        dse_scope_stack_pop(&state->scopes);
+    }
+
+    dse_scope_copy_over(ctx, dse_scope_stack_top(&state->scopes), &conditional_stores);
+    dse_scope_cleanup(&conditional_stores);
+}
+
+static void dse_process_block(struct hlsl_ctx *ctx, struct dse_state *state, struct hlsl_block *block)
+{
+    struct hlsl_ir_node *instr;
+
+    LIST_FOR_EACH_ENTRY(instr, &block->instrs, struct hlsl_ir_node, entry)
+    {
+        switch (instr->type)
+        {
+            case HLSL_IR_LOAD:
+                dse_transform_load(ctx, state, hlsl_ir_load(instr));
+                break;
+
+            case HLSL_IR_STORE:
+                dse_transform_store(ctx, state, hlsl_ir_store(instr));
+                break;
+
+            case HLSL_IR_IF:
+                dse_process_if(ctx, state, hlsl_ir_if(instr));
+                break;
+
+            case HLSL_IR_LOOP:
+                dse_process_loop(ctx, state, hlsl_ir_loop(instr));
+                break;
+
+            case HLSL_IR_SWITCH:
+                dse_process_switch(ctx, state, hlsl_ir_switch(instr));
+                break;
+
+            default:
+                break;
+        }
+    }
+}
+
+static bool dse_remove_dead_stores(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, void *context)
+{
+    struct dse_state *state = context;
+    struct hlsl_ir_store *store;
+
+    if (instr->type != HLSL_IR_STORE)
+        return false;
+    store = hlsl_ir_store(instr);
+
+    if (dse_stores_array_find(&state->stores, store))
+        return false;
+
+    list_remove(&instr->entry);
+    hlsl_free_instr(instr);
+    return true;
+}
+
+static bool dse_execute(struct hlsl_ctx *ctx, struct hlsl_block *block)
+{
+    struct dse_state state;
+    bool progress = false;
+
+    if (ctx->result)
+        return false;
+
+    if (!dse_state_init(ctx, &state))
+        return false;
+    dse_process_block(ctx, &state, block);
+
+    dse_stores_array_sort(&state.stores);
+    progress = hlsl_transform_ir(ctx, dse_remove_dead_stores, block, &state);
+
+    dse_state_cleanup(&state);
+    return progress;
+}
+
+/*
  * Copy propagation. The basic idea is to recognize instruction sequences of the
  * form:
  *
@@ -2248,9 +2710,8 @@ struct copy_propagation_state
 static int copy_propagation_var_def_compare(const void *key, const struct rb_entry *entry)
 {
     struct copy_propagation_var_def *var_def = RB_ENTRY_VALUE(entry, struct copy_propagation_var_def, entry);
-    uintptr_t key_int = (uintptr_t)key, entry_int = (uintptr_t)var_def->var;
 
-    return (key_int > entry_int) - (key_int < entry_int);
+    return vkd3d_ptr_compare(key, var_def->var);
 }
 
 static void copy_propagation_var_def_destroy(struct rb_entry *entry, void *context)
@@ -6669,6 +7130,20 @@ static void compute_liveness(struct hlsl_ctx *ctx, struct hlsl_block *body)
     compute_liveness_recurse(body, 0, 0);
 }
 
+static void run_dead_code_elimination_passes(struct hlsl_ctx *ctx, struct hlsl_block *body)
+{
+    bool progress;
+
+    do
+    {
+        progress = false;
+        compute_liveness(ctx, body);
+        progress |= hlsl_transform_ir(ctx, dce, body, NULL);
+        progress |= dse_execute(ctx, body);
+    }
+    while (progress);
+};
+
 static void mark_vars_usage(struct hlsl_ctx *ctx)
 {
     struct hlsl_scope *scope;
@@ -7727,6 +8202,9 @@ static struct vsir_signature_element *generate_signature_entry(struct hlsl_ctx *
                         || (type == VSIR_REGISTER_INPUT && ctx->profile->type == VKD3D_SHADER_TYPE_PIXEL))
                     reg += SM1_COLOR_REGISTER_OFFSET;
             }
+
+            if (type == VSIR_REGISTER_DEPTHOUT)
+                bitmap_set(program->io_dcls, VSIR_REGISTER_DEPTHOUT);
         }
         else if (sm1_usage_from_semantic_name(&version, var->semantic.name,
                 var->semantic.index, output, &usage, &usage_idx))
@@ -7748,9 +8226,6 @@ static struct vsir_signature_element *generate_signature_entry(struct hlsl_ctx *
                     "Invalid semantic '%s'.", var->semantic.name);
             return NULL;
         }
-
-        if (type == VSIR_REGISTER_DEPTHOUT)
-            bitmap_set(program->io_dcls, VSIR_REGISTER_DEPTHOUT);
 
         if (builtin && interpolation_mode == VKD3DSIM_LINEAR_CENTROID
                 && (vkd3d_shader_ver_ge(&program->shader_version, 3, 0) || type != VSIR_REGISTER_TEXTURE))
@@ -16234,9 +16709,7 @@ static void process_entry_function(struct hlsl_ctx *ctx, struct vsir_program *pr
     if (hlsl_version_ge(ctx, 4, 0))
         hlsl_transform_ir(ctx, lower_combined_samples, body, NULL);
 
-    do
-        compute_liveness(ctx, body);
-    while (hlsl_transform_ir(ctx, dce, body, NULL));
+    run_dead_code_elimination_passes(ctx, body);
 
     hlsl_transform_ir(ctx, track_components_usage, body, NULL);
     if (hlsl_version_lt(ctx, 4, 0))
@@ -16285,10 +16758,7 @@ static void process_entry_function(struct hlsl_ctx *ctx, struct vsir_program *pr
     replace_ir(ctx, validate_nonconstant_vector_store_derefs, body);
 
     hlsl_run_folding_passes(ctx, body);
-
-    do
-        compute_liveness(ctx, body);
-    while (hlsl_transform_ir(ctx, dce, body, NULL));
+    run_dead_code_elimination_passes(ctx, body);
 
     /* TODO: move forward, remove when no longer needed */
     transform_derefs(ctx, replace_deref_path_with_offset, body);

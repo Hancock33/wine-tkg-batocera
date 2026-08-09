@@ -720,8 +720,8 @@ static void msl_firstbit(struct msl_generator *gen, const struct vkd3d_shader_in
     msl_src_init(&src, gen, &ins->src[0], mask);
 
     if ((mask_size = vsir_write_mask_component_count(mask)) > 1)
-        msl_print_assignment(gen, &dst, "select(uint%u(0xffffffffu), %s(%s), bool%u(%s))",
-                mask_size, op, src.str->buffer, mask_size, src.str->buffer);
+        msl_print_assignment(gen, &dst, "select(uint%u(0xffffffffu), uint%u(%s(%s)), bool%u(%s))",
+                mask_size, mask_size, op, src.str->buffer, mask_size, src.str->buffer);
     else
         msl_print_assignment(gen, &dst, "%s ? %s(%s) : 0xffffffffu",
                 src.str->buffer, op, src.str->buffer);
