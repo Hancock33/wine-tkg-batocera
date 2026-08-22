@@ -2227,6 +2227,9 @@ static bool shader_sm4_read_param(struct vkd3d_shader_sm4_parser *priv, const ui
          * other values up one slot. Normalize to SM5.1. */
         param->idx[2] = param->idx[1];
         param->idx[1] = param->idx[0];
+        if (param->idx[1].rel_addr && !(param->idx[1].rel_addr = vsir_program_clone_src_operands(priv->program,
+                param->idx[1].rel_addr, 1)))
+            return false;
         ++param->idx_count;
     }
 

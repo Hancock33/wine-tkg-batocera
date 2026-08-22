@@ -270,8 +270,7 @@
     SYSCALL_ENTRY( 0x010a, NtWow64IsProcessorFeaturePresent, 4 ) \
     SYSCALL_ENTRY( 0x010b, NtWow64QueryInformationProcess64, 20 ) \
     SYSCALL_ENTRY( 0x010c, NtWow64ReadVirtualMemory64, 28 ) \
-    SYSCALL_ENTRY( 0x010d, NtWow64WriteVirtualMemory64, 28 ) \
-    SYSCALL_ENTRY( 0x010e, __wine_needs_override_large_address_aware, 0 )
+    SYSCALL_ENTRY( 0x010d, NtWow64WriteVirtualMemory64, 28 )
 #ifdef _WIN64
 #define ALL_SYSCALLS \
     SYSCALL_ENTRY( 0x0000, NtAccessCheck, 64 ) \
@@ -537,8 +536,7 @@
     SYSCALL_ENTRY( 0x0104, NtUnmapViewOfSectionEx, 24 ) \
     SYSCALL_ENTRY( 0x0105, NtWaitForAlertByThreadId, 16 ) \
     SYSCALL_ENTRY( 0x0106, NtWaitForDebugEvent, 32 ) \
-    SYSCALL_ENTRY( 0x0107, NtWaitForKeyedEvent, 32 ) \
-    SYSCALL_ENTRY( 0x0108, __wine_needs_override_large_address_aware, 0 )
+    SYSCALL_ENTRY( 0x0107, NtWaitForKeyedEvent, 32 )
 #else
 #define ALL_SYSCALLS ALL_SYSCALLS32
 #endif

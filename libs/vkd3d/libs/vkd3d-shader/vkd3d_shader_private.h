@@ -1798,6 +1798,8 @@ struct vsir_tgsm *vsir_program_add_tgsm(struct vsir_program *program,
 enum vkd3d_result vsir_program_allocate_temp_registers(struct vsir_program *program, uint64_t config_flags,
         const struct vkd3d_shader_compile_info *compile_info, struct vkd3d_shader_message_context *message_context);
 void vsir_program_cleanup(struct vsir_program *program);
+struct vsir_src_operand *vsir_program_clone_src_operands(struct vsir_program *program,
+        const struct vsir_src_operand *operands, size_t count);
 struct vsir_tgsm *vsir_program_find_tgsm(struct vsir_program *program, unsigned int register_id);
 const struct vkd3d_shader_parameter1 *vsir_program_get_parameter(
         const struct vsir_program *program, enum vkd3d_shader_parameter_name name);

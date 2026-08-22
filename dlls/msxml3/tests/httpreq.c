@@ -1485,6 +1485,9 @@ static void test_XMLHTTP(void)
     check_interface(xhr, &IID_IXMLHttpRequest, TRUE);
     check_interface(xhr, &IID_IDispatch, TRUE);
     check_interface(xhr, &IID_IDispatchEx, FALSE);
+    check_interface(xhr, &IID_IObjectWithSite, TRUE);
+    check_interface(xhr, &IID_IObjectSafety, TRUE);
+    check_interface(xhr, &IID_ISupportErrorInfo, TRUE);
 
     VariantInit(&dummy);
     V_VT(&dummy) = VT_ERROR;
@@ -1820,6 +1823,19 @@ static void test_server_xhr(void)
 
     /* GET request */
     xhr = create_server_xhr();
+
+    check_interface(xhr, &IID_IServerXMLHTTPRequest, TRUE);
+    todo_wine
+    check_interface(xhr, &IID_IServerXMLHTTPRequest2, TRUE);
+    check_interface(xhr, &IID_IXMLHttpRequest, TRUE);
+    check_interface(xhr, &IID_IDispatch, TRUE);
+    todo_wine
+    check_interface(xhr, &IID_IDispatchEx, TRUE);
+    todo_wine
+    check_interface(xhr, &IID_IObjectWithSite, TRUE);
+    check_interface(xhr, &IID_ISupportErrorInfo, TRUE);
+    check_interface(xhr, &IID_IUnknown, TRUE);
+    check_interface(xhr, &IID_IObjectSafety, FALSE);
 
     test_server_open(xhr, "GET", xmltestA, S_OK);
 

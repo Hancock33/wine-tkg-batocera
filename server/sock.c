@@ -2035,6 +2035,18 @@ static int init_socket( struct sock *sock, int family, int type, int protocol )
     sock->type   = type;
     sock->family = family;
 
+    /* Windows reports AF_UNIX with an empty path for an unbound socket, so the
+     * family has to be present before bind() ever runs. */
+    if (family == WS_AF_UNIX)
+    {
+        memset( &sock->addr.un, 0, sizeof(sock->addr.un) );
+        sock->addr.un.sun_family = WS_AF_UNIX;
+        sock->addr_len = sizeof(sock->addr.un);
+        memset( &sock->peer_addr.un, 0, sizeof(sock->peer_addr.un) );
+        sock->peer_addr.un.sun_family = WS_AF_UNIX;
+        sock->peer_addr_len = sizeof(sock->peer_addr.un);
+    }
+
     if (is_tcp_socket( sock ))
     {
         value = 1;
@@ -2801,6 +2813,13 @@ static void sock_ioctl( struct fd *fd, ioctl_code_t code, struct async *async )
                 else
                     base_name = unix_path;
 
+                if (strlen( base_name ) >= sizeof(unix_addr.un.sun_path))
+                {
+                    free( unix_path );
+                    set_win32_error( WSAEINVAL );
+                    return;
+                }
+
                 if (chdir( unix_path ) == -1)
                 {
                     set_error( sock_get_ntstatus( errno ) );
@@ -2872,14 +2891,14 @@ static void sock_ioctl( struct fd *fd, ioctl_code_t code, struct async *async )
             }
         }
 
+        if (sock->family == WS_AF_UNIX && *addr->sa_data)
+            fchdir(server_dir_fd);
+
         if (ret < 0 && errno != EINPROGRESS)
         {
             set_error( sock_get_ntstatus( errno ) );
             return;
         }
-
-        if (sock->family == WS_AF_UNIX && *addr->sa_data)
-            fchdir(server_dir_fd);
 
         /* a connected or connecting socket can no longer be accepted into */
         allow_fd_caching( sock->fd );
@@ -3183,6 +3202,13 @@ static void sock_ioctl( struct fd *fd, ioctl_code_t code, struct async *async )
                 }
                 else
                     base_name = unix_path;
+
+                if (strlen( base_name ) >= sizeof(unix_addr.un.sun_path))
+                {
+                    free( unix_path );
+                    set_win32_error( WSAEINVAL );
+                    return;
+                }
 
                 if (chdir( unix_path ) == -1)
                 {

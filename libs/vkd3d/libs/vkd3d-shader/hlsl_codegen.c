@@ -2156,6 +2156,74 @@ static unsigned int index_instructions(struct hlsl_block *block, unsigned int in
     return index;
 }
 
+struct instr_use_info_entry
+{
+    struct rb_entry entry;
+    struct hlsl_ir_node *instr;
+    unsigned int swizzle_users_count;
+};
+
+static int instr_use_info_entry_compare(const void *key, const struct rb_entry *entry)
+{
+    struct instr_use_info_entry *info = RB_ENTRY_VALUE(entry, struct instr_use_info_entry, entry);
+
+    return vkd3d_ptr_compare(key, info->instr);
+}
+
+static void instr_use_info_entry_destroy(struct rb_entry *entry, void *context)
+{
+    struct instr_use_info_entry *info = RB_ENTRY_VALUE(entry, struct instr_use_info_entry, entry);
+
+    free(info);
+}
+
+static struct instr_use_info_entry *instr_use_info_get(struct rb_tree *tree, struct hlsl_ir_node *instr)
+{
+    struct rb_entry *entry;
+
+    if (!(entry = rb_get(tree, instr)))
+        return NULL;
+    return RB_ENTRY_VALUE(entry, struct instr_use_info_entry, entry);
+}
+
+static bool instr_use_info_visit(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, void *context)
+{
+    struct instr_use_info_entry *info;
+    struct hlsl_ir_swizzle *swizzle;
+    struct rb_tree *tree = context;
+    int res;
+
+    if (instr->type == HLSL_IR_LOAD)
+    {
+        if (!(info = hlsl_alloc(ctx, sizeof(*info))))
+            return false;
+        info->instr = instr;
+        info->swizzle_users_count = 0;
+        res = rb_put(tree, instr, &info->entry);
+        VKD3D_ASSERT(!res);
+    }
+
+    if (instr->type == HLSL_IR_SWIZZLE)
+    {
+        swizzle = hlsl_ir_swizzle(instr);
+        if (!(info = instr_use_info_get(tree, swizzle->val.node)))
+            return false;
+        ++info->swizzle_users_count;
+    }
+    return false;
+}
+
+static void instr_use_info_init(struct hlsl_ctx *ctx, struct rb_tree *tree, struct hlsl_block *block)
+{
+    rb_init(tree, instr_use_info_entry_compare);
+    hlsl_transform_ir(ctx, instr_use_info_visit, block, tree);
+}
+
+static void instr_use_cleanup(struct rb_tree *tree)
+{
+    rb_destroy(tree, instr_use_info_entry_destroy, NULL);
+}
+
 /*
  * Dead store elimination. The basic idea is to remove useless stores, in
  * particular those to variables that don't have any subsequent load, and
@@ -2197,7 +2265,8 @@ static struct hlsl_ir_store *dse_stores_array_find(struct dse_stores_array *arra
 
 static void dse_stores_array_sort(struct dse_stores_array *array)
 {
-    qsort(array->elements, array->count, sizeof(*array->elements), vkd3d_ptrptr_compare);
+    if (array->elements)
+        qsort(array->elements, array->count, sizeof(*array->elements), vkd3d_ptrptr_compare);
 }
 
 struct dse_var_def
@@ -2365,11 +2434,12 @@ static void dse_scope_stack_cleanup(struct dse_scope_stack *stack)
 struct dse_state
 {
     struct dse_scope_stack scopes;
+    unsigned int breakable_scopes;
 
     /* Stores marked as read anywhere in the program. */
     struct dse_stores_array stores;
 
-    unsigned int breakable_scopes;
+    struct rb_tree instrs_use_info;
 };
 
 static void dse_mark_store_as_read(struct hlsl_ctx *ctx, struct dse_state *state, struct hlsl_ir_store *store)
@@ -2388,17 +2458,19 @@ static void dse_stores_array_mark_all(struct hlsl_ctx *ctx,
     array->count = 0;
 }
 
-static bool dse_state_init(struct hlsl_ctx *ctx, struct dse_state *state)
+static bool dse_state_init(struct hlsl_ctx *ctx, struct dse_state *state, struct hlsl_block *block)
 {
     memset(state, 0, sizeof(*state));
     if (!dse_scope_stack_push(ctx, &state->scopes))
         return false;
+    instr_use_info_init(ctx, &state->instrs_use_info, block);
 
     return true;
 }
 
 static void dse_state_cleanup(struct dse_state *state)
 {
+    instr_use_cleanup(&state->instrs_use_info);
     dse_stores_array_cleanup(&state->stores);
     dse_scope_stack_cleanup(&state->scopes);
 }
@@ -2460,18 +2532,40 @@ static void dse_transform_store(struct hlsl_ctx *ctx, struct dse_state *state, s
 
 static void dse_transform_load(struct hlsl_ctx *ctx, struct dse_state *state, struct hlsl_ir_load *load)
 {
-    struct hlsl_deref *src = &load->src;
-    struct hlsl_ir_var *var = src->var;
+    struct hlsl_ir_var *var = load->src.var;
+    struct instr_use_info_entry *use_info;
     unsigned int start, count, i;
 
-    if (hlsl_component_index_range_from_deref(ctx, src, &start, &count))
+    if (hlsl_component_index_range_from_deref(ctx, &load->src, &start, &count))
     {
-        /* TODO: We could see if all the load users are swizzles and in that
-         * case postpone the marking so the swizzles themselves do it. This
-         * could allow to narrow down the components that mark their stores. */
-        for (i = 0; i < count; ++i)
+        use_info = instr_use_info_get(&state->instrs_use_info, &load->node);
+        VKD3D_ASSERT(use_info);
+
+        /* If all the load users are swizzles, we narrow down the components
+         * that mark the stores. */
+        if (list_count(&load->node.uses) == use_info->swizzle_users_count)
         {
-            dse_mark_all_var_component_stores(ctx, state, var, start + i);
+            unsigned int swizzle_dimx, swizzle_comp;
+            struct hlsl_ir_swizzle *swizzle;
+            struct hlsl_src *src;
+
+            LIST_FOR_EACH_ENTRY(src, &load->node.uses, struct hlsl_src, entry)
+            {
+                swizzle = RB_ENTRY_VALUE(src, struct hlsl_ir_swizzle, val);
+                swizzle_dimx = swizzle->node.data_type->e.numeric.dimx;
+                for (i = 0; i < swizzle_dimx; ++i)
+                {
+                    swizzle_comp = hlsl_swizzle_get_component(swizzle->u.vector, i);
+                    dse_mark_all_var_component_stores(ctx, state, var, start + swizzle_comp);
+                }
+            }
+        }
+        else
+        {
+            for (i = 0; i < count; ++i)
+            {
+                dse_mark_all_var_component_stores(ctx, state, var, start + i);
+            }
         }
 
         return;
@@ -2607,7 +2701,7 @@ static bool dse_execute(struct hlsl_ctx *ctx, struct hlsl_block *block)
     if (ctx->result)
         return false;
 
-    if (!dse_state_init(ctx, &state))
+    if (!dse_state_init(ctx, &state, block))
         return false;
     dse_process_block(ctx, &state, block);
 
@@ -4562,13 +4656,14 @@ static void split_copy(struct hlsl_ctx *ctx, struct hlsl_ir_store *store,
     struct hlsl_ir_node *c, *split_load;
     struct hlsl_block block;
 
+    /* It is possible that the variable was modified between the rhs load and the
+     * store instruction, so we insert the split load next to the load itself. */
     hlsl_block_init(&block);
-
     c = hlsl_block_add_uint_constant(ctx, &block, idx, &store->node.loc);
     split_load = hlsl_block_add_load_index(ctx, &block, &load->src, c, &store->node.loc);
+    list_move_before(&load->node.entry, &block.instrs);
 
     hlsl_block_add_store_index(ctx, &block, &store->lhs, c, split_load, 0, &store->node.loc);
-
     list_move_before(&store->node.entry, &block.instrs);
 }
 

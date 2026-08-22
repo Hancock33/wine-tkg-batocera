@@ -1795,6 +1795,12 @@ static int get_file_info( const char *path, struct stat *st, ULONG *attr, ULONG 
             if (reparse_tag) *reparse_tag = IO_REPARSE_TAG_LX_SYMLINK;
         }
     }
+    /* a bound AF_UNIX socket is a reparse point on Windows */
+    else if (S_ISSOCK( st->st_mode ))
+    {
+        *attr |= FILE_ATTRIBUTE_REPARSE_POINT;
+        if (reparse_tag) *reparse_tag = IO_REPARSE_TAG_AF_UNIX;
+    }
     else if (S_ISDIR( st->st_mode ) && (parent_path = malloc( len + 4 )))
     {
         struct stat parent_st;
@@ -4761,7 +4767,7 @@ NTSTATUS open_unix_file( HANDLE *handle, const char *unix_name, ACCESS_MASK acce
     unsigned int status;
     data_size_t len;
 
-    if ((status = alloc_object_attributes( attr, &objattr, &len ))) return status;
+    if ((status = wine_server_alloc_object_attributes( attr, &objattr, &len ))) return status;
 
     SERVER_START_REQ( create_file )
     {
@@ -4912,7 +4918,7 @@ NTSTATUS WINAPI NtCreateMailslotFile( HANDLE *handle, ULONG access, OBJECT_ATTRI
 
     *handle = 0;
     if (!attr) return STATUS_INVALID_PARAMETER;
-    if ((status = alloc_object_attributes( attr, &objattr, &len ))) return status;
+    if ((status = wine_server_alloc_object_attributes( attr, &objattr, &len ))) return status;
 
     SERVER_START_REQ( create_mailslot )
     {
@@ -4954,7 +4960,7 @@ NTSTATUS WINAPI NtCreateNamedPipeFile( HANDLE *handle, ULONG access, OBJECT_ATTR
     /* assume we only get relative timeout */
     if (timeout && timeout->QuadPart > 0) FIXME( "Wrong time %s\n", wine_dbgstr_longlong(timeout->QuadPart) );
 
-    if ((status = alloc_object_attributes( attr, &objattr, &len ))) return status;
+    if ((status = wine_server_alloc_object_attributes( attr, &objattr, &len ))) return status;
 
     SERVER_START_REQ( create_named_pipe )
     {
@@ -5026,7 +5032,7 @@ NTSTATUS WINAPI NtQueryFullAttributesFile( const OBJECT_ATTRIBUTES *attr,
 
         if (get_file_info( unix_name, &st, &attributes, NULL ) == -1)
             status = errno_to_status( errno );
-        else if (!S_ISREG(st.st_mode) && !S_ISDIR(st.st_mode))
+        else if (!S_ISREG(st.st_mode) && !S_ISDIR(st.st_mode) && !S_ISSOCK(st.st_mode))
             status = STATUS_INVALID_INFO_CLASS;
         else
             fill_file_info( &st, attributes, info, FileNetworkOpenInformation );
@@ -5055,7 +5061,7 @@ NTSTATUS WINAPI NtQueryAttributesFile( const OBJECT_ATTRIBUTES *attr, FILE_BASIC
 
         if (get_file_info( unix_name, &st, &attributes, NULL ) == -1)
             status = errno_to_status( errno );
-        else if (!S_ISREG(st.st_mode) && !S_ISDIR(st.st_mode))
+        else if (!S_ISREG(st.st_mode) && !S_ISDIR(st.st_mode) && !S_ISSOCK(st.st_mode))
             status = STATUS_INVALID_INFO_CLASS;
         else
             status = fill_file_info( &st, attributes, info, FileBasicInformation );
@@ -5185,7 +5191,7 @@ NTSTATUS WINAPI NtQueryInformationFile( HANDLE handle, IO_STATUS_BLOCK *io,
     case FileBasicInformation:
         if (fd_get_file_info( handle, fd, options, &st, &attr, NULL ) == -1)
             status = errno_to_status( errno );
-        else if (!S_ISREG(st.st_mode) && !S_ISDIR(st.st_mode))
+        else if (!S_ISREG(st.st_mode) && !S_ISDIR(st.st_mode) && !S_ISSOCK(st.st_mode))
             status = STATUS_INVALID_INFO_CLASS;
         else
             fill_file_info( &st, attr, ptr, class );
@@ -5292,7 +5298,7 @@ NTSTATUS WINAPI NtQueryInformationFile( HANDLE handle, IO_STATUS_BLOCK *io,
     case FileStatInformation:
         if (fd_get_file_info( handle, fd, options, &st, &attr, &reparse_tag ) == -1)
             status = errno_to_status( errno );
-        else if (!S_ISREG(st.st_mode) && !S_ISDIR(st.st_mode))
+        else if (!S_ISREG(st.st_mode) && !S_ISDIR(st.st_mode) && !S_ISSOCK(st.st_mode))
             status = STATUS_INVALID_INFO_CLASS;
         else
         {

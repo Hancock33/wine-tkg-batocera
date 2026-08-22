@@ -653,9 +653,6 @@ bool vsir_program_add_icb(struct vsir_program *program, struct vkd3d_shader_imme
     return true;
 }
 
-static struct vsir_src_operand *vsir_program_clone_src_operands(
-        struct vsir_program *program, const struct vsir_src_operand *operands, size_t count);
-
 static bool vsir_operand_clone_indirect_indices(struct vsir_operand *reg, struct vsir_program *program)
 {
     size_t i;
@@ -691,7 +688,7 @@ static struct vsir_dst_operand *vsir_program_clone_dst_operands(
     return ret;
 }
 
-static struct vsir_src_operand *vsir_program_clone_src_operands(
+struct vsir_src_operand *vsir_program_clone_src_operands(
         struct vsir_program *program, const struct vsir_src_operand *operands, size_t count)
 {
     struct vsir_src_operand *ret;
@@ -2239,7 +2236,7 @@ static enum vkd3d_result vsir_program_lower_clz(struct vsir_program *program,
      * {i,u}log2 srLOG2, SRC
      * xor srXOR, srLOG2, l(0x1f)
      * ieq srIEQ, srLOG2, l(~0u)
-     * movc DST, srIEQ, l(~0u), srXOR */
+     * movc DST, srIEQ, srLOG2, srXOR */
 
     log2_op = ins->opcode == VSIR_OP_FIRSTBIT_HI ? VSIR_OP_ULOG2 : VSIR_OP_ILOG2;
 
@@ -2274,8 +2271,7 @@ static enum vkd3d_result vsir_program_lower_clz(struct vsir_program *program,
         goto fail;
     ins->dst[0] = dst[0];
     vsir_src_operand_init_ssa(&ins->src[0], ieq_id, VSIR_DATA_U32, dst[0].reg.dimension);
-    vsir_src_operand_init(&ins->src[1], VSIR_REGISTER_IMMCONST, dst[0].reg.data_type, 0);
-    ins->src[1].reg.u.immconst_u32[0] = ~0u;
+    vsir_src_operand_init_ssa(&ins->src[1], log2_id, dst[0].reg.data_type, dst[0].reg.dimension);
     vsir_src_operand_init_ssa(&ins->src[2], xor_id, dst[0].reg.data_type, dst[0].reg.dimension);
 
     return VKD3D_OK;
@@ -13287,10 +13283,6 @@ static void vsir_validate_descriptor_indices(struct validation_context *ctx,
 {
     const struct vsir_descriptor *descriptor;
 
-    if (reg->idx[0].rel_addr)
-        validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_INDEX,
-                "Non-NULL indirect address for the ID of a register of type \"%s\".", name);
-
     if (!ctx->program->normalisation_flags.has_descriptor_info)
         return;
 
@@ -15486,11 +15478,14 @@ static void vsir_validate_itoi(struct validation_context *ctx, const struct vkd3
 
 static void vsir_validate_label(struct validation_context *ctx, const struct vkd3d_shader_instruction *instruction)
 {
-    vsir_validate_cf_type(ctx, instruction, VSIR_CF_BLOCKS);
-    if (instruction->src_count >= 1 && !vsir_operand_is_label(&instruction->src[0].reg))
-        validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_REGISTER_TYPE,
-                "Invalid register of type %#x in a LABEL instruction, expected LABEL.",
-                instruction->src[0].reg.type);
+    if (instruction->src_count >= 1 && instruction->src[0].reg.type != VSIR_REGISTER_FUNCTIONBODY)
+    {
+        vsir_validate_cf_type(ctx, instruction, VSIR_CF_BLOCKS);
+        if (!vsir_operand_is_label(&instruction->src[0].reg))
+            validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_REGISTER_TYPE,
+                    "Invalid register of type %#x in a LABEL instruction, expected LABEL.",
+                    instruction->src[0].reg.type);
+    }
 
     if (ctx->inside_block)
         validator_error(ctx, VKD3D_SHADER_ERROR_VSIR_INVALID_CONTROL_FLOW,

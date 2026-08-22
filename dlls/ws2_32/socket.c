@@ -1269,7 +1269,6 @@ int WINAPI bind( SOCKET s, const struct sockaddr *addr, int len )
     IO_STATUS_BLOCK io;
     HANDLE sync_event;
     NTSTATUS status;
-
     const int bind_len = len;
     char *unix_path = NULL;
     int unix_varargs_size = 0;
@@ -1315,7 +1314,6 @@ int WINAPI bind( SOCKET s, const struct sockaddr *addr, int len )
                 return -1;
             }
             break;
-
         case AF_BTH:
             if (len < sizeof(SOCKADDR_BTH))
             {
@@ -1342,6 +1340,8 @@ int WINAPI bind( SOCKET s, const struct sockaddr *addr, int len )
 
     if (addr->sa_family == AF_UNIX && *addr->sa_data)
     {
+        /* The corresponding unix path is appended to a buffer with
+         * the structure sockaddr_un and can have a length of <= PATH_MAX */
         struct sockaddr_un sun = { 0 };
         WCHAR *sun_pathW;
         memcpy(&sun, addr, len);
