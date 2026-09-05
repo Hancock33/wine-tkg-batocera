@@ -1856,12 +1856,12 @@ static HRESULT serializeEMF(HENHMETAFILE hemf, void **buf, unsigned *size)
     if (!(*size = GetEnhMetaFileBits(hemf, 0, NULL)))
         return E_FAIL;
 
-    if (!(*buf = HeapAlloc(GetProcessHeap(), 0, *size)))
+    if (!(*buf = malloc(*size)))
         return E_OUTOFMEMORY;
 
     if (!GetEnhMetaFileBits(hemf, *size, *buf))
     {
-        HeapFree(GetProcessHeap(), 0, *buf);
+        free(*buf);
         return E_FAIL;
     }
     return S_OK;
@@ -1946,7 +1946,7 @@ static HRESULT WINAPI OLEPictureImpl_Save(
             if (hResult != S_OK)
                 break;
 
-            HeapFree(GetProcessHeap(), 0, This->data);
+            free(This->data);
             This->data = pIconData;
             This->datalen = iDataSize;
         }
@@ -2050,7 +2050,7 @@ static HRESULT WINAPI OLEPictureImpl_SaveAsFile(IPicture *iface,
         {
             if (!serializeIcon(This->desc.icon.hicon, &data, &data_size))
                 return E_FAIL;
-            HeapFree(GetProcessHeap(), 0, This->data);
+            free(This->data);
             This->data = data;
             This->datalen = data_size;
         }
@@ -2083,7 +2083,7 @@ static HRESULT WINAPI OLEPictureImpl_SaveAsFile(IPicture *iface,
                 return E_NOTIMPL;
             }
 
-            HeapFree(GetProcessHeap(), 0, This->data);
+            free(This->data);
             This->data = data;
             This->datalen = data_size;
         }
@@ -2102,7 +2102,7 @@ static HRESULT WINAPI OLEPictureImpl_SaveAsFile(IPicture *iface,
         {
             hr = serializeEMF(This->desc.emf.hemf, &data, &data_size);
             if (hr != S_OK) return hr;
-            HeapFree(GetProcessHeap(), 0, This->data);
+            free(This->data);
             This->data = data;
             This->datalen = data_size;
         }

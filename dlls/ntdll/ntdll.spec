@@ -1165,6 +1165,7 @@
 @ stdcall RtlpNtOpenKey(ptr long ptr)
 @ stdcall RtlpNtQueryValueKey(long ptr ptr ptr ptr)
 @ stdcall RtlpNtSetValueKey(ptr long ptr long)
+@ stdcall RtlpQueryDefaultUILanguage(ptr long)
 @ stdcall RtlpUnWaitCriticalSection(ptr)
 @ stdcall RtlpWaitForCriticalSection(ptr)
 @ stdcall RtlxAnsiStringToUnicodeSize(ptr) RtlAnsiStringToUnicodeSize
@@ -1777,6 +1778,9 @@
 @ cdecl -norelay __wine_dbg_header(long long str)
 @ cdecl -norelay __wine_dbg_output(str)
 @ cdecl -norelay __wine_dbg_strdup(str)
+
+# Virtual memory
+@ stdcall -syscall __wine_needs_override_large_address_aware()
 
 # Version
 @ cdecl wine_get_version()

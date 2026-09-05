@@ -1517,6 +1517,8 @@ static int server_connect(void)
 #include <mach/mach_error.h>
 #include <servers/bootstrap.h>
 
+extern NTSTATUS apple_spawn_main_thread(void);
+
 /* send our task port to the server */
 static void send_server_task_port(void)
 {
@@ -1797,6 +1799,8 @@ void server_init_process_done(void)
 
 #ifdef __APPLE__
     send_server_task_port();
+    if ((status = apple_spawn_main_thread()))
+        ERR("Failed to spawn main thread, status %x\n", status);
 #endif
 
     /* Install signal handlers; this cannot be done earlier, since we cannot
@@ -1852,7 +1856,7 @@ void server_init_thread( struct thread_data *data )
         init_teb_data( data );
         signal_start_thread( data->start, data->param, data->teb );
     }
-    else
+    else if (data->start)
     {
         void (*entry)(void *) = data->start;
         entry( data->param );

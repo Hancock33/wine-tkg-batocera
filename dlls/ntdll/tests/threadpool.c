@@ -1507,6 +1507,27 @@ static void test_tp_timer(void)
     success = pTpIsTimerSet(timer);
     ok(!success, "TpIsTimerSet returned TRUE\n");
     pTpWaitForTimer(timer, TRUE);
+    pTpReleaseTimer(timer);
+
+    /* TpSetTimerEx */
+    status = pTpAllocTimer(&timer, timer_cb, semaphore, &environment);
+    ok(!status, "TpAllocTimer failed with status %lx\n", status);
+    ok(!!timer, "Expected timer != NULL\n");
+
+    success = pTpIsTimerSet(timer);
+    ok(!success, "Unexpected value %d.\n", success);
+    when.QuadPart = (ULONGLONG)200 * -10000;
+    success = pTpSetTimerEx(timer, &when, 200, 0);
+    ok(!success, "Unexpected value %d.\n", success);
+    success = pTpIsTimerSet(timer);
+    ok(success, "Unexpected value %d.\n", success);
+
+    /* unset the timer */
+    success = pTpSetTimerEx(timer, NULL, 0, 0);
+    ok(success, "Unexpected value %d.\n", success);
+    success = pTpIsTimerSet(timer);
+    ok(!success, "Unexpected value %d.\n", success);
+    pTpWaitForTimer(timer, TRUE);
 
     /* cleanup */
     pTpReleaseTimer(timer);

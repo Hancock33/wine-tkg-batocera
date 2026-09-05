@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Zhiyi Zhang for CodeWeavers
+ * Copyright 2026 Piotr Caban
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,11 +16,6 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#ifndef __VKD3D_UTF8_H
-#define __VKD3D_UTF8_H
+#pragma makedep client
 
-#include "vkd3d_common.h"
-
-char *vkd3d_strdup_w_utf8(const WCHAR *wstr, size_t wchar_size);
-
-#endif /* __VKD3D_UTF8_H */
+#include "wine/lsass.idl"

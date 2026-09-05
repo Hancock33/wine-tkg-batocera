@@ -451,7 +451,7 @@ static void mmap_add_reserved_area( void *addr, SIZE_T size )
     assert( !((UINT_PTR)addr & host_page_mask) );
     assert( !(size & host_page_mask) );
 
-    if (!((intptr_t)addr + size)) size--;  /* avoid wrap-around */
+    if (!((intptr_t)addr + size)) size -= host_page_size;  /* avoid wrap-around */
     end = (char *)addr + size;
 
     LIST_FOR_EACH( ptr, &reserved_areas )
@@ -503,7 +503,7 @@ static void mmap_remove_reserved_area( void *addr, SIZE_T size )
     assert( !((UINT_PTR)addr & host_page_mask) );
     assert( !(size & host_page_mask) );
 
-    if (!((intptr_t)addr + size)) size--;  /* avoid wrap-around */
+    if (!((intptr_t)addr + size)) size -= host_page_size;  /* avoid wrap-around */
 
     ptr = list_head( &reserved_areas );
     /* find the first area covering address */
@@ -563,9 +563,10 @@ static int mmap_is_in_reserved_area( void *addr, SIZE_T size )
 
     LIST_FOR_EACH_ENTRY( area, &reserved_areas, struct reserved_area, entry )
     {
-        if (area->base > addr) break;
+        if ((char *)area->base > (char *)addr + size) break;
         if ((char *)area->base + area->size <= (char *)addr) continue;
         /* area must contain block completely */
+        if (area->base > addr) return -1;
         if ((char *)area->base + area->size < (char *)addr + size) return -1;
         return 1;
     }
@@ -2806,6 +2807,18 @@ static void *get_host_addr_space_limit(void)
 #endif /* _WIN64 */
 
 #ifdef __aarch64__
+
+/***********************************************************************
+ *           is_emulated_code
+ */
+BOOL is_emulated_code( ULONG_PTR ptr )
+{
+    const UINT64 *map = (const UINT64 *)peb->EcCodeBitMap;
+    ULONG_PTR page = ptr / page_size;
+    if (!is_arm64ec() || ptr >= (ULONG_PTR)user_space_limit) return FALSE;
+    return !((map[page / 64] >> (page & 63)) & 1);
+}
+
 
 /***********************************************************************
  *           alloc_arm64ec_map
@@ -5098,6 +5111,24 @@ static void virtual_release_address_space(void)
 
 #endif  /* _WIN64 */
 
+BOOL WINAPI __wine_needs_override_large_address_aware(void)
+{
+    static int needs_override = -1;
+
+    if (needs_override == -1)
+    {
+        const char *str = getenv( "WINE_LARGE_ADDRESS_AWARE" );
+
+        needs_override = !str || atoi(str) == 1;
+    }
+    return needs_override;
+}
+
+static BOOL is_large_address_aware(void)
+{
+    return (main_image_info.ImageCharacteristics & IMAGE_FILE_LARGE_ADDRESS_AWARE)
+           || __wine_needs_override_large_address_aware();
+}
 
 /***********************************************************************
  *           virtual_set_large_address_space
@@ -5117,7 +5148,7 @@ void virtual_set_large_address_space(void)
                 free_reserved_memory( 0, (char *)0x7ffe0000 );
 #endif
         }
-        else if (main_image_info.ImageCharacteristics & IMAGE_FILE_LARGE_ADDRESS_AWARE)
+        else if (is_large_address_aware())
         {
             user_space_wow_limit = limit_4g - 1;
             /* reserve space for top-down allocations; some apps break if the entire high 2G is available */
@@ -5127,7 +5158,7 @@ void virtual_set_large_address_space(void)
     }
     else
     {
-        if (!(main_image_info.ImageCharacteristics & IMAGE_FILE_LARGE_ADDRESS_AWARE)) return;
+        if (!is_large_address_aware()) return;
         free_reserved_memory( (char *)0x80000000, address_space_limit );
     }
     user_space_limit = working_set_limit = address_space_limit;

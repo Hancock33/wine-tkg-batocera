@@ -2343,6 +2343,7 @@ static int is_dir_empty( int fd )
         return -1;
     }
 
+    rewinddir( dir );
     empty = 1;
     while (empty && (de = readdir( dir )))
     {
