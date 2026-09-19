@@ -2436,12 +2436,41 @@ enable_netsh=${enable_netsh:-yes}
 enable_regsvr32=${enable_regsvr32:-yes}
 enable_rundll32=${enable_rundll32:-yes}
 
+dnl Disable 32-bit only modules for other archs
+enable_crtdll=${enable_crtdll:-i386}
+enable_ctl3d32=${enable_ctl3d32:-i386}
+enable_d3d8=${enable_d3d8:-i386}
+enable_d3dim=${enable_d3dim:-i386}
+enable_d3dim700=${enable_d3dim700:-i386}
+enable_dmband=${enable_dmband:-i386}
+enable_dmcompos=${enable_dmcompos:-i386}
+enable_dmime=${enable_dmime:-i386}
+enable_dmscript=${enable_dmscript:-i386}
+enable_dmstyle=${enable_dmstyle:-i386}
+enable_dplay=${enable_dplay:-i386}
+enable_dplayx=${enable_dplayx:-i386}
+enable_dpwsockx=${enable_dpwsockx:-i386}
+enable_iccvid=${enable_iccvid:-i386}
+enable_iprop=${enable_iprop:-i386}
+enable_msscript_ocx=${enable_msscript_ocx:-i386}
+enable_msvcp70=${enable_msvcp70:-i386}
+enable_msvcp71=${enable_msvcp71:-i386}
+enable_msvcr70=${enable_msvcr70:-i386}
+enable_msvcr71=${enable_msvcr71:-i386}
+enable_msvcrt20=${enable_msvcrt20:-i386}
+enable_msvcrt40=${enable_msvcrt40:-i386}
+enable_msvcrtd=${enable_msvcrtd:-i386}
+enable_olecli32=${enable_olecli32:-i386}
+enable_olepro32=${enable_olepro32:-i386}
+enable_olethk32=${enable_olethk32:-i386}
+enable_twain_32=${enable_twain_32:-i386}
+enable_vdmdbg=${enable_vdmdbg:-i386}
+
 dnl Disable Win16-related modules
 enable_win16=${enable_win16:-i386}
 enable_w32skrnl=${enable_w32skrnl:-$enable_win16}
 enable_wow32=${enable_wow32:-$enable_win16}
 enable_winevdm=${enable_winevdm:-$enable_win16}
-enable_twain_32=${enable_twain_32:-i386}
 
 dnl Disable winetest too if tests are disabled
 enable_winetest=${enable_winetest:-$enable_tests}
@@ -3814,7 +3843,7 @@ dnl Rules for generated source files
 
 WINE_APPEND_RULE(
 [dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-11.17.r0.g83acf91a\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
+	@version=\`(echo \"wine-11.18.r0.g627ccf4f\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$[@]) || echo \$\$build >\$[@] || (rm -f \$[@] && exit 1)
 dlls/wineandroid.drv/wine-debug.apk: dlls/wineandroid.drv/build.gradle ${wine_srcdir}dlls/wineandroid.drv/AndroidManifest.xml ${wine_srcdir}dlls/wineandroid.drv/WineActivity.java ${wine_srcdir}dlls/wineandroid.drv/wine.svg
