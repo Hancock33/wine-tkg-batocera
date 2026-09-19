@@ -4071,6 +4071,12 @@ static struct thread_data *init_thread_data( void *ptr )
     return data;
 }
 
+static BOOL is_large_address_aware(void)
+{
+    return (main_image_info.ImageCharacteristics & IMAGE_FILE_LARGE_ADDRESS_AWARE)
+           || __wine_needs_override_large_address_aware();
+}
+
 /* enable use of a large address space when allowed by the application */
 static void set_large_address_space(void)
 {
@@ -5154,12 +5160,6 @@ BOOL WINAPI __wine_needs_override_large_address_aware(void)
         needs_override = !str || atoi(str) == 1;
     }
     return needs_override;
-}
-
-static BOOL is_large_address_aware(void)
-{
-    return (main_image_info.ImageCharacteristics & IMAGE_FILE_LARGE_ADDRESS_AWARE)
-           || __wine_needs_override_large_address_aware();
 }
 
 /***********************************************************************
