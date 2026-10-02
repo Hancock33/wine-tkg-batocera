@@ -1,7 +1,7 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
 HEAD is now at 6544c23f Updated vkd3d-latest patchset
-HEAD is now at 13625e51fd6 dmime: Set F_INSTRUMENT_DRUMS for the 10th channel in midi_parser_handle_program_change().
+HEAD is now at 455e3509b98 Release 11.19.
 
 2941e58d7d6e630e88b6e9539414f1d86736c7aa reverted 
 Auto-merging dlls/winebth.sys/winebluetooth.c
@@ -276,7 +276,7 @@ Hunk #1 succeeded at 25 with fuzz 1 (offset -1 lines).
 Hunk #2 succeeded at 503 (offset -3 lines).
 Hunk #3 succeeded at 735 (offset -60 lines).
 patching file configure.ac
-Hunk #1 succeeded at 3590 (offset 128 lines).
+Hunk #1 succeeded at 3581 (offset 119 lines).
 patching file dlls/kernelbase/process.c
 Hunk #1 succeeded at 505 (offset -3 lines).
 Hunk #2 succeeded at 554 (offset -3 lines).
