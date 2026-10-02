@@ -12505,7 +12505,6 @@ case $host_os in
     WINELOADER_LDFLAGS="-Wl,-segalign,0x1000,-pagezero_size,0x1000,-sectcreate,__TEXT,__info_plist,loader/wine_info.plist"
 
     case $HOST_ARCH in
-      i386) wine_use_preloader=yes ;;
       x86_64)
                 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether the compiler supports -Wl,-no_huge" >&5
 printf %s "checking whether the compiler supports -Wl,-no_huge... " >&6; }
@@ -12536,7 +12535,7 @@ printf "%s\n" "$ac_cv_cflags__Wl__no_huge" >&6; }
 if test "x$ac_cv_cflags__Wl__no_huge" = xyes
 then :
   wine_use_preloader=no
-            WINELOADER_LDFLAGS="$WINELOADER_LDFLAGS -Wl,-no_pie,-image_base,0x200000000,-no_huge,-no_fixup_chains,-segalign,0x1000,-segaddr,WINE_RESERVE,0x1000,-segaddr,WINE_TOP_DOWN,0x7ff000000000"
+            WINELOADER_LDFLAGS="$WINELOADER_LDFLAGS -Wl,-no_pie,-image_base,0x200000000,-no_huge,-no_fixup_chains,-segalign,0x1000,-segaddr,WINE_RESERVE,0x1000"
 else case e in #(
   e) wine_use_preloader=yes ;;
 esac
@@ -12578,14 +12577,7 @@ if test "x$ac_cv_cflags__Wl__no_pie" = xyes
 then :
   WINEPRELOADER_LDFLAGS="-Wl,-no_pie $WINEPRELOADER_LDFLAGS"
 fi
-        case $HOST_ARCH in
-          i386)
-            WINEPRELOADER_LDFLAGS="-Wl,-image_base,0x7d400000 $WINEPRELOADER_LDFLAGS"
-            ;;
-          x86_64)
-            WINEPRELOADER_LDFLAGS="-Wl,-image_base,0x200000000,-segalign,0x1000,-segaddr,WINE_RESERVE,0x1000 $WINEPRELOADER_LDFLAGS"
-            ;;
-        esac
+        WINEPRELOADER_LDFLAGS="-Wl,-image_base,0x200000000,-segalign,0x1000,-segaddr,WINE_RESERVE,0x1000 $WINEPRELOADER_LDFLAGS"
                 WINELOADER_LDFLAGS="$WINELOADER_LDFLAGS -mmacosx-version-min=10.7"
     fi
 
@@ -16960,19 +16952,21 @@ then :
 ac_save_pkg_LIBS=$LIBS
 CPPFLAGS="$CPPFLAGS $OPENCL_CFLAGS"
 LIBS="$OPENCL_LIBS $LIBS"
-ac_fn_c_check_header_compile "$LINENO" "CL/cl.h" "ac_cv_header_CL_cl_h" "$ac_includes_default"
+       for ac_header in CL/cl.h
+do :
+  ac_fn_c_check_header_compile "$LINENO" "CL/cl.h" "ac_cv_header_CL_cl_h" "$ac_includes_default"
 if test "x$ac_cv_header_CL_cl_h" = xyes
 then :
   printf "%s\n" "#define HAVE_CL_CL_H 1" >>confdefs.h
-
-fi
-
-         ac_fn_c_check_func "$LINENO" "clGetPlatformInfo" "ac_cv_func_clGetPlatformInfo"
+ ac_fn_c_check_func "$LINENO" "clGetPlatformInfo" "ac_cv_func_clGetPlatformInfo"
 if test "x$ac_cv_func_clGetPlatformInfo" = xyes
 then :
-  :
+
 fi
 
+fi
+
+done
 CPPFLAGS=$ac_save_pkg_CPPFLAGS
 LIBS=$ac_save_pkg_LIBS
 fi
@@ -17025,17 +17019,12 @@ LIBS="$PCAP_LIBS $LIBS"
 ac_fn_c_check_header_compile "$LINENO" "pcap/pcap.h" "ac_cv_header_pcap_pcap_h" "$ac_includes_default"
 if test "x$ac_cv_header_pcap_pcap_h" = xyes
 then :
-  printf "%s\n" "#define HAVE_PCAP_PCAP_H 1" >>confdefs.h
+  ac_fn_c_check_func "$LINENO" "pcap_init" "ac_cv_func_pcap_init"
+if test "x$ac_cv_func_pcap_init" = xyes
+then :
 
 fi
 
-         ac_fn_c_check_func "$LINENO" "pcap_init" "ac_cv_func_pcap_init"
-if test "x$ac_cv_func_pcap_init" = xyes
-then :
-  :
-else case e in #(
-  e) PCAP_LIBS="" ;;
-esac
 fi
 
 CPPFLAGS=$ac_save_pkg_CPPFLAGS
@@ -17148,22 +17137,27 @@ then :
 ac_save_pkg_LIBS=$LIBS
 CPPFLAGS="$CPPFLAGS $INOTIFY_CFLAGS"
 LIBS="$INOTIFY_LIBS $LIBS"
-ac_fn_c_check_header_compile "$LINENO" "sys/inotify.h" "ac_cv_header_sys_inotify_h" "$ac_includes_default"
+       for ac_header in sys/inotify.h
+do :
+  ac_fn_c_check_header_compile "$LINENO" "sys/inotify.h" "ac_cv_header_sys_inotify_h" "$ac_includes_default"
 if test "x$ac_cv_header_sys_inotify_h" = xyes
 then :
   printf "%s\n" "#define HAVE_SYS_INOTIFY_H 1" >>confdefs.h
-
-fi
-
-         ac_fn_c_check_func "$LINENO" "inotify_add_watch" "ac_cv_func_inotify_add_watch"
+ ac_fn_c_check_func "$LINENO" "inotify_add_watch" "ac_cv_func_inotify_add_watch"
 if test "x$ac_cv_func_inotify_add_watch" = xyes
 then :
-  :
+
 else case e in #(
   e) INOTIFY_LIBS="" ;;
 esac
 fi
 
+else case e in #(
+  e) INOTIFY_LIBS="" ;;
+esac
+fi
+
+done
 CPPFLAGS=$ac_save_pkg_CPPFLAGS
 LIBS=$ac_save_pkg_LIBS
 fi
@@ -17559,7 +17553,7 @@ then :
   ac_fn_c_check_func "$LINENO" "sane_init" "ac_cv_func_sane_init"
 if test "x$ac_cv_func_sane_init" = xyes
 then :
-  :
+
 fi
 
 fi
@@ -17619,15 +17613,9 @@ then :
   ac_fn_c_check_func "$LINENO" "libusb_interrupt_event_handler" "ac_cv_func_libusb_interrupt_event_handler"
 if test "x$ac_cv_func_libusb_interrupt_event_handler" = xyes
 then :
-  :
-else case e in #(
-  e) USB_LIBS="" ;;
-esac
+
 fi
 
-else case e in #(
-  e) USB_LIBS="" ;;
-esac
 fi
 
 CPPFLAGS=$ac_save_pkg_CPPFLAGS
@@ -18388,15 +18376,9 @@ then :
   ac_fn_c_check_func "$LINENO" "pa_stream_is_corked" "ac_cv_func_pa_stream_is_corked"
 if test "x$ac_cv_func_pa_stream_is_corked" = xyes
 then :
-  :
-else case e in #(
-  e) PULSE_LIBS="" ;;
-esac
+
 fi
 
-else case e in #(
-  e) PULSE_LIBS="" ;;
-esac
 fi
 
 CPPFLAGS=$ac_save_pkg_CPPFLAGS
@@ -18404,7 +18386,7 @@ LIBS=$ac_save_pkg_LIBS
 fi
 
 fi
-if test -z "$PULSE_LIBS"
+if test "x$ac_cv_func_pa_stream_is_corked" != xyes
 then :
   case "x$with_pulse" in
   x)   as_fn_append wine_notices "|libpulse ${notice_platform}development files not found or too old, Pulse won't be supported." ;;
@@ -18645,10 +18627,7 @@ LIBS="$ALSA_LIBS $LIBS"
 ac_fn_c_check_func "$LINENO" "snd_pcm_hw_params_get_access_mask" "ac_cv_func_snd_pcm_hw_params_get_access_mask"
 if test "x$ac_cv_func_snd_pcm_hw_params_get_access_mask" = xyes
 then :
-  :
-else case e in #(
-  e) ALSA_LIBS="" ;;
-esac
+
 fi
 
 CPPFLAGS=$ac_save_pkg_CPPFLAGS
@@ -18656,7 +18635,7 @@ LIBS=$ac_save_pkg_LIBS
 fi
 
 fi
-if test -z "$ALSA_LIBS"
+if test "x$ac_cv_func_snd_pcm_hw_params_get_access_mask" != xyes
 then :
   case "x$with_alsa" in
   x)   as_fn_append wine_notices "|libasound ${notice_platform}development files not found, Alsa won't be supported." ;;
@@ -19000,10 +18979,7 @@ fi
         ac_fn_c_check_func "$LINENO" "capi20_register" "ac_cv_func_capi20_register"
 if test "x$ac_cv_func_capi20_register" = xyes
 then :
-  :
-else case e in #(
-  e) CAPI20_LIBS="" ;;
-esac
+
 fi
 
     fi
@@ -19124,7 +19100,7 @@ if ${ac_cv_lib_soname_cups:+false} :
 then :
   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: not found" >&5
 printf "%s\n" "not found" >&6; }
-       CUPS_LIBS=""
+       CUPS_CFLAGS=""
 else case e in #(
   e) { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_soname_cups" >&5
 printf "%s\n" "$ac_cv_lib_soname_cups" >&6; }
@@ -19136,7 +19112,6 @@ esac
 fi
                         else
                             CUPS_CFLAGS=""
-                            CUPS_LIBS=""
                         fi
 CPPFLAGS=$ac_save_pkg_CPPFLAGS
 LIBS=$ac_save_pkg_LIBS
@@ -19395,9 +19370,8 @@ then :
   *)   as_fn_error $? "libkrb5 ${notice_platform}development files not found (or too old), Kerberos won't be supported.
 This is an error since --with-krb5 was requested." "$LINENO" 5 ;;
 esac
-
+with_gssapi=${with_gssapi:-no}
 fi
-test "x$ac_cv_lib_soname_krb5" != "x" || with_gssapi=${with_gssapi:-no}
 
 if test "x$with_gssapi" != "xno"
 then
@@ -19760,7 +19734,7 @@ then :
   *)   as_fn_error $? "libnetapi not found, Samba NetAPI won't be supported.
 This is an error since --with-netapi was requested." "$LINENO" 5 ;;
 esac
-enable_netapi=${enable_netapi:-no}
+
 fi
 
 
@@ -23522,7 +23496,7 @@ fi
 
 as_fn_append wine_rules "
 dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-11.18.r0.g627ccf4f\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
+	@version=\`(echo \"wine-11.18.r9.g6544c23f\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[] = \"\\1  ( TkG Staging )\";/p'\` && (echo \$\$version | cmp -s - \$@) || echo \$\$version >\$@ || (rm -f \$@ && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$@) || echo \$\$build >\$@ || (rm -f \$@ && exit 1)
 dlls/wineandroid.drv/wine-debug.apk: dlls/wineandroid.drv/build.gradle ${wine_srcdir}dlls/wineandroid.drv/AndroidManifest.xml ${wine_srcdir}dlls/wineandroid.drv/WineActivity.java ${wine_srcdir}dlls/wineandroid.drv/wine.svg
