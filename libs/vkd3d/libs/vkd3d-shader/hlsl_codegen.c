@@ -2904,6 +2904,26 @@ static struct copy_propagation_value *copy_propagation_get_value(const struct co
     return NULL;
 }
 
+/* Checks whether the given component of var is written to after start and before end. */
+static bool copy_propagation_is_written_between(const struct copy_propagation_state *state,
+        const struct hlsl_ir_var *var, unsigned int component, unsigned int start, unsigned int end)
+{
+    for (size_t i = state->scope_count - 1; i < state->scope_count; i--)
+    {
+        struct rb_entry *entry = rb_get(&state->scope_var_defs[i], var);
+        struct copy_propagation_var_def *var_def;
+        struct copy_propagation_value *value;
+
+        if (!entry)
+            continue;
+        var_def = RB_ENTRY_VALUE(entry, struct copy_propagation_var_def, entry);
+        if ((value = copy_propagation_get_value_at_time(&var_def->traces[component], end)))
+            return value->timestamp > start;
+    }
+
+    return false;
+}
+
 static struct copy_propagation_var_def *copy_propagation_create_var_def(struct hlsl_ctx *ctx,
         struct copy_propagation_state *state, struct hlsl_ir_var *var)
 {
@@ -3303,6 +3323,7 @@ static bool copy_propagation_replace_with_deref(struct hlsl_ctx *ctx,
     {
         unsigned int start = base + scale * i;
         struct copy_propagation_value *value;
+        unsigned int x_start, x_count;
         struct hlsl_ir_load *idx;
         uint32_t cur_swizzle = 0;
 
@@ -3362,7 +3383,7 @@ static bool copy_propagation_replace_with_deref(struct hlsl_ctx *ctx,
                 c[k] = ix - d[k];
                 d[k] = ix - c[k] * i;
 
-                if (c[k] && type->class == HLSL_CLASS_STRUCT)
+                if (c[k] && (type->class == HLSL_CLASS_STRUCT || type->class == HLSL_CLASS_VECTOR))
                     goto done;
 
                 type = hlsl_get_element_type_from_path_index(ctx, type, idx->src.path[k].node);
@@ -3383,6 +3404,12 @@ static bool copy_propagation_replace_with_deref(struct hlsl_ctx *ctx,
             }
         }
 
+        if (!hlsl_component_index_range_from_deref(ctx, &idx->src, &x_start, &x_count))
+            goto done;
+
+        if (copy_propagation_is_written_between(state, x, x_start + value->component, idx->node.index, instr->index))
+            goto done;
+
         hlsl_swizzle_set_component(&cur_swizzle, 0, value->component);
 
         for (j = 1; j < instr_component_count; ++j)
@@ -3393,6 +3420,8 @@ static bool copy_propagation_replace_with_deref(struct hlsl_ctx *ctx,
                     start + hlsl_swizzle_get_component(swizzle, j), time)))
                 goto done;
             if (val->node != &idx->node)
+                goto done;
+            if (copy_propagation_is_written_between(state, x, x_start + val->component, idx->node.index, instr->index))
                 goto done;
 
             hlsl_swizzle_set_component(&cur_swizzle, j, val->component);
@@ -4164,7 +4193,8 @@ static bool vectorize_exprs(struct hlsl_ctx *ctx, struct hlsl_block *block)
                     arg_swizzle = HLSL_SWIZZLE(X, Y, Z, W);
 
                 /* Mask out the invalid components. */
-                arg_swizzle &= (1u << VKD3D_SHADER_SWIZZLE_SHIFT(arg->data_type->e.numeric.dimx)) - 1;
+                if (arg->data_type->e.numeric.dimx < 4)
+                    arg_swizzle &= (1u << VKD3D_SHADER_SWIZZLE_SHIFT(arg->data_type->e.numeric.dimx)) - 1;
                 swizzles[a] |= arg_swizzle << VKD3D_SHADER_SWIZZLE_SHIFT(component_count);
             }
 
@@ -6855,9 +6885,9 @@ static struct hlsl_ir_node *lower_casts_to_bool(struct hlsl_ctx *ctx,
 struct hlsl_ir_node *hlsl_add_conditional(struct hlsl_ctx *ctx, struct hlsl_block *instrs,
         struct hlsl_ir_node *condition, struct hlsl_ir_node *if_true, struct hlsl_ir_node *if_false)
 {
+    struct hlsl_ir_node *operands[HLSL_MAX_OPERANDS] = {0};
     struct hlsl_type *false_type = if_false->data_type;
     struct hlsl_type *cond_type = condition->data_type;
-    struct hlsl_ir_node *operands[HLSL_MAX_OPERANDS];
     struct hlsl_type *true_type = if_true->data_type;
 
     VKD3D_ASSERT(hlsl_types_are_equal(true_type, false_type)

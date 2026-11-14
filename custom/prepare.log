@@ -1,6 +1,6 @@
 fatal: destination path 'wine-git' already exists and is not an empty directory.
 fatal: destination path 'wine-staging-git' already exists and is not an empty directory.
-HEAD is now at 7426bb2f Updated vkd3d-latest patchset
+HEAD is now at 40ab8405 Release v11.22
 HEAD is now at 9f8c4ae4d35 Release 11.22.
 
 2941e58d7d6e630e88b6e9539414f1d86736c7aa reverted 
@@ -171,6 +171,7 @@ server/request_trace.h updated
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0009-Updated-vkd3d-to-1e329f31392db534c0aeb59daad574ec8f1.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0010-Updated-vkd3d-to-5273d178c0c65cba2acb9033b685e7619aa.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0011-Updated-vkd3d-to-0afe7d0aad6eabca21c208be609d3a5670e.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/vkd3d-latest/0012-Updated-vkd3d-to-d881922d6a8324e16383b007f8d116406e6.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wbemdisp-ISWbemObject-Invoke/0001-wbemdisp-Support-DISPATCH_METHOD-in-ISWbemObject-Inv.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wbemdisp-ISWbemObject-Invoke/0002-vbscript-Support-VT_BSTR-VT_ARRAY-Iterator.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/wbemdisp-ISWbemObject-Invoke/0003-wbemprox-Support-VT_BYREF-in-to_longlong.patch
@@ -222,6 +223,7 @@ server/request_trace.h updated
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ws2_32-af_unix/0007-ntdll-report-bound-AF_UNIX-sockets-as-reparse-points.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ws2_32-af_unix/0008-server-give-AF_UNIX-sockets-their-family-before-bind.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ws2_32-af_unix/0009-server-open-bound-AF_UNIX-sockets-as-reparse-points.patch
+/tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/ws2_32-af_unix/0010-afunix-add-test-for-WSAioctl-SIO_AF_UNIX_GETPEERPID.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/xactengine3_7-PrepareWave/0002-xactengine3_7-Implement-IXACT3Engine-PrepareStreamin.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/xactengine3_7-PrepareWave/0003-xactengine3_7-Implement-IXACT3Engine-PrepareInMemory.patch
 /tmp/wine-tkg/src/wine-staging-git/staging/../patches/gitapply.sh -d /home/lee/github/wine-tkg-git/wine-tkg-git/src/wine-git < /tmp/wine-tkg/src/wine-staging-git/staging/../patches/xactengine3_7-PrepareWave/0004-xactengine-Implement-IXACT3Cue-SetOutputVoiceMatrix.patch

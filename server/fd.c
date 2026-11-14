@@ -1973,6 +1973,8 @@ struct fd *open_fd( struct fd *root, const char *name, struct unicode_str nt_nam
 
     if (fd->unix_fd == -1)
     {
+        int open_errno = errno;
+
         /* check for trailing slash on file path */
         if ((errno == ENOENT || (errno == ENOTDIR && !(options & FILE_DIRECTORY_FILE))) && name[strlen(name) - 1] == '/')
         {
@@ -1992,38 +1994,37 @@ struct fd *open_fd( struct fd *root, const char *name, struct unicode_str nt_nam
          * without lock support. Contrary to POSIX, Linux returns ENXIO in this
          * case, so we also check that error code here.
          */
-         if ((errno == EOPNOTSUPP || errno == ENXIO) && S_ISSOCK(st.st_mode))
-         {
-               /* Windows exposes a bound AF_UNIX socket as a reparse point: opening it
-                * without FILE_OPEN_REPARSE_POINT fails with STATUS_IO_REPARSE_TAG_NOT_HANDLED,
-                * and with the flag it yields a handle that only carries metadata, which is
-                * what O_PATH gives us here.
-                */
-                if (options & FILE_DELETE_ON_CLOSE)
-                    ; /* no error, go to regular deletion code path */
-                else if (!(options & FILE_OPEN_REPARSE_POINT))
+        if ((open_errno == EOPNOTSUPP || open_errno == ENXIO) && S_ISSOCK(st.st_mode))
+        {
+            /* Windows exposes a bound AF_UNIX socket as a reparse point: opening it
+             * without FILE_OPEN_REPARSE_POINT fails with STATUS_IO_REPARSE_TAG_NOT_HANDLED,
+             * and with the flag it yields a handle that only carries metadata, which is
+             * what O_PATH gives us here.
+             */
+            if (options & FILE_DELETE_ON_CLOSE)
+                ; /* no error, go to regular deletion code path */
+            else if (!(options & FILE_OPEN_REPARSE_POINT))
+            {
+                set_error( STATUS_IO_REPARSE_TAG_NOT_HANDLED );
+                goto error;
+            }
+            else
+            {
+#ifdef O_PATH
+                fd->unix_fd = open( name, O_PATH );
+#endif
+                if (fd->unix_fd == -1)
                 {
-                    set_error( STATUS_IO_REPARSE_TAG_NOT_HANDLED );
+                    file_set_error();
                     goto error;
                 }
-                else
-                {
-#ifdef O_PATH
-                    fd->unix_fd = open( name, O_PATH );
-#endif
-                    if (fd->unix_fd == -1)
-                    {
-                        file_set_error();
-                        goto error;
-                    }
-                }
             }
+        }
         else
         {
             file_set_error();
             goto error;
         }
-
     }
 
     fd->nt_name = dup_nt_name( root, nt_name, &fd->nt_namelen );
