@@ -2271,6 +2271,8 @@ static LRESULT handle_internal_message( HWND hwnd, UINT msg, WPARAM wparam, LPAR
         return present_opengl_swapchain( hwnd, wparam, lparam );
     case WM_WINE_SWAPCHAIN_DESTROY:
         return destroy_opengl_swapchain( hwnd, wparam );
+    case WM_WINE_SWAPCHAIN_INVALIDATE:
+        return invalidate_opengl_swapchains( hwnd, (HWND)wparam );
     case WM_WINE_SETPIXELFORMAT:
         set_window_pixel_format( hwnd, wparam, lparam );
         return 0;
@@ -4294,6 +4296,28 @@ static LRESULT call_messageAtoW( winproc_callback_t callback, HWND hwnd, UINT ms
                 str[len] = 0;
                 *result = len;
             }
+            free_buffer( buffer, ptr );
+        }
+        break;
+
+    case LB_GETTEXT:
+        {
+            LPSTR str = (LPSTR)lparam;
+            WCHAR *ptr, buffer[512];
+            DWORD len;
+
+            if (!listbox_has_strings( hwnd ))
+            {
+                ret = callback( hwnd, msg, wparam, lparam, result, arg );
+                break;
+            }
+
+            len = send_message( hwnd, LB_GETTEXTLEN, wparam, 0 );
+            if (!(ptr = get_buffer( buffer, sizeof(buffer), (len + 1) * sizeof(WCHAR) ))) break;
+            ret = callback( hwnd, msg, wparam, (LPARAM)ptr, result, arg );
+            len = *result ? win32u_wctomb( &ansi_cp, str, -1, ptr, *result ) : 0;
+            str[len] = 0;
+            *result = len;
             free_buffer( buffer, ptr );
         }
         break;

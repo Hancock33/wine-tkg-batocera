@@ -3769,7 +3769,11 @@ static VkResult d3d12_create_sampler(struct d3d12_device *device, D3D12_FILTER f
     sampler_desc.addressModeV = vk_address_mode_from_d3d12(device, address_v);
     sampler_desc.addressModeW = vk_address_mode_from_d3d12(device, address_w);
     sampler_desc.mipLodBias = mip_lod_bias;
-    sampler_desc.anisotropyEnable = D3D12_DECODE_IS_ANISOTROPIC_FILTER(filter);
+    /* Vulkan's VUID-VkSamplerCreateInfo-anisotropyEnable-01071 disallows zero
+     * .maxAnisotropy in combination with VK_TRUE .anisotropyEnable. It's not
+     * a valid combination in Direct3D 12 either, but such samplers can
+     * nevertheless be successfully created. */
+    sampler_desc.anisotropyEnable = D3D12_DECODE_IS_ANISOTROPIC_FILTER(filter) && max_anisotropy;
     sampler_desc.maxAnisotropy = max_anisotropy;
     sampler_desc.compareEnable = D3D12_DECODE_IS_COMPARISON_FILTER(filter);
     sampler_desc.compareOp = sampler_desc.compareEnable ? vk_compare_op_from_d3d12(comparison_func) : 0;

@@ -2468,6 +2468,24 @@ static struct strarray get_default_imports( const struct makefile *make, struct 
     return ret;
 }
 
+
+/*******************************************************************
+ *         get_all_objects
+ */
+static struct strarray get_all_objects( const struct makefile *make, unsigned int arch )
+{
+    struct strarray ret = empty_strarray;
+    unsigned int link_arch;
+
+    strarray_addall( &ret, make->object_files[arch] );
+    if (get_link_arch( make, arch, &link_arch ) && link_arch != arch)
+        strarray_addall( &ret, make->object_files[link_arch] );
+    strarray_addall( &ret, make->res_files[0] );
+    if (arch) strarray_addall( &ret, make->res_files[arch] );
+    return ret;
+}
+
+
 enum import_type
 {
     IMPORT_TYPE_DIRECT,
@@ -3142,9 +3160,8 @@ static void output_source_ver( struct makefile *make, struct incl_file *source, 
         return;
     }
 
-    for (unsigned int arch = 0; arch < archs.count; arch++)
-        if (!make->disabled[arch]) strarray_add( &make->res_files[arch], res_file );
-
+    if (make->disabled[0]) return;
+    strarray_add( &make->res_files[0], res_file );
     output( "%s: %s", obj_dir_path( make, res_file ), src_dir_path( make, "Makefile.in" ));
     output_filename( wrc );
     if (make->src_dir) output_filename( "nls/locale.nls" );
@@ -3167,25 +3184,29 @@ static void output_source_ver( struct makefile *make, struct incl_file *source, 
 static void output_source_rc( struct makefile *make, struct incl_file *source, const char *obj )
 {
     struct strarray defines = get_source_defines( make, source, obj );
-    const char *po_dir = NULL, *res_file = strmake( "%s.res", obj );
-    unsigned int arch;
+    struct strarray targets = empty_strarray;
+    const char *po_dir = NULL, *res_file = NULL;
 
     if (source->file->flags & FLAG_RC_HEADER) return;
     if (source->file->flags & FLAG_GENERATED) strarray_add( &make->clean_files, source->name );
-    if (linguas.count && (source->file->flags & FLAG_RC_PO)) po_dir = "po";
-    if (!(source->file->flags & FLAG_TESTDLL))
-    {
-        for (arch = 0; arch < archs.count; arch++)
-            if (!make->disabled[arch]) strarray_add( &make->res_files[arch], res_file );
-    }
-    else strarray_add( &make->clean_files, res_file );
+    if (!make->disabled[0]) res_file = strmake( "%s.res", obj );
 
     if (source->file->flags & FLAG_RC_PO)
     {
-        strarray_add( &make->pot_files, strmake( "%s.pot", obj ));
-        output( "%s.pot ", obj_dir_path( make, obj ) );
+        char *pot_file = strmake( "%s.pot", obj );
+        strarray_add( &make->pot_files, pot_file );
+        strarray_add( &targets, pot_file );
+        if (linguas.count) po_dir = "po";
     }
-    output( "%s: %s", obj_dir_path( make, res_file ), source->filename );
+    if (res_file)
+    {
+        if (!(source->file->flags & FLAG_TESTDLL)) strarray_add( &make->res_files[0], res_file );
+        else strarray_add( &make->clean_files, res_file );
+        strarray_add( &targets, res_file );
+    }
+    if (!targets.count) return;
+    output_filenames_obj_dir( make, targets );
+    output( ": %s", source->filename );
     output_filename( wrc );
     if (make->src_dir) output_filename( "nls/locale.nls" );
     output_filenames( source->dependencies );
@@ -3197,7 +3218,7 @@ static void output_source_rc( struct makefile *make, struct incl_file *source, c
     output_filenames( defines );
     output_filename( source->filename );
     output( "\n" );
-    if (po_dir)
+    if (po_dir && res_file)
     {
         output( "%s:", obj_dir_path( make, res_file ));
         STRARRAY_FOR_EACH( lang, &linguas ) output_filename( strmake( "%s/%s.mo", po_dir, lang ));
@@ -3211,12 +3232,10 @@ static void output_source_rc( struct makefile *make, struct incl_file *source, c
  */
 static void output_source_mc( struct makefile *make, struct incl_file *source, const char *obj )
 {
-    unsigned int arch;
     char *obj_path = obj_dir_path( make, obj );
     char *res_file = strmake( "%s.res", obj );
 
-    for (arch = 0; arch < archs.count; arch++)
-        if (!make->disabled[arch]) strarray_add( &make->res_files[arch], res_file );
+    strarray_add( &make->res_files[0], res_file );
     strarray_add( &make->pot_files, strmake( "%s.pot", obj ));
     output( "%s.pot %s.res: %s", obj_path, obj_path, source->filename );
     output_filename( wmc );
@@ -3930,6 +3949,7 @@ static void output_module( struct makefile *make, unsigned int arch )
     struct strarray all_libs = empty_strarray;
     struct strarray dep_libs = empty_strarray;
     struct strarray imports = make->imports;
+    struct strarray objects = get_all_objects( make, arch );
     const char *p, *module_name;
     char *spec_file = NULL;
     unsigned int link_arch;
@@ -3984,9 +4004,7 @@ static void output_module( struct makefile *make, unsigned int arch )
     strarray_add( &make->all_targets[link_arch], module_name );
     output( "%s:", obj_dir_path( make, module_name ));
     if (spec_file) output_filename( spec_file );
-    output_filenames_obj_dir( make, make->object_files[arch] );
-    if (link_arch != arch) output_filenames_obj_dir( make, make->object_files[link_arch] );
-    output_filenames_obj_dir( make, make->res_files[arch] );
+    output_filenames_obj_dir( make, objects );
     output_filenames( dep_libs );
     output_filename( winebuild );
     output_filename( winegcc );
@@ -4004,9 +4022,7 @@ static void output_module( struct makefile *make, unsigned int arch )
     }
     output_filenames( make->extradllflags );
     if (link_arch) output_filenames( get_expanded_arch_var_array( make, "EXTRADLLFLAGS", link_arch ));
-    output_filenames_obj_dir( make, make->object_files[arch] );
-    if (link_arch != arch) output_filenames_obj_dir( make, make->object_files[link_arch] );
-    output_filenames_obj_dir( make, make->res_files[arch] );
+    output_filenames_obj_dir( make, objects );
     output_debug_files( make, module_name, link_arch );
     output_filenames( all_libs );
     output_filename( arch_make_variable( "LDFLAGS", link_arch ));
@@ -4117,6 +4133,7 @@ static void output_test_module( struct makefile *make, unsigned int arch )
     char *stripped = arch_module_name( strmake( "%s_test-stripped.exe", basemodule ), arch );
     char *testmodule = arch_module_name( strmake( "%s_test.exe", basemodule ), arch );
     struct strarray default_imports = get_default_imports( make, make->imports, false );
+    struct strarray objects = get_all_objects( make, arch );
     struct strarray dep_libs = empty_strarray;
     struct strarray all_libs = empty_strarray;
     struct makefile *parent = get_parent_makefile( make );
@@ -4132,9 +4149,7 @@ static void output_test_module( struct makefile *make, unsigned int arch )
     output( "%s:\n", obj_dir_path( make, testmodule ));
     output_winegcc_command( make, link_arch );
     output_filenames( make->extradllflags );
-    output_filenames_obj_dir( make, make->object_files[arch] );
-    if (link_arch != arch) output_filenames_obj_dir( make, make->object_files[link_arch] );
-    output_filenames_obj_dir( make, make->res_files[arch] );
+    output_filenames_obj_dir( make, objects );
     output_debug_files( make, testmodule, arch );
     output_filenames( all_libs );
     output_filename( arch_make_variable( "LDFLAGS", link_arch ));
@@ -4144,16 +4159,12 @@ static void output_test_module( struct makefile *make, unsigned int arch )
     output_filename( "-s" );
     output_filename( strmake( "-Wb,-F,%s_test.exe", basemodule ));
     output_filenames( make->extradllflags );
-    output_filenames_obj_dir( make, make->object_files[arch] );
-    if (link_arch != arch) output_filenames_obj_dir( make, make->object_files[link_arch] );
-    output_filenames_obj_dir( make, make->res_files[arch] );
+    output_filenames_obj_dir( make, objects );
     output_filenames( all_libs );
     output_filename( arch_make_variable( "LDFLAGS", link_arch ));
     output( "\n" );
     output( "%s %s:", obj_dir_path( make, testmodule ), obj_dir_path( make, stripped ));
-    output_filenames_obj_dir( make, make->object_files[arch] );
-    if (link_arch != arch) output_filenames_obj_dir( make, make->object_files[link_arch] );
-    output_filenames_obj_dir( make, make->res_files[arch] );
+    output_filenames_obj_dir( make, objects );
     output_filenames( dep_libs );
     output_filename( winebuild );
     output_filename( winegcc );

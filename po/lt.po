@@ -6,7 +6,7 @@ msgstr ""
 "Project-Id-Version: Wine\n"
 "Report-Msgid-Bugs-To: https://bugs.winehq.org\n"
 "POT-Creation-Date: N/A\n"
-"PO-Revision-Date: 2026-11-05 19:56+0200\n"
+"PO-Revision-Date: 2026-11-17 23:51+0200\n"
 "Last-Translator: Aurimas Fišeras <aurimas@members.fsf.org>\n"
 "Language-Team: Lithuanian <komp_lt@konf.lt>\n"
 "Language: lt\n"
@@ -15307,6 +15307,18 @@ msgstr "Nukopijuota failų: %t%1!u!\n"
 #: programs/cmd/cmd.rc:411 programs/xcopy/xcopy.rc:83
 msgid "File cannot be copied onto itself.\n"
 msgstr "Failas negali būti nukopijuotas ant savęs.\n"
+
+#: programs/cmd/cmd.rc:412
+msgid "Path %1 isn't a valid directory.\n"
+msgstr "Kelias %1 nėra teisingas katalogas.\n"
+
+#: programs/cmd/cmd.rc:413
+msgid "Can't resolve current directory.\n"
+msgstr "Nepavyko nustatyti dabartinio katalogo.\n"
+
+#: programs/cmd/cmd.rc:414
+msgid "The specified drive doesn't exist.\n"
+msgstr "Nurodytas kaupiklis neegzistuoja.\n"
 
 #: programs/conhost/conhost.rc:54
 msgid "Cursor size"

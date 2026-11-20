@@ -1069,12 +1069,19 @@ typedef volatile struct
     char                 extra[];
 } class_shm_t;
 
+struct window_style
+{
+    unsigned int         ws;
+    unsigned int         ex;
+};
+
 struct window_info
 {
     lparam_t             id;
     mod_handle_t         instance;
     lparam_t             user_data;
     client_ptr_t         wndproc;
+    struct window_style  style;
 };
 
 typedef volatile struct
@@ -6066,6 +6073,25 @@ struct get_inproc_alert_fd_reply
 };
 
 
+struct fd_desc
+{
+    int type;
+    int format;
+    union
+    {
+        struct
+        {
+            unsigned __int64 modifier;
+            int offset;
+            int stride;
+        } dma_buf;
+    };
+};
+#define FD_NONE       0
+#define FD_OPAQUE     1
+#define FD_DMA_BUF    2
+
+
 
 struct d3dkmt_object_create_request
 {
@@ -6073,6 +6099,7 @@ struct d3dkmt_object_create_request
     unsigned int        type;
     int                 fd;
     char __pad_20[4];
+    struct fd_desc      fd_desc;
     unsigned __int64    value;
     /* VARARG(runtime,bytes); */
 };
@@ -6128,9 +6155,10 @@ struct d3dkmt_object_open_reply
     struct reply_header __header;
     d3dkmt_handle_t     global;
     obj_handle_t        handle;
+    struct fd_desc      fd_desc;
     data_size_t         runtime_size;
     /* VARARG(runtime,bytes); */
-    char __pad_20[4];
+    char __pad_44[4];
 };
 
 
@@ -7197,6 +7225,6 @@ union generic_reply
     struct alpc_create_port_reply alpc_create_port_reply;
 };
 
-#define SERVER_PROTOCOL_VERSION 979
+#define SERVER_PROTOCOL_VERSION 982
 
 #endif /* __WINE_WINE_SERVER_PROTOCOL_H */

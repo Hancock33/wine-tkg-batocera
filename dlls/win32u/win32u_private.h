@@ -224,28 +224,33 @@ struct gpu_info
 
 extern BOOL get_vulkan_gpus( struct list *gpus );
 
+extern struct fd_desc d3dkmt_object_get_fd_desc( D3DKMT_HANDLE local );
 extern int d3dkmt_object_get_fd( D3DKMT_HANDLE local );
 extern NTSTATUS d3dkmt_destroy_mutex( D3DKMT_HANDLE local );
 
 extern HANDLE open_shared_resource_from_name( const WCHAR *name );
 extern HANDLE open_shared_semaphore_from_name( const WCHAR *name );
 
-extern D3DKMT_HANDLE d3dkmt_create_resource( int fd, D3DKMT_HANDLE *global );
-extern D3DKMT_HANDLE d3dkmt_open_resource( D3DKMT_HANDLE global, HANDLE shared, D3DKMT_HANDLE *mutex_local, D3DKMT_HANDLE *sync_local );
+extern D3DKMT_HANDLE d3dkmt_create_resource( int fd, struct fd_desc fd_desc, D3DKMT_HANDLE *global );
+extern D3DKMT_HANDLE d3dkmt_open_resource( D3DKMT_HANDLE global, HANDLE shared, struct fd_desc *fd_desc,
+                                           D3DKMT_HANDLE *mutex_local, D3DKMT_HANDLE *sync_local );
 extern NTSTATUS d3dkmt_destroy_resource( D3DKMT_HANDLE local );
 
-extern D3DKMT_HANDLE d3dkmt_create_sync( int fd, D3DKMT_HANDLE *global );
-extern D3DKMT_HANDLE d3dkmt_open_sync( D3DKMT_HANDLE global, HANDLE shared );
+extern D3DKMT_HANDLE d3dkmt_create_sync( int fd, struct fd_desc fd_desc, D3DKMT_HANDLE *global );
+extern D3DKMT_HANDLE d3dkmt_open_sync( D3DKMT_HANDLE global, HANDLE shared, struct fd_desc *fd_desc );
 extern NTSTATUS d3dkmt_destroy_sync( D3DKMT_HANDLE local );
 
 extern NTSTATUS d3dkmt_swapchain_create( HWND toplevel, HWND hwnd, SIZE size, D3DKMT_HANDLE resources[3],
                                          D3DKMT_HANDLE *local, D3DKMT_HANDLE *global );
 extern NTSTATUS d3dkmt_swapchain_destroy( D3DKMT_HANDLE local );
+extern D3DKMT_HANDLE d3dkmt_swapchain_get_image( D3DKMT_HANDLE local, UINT index, SIZE *size );
 
 extern NTSTATUS d3dkmt_swapchain_create_remote( HWND hwnd, SIZE *size, D3DKMT_HANDLE *local );
 extern NTSTATUS d3dkmt_swapchain_destroy_remote( D3DKMT_HANDLE local );
 extern NTSTATUS d3dkmt_swapchain_acquire_image( D3DKMT_HANDLE local, UINT *index );
 extern NTSTATUS d3dkmt_swapchain_queue_present( D3DKMT_HANDLE local, UINT index );
+
+extern NTSTATUS d3dkmt_swapchain_release_image( D3DKMT_HANDLE local, UINT index );
 
 /* opengl.c */
 
@@ -255,6 +260,7 @@ extern void cleanup_opengl_thread(void);
 extern D3DKMT_HANDLE create_opengl_swapchain( HWND toplevel, HWND hwnd );
 extern BOOL present_opengl_swapchain( HWND toplevel, D3DKMT_HANDLE global, UINT index );
 extern BOOL destroy_opengl_swapchain( HWND toplevel, D3DKMT_HANDLE global );
+extern BOOL invalidate_opengl_swapchains( HWND toplevel, HWND hwnd );
 extern void free_opengl_swapchains( struct list *swapchains );
 
 /* winstation.c */
